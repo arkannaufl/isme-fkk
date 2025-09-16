@@ -615,6 +615,6 @@ This project is licensed under the [MIT License](LICENSE).
   
   <p><strong>Built with ❤️ by the UMJ Development Team</strong></p>
   
-  <p><em>Last updated: January 2025</em></p>
+  <p><em>Last updated: September 2025</em></p>
   
 </div>
