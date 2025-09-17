@@ -351,7 +351,7 @@ function AppContent() {
                              <Route
                  path="/penilaian-pbl/:kode_blok/:kelompok/:pertemuan"
                  element={
-                   <RequireDosenRole allowedRoles={["super_admin", "tim_akademik"]}>
+                   <RequireDosenRole allowedRoles={["super_admin", "tim_akademik", "dosen"]}>
                      <PenilaianPBLPage />
                    </RequireDosenRole>
                  }
@@ -359,7 +359,7 @@ function AppContent() {
                <Route
                  path="/penilaian-pbl-antara/:kode_blok/:kelompok/:pertemuan"
                  element={
-                   <RequireDosenRole allowedRoles={["super_admin", "tim_akademik"]}>
+                   <RequireDosenRole allowedRoles={["super_admin", "tim_akademik", "dosen"]}>
                      <PenilaianPBLAntaraPage />
                    </RequireDosenRole>
                  }
@@ -367,7 +367,7 @@ function AppContent() {
               <Route
                 path="/penilaian-jurnal/:kode_blok/:kelompok/:jurnal_id"
                 element={
-                  <RequireDosenRole allowedRoles={["super_admin", "tim_akademik"]}>
+                  <RequireDosenRole allowedRoles={["super_admin", "tim_akademik", "dosen"]}>
                     <PenilaianJurnalPage />
                   </RequireDosenRole>
                 }
@@ -375,7 +375,7 @@ function AppContent() {
               <Route
                 path="/penilaian-jurnal-antara/:kode_blok/:kelompok/:jurnal_id"
                 element={
-                  <RequireDosenRole allowedRoles={["super_admin", "tim_akademik"]}>
+                  <RequireDosenRole allowedRoles={["super_admin", "tim_akademik", "dosen"]}>
                     <PenilaianJurnalAntaraPage />
                   </RequireDosenRole>
                 }

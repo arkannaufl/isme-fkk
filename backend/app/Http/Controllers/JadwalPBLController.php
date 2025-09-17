@@ -228,7 +228,19 @@ class JadwalPBLController extends Controller
             return response()->json(['message' => $bentrokMessage], 422);
         }
 
+        // Simpan PBL type lama untuk perbandingan
+        $oldPBLType = $jadwal->pbl_tipe;
+        
+        // Reset penilaian submitted status jika jadwal diubah
+        // Ini memungkinkan dosen pengampu untuk mengisi ulang penilaian
+        $jadwal->resetPenilaianSubmitted();
+        
         $jadwal->update($data);
+        
+        // Update penilaian data jika PBL type berubah
+        if ($oldPBLType !== $data['pbl_tipe']) {
+            $jadwal->updatePenilaianForPBLTypeChange($oldPBLType, $data['pbl_tipe']);
+        }
         
         // Load relasi dan tambahkan modul_pbl_id
         $jadwal->load(['modulPBL', 'kelompokKecil', 'kelompokKecilAntara', 'dosen', 'ruangan']);

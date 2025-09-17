@@ -12,11 +12,6 @@ class PenilaianPBLController extends Controller
     // Ambil semua penilaian untuk satu kelompok & pertemuan
     public function index($kode, $kelompok, $pertemuan)
     {
-        $data = PenilaianPBL::where('mata_kuliah_kode', $kode)
-            ->where('kelompok', $kelompok)
-            ->where('pertemuan', $pertemuan)
-            ->get();
-
         // Ambil id kelompok kecil dari nama (jika perlu)
         $kelompokId = $kelompok;
         if (!is_numeric($kelompok)) {
@@ -29,6 +24,26 @@ class PenilaianPBLController extends Controller
             ->where('kelompok_kecil_id', $kelompokId)
             ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
             ->first();
+
+        // Validasi: Cek apakah jadwal ada
+        if (!$jadwal) {
+            return response()->json(['error' => 'Jadwal tidak ditemukan'], 404);
+        }
+
+        // Validasi: Cek apakah user yang akses adalah dosen yang "bisa ngajar"
+        $user = auth()->user();
+        if ($user->role === 'dosen') {
+            // Cek apakah dosen ini ada di daftar dosen_ids dan status_konfirmasi = 'bisa'
+            $dosenIds = is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true);
+            if (!in_array($user->id, $dosenIds) || $jadwal->status_konfirmasi !== 'bisa') {
+                return response()->json(['error' => 'Anda tidak memiliki akses untuk menilai jadwal ini'], 403);
+            }
+        }
+
+        $data = PenilaianPBL::where('mata_kuliah_kode', $kode)
+            ->where('kelompok', $kelompok)
+            ->where('pertemuan', $pertemuan)
+            ->get();
 
         $modul_pbl_id = $jadwal->modul_pbl_id ?? null;
         $nama_modul = null;
@@ -62,12 +77,16 @@ class PenilaianPBLController extends Controller
             'modul_pbl_id' => $modul_pbl_id,
             'nama_modul' => $nama_modul,
             'is_pbl_2' => $isPBL2,
+            'penilaian_submitted' => $jadwal->penilaian_submitted ?? false,
         ]);
     }
 
     // Simpan/update penilaian (bulk per kelompok & pertemuan)
     public function store(Request $request, $kode, $kelompok, $pertemuan)
     {
+        // Validasi akses dosen
+        $this->validateDosenAccess($kode, $kelompok, $pertemuan);
+
         // Tentukan apakah ini PBL 1 atau PBL 2
         $isPBL2 = $this->isPBL2($pertemuan);
 
@@ -82,7 +101,7 @@ class PenilaianPBLController extends Controller
             'penilaian.*.nilai_e' => 'required|integer',
             'penilaian.*.nilai_f' => 'required|integer',
             'penilaian.*.nilai_g' => 'required|integer',
-            'penilaian.*.peta_konsep' => 'nullable|integer',
+            'penilaian.*.peta_konsep' => 'nullable|integer|min:0|max:100',
             'tanggal_paraf' => 'nullable|date',
             'signature_paraf' => 'nullable|string',
             'nama_tutor' => 'nullable|string',
@@ -127,6 +146,9 @@ class PenilaianPBLController extends Controller
             );
         }
 
+        // Update jadwal PBL status penilaian_submitted
+        $this->updateJadwalPenilaianStatus($kode, $kelompok, $pertemuan);
+
         $message = $isPBL2 ? 'Penilaian PBL 2 berhasil disimpan' : 'Penilaian PBL 1 berhasil disimpan';
         return response()->json(['message' => $message]);
     }
@@ -160,11 +182,6 @@ class PenilaianPBLController extends Controller
     // Method untuk semester Antara - Ambil semua penilaian untuk satu kelompok & pertemuan
     public function indexAntara($kode, $kelompok, $pertemuan)
     {
-        $data = PenilaianPBL::where('mata_kuliah_kode', $kode)
-            ->where('kelompok', $kelompok)
-            ->where('pertemuan', $pertemuan)
-            ->get();
-
         // Ambil id kelompok kecil antara dari nama
         $kelompokId = $kelompok;
         if (!is_numeric($kelompok)) {
@@ -177,6 +194,26 @@ class PenilaianPBLController extends Controller
             ->where('kelompok_kecil_antara_id', $kelompokId)
             ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
             ->first();
+
+        // Validasi: Cek apakah jadwal ada
+        if (!$jadwal) {
+            return response()->json(['error' => 'Jadwal tidak ditemukan'], 404);
+        }
+
+        // Validasi: Cek apakah user yang akses adalah dosen yang "bisa ngajar"
+        $user = auth()->user();
+        if ($user->role === 'dosen') {
+            // Cek apakah dosen ini ada di daftar dosen_ids dan status_konfirmasi = 'bisa'
+            $dosenIds = is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true);
+            if (!in_array($user->id, $dosenIds) || $jadwal->status_konfirmasi !== 'bisa') {
+                return response()->json(['error' => 'Anda tidak memiliki akses untuk menilai jadwal ini'], 403);
+            }
+        }
+
+        $data = PenilaianPBL::where('mata_kuliah_kode', $kode)
+            ->where('kelompok', $kelompok)
+            ->where('pertemuan', $pertemuan)
+            ->get();
 
         $modul_pbl_id = $jadwal->modul_pbl_id ?? null;
         $nama_modul = null;
@@ -209,12 +246,16 @@ class PenilaianPBLController extends Controller
             'modul_pbl_id' => $modul_pbl_id,
             'nama_modul' => $nama_modul,
             'is_pbl_2' => $isPBL2,
+            'penilaian_submitted' => $jadwal->penilaian_submitted ?? false,
         ]);
     }
 
     // Method untuk semester Antara - Simpan/update penilaian
     public function storeAntara(Request $request, $kode, $kelompok, $pertemuan)
     {
+        // Validasi akses dosen untuk semester antara
+        $this->validateDosenAccessAntara($kode, $kelompok, $pertemuan);
+
         // Tentukan apakah ini PBL 1 atau PBL 2
         $isPBL2 = $this->isPBL2($pertemuan);
 
@@ -229,7 +270,7 @@ class PenilaianPBLController extends Controller
             'penilaian.*.nilai_e' => 'required|integer',
             'penilaian.*.nilai_f' => 'required|integer',
             'penilaian.*.nilai_g' => 'required|integer',
-            'penilaian.*.peta_konsep' => 'nullable|integer',
+            'penilaian.*.peta_konsep' => 'nullable|integer|min:0|max:100',
             'tanggal_paraf' => 'nullable|date',
             'signature_paraf' => 'nullable|string',
             'nama_tutor' => 'nullable|string',
@@ -273,6 +314,9 @@ class PenilaianPBLController extends Controller
                 $dataToSave
             );
         }
+
+        // Update jadwal PBL status penilaian_submitted untuk semester antara
+        $this->updateJadwalPenilaianStatusAntara($kode, $kelompok, $pertemuan);
 
         $message = $isPBL2 ? 'Penilaian PBL 2 (Antara) berhasil disimpan' : 'Penilaian PBL 1 (Antara) berhasil disimpan';
         return response()->json(['message' => $message]);
@@ -326,6 +370,132 @@ class PenilaianPBLController extends Controller
             return response()->json(['message' => 'Absensi berhasil disimpan']);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Gagal menyimpan absensi: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Update jadwal PBL penilaian_submitted status
+     */
+    private function updateJadwalPenilaianStatus($kode, $kelompok, $pertemuan)
+    {
+        try {
+            // Ambil id kelompok kecil dari nama (jika perlu)
+            $kelompokId = $kelompok;
+            if (!is_numeric($kelompok)) {
+                $kelompokObj = \App\Models\KelompokKecil::where('nama_kelompok', $kelompok)->first();
+                $kelompokId = $kelompokObj ? $kelompokObj->id : null;
+            }
+
+            // Update jadwal PBL
+            $jadwal = \App\Models\JadwalPBL::where('mata_kuliah_kode', $kode)
+                ->where('kelompok_kecil_id', $kelompokId)
+                ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
+                ->first();
+
+            if ($jadwal) {
+                $jadwal->update([
+                    'penilaian_submitted' => true,
+                    'penilaian_submitted_by' => auth()->id(),
+                    'penilaian_submitted_at' => now(),
+                ]);
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error updating jadwal penilaian status: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Update jadwal PBL penilaian_submitted status untuk semester antara
+     */
+    private function updateJadwalPenilaianStatusAntara($kode, $kelompok, $pertemuan)
+    {
+        try {
+            // Ambil id kelompok kecil antara dari nama (jika perlu)
+            $kelompokId = $kelompok;
+            if (!is_numeric($kelompok)) {
+                $kelompokObj = \App\Models\KelompokKecilAntara::where('nama_kelompok', $kelompok)->first();
+                $kelompokId = $kelompokObj ? $kelompokObj->id : null;
+            }
+
+            // Update jadwal PBL
+            $jadwal = \App\Models\JadwalPBL::where('mata_kuliah_kode', $kode)
+                ->where('kelompok_kecil_antara_id', $kelompokId)
+                ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
+                ->first();
+
+            if ($jadwal) {
+                $jadwal->update([
+                    'penilaian_submitted' => true,
+                    'penilaian_submitted_by' => auth()->id(),
+                    'penilaian_submitted_at' => now(),
+                ]);
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error updating jadwal penilaian status (Antara): ' . $e->getMessage());
+        }
+    }
+
+    // Validasi akses dosen untuk jadwal tertentu
+    private function validateDosenAccess($kode, $kelompok, $pertemuan)
+    {
+        // Ambil id kelompok kecil dari nama (jika perlu)
+        $kelompokId = $kelompok;
+        if (!is_numeric($kelompok)) {
+            $kelompokObj = \App\Models\KelompokKecil::where('nama_kelompok', $kelompok)->first();
+            $kelompokId = $kelompokObj ? $kelompokObj->id : null;
+        }
+
+        // Ambil jadwal PBL yang sesuai
+        $jadwal = \App\Models\JadwalPBL::where('mata_kuliah_kode', $kode)
+            ->where('kelompok_kecil_id', $kelompokId)
+            ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
+            ->first();
+
+        // Validasi: Cek apakah jadwal ada
+        if (!$jadwal) {
+            abort(404, 'Jadwal tidak ditemukan');
+        }
+
+        // Validasi: Cek apakah user yang akses adalah dosen yang "bisa ngajar"
+        $user = auth()->user();
+        if ($user->role === 'dosen') {
+            // Cek apakah dosen ini ada di daftar dosen_ids dan status_konfirmasi = 'bisa'
+            $dosenIds = is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true);
+            if (!in_array($user->id, $dosenIds) || $jadwal->status_konfirmasi !== 'bisa') {
+                abort(403, 'Anda tidak memiliki akses untuk menilai jadwal ini');
+            }
+        }
+    }
+
+    // Validasi akses dosen untuk jadwal semester antara
+    private function validateDosenAccessAntara($kode, $kelompok, $pertemuan)
+    {
+        // Ambil id kelompok kecil antara dari nama (jika perlu)
+        $kelompokId = $kelompok;
+        if (!is_numeric($kelompok)) {
+            $kelompokObj = \App\Models\KelompokKecilAntara::where('nama_kelompok', $kelompok)->first();
+            $kelompokId = $kelompokObj ? $kelompokObj->id : null;
+        }
+
+        // Ambil jadwal PBL yang sesuai untuk semester antara
+        $jadwal = \App\Models\JadwalPBL::where('mata_kuliah_kode', $kode)
+            ->where('kelompok_kecil_antara_id', $kelompokId)
+            ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
+            ->first();
+
+        // Validasi: Cek apakah jadwal ada
+        if (!$jadwal) {
+            abort(404, 'Jadwal tidak ditemukan');
+        }
+
+        // Validasi: Cek apakah user yang akses adalah dosen yang "bisa ngajar"
+        $user = auth()->user();
+        if ($user->role === 'dosen') {
+            // Cek apakah dosen ini ada di daftar dosen_ids dan status_konfirmasi = 'bisa'
+            $dosenIds = is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true);
+            if (!in_array($user->id, $dosenIds) || $jadwal->status_konfirmasi !== 'bisa') {
+                abort(403, 'Anda tidak memiliki akses untuk menilai jadwal ini');
+            }
         }
     }
 }

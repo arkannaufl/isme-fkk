@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { ChevronLeftIcon } from "../icons";
-import api, { handleApiError } from "../utils/api";
+import api, { handleApiError, getUser } from "../utils/api";
 import SignaturePad from "react-signature-canvas";
 import React, { useRef } from "react";
 import { AnimatePresence } from "framer-motion";
@@ -58,11 +58,17 @@ export default function PenilaianPBLPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showWarningModal, setShowWarningModal] = useState(false);
+  const [penilaianSubmitted, setPenilaianSubmitted] = useState(false);
   // Semester Antara tidak perlu state semester karena menggunakan kelompok-kecil-antara
   const [modulPBLList, setModulPBLList] = useState<any[]>([]);
   const [namaModul, setNamaModul] = useState('');
   const [modulPBLId, setModulPBLId] = useState<number | null>(null);
   const [isPBL2, setIsPBL2] = useState(false);
+  
+  // Permission and status states
+  const [userRole, setUserRole] = useState<string>('');
+  const [canEdit, setCanEdit] = useState<boolean>(true);
 
   const [isDark, setIsDark] = useState(document.documentElement.classList.contains('dark'));
   useEffect(() => {
@@ -71,6 +77,14 @@ export default function PenilaianPBLPage() {
     });
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     return () => observer.disconnect();
+  }, []);
+
+  // Check user permission and penilaian status
+  useEffect(() => {
+    const user = getUser();
+    if (user) {
+      setUserRole(user.role || '');
+    }
   }, []);
 
   // Fetch data blok untuk dapatkan nama dan kode
@@ -141,6 +155,36 @@ export default function PenilaianPBLPage() {
         setNamaModul(penilaianRes.data.nama_modul || ''); // Ambil nama modul dari response API
         setIsPBL2(penilaianRes.data.is_pbl_2 || false); // Set status PBL 2 dari backend
         
+        // Cek status penilaian_submitted dari backend
+        // Selalu update berdasarkan response dari backend
+        setPenilaianSubmitted(penilaianRes.data.penilaian_submitted || false);
+        
+        // Update canEdit berdasarkan role dan status
+        const user = getUser();
+        if (user) {
+          const isAdmin = user.role === 'super_admin' || user.role === 'tim_akademik';
+          setCanEdit(isAdmin || !(penilaianRes.data.penilaian_submitted || false));
+        }
+        
+        // Jika PBL type berubah, reset petaKonsep untuk semua mahasiswa
+        if (penilaianRes.data.is_pbl_2 && !isPBL2) {
+          // PBL 1 → PBL 2: tambah petaKonsep dengan nilai 0
+          const updatedPenilaian = { ...penilaian };
+          Object.keys(updatedPenilaian).forEach(npm => {
+            if (updatedPenilaian[npm].petaKonsep === undefined) {
+              updatedPenilaian[npm].petaKonsep = 0;
+            }
+          });
+          setPenilaian(updatedPenilaian);
+        } else if (!penilaianRes.data.is_pbl_2 && isPBL2) {
+          // PBL 2 → PBL 1: hapus petaKonsep
+          const updatedPenilaian = { ...penilaian };
+          Object.keys(updatedPenilaian).forEach(npm => {
+            delete updatedPenilaian[npm].petaKonsep;
+          });
+          setPenilaian(updatedPenilaian);
+        }
+        
         // Mapping ke state absensi
         const absensiData = absensiRes.data.absensi || {};
         const abs: AbsensiPBL = {};
@@ -152,7 +196,16 @@ export default function PenilaianPBLPage() {
         });
         setAbsensi(abs);
       })
-      .catch(() => setError('Gagal memuat data penilaian'))
+      .catch((error: any) => {
+        console.error('Error fetching data:', error);
+        if (error.response?.status === 403) {
+          setError('Anda tidak memiliki akses untuk menilai jadwal ini. Hanya dosen yang ditugaskan dan telah mengkonfirmasi ketersediaan yang dapat mengakses halaman ini.');
+        } else if (error.response?.status === 404) {
+          setError('Jadwal tidak ditemukan. Pastikan jadwal yang Anda akses sudah benar.');
+        } else {
+          setError('Gagal memuat data penilaian. Silakan coba lagi.');
+        }
+      })
       .finally(() => setLoading(false));
   }, [kode_blok, kelompok, pertemuan]);
 
@@ -166,19 +219,19 @@ export default function PenilaianPBLPage() {
   const handleSaveAll = async () => {
     if (!kode_blok || !kelompok || !pertemuan) return;
     
-    // Validasi untuk PBL 2 - pastikan peta_konsep diisi
-    if (isPBL2) {
-      const hasEmptyPetaKonsep = mahasiswa.some(m => {
-        const nilai = penilaian[m.npm];
-        return !nilai || nilai.petaKonsep === undefined || nilai.petaKonsep === null || nilai.petaKonsep === 0;
-      });
-      
-      if (hasEmptyPetaKonsep) {
-        setError('Untuk PBL 2, nilai Peta Konsep harus diisi untuk semua mahasiswa');
-        return;
-      }
+    // Peta Konsep tidak wajib diisi - optional untuk PBL 2
+    
+    // Tampilkan popup peringatan untuk dosen
+    const user = getUser();
+    if (user?.role === 'dosen' && !penilaianSubmitted) {
+      setShowWarningModal(true);
+      return;
     }
     
+    await performSave();
+  };
+
+  const performSave = async () => {
     setSaving(true);
     setError(null);
     try {
@@ -207,7 +260,15 @@ export default function PenilaianPBLPage() {
         nama_tutor: namaTutor,
       };
       await api.post(`/mata-kuliah/${kode_blok}/kelompok-antara/${kelompok}/pertemuan/${pertemuan}/penilaian-pbl`, payload);
+      
+      // Set status penilaian submitted untuk dosen
+      const user = getUser();
+      if (user?.role === 'dosen') {
+        setPenilaianSubmitted(true);
+      }
+      
       setSuccess(`Absensi dan penilaian ${isPBL2 ? 'PBL 2' : 'PBL 1'} berhasil disimpan!`);
+      setShowWarningModal(false);
     } catch (error: any) {
       console.error('Error saving penilaian:', error);
       console.error('Error details:', handleApiError(error, 'Menyimpan penilaian'));
@@ -273,17 +334,38 @@ export default function PenilaianPBLPage() {
   const hitungJumlah = (npm: string) => {
     const nilai = penilaian[npm];
     if (!nilai) return 0;
-    return nilai.A + nilai.B + nilai.C + nilai.D + nilai.E + nilai.F + nilai.G;
+    
+    const A = nilai.A || 0;
+    const B = nilai.B || 0;
+    const C = nilai.C || 0;
+    const D = nilai.D || 0;
+    const E = nilai.E || 0;
+    const F = nilai.F || 0;
+    const G = nilai.G || 0;
+    
+    return A + B + C + D + E + F + G;
   };
 
   const hitungTotalNilai = (npm: string) => {
     const nilai = penilaian[npm];
     if (!nilai) return 0;
-    const jumlahKriteria = nilai.A + nilai.B + nilai.C + nilai.D + nilai.E + nilai.F + nilai.G;
-    if (isPBL2) {
-      return jumlahKriteria + (nilai.petaKonsep || 0);
-    }
-    return jumlahKriteria;
+    
+    const A = nilai.A || 0;
+    const B = nilai.B || 0;
+    const C = nilai.C || 0;
+    const D = nilai.D || 0;
+    const E = nilai.E || 0;
+    const F = nilai.F || 0;
+    const G = nilai.G || 0;
+    
+    // Hitung jumlah nilai A-G (maksimal 5 per kriteria)
+    const jumlahKriteria = A + B + C + D + E + F + G;
+    const nilaiMaksimalKriteria = 7 * 5; // 7 kriteria × 5 (nilai maksimal)
+    
+    // Rumus: Total = (Jumlah Kriteria / Nilai Maksimal Kriteria) × 100
+    // Peta Konsep tidak mempengaruhi Total Nilai, ditampilkan terpisah
+    const persentaseKriteria = (jumlahKriteria / nilaiMaksimalKriteria) * 100;
+    return Math.round(persentaseKriteria);
   };
 
   const handleClearTutor = () => {
@@ -357,8 +439,8 @@ export default function PenilaianPBLPage() {
     // Table header
     const tableHeader = [
         "NO", "NPM", "NAMA", "A", "B", "C", "D", "E", "F", "G", "Jumlah",
-        ...(isPBL2 ? ["Peta Konsep (0-100)"] : []), // L: Peta Konsep
         "Total Nilai",
+        ...(isPBL2 ? ["Peta Konsep (0-100)"] : []), // Peta Konsep di paling kanan
       ];
       const headerRow = sheet.addRow(tableHeader);
       headerRow.font = { bold: true };
@@ -392,9 +474,9 @@ export default function PenilaianPBLPage() {
           nilai.F ?? "",
           nilai.G ?? "",
         hitungJumlah(m.npm),
+        hitungTotalNilai(m.npm),
       ];
       if (isPBL2) row.push(nilai.petaKonsep ?? "");
-      row.push(hitungTotalNilai(m.npm));
         const dataRow = sheet.addRow(row);
         dataRow.alignment = { vertical: "middle", horizontal: "center" };
         dataRow.getCell(3).alignment = { vertical: "middle", horizontal: "left" }; // NAMA kiri
@@ -549,8 +631,8 @@ export default function PenilaianPBLPage() {
           .map((k) => `<th>${k}</th>`)
           .join("")}
         <th>JUMLAH</th>
-        ${isPBL2 ? "<th>Peta Konsep (0-100)</th>" : ""}
         <th>TOTAL NILAI</th>
+        ${isPBL2 ? "<th>Peta Konsep (0-100)</th>" : ""}
       </tr>
     `;
     
@@ -566,8 +648,8 @@ export default function PenilaianPBLPage() {
           .map((k) => `<td>${(nilai as Record<string, number>)[k] ?? ""}</td>`)
           .join("")}
         <td>${hitungJumlah(m.npm)}</td>
-        ${isPBL2 ? `<td>${(nilai as Record<string, number>)?.petaKonsep ?? ""}</td>` : ""}
         <td><strong>${hitungTotalNilai(m.npm)}</strong></td>
+        ${isPBL2 ? `<td>${(nilai as Record<string, number>)?.petaKonsep ?? ""}</td>` : ""}
       </tr>`;
       })
       .join("");
@@ -646,13 +728,22 @@ export default function PenilaianPBLPage() {
 
   return (
     <div className="container mx-auto dark:bg-gray-900 min-h-screen">
+      {/* Only show header if no error */}
+      {!error && (
       <div className="pb-2 flex justify-between items-center">
         <button                                                                                                                                             
-          onClick={() => navigate(-1)} 
+          onClick={() => {
+            const user = getUser();
+            if (user?.role === 'dosen') {
+              navigate('/dashboard-dosen');
+            } else {
+              navigate(-1);
+            }
+          }} 
           className="flex items-center gap-2 text-brand-500 font-medium hover:text-brand-600 transition px-0 py-0 bg-transparent shadow-none dark:text-green-400 dark:hover:text-green-300"
         >
           <ChevronLeftIcon className="w-5 h-5" />
-          Kembali ke Detail Blok
+          {getUser()?.role === 'dosen' ? 'Kembali ke Dashboard' : 'Kembali ke Detail Blok'}
         </button>
         <div className="flex items-center">
           <button
@@ -669,6 +760,7 @@ export default function PenilaianPBLPage() {
           </button>
         </div>
       </div>
+      )}
               {/* Success Messages */}
               <AnimatePresence>
           {success && (
@@ -684,12 +776,36 @@ export default function PenilaianPBLPage() {
           )}
         </AnimatePresence>
         
-        {/* Error Messages */}
+        {/* Error Messages - Centered */}
         {error && (
-          <div className="mt-4 p-3 rounded-lg bg-red-100 text-red-700">
-            {error}
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="max-w-md w-full p-6 rounded-lg bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700 text-center">
+              <div className="flex justify-center mb-4">
+                <svg className="h-12 w-12 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-red-800 dark:text-red-200 mb-3">
+                Akses Ditolak
+              </h3>
+              <div className="text-sm text-red-700 dark:text-red-300 mb-6">
+                {error}
+              </div>
+              <button
+                onClick={() => window.history.back()}
+                className="inline-flex items-center px-4 py-2 border border-red-300 dark:border-red-600 text-sm leading-4 font-medium rounded-md text-red-700 dark:text-red-300 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Kembali
+              </button>
+            </div>
           </div>
         )}
+      
+      {/* Only show form if no error */}
+      {!error && (
       <div className="bg-white dark:bg-gray-800 mt-6 shadow-md rounded-lg p-6">
         <h1 className="text-xl font-bold text-center text-gray-900 dark:text-white mb-2">
           LEMBAR PENILAIAN MAHASISWA OLEH TUTOR
@@ -702,6 +818,11 @@ export default function PenilaianPBLPage() {
           }`}>
             {isPBL2 ? 'PBL 2 (Dengan Peta Konsep)' : 'PBL 1 (Tanpa Peta Konsep)'}
           </span>
+          {getUser()?.role === 'dosen' && penilaianSubmitted && (
+            <span className="ml-2 inline-block px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+              Penilaian Sudah Disubmit - View Only
+            </span>
+          )}
         </div>
         <div className="flex justify-between items-center mb-4 text-sm text-gray-700 dark:text-gray-300">
           <div>
@@ -824,14 +945,14 @@ export default function PenilaianPBLPage() {
                 <th className="px-2 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Jumlah
                 </th>
-                {isPBL2 && (
-                  <th className="px-2 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Peta Konsep (0-100)
-                  </th>
-                )}
                 <th className="px-2 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Total Nilai
                 </th>
+                {isPBL2 && (
+                  <th className="px-2 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Peta Konsep (0-100) - Optional
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
@@ -846,8 +967,11 @@ export default function PenilaianPBLPage() {
                         type="checkbox"
                         checked={absensi[m.npm]?.hadir || false}
                         onChange={(e) => handleAbsensiChange(m.npm, e.target.checked)}
+                        disabled={!canEdit}
                         className={`w-5 h-5 appearance-none rounded-md border-2 ${
-                          absensi[m.npm]?.hadir 
+                          getUser()?.role === 'dosen' && penilaianSubmitted
+                            ? 'border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 cursor-not-allowed'
+                            : absensi[m.npm]?.hadir 
                             ? 'border-brand-500 bg-brand-500' 
                             : 'border-brand-500 bg-transparent'
                         } transition-colors duration-150 focus:ring-2 focus:ring-brand-300 dark:focus:ring-brand-600 relative`}
@@ -885,12 +1009,26 @@ export default function PenilaianPBLPage() {
                             e.target.value
                           )
                         }
-                        className="w-12 text-center bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md p-1 dark:text-gray-100 dark:placeholder-gray-400"
+                        disabled={!canEdit}
+                        className={`w-12 text-center border rounded-md p-1 dark:text-gray-100 dark:placeholder-gray-400 ${
+                          getUser()?.role === 'dosen' && penilaianSubmitted
+                            ? 'bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 cursor-not-allowed'
+                            : 'bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600'
+                        }`}
                       />
                     </td>
                   ))}
                   <td className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200">
                     {hitungJumlah(m.npm)}
+                  </td>
+                  <td className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200 font-medium">
+                    <span className={`px-2 py-1 rounded text-xs ${
+                      hitungTotalNilai(m.npm) > 0 
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
+                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                    }`}>
+                      {hitungTotalNilai(m.npm)}
+                    </span>
                   </td>
                   {isPBL2 && (
                     <td className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200">
@@ -902,30 +1040,16 @@ export default function PenilaianPBLPage() {
                         onChange={(e) =>
                           handleInputChange(m.npm, "petaKonsep", e.target.value)
                         }
+                        disabled={!canEdit}
                         className={`w-20 text-center border rounded-md p-1 dark:text-gray-100 dark:placeholder-gray-400 ${
-                          isPBL2 && (!penilaian[m.npm]?.petaKonsep || penilaian[m.npm]?.petaKonsep === 0)
-                            ? 'border-red-300 bg-red-50 dark:border-red-600 dark:bg-red-900/20'
+                          !canEdit
+                            ? 'bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 cursor-not-allowed'
                             : 'bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600'
                         }`}
-                        required
-                        placeholder="0-100"
+                        placeholder="0-100 (Optional)"
                       />
-                      {isPBL2 && (!penilaian[m.npm]?.petaKonsep || penilaian[m.npm]?.petaKonsep === 0) && (
-                        <div className="text-xs text-red-600 dark:text-red-400 mt-1">
-                          Wajib diisi
-                        </div>
-                      )}
                     </td>
                   )}
-                  <td className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200 font-medium">
-                    <span className={`px-2 py-1 rounded text-xs ${
-                      hitungTotalNilai(m.npm) > 0 
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
-                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
-                    }`}>
-                      {hitungTotalNilai(m.npm)}
-                    </span>
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -980,7 +1104,12 @@ export default function PenilaianPBLPage() {
                 type="date"
                 value={tanggalParaf}
                 onChange={(e) => setTanggalParaf(e.target.value)}
-                className="border rounded px-2 py-1 text-xs dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600"
+                disabled={!canEdit}
+                className={`border rounded px-2 py-1 text-xs dark:text-gray-100 dark:border-gray-600 ${
+                  getUser()?.role === 'dosen' && penilaianSubmitted
+                    ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed'
+                    : 'dark:bg-gray-800'
+                }`}
               />
             </span>
             <span className="text-xs mb-5 dark:text-gray-200">TUTOR</span>
@@ -990,14 +1119,24 @@ export default function PenilaianPBLPage() {
                 value={namaTutor}
                 onChange={e => setNamaTutor(e.target.value)}
                 placeholder="Masukkan nama tutor"
-                className="w-full h-full px-3 py-2 text-center bg-transparent border-none outline-none dark:text-gray-100 placeholder-gray-400"
+                disabled={!canEdit}
+                className={`w-full h-full px-3 py-2 text-center bg-transparent border-none outline-none dark:text-gray-100 placeholder-gray-400 ${
+                  getUser()?.role === 'dosen' && penilaianSubmitted
+                    ? 'cursor-not-allowed'
+                    : ''
+                }`}
               />
             </div>
             <div className="flex gap-2 mb-2">
               <button
                 type="button"
                 onClick={() => setNamaTutor("")}
-                className="text-xs px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100 dark:border-gray-600"
+                disabled={!canEdit}
+                className={`text-xs px-2 py-1 border rounded dark:text-gray-100 dark:border-gray-600 ${
+                  getUser()?.role === 'dosen' && penilaianSubmitted
+                    ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed opacity-50'
+                    : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600'
+                }`}
               >
                 Clear
               </button>
@@ -1035,23 +1174,38 @@ export default function PenilaianPBLPage() {
               <button
                 type="button"
                 onClick={handleClearParaf}
-                className="text-xs px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100 dark:border-gray-600"
+                disabled={!canEdit}
+                className={`text-xs px-2 py-1 border rounded dark:text-gray-100 dark:border-gray-600 ${
+                  getUser()?.role === 'dosen' && penilaianSubmitted
+                    ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed opacity-50'
+                    : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600'
+                }`}
               >
                 Clear
               </button>
               <button
                 type="button"
                 onClick={handleSaveParaf}
-                className="text-xs px-2 py-1 border rounded bg-blue-100 hover:bg-blue-200 dark:bg-blue-700 dark:hover:bg-blue-600 dark:text-gray-100 dark:border-gray-600"
+                disabled={!canEdit}
+                className={`text-xs px-2 py-1 border rounded dark:text-gray-100 dark:border-gray-600 ${
+                  getUser()?.role === 'dosen' && penilaianSubmitted
+                    ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed opacity-50'
+                    : 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-700 dark:hover:bg-blue-600'
+                }`}
               >
                 Simpan
               </button>
-              <label className="text-xs px-2 py-1 border rounded bg-green-100 hover:bg-green-200 dark:bg-green-700 dark:hover:bg-green-600 dark:text-gray-100 dark:border-gray-600 cursor-pointer">
+              <label className={`text-xs px-2 py-1 border rounded dark:text-gray-100 dark:border-gray-600 ${
+                getUser()?.role === 'dosen' && penilaianSubmitted
+                  ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed opacity-50'
+                  : 'bg-green-100 hover:bg-green-200 dark:bg-green-700 dark:hover:bg-green-600 cursor-pointer'
+              }`}>
                 Upload TTD
                 <input
                   type="file"
                   accept="image/*"
                   onChange={(e) => handleUploadSignature(e)}
+                  disabled={!canEdit}
                   className="hidden"
                 />
               </label>
@@ -1062,14 +1216,59 @@ export default function PenilaianPBLPage() {
         <div className="mt-6 flex gap-4">
           <button 
             onClick={handleSaveAll} 
-            disabled={saving || loading} 
+            disabled={saving || loading || !canEdit} 
             className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium shadow-theme-xs hover:bg-blue-600 transition dark:bg-blue-600 dark:hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {saving ? 'Menyimpan...' : 'Simpan Absensi & Penilaian'}
+            {saving ? 'Menyimpan...' : !canEdit ? 'Penilaian Sudah Disubmit' : 'Simpan Absensi & Penilaian'}
           </button>
         </div>
         
       </div>
+      )}
+
+      {/* Warning Modal */}
+      {showWarningModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0">
+                <svg className="h-8 w-8 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                  Peringatan Penting
+                </h3>
+              </div>
+            </div>
+            <div className="mb-6">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                <strong>Perhatian!</strong> Setelah Anda menyimpan penilaian ini, Anda tidak akan dapat mengeditnya lagi. 
+                Penilaian yang sudah disimpan hanya dapat diubah oleh Tim Akademik atau Super Admin.
+              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
+                Pastikan semua data sudah benar sebelum melanjutkan.
+              </p>
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowWarningModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-md transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => performSave()}
+                disabled={saving}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? 'Menyimpan...' : 'Ya, Simpan Sekarang'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

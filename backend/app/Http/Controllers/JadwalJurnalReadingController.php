@@ -295,6 +295,10 @@ class JadwalJurnalReadingController extends Controller
             return response()->json(['message' => $bentrokMessage], 422);
         }
 
+        // Reset penilaian submitted status jika jadwal diubah
+        // Ini memungkinkan dosen pengampu untuk mengisi ulang penilaian
+        $jadwal->resetPenilaianSubmitted();
+        
         $jadwal->update($data);
         
         // Load relasi dan tambahkan dosen_names

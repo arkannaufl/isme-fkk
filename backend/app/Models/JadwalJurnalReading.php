@@ -26,10 +26,15 @@ class JadwalJurnalReading extends Model
         'file_jurnal',
         'status_konfirmasi',
         'alasan_konfirmasi',
+        'penilaian_submitted',
+        'penilaian_submitted_by',
+        'penilaian_submitted_at',
     ];
 
     protected $casts = [
         'dosen_ids' => 'array',
+        'penilaian_submitted' => 'boolean',
+        'penilaian_submitted_at' => 'datetime',
     ];
 
     // Relasi
@@ -38,6 +43,7 @@ class JadwalJurnalReading extends Model
     public function kelompokKecilAntara() { return $this->belongsTo(KelompokKecilAntara::class, 'kelompok_kecil_antara_id'); }
     public function dosen() { return $this->belongsTo(User::class, 'dosen_id'); }
     public function ruangan() { return $this->belongsTo(Ruangan::class, 'ruangan_id'); }
+    public function penilaianSubmittedBy() { return $this->belongsTo(User::class, 'penilaian_submitted_by'); }
 
     // Relationship untuk penilaian jurnal
     public function penilaianJurnal()
@@ -55,5 +61,18 @@ class JadwalJurnalReading extends Model
             return implode(', ', $dosenNames);
         }
         return $this->dosen ? $this->dosen->name : '';
+    }
+
+    /**
+     * Reset penilaian submitted status
+     * Dipanggil saat jadwal diubah oleh tim akademik/super admin
+     */
+    public function resetPenilaianSubmitted()
+    {
+        $this->update([
+            'penilaian_submitted' => false,
+            'penilaian_submitted_by' => null,
+            'penilaian_submitted_at' => null,
+        ]);
     }
 }

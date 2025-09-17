@@ -719,8 +719,18 @@ class NotificationController extends Controller
         // Update the schedule based on jadwal_type
         switch ($jadwalType) {
             case 'pbl':
-                // Update PBL schedule
-                \DB::table('jadwal_pbl')->where('id', $jadwalId)->update(['dosen_id' => $newDosenId]);
+                // Update PBL schedule and reset penilaian submitted
+                $jadwal = \App\Models\JadwalPBL::find($jadwalId);
+                if ($jadwal) {
+                    $oldPBLType = $jadwal->pbl_tipe;
+                    $jadwal->resetPenilaianSubmitted();
+                    $jadwal->update(['dosen_id' => $newDosenId]);
+                    
+                    // Update penilaian data jika PBL type berubah
+                    if ($oldPBLType !== $jadwal->pbl_tipe) {
+                        $jadwal->updatePenilaianForPBLTypeChange($oldPBLType, $jadwal->pbl_tipe);
+                    }
+                }
                 break;
             case 'kuliah_besar':
                 // Update Kuliah Besar schedule
@@ -731,8 +741,12 @@ class NotificationController extends Controller
                 \DB::table('jadwal_praktikum_dosen')->where('jadwal_praktikum_id', $jadwalId)->update(['dosen_id' => $newDosenId]);
                 break;
             case 'jurnal':
-                // Update Jurnal Reading schedule
-                \DB::table('jadwal_jurnal_reading')->where('id', $jadwalId)->update(['dosen_id' => $newDosenId]);
+                // Update Jurnal Reading schedule and reset penilaian submitted
+                $jadwal = \App\Models\JadwalJurnalReading::find($jadwalId);
+                if ($jadwal) {
+                    $jadwal->resetPenilaianSubmitted();
+                    $jadwal->update(['dosen_id' => $newDosenId]);
+                }
                 break;
             case 'csr':
                 // Update CSR schedule

@@ -20,8 +20,8 @@ import {
   faReply,
   faFolderPlus,
 } from "@fortawesome/free-solid-svg-icons";
-import { useNavigate } from "react-router";
-import api, { handleApiError } from "../utils/api";
+import { useNavigate } from "react-router-dom";
+import api, { handleApiError, getUser } from "../utils/api";
 import { motion, AnimatePresence } from "framer-motion";
 
 
@@ -304,29 +304,11 @@ export default function DashboardDosen() {
 
   // Check if user is dosen
   useEffect(() => {
-    const getUser = () => {
-      try {
-        const user = localStorage.getItem('user');
-        return user ? JSON.parse(user) : null;
-      } catch {
-      return null;
-    }
-  };
-
     const user = getUser();
     if (!user || user.role !== 'dosen') {
       navigate('/');
     }
   }, [navigate]);
-
-    const getUser = () => {
-      try {
-      const user = localStorage.getItem('user');
-      return user ? JSON.parse(user) : null;
-      } catch {
-      return null;
-    }
-  };
 
 
   // Real-time clock update
@@ -428,6 +410,37 @@ export default function DashboardDosen() {
     setSelectedStatus(null);
     setSelectedAlasan("");
     setCustomAlasan("");
+  };
+
+  const handlePenilaianClick = (jadwal: any, jadwalType: string) => {
+    const user = getUser();
+    if (!user) return;
+
+    // Determine navigation path based on jadwal type
+    if (jadwalType === 'pbl') {
+      // For PBL, we need to determine if it's semester antara or reguler
+      const isAntara = jadwal.semester_type === 'antara';
+      // Use the correct field names from the API response
+      const kelompok = jadwal.kelompok; // Direct field, not nested
+      const pblTipe = jadwal.tipe_pbl; // Correct field name
+      
+      if (isAntara) {
+        navigate(`/penilaian-pbl-antara/${jadwal.mata_kuliah_kode}/${kelompok}/${pblTipe}?rowIndex=0`);
+      } else {
+        navigate(`/penilaian-pbl/${jadwal.mata_kuliah_kode}/${kelompok}/${pblTipe}?rowIndex=0`);
+      }
+    } else if (jadwalType === 'jurnal') {
+      // For Jurnal Reading
+      const kelompok = jadwal.kelompok_kecil?.nama_kelompok || jadwal.kelompok_kecil_antara?.nama_kelompok;
+      const isAntara = jadwal.semester_type === 'antara';
+      
+      if (isAntara) {
+        navigate(`/penilaian-jurnal-antara/${jadwal.mata_kuliah_kode}/${kelompok}/${jadwal.id}`);
+      } else {
+        navigate(`/penilaian-jurnal/${jadwal.mata_kuliah_kode}/${kelompok}/${jadwal.id}`);
+      }
+    }
+    // Add other jadwal types as needed
   };
 
   const handleSubmitKonfirmasi = async () => {
@@ -698,6 +711,19 @@ export default function DashboardDosen() {
                           Konfirmasi
                           </button>
                       )}
+                      {item.status_konfirmasi === 'bisa' && (
+                        <button
+                          onClick={() => handlePenilaianClick(item, jadwalType)}
+                          className={`px-3 py-1 rounded text-xs transition-colors ${
+                            item.penilaian_submitted
+                              ? 'bg-gray-500 text-white hover:bg-gray-600'
+                              : 'bg-green-500 text-white hover:bg-green-600'
+                          }`}
+                          title={item.penilaian_submitted ? 'Lihat Penilaian' : 'Penilaian'}
+                        >
+                          {item.penilaian_submitted ? 'Lihat Penilaian' : 'Penilaian'}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -707,7 +733,7 @@ export default function DashboardDosen() {
         </table>
       </div>
     </div>
-  ), [getSemesterTypeBadge, getStatusBadge, openKonfirmasiModal]);
+  ), [getSemesterTypeBadge, getStatusBadge, openKonfirmasiModal, handlePenilaianClick]);
 
   if (loading) {
     return (

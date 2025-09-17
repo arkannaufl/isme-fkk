@@ -4,7 +4,7 @@ import { ChevronLeftIcon } from "../icons";
 import SignaturePad from "react-signature-canvas";
 import React, { useRef } from "react";
 import * as XLSX from "xlsx";
-import api, { handleApiError } from "../utils/api";
+import api, { handleApiError, getUser } from "../utils/api";
 import { AnimatePresence, motion } from "framer-motion";
 
 interface PenilaianJurnal {
@@ -100,11 +100,27 @@ export default function PenilaianJurnalPage() {
           setTanggalParaf(data.tutor_data.tanggal_paraf || '');
           setSignatureParaf(data.tutor_data.signature_paraf || null);
         }
+        
+        // Cek status penilaian_submitted dari backend
+        // Selalu update berdasarkan response dari backend
+        setPenilaianSubmitted(data.penilaian_submitted || false);
+        
+        // Update canEdit berdasarkan role dan status
+        const user = getUser();
+        if (user) {
+          const isAdmin = user.role === 'super_admin' || user.role === 'tim_akademik';
+          setCanEdit(isAdmin || !(data.penilaian_submitted || false));
+        }
       })
-      .catch(err => {
+      .catch((err: any) => {
         console.error('Error fetching data:', err);
-        console.error('Error details:', handleApiError(err, 'Memuat data penilaian'));
-        setError(handleApiError(err, 'Memuat data penilaian'));
+        if (err.response?.status === 403) {
+          setError('Anda tidak memiliki akses untuk menilai jadwal ini. Hanya dosen yang ditugaskan dan telah mengkonfirmasi ketersediaan yang dapat mengakses halaman ini.');
+        } else if (err.response?.status === 404) {
+          setError('Jadwal tidak ditemukan. Pastikan jadwal yang Anda akses sudah benar.');
+        } else {
+          setError(handleApiError(err, 'Memuat data penilaian'));
+        }
       })
       .finally(() => {
         setLoading(false);
@@ -166,7 +182,14 @@ export default function PenilaianJurnalPage() {
   const hitungJumlah = (nim: string) => {
     const nilai = penilaian[nim];
     if (!nilai) return "";
-    return (nilai.keaktifan || 0) + (nilai.laporan || 0);
+    
+    // Hitung jumlah nilai keaktifan + laporan
+    const jumlahNilai = (nilai.keaktifan || 0) + (nilai.laporan || 0);
+    const nilaiMaksimal = 60 + 40; // Keaktifan maksimal 60 + Laporan maksimal 40
+    
+    // Rumus: Total = (Jumlah Nilai / Nilai Maksimal) × 100
+    const persentase = (jumlahNilai / nilaiMaksimal) * 100;
+    return Math.round(persentase);
   };
 
   // Fungsi simpan ke backend
@@ -460,13 +483,22 @@ export default function PenilaianJurnalPage() {
 
   return (
     <div className="container mx-auto dark:bg-gray-900 min-h-screen">
+      {/* Only show header if no error */}
+      {!error && (
       <div className="pb-2 flex justify-between items-center">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => {
+            const user = getUser();
+            if (user?.role === 'dosen') {
+              navigate('/dashboard-dosen');
+            } else {
+              navigate(-1);
+            }
+          }}
           className="flex items-center gap-2 text-brand-500 font-medium hover:text-brand-600 transition px-0 py-0 bg-transparent shadow-none dark:text-green-400 dark:hover:text-green-300"
         >
           <ChevronLeftIcon className="w-5 h-5" />
-          Kembali ke Detail Blok
+          {getUser()?.role === 'dosen' ? 'Kembali ke Dashboard' : 'Kembali ke Detail Blok'}
         </button>
         <div className="flex items-center">
           <button
@@ -483,6 +515,7 @@ export default function PenilaianJurnalPage() {
           </button>
         </div>
       </div>
+      )}
 
       {/* Success Messages */}
       <AnimatePresence>
@@ -499,13 +532,36 @@ export default function PenilaianJurnalPage() {
         )}
       </AnimatePresence>
       
-      {/* Error Messages */}
+      {/* Error Messages - Centered */}
       {error && (
-        <div className="mt-4 p-3 rounded-lg bg-red-100 text-red-700">
-          {error}
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="max-w-md w-full p-6 rounded-lg bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700 text-center">
+            <div className="flex justify-center mb-4">
+              <svg className="h-12 w-12 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium text-red-800 dark:text-red-200 mb-3">
+              Akses Ditolak
+            </h3>
+            <div className="text-sm text-red-700 dark:text-red-300 mb-6">
+              {error}
+            </div>
+            <button
+              onClick={() => window.history.back()}
+              className="inline-flex items-center px-4 py-2 border border-red-300 dark:border-red-600 text-sm leading-4 font-medium rounded-md text-red-700 dark:text-red-300 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Kembali
+            </button>
+          </div>
         </div>
       )}
 
+      {/* Only show form if no error */}
+      {!error && (
       <div className="bg-white dark:bg-gray-800 mt-6 shadow-md rounded-lg p-6">
         <h1 className="text-xl font-bold text-center text-gray-900 dark:text-white mb-2">
           LEMBAR PENILAIAN JOURNAL READING
@@ -803,13 +859,14 @@ export default function PenilaianJurnalPage() {
         <div className="mt-6 flex gap-4">
           <button 
             onClick={handleSaveAll} 
-            disabled={saving || loading} 
+            disabled={saving || loading || !canEdit} 
             className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium shadow-theme-xs hover:bg-blue-600 transition dark:bg-blue-600 dark:hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {saving ? 'Menyimpan...' : 'Simpan Absensi & Penilaian'}
+            {saving ? 'Menyimpan...' : !canEdit ? 'Penilaian Sudah Disubmit' : 'Simpan Absensi & Penilaian'}
           </button>
         </div>
       </div>
+      )}
     </div>
   );
 }

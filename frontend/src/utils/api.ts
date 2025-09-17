@@ -204,4 +204,14 @@ export const retryWithBackoff = async <T>(
   throw lastError;
 };
 
+// Utility function untuk mendapatkan user data dari localStorage
+export const getUser = () => {
+  try {
+    const user = localStorage.getItem('user');
+    return user ? JSON.parse(user) : null;
+  } catch {
+    return null;
+  }
+};
+
 export default api; 

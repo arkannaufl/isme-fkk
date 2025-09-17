@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { ChevronLeftIcon } from "../icons";
-import api, { handleApiError } from "../utils/api";
+import api, { handleApiError, getUser } from "../utils/api";
 import SignaturePad from "react-signature-canvas";
 import React, { useRef } from "react";
 import { AnimatePresence } from "framer-motion";
@@ -63,6 +63,11 @@ export default function PenilaianPBLPage() {
   const [namaModul, setNamaModul] = useState('');
   const [modulPBLId, setModulPBLId] = useState<number | null>(null);
   const [isPBL2, setIsPBL2] = useState(false);
+  
+  // Permission and status states
+  const [userRole, setUserRole] = useState<string>('');
+  const [penilaianSubmitted, setPenilaianSubmitted] = useState<boolean>(false);
+  const [canEdit, setCanEdit] = useState<boolean>(true);
 
   const [isDark, setIsDark] = useState(document.documentElement.classList.contains('dark'));
   useEffect(() => {
@@ -71,6 +76,25 @@ export default function PenilaianPBLPage() {
     });
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     return () => observer.disconnect();
+  }, []);
+
+  // Check user permission and penilaian status
+  useEffect(() => {
+    const user = getUser();
+    if (user) {
+      setUserRole(user.role || '');
+    }
+  }, []);
+
+  // Check penilaian status from URL params or API
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const submitted = urlParams.get('penilaian_submitted') === 'true';
+    
+    // Hanya set dari URL jika belum ada data dari API
+    if (submitted) {
+      setPenilaianSubmitted(true);
+    }
   }, []);
 
   // Fetch data blok untuk dapatkan semester
@@ -128,8 +152,47 @@ export default function PenilaianPBLPage() {
         setPenilaian(pen);
         setNamaModul(res.data.nama_modul || ''); // Ambil nama modul dari response API
         setIsPBL2(res.data.is_pbl_2 || false); // Set status PBL 2 dari backend
+        
+        // Cek status penilaian_submitted dari backend
+        // Selalu update berdasarkan response dari backend
+        setPenilaianSubmitted(res.data.penilaian_submitted || false);
+        
+        // Update canEdit berdasarkan role dan status
+        const user = getUser();
+        if (user) {
+          const isAdmin = user.role === 'super_admin' || user.role === 'tim_akademik';
+          setCanEdit(isAdmin || !(res.data.penilaian_submitted || false));
+        }
+        
+        // Jika PBL type berubah, reset petaKonsep untuk semua mahasiswa
+        if (res.data.is_pbl_2 && !isPBL2) {
+          // PBL 1 → PBL 2: tambah petaKonsep dengan nilai 0
+          const updatedPenilaian = { ...penilaian };
+          Object.keys(updatedPenilaian).forEach(npm => {
+            if (updatedPenilaian[npm].petaKonsep === undefined) {
+              updatedPenilaian[npm].petaKonsep = 0;
+            }
+          });
+          setPenilaian(updatedPenilaian);
+        } else if (!res.data.is_pbl_2 && isPBL2) {
+          // PBL 2 → PBL 1: hapus petaKonsep
+          const updatedPenilaian = { ...penilaian };
+          Object.keys(updatedPenilaian).forEach(npm => {
+            delete updatedPenilaian[npm].petaKonsep;
+          });
+          setPenilaian(updatedPenilaian);
+        }
       })
-      .catch(() => setError('Gagal memuat data penilaian'))
+      .catch((error: any) => {
+        console.error('Error fetching data:', error);
+        if (error.response?.status === 403) {
+          setError('Anda tidak memiliki akses untuk menilai jadwal ini. Hanya dosen yang ditugaskan dan telah mengkonfirmasi ketersediaan yang dapat mengakses halaman ini.');
+        } else if (error.response?.status === 404) {
+          setError('Jadwal tidak ditemukan. Pastikan jadwal yang Anda akses sudah benar.');
+        } else {
+          setError('Gagal memuat data penilaian. Silakan coba lagi.');
+        }
+      })
       .finally(() => setLoading(false));
 
     // Fetch data absensi
@@ -157,18 +220,7 @@ export default function PenilaianPBLPage() {
   const handleSaveAll = async () => {
     if (!kode_blok || !kelompok || !pertemuan) return;
     
-    // Validasi untuk PBL 2 - pastikan peta_konsep diisi
-    if (isPBL2) {
-      const hasEmptyPetaKonsep = mahasiswa.some(m => {
-        const nilai = penilaian[m.npm];
-        return !nilai || nilai.petaKonsep === undefined || nilai.petaKonsep === null || nilai.petaKonsep === 0;
-      });
-      
-      if (hasEmptyPetaKonsep) {
-        setError('Untuk PBL 2, nilai Peta Konsep harus diisi untuk semua mahasiswa');
-        return;
-      }
-    }
+    // Peta Konsep tidak wajib diisi - optional untuk PBL 2
     
     setSaving(true);
     setError(null);
@@ -198,6 +250,14 @@ export default function PenilaianPBLPage() {
         nama_tutor: namaTutor,
       };
       await api.post(`/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/penilaian-pbl`, payload);
+      
+      // Update penilaian submitted status for dosen
+      const user = getUser();
+      if (user && user.role === 'dosen') {
+        setPenilaianSubmitted(true);
+        setCanEdit(false);
+      }
+      
       setSuccess(`Absensi dan penilaian ${isPBL2 ? 'PBL 2' : 'PBL 1'} berhasil disimpan!`);
     } catch (error: any) {
       console.error('Error saving penilaian:', error);
@@ -234,17 +294,38 @@ export default function PenilaianPBLPage() {
   const hitungJumlah = (npm: string) => {
     const nilai = penilaian[npm];
     if (!nilai) return 0;
-    return nilai.A + nilai.B + nilai.C + nilai.D + nilai.E + nilai.F + nilai.G;
+    
+    const A = nilai.A || 0;
+    const B = nilai.B || 0;
+    const C = nilai.C || 0;
+    const D = nilai.D || 0;
+    const E = nilai.E || 0;
+    const F = nilai.F || 0;
+    const G = nilai.G || 0;
+    
+    return A + B + C + D + E + F + G;
   };
 
   const hitungTotalNilai = (npm: string) => {
     const nilai = penilaian[npm];
     if (!nilai) return 0;
-    const jumlahKriteria = nilai.A + nilai.B + nilai.C + nilai.D + nilai.E + nilai.F + nilai.G;
-    if (isPBL2) {
-      return jumlahKriteria + (nilai.petaKonsep || 0);
-    }
-    return jumlahKriteria;
+
+    const A = nilai.A || 0;
+    const B = nilai.B || 0;
+    const C = nilai.C || 0;
+    const D = nilai.D || 0;
+    const E = nilai.E || 0;
+    const F = nilai.F || 0;
+    const G = nilai.G || 0;
+
+    // Hitung jumlah nilai A-G (maksimal 5 per kriteria)
+    const jumlahKriteria = A + B + C + D + E + F + G;
+    const nilaiMaksimalKriteria = 7 * 5; // 7 kriteria × 5 (nilai maksimal)
+
+    // Rumus: Total = (Jumlah Kriteria / Nilai Maksimal Kriteria) × 100
+    // Peta Konsep tidak mempengaruhi Total Nilai, ditampilkan terpisah
+    const persentaseKriteria = (jumlahKriteria / nilaiMaksimalKriteria) * 100;
+    return Math.round(persentaseKriteria);
   };
 
   const handleAbsensiChange = (npm: string, hadir: boolean) => {
@@ -347,8 +428,8 @@ export default function PenilaianPBLPage() {
     // Table header
     const tableHeader = [
         "NO", "NPM", "NAMA", "A", "B", "C", "D", "E", "F", "G", "Jumlah",
-        ...(isPBL2 ? ["Peta Konsep (0-100)"] : []), // L: Peta Konsep
         "Total Nilai",
+        ...(isPBL2 ? ["Peta Konsep (0-100)"] : []), // Peta Konsep di paling kanan
       ];
       const headerRow = sheet.addRow(tableHeader);
       headerRow.font = { bold: true };
@@ -369,7 +450,7 @@ export default function PenilaianPBLPage() {
 
     // Table body
       mahasiswa.forEach((m, idx) => {
-      const nilai = penilaian[m.npm] || {};
+      const nilai = penilaian[m.npm] || {} as Penilaian[string];
       const row = [
         idx + 1,
         m.npm,
@@ -382,9 +463,9 @@ export default function PenilaianPBLPage() {
           nilai.F ?? "",
           nilai.G ?? "",
         hitungJumlah(m.npm),
+        hitungTotalNilai(m.npm),
       ];
       if (isPBL2) row.push(nilai.petaKonsep ?? "");
-      row.push(hitungTotalNilai(m.npm));
         const dataRow = sheet.addRow(row);
         dataRow.alignment = { vertical: "middle", horizontal: "center" };
         dataRow.getCell(3).alignment = { vertical: "middle", horizontal: "left" }; // NAMA kiri
@@ -459,7 +540,7 @@ export default function PenilaianPBLPage() {
       // Tanda tangan Paraf
       if (signatureParaf) {
         const imageId = workbook.addImage({
-          buffer: base64ToBuffer(signatureParaf),
+          buffer: base64ToBuffer(signatureParaf) as any,
           extension: 'png',
         });
         // Center di kotak G-K ttdBoxRow
@@ -538,8 +619,8 @@ export default function PenilaianPBLPage() {
           .map((k) => `<th>${k}</th>`)
           .join("")}
         <th>JUMLAH</th>
-        ${isPBL2 ? "<th>Peta Konsep (0-100)</th>" : ""}
         <th>TOTAL NILAI</th>
+        ${isPBL2 ? "<th>Peta Konsep (0-100)</th>" : ""}
       </tr>
     `;
     
@@ -555,8 +636,8 @@ export default function PenilaianPBLPage() {
           .map((k) => `<td>${(nilai as Record<string, number>)[k] ?? ""}</td>`)
           .join("")}
         <td>${hitungJumlah(m.npm)}</td>
-        ${isPBL2 ? `<td>${(nilai as Record<string, number>)?.petaKonsep ?? ""}</td>` : ""}
         <td><strong>${hitungTotalNilai(m.npm)}</strong></td>
+        ${isPBL2 ? `<td>${(nilai as Record<string, number>)?.petaKonsep ?? ""}</td>` : ""}
       </tr>`;
       })
       .join("");
@@ -635,13 +716,22 @@ export default function PenilaianPBLPage() {
 
   return (
     <div className="container mx-auto dark:bg-gray-900 min-h-screen">
+      {/* Only show header if no error */}
+      {!error && (
       <div className="pb-2 flex justify-between items-center">
         <button                                                                                                                                             
-          onClick={() => navigate(-1)} 
+          onClick={() => {
+            const user = getUser();
+            if (user?.role === 'dosen') {
+              navigate('/dashboard-dosen');
+            } else {
+              navigate(-1);
+            }
+          }} 
           className="flex items-center gap-2 text-brand-500 font-medium hover:text-brand-600 transition px-0 py-0 bg-transparent shadow-none dark:text-green-400 dark:hover:text-green-300"
         >
           <ChevronLeftIcon className="w-5 h-5" />
-          Kembali ke Detail Blok
+          {getUser()?.role === 'dosen' ? 'Kembali ke Dashboard' : 'Kembali ke Detail Blok'}
         </button>
         <div className="flex items-center">
           <button
@@ -658,6 +748,7 @@ export default function PenilaianPBLPage() {
           </button>
         </div>
       </div>
+      )}
               {/* Success Messages */}
               <AnimatePresence>
           {success && (
@@ -673,24 +764,60 @@ export default function PenilaianPBLPage() {
           )}
         </AnimatePresence>
         
-        {/* Error Messages */}
+        {/* Error Messages - Centered */}
         {error && (
-          <div className="mt-4 p-3 rounded-lg bg-red-100 text-red-700">
-            {error}
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="max-w-md w-full p-6 rounded-lg bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700 text-center">
+              <div className="flex justify-center mb-4">
+                <svg className="h-12 w-12 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-red-800 dark:text-red-200 mb-3">
+                Akses Ditolak
+              </h3>
+              <div className="text-sm text-red-700 dark:text-red-300 mb-6">
+                {error}
+              </div>
+              <button
+                onClick={() => window.history.back()}
+                className="inline-flex items-center px-4 py-2 border border-red-300 dark:border-red-600 text-sm leading-4 font-medium rounded-md text-red-700 dark:text-red-300 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Kembali
+              </button>
+            </div>
           </div>
         )}
+      
+      {/* Only show form if no error */}
+      {!error && (
       <div className="bg-white dark:bg-gray-800 mt-6 shadow-md rounded-lg p-6">
         <h1 className="text-xl font-bold text-center text-gray-900 dark:text-white mb-2">
           LEMBAR PENILAIAN MAHASISWA OLEH TUTOR
         </h1>
         <div className="text-center mb-4">
-          <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-            isPBL2 
-              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
-              : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-          }`}>
-            {isPBL2 ? 'PBL 2 (Dengan Peta Konsep)' : 'PBL 1 (Tanpa Peta Konsep)'}
-          </span>
+          <div className="flex justify-center gap-2 mb-2">
+            <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+              isPBL2 
+                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
+                : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+            }`}>
+              {isPBL2 ? 'PBL 2 (Dengan Peta Konsep)' : 'PBL 1 (Tanpa Peta Konsep)'}
+            </span>
+            {penilaianSubmitted && (
+              <span className="inline-block px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                Penilaian Sudah Disubmit
+              </span>
+            )}
+            {!canEdit && userRole === 'dosen' && (
+              <span className="inline-block px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                View Only Mode
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex justify-between items-center mb-4 text-sm text-gray-700 dark:text-gray-300">
           <div>
@@ -813,14 +940,14 @@ export default function PenilaianPBLPage() {
                 <th className="px-2 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Jumlah
                 </th>
-                {isPBL2 && (
-                  <th className="px-2 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Peta Konsep (0-100)
-                  </th>
-                )}
                 <th className="px-2 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Total Nilai
                 </th>
+                {isPBL2 && (
+                  <th className="px-2 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Peta Konsep (0-100) - Optional
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
@@ -874,12 +1001,26 @@ export default function PenilaianPBLPage() {
                             e.target.value
                           )
                         }
-                        className="w-12 text-center bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md p-1 dark:text-gray-100 dark:placeholder-gray-400"
+                        disabled={!canEdit}
+                        className={`w-12 text-center border rounded-md p-1 dark:text-gray-100 dark:placeholder-gray-400 ${
+                          canEdit 
+                            ? 'bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600' 
+                            : 'bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 cursor-not-allowed'
+                        }`}
                       />
                     </td>
                   ))}
                   <td className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200">
                     {hitungJumlah(m.npm)}
+                  </td>
+                  <td className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200 font-medium">
+                    <span className={`px-2 py-1 rounded text-xs ${
+                      hitungTotalNilai(m.npm) > 0 
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
+                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+                    }`}>
+                      {hitungTotalNilai(m.npm)}
+                    </span>
                   </td>
                   {isPBL2 && (
                     <td className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200">
@@ -891,30 +1032,16 @@ export default function PenilaianPBLPage() {
                         onChange={(e) =>
                           handleInputChange(m.npm, "petaKonsep", e.target.value)
                         }
+                        disabled={!canEdit}
                         className={`w-20 text-center border rounded-md p-1 dark:text-gray-100 dark:placeholder-gray-400 ${
-                          isPBL2 && (!penilaian[m.npm]?.petaKonsep || penilaian[m.npm]?.petaKonsep === 0)
-                            ? 'border-red-300 bg-red-50 dark:border-red-600 dark:bg-red-900/20'
+                          !canEdit
+                            ? 'bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 cursor-not-allowed'
                             : 'bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600'
                         }`}
-                        required
-                        placeholder="0-100"
+                        placeholder="0-100 (Optional)"
                       />
-                      {isPBL2 && (!penilaian[m.npm]?.petaKonsep || penilaian[m.npm]?.petaKonsep === 0) && (
-                        <div className="text-xs text-red-600 dark:text-red-400 mt-1">
-                          Wajib diisi
-                        </div>
-                      )}
                     </td>
                   )}
-                  <td className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200 font-medium">
-                    <span className={`px-2 py-1 rounded text-xs ${
-                      hitungTotalNilai(m.npm) > 0 
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
-                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
-                    }`}>
-                      {hitungTotalNilai(m.npm)}
-                    </span>
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -1051,14 +1178,15 @@ export default function PenilaianPBLPage() {
         <div className="mt-6 flex gap-4">
           <button 
             onClick={handleSaveAll} 
-            disabled={saving || loading} 
+            disabled={saving || loading || !canEdit} 
             className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium shadow-theme-xs hover:bg-blue-600 transition dark:bg-blue-600 dark:hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {saving ? 'Menyimpan...' : 'Simpan Absensi & Penilaian'}
+            {saving ? 'Menyimpan...' : canEdit ? 'Simpan Absensi & Penilaian' : 'Penilaian Sudah Disubmit'}
         </button>
         </div>
         
       </div>
+      )}
     </div>
   );
 }
