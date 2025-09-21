@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   kelompokKecilApi,
   kelompokBesarApi,
+  mahasiswaVeteranApi,
 } from "../api/generateApi";
 import type { KelompokKecil } from "../api/generateApi";
 import { handleApiError } from "../utils/api";
@@ -18,6 +19,10 @@ interface Mahasiswa {
   angkatan: string;
   ipk: number;
   gender: string;
+  semester_asli?: number;
+  is_veteran?: boolean;
+  is_available?: boolean;
+  veteran_semester?: string;
 }
 
 function mapSemesterToNumber(semester: string | number): number {
@@ -41,6 +46,7 @@ const KelompokKecil: React.FC = () => {
   const [showKelompok, setShowKelompok] = useState(false);
   const [filterAngkatan, setFilterAngkatan] = useState<string>("semua"); // Filter angkatan
   const [filterIPK, setFilterIPK] = useState<string>("semua"); // Filter IPK
+  const [filterVeteran, setFilterVeteran] = useState<string>("semua"); // Filter veteran
 
   // State untuk drag and drop
   const [draggedMahasiswa, setDraggedMahasiswa] = useState<Mahasiswa | null>(
@@ -64,6 +70,13 @@ const KelompokKecil: React.FC = () => {
 
   // Tambahkan state untuk search
   const [searchQuery, setSearchQuery] = useState("");
+
+  // State untuk Mahasiswa Veteran
+  const [veteranStudents, setVeteranStudents] = useState<Mahasiswa[]>([]);
+  const [veteranSemester, setVeteranSemester] = useState<string>("");
+  // Mode terpisah dihapus - hanya menggunakan mode gabung
+  const [showVeteranSection, setShowVeteranSection] = useState(false);
+  const [selectedVeterans, setSelectedVeterans] = useState<string[]>([]);
 
   // Tambahkan state untuk modal konfirmasi keluarkan
   const [showKeluarkanModal, setShowKeluarkanModal] = useState<null | {
@@ -96,6 +109,48 @@ const KelompokKecil: React.FC = () => {
   // Tambahkan state untuk pesan error
   const [errorMsg, setErrorMsg] = useState<string>("");
 
+  // Fungsi untuk mengambil semua data veteran (tidak terbatas semester)
+  const loadVeteranStudents = async (semester: string) => {
+    try {
+      const response = await mahasiswaVeteranApi.getAll({
+        veteran_only: true,
+        angkatan: undefined,
+        search: undefined
+      });
+      
+      const allVeterans = response.data;
+      
+      // TAMPILKAN SEMUA VETERAN (tidak filter berdasarkan semester)
+      // Veteran yang sudah dipilih di semester lain akan ditampilkan dengan deskripsi
+      const availableVeterans = allVeterans;
+      
+      // Convert ke format Mahasiswa
+      const veteranFormatted = availableVeterans.map((veteran: any) => ({
+        id: veteran.id.toString(),
+        nama: veteran.name,
+        nim: veteran.nim,
+        kelompok: undefined,
+        status: veteran.status,
+        angkatan: veteran.angkatan,
+        ipk: veteran.ipk,
+        gender: veteran.gender,
+        semester_asli: veteran.semester, // Simpan semester asli untuk referensi
+        veteran_semester: veteran.veteran_semester, // Store veteran semester
+        is_veteran: true,
+        is_locked: veteran.veteran_semester && veteran.veteran_semester !== semester, // Locked if assigned to other semester
+        is_available: !veteran.veteran_semester || veteran.veteran_semester === semester // Available if not assigned or assigned to current semester
+      }));
+      
+      setVeteranStudents(veteranFormatted);
+      setVeteranSemester(semester);
+      setShowVeteranSection(veteranFormatted.length > 0);
+    } catch (error) {
+      console.error('Error loading veteran students:', error);
+      setVeteranStudents([]);
+      setShowVeteranSection(false);
+    }
+  };
+
   // Fungsi untuk mengambil data dari semua semester
   const loadAllSemesterData = async () => {
     try {
@@ -124,6 +179,23 @@ const KelompokKecil: React.FC = () => {
       const kelompokBesarResponse = await kelompokBesarApi.getBySemester(
         String(mapSemesterToNumber(semester))
       );
+      
+      // BERSIHKAN VETERAN YANG SALAH SEMESTER di awal load
+      const allVeteransInKelompokBesar = kelompokBesarResponse.data.filter((kb: any) => kb.mahasiswa.is_veteran);
+      for (const kb of allVeteransInKelompokBesar) {
+        const veteran = kb.mahasiswa;
+        // Jika veteran_semester tidak sesuai dengan semester ini, hapus
+        if (veteran.veteran_semester && veteran.veteran_semester !== semester) {
+          console.log(`Cleaning up veteran ${veteran.id} (${veteran.name}) from KelompokBesar - wrong semester (${veteran.veteran_semester} vs ${semester})`);
+          try {
+            await kelompokBesarApi.deleteByMahasiswaId(veteran.id, String(mapSemesterToNumber(semester)));
+          } catch (error) {
+            console.error(`Error cleaning up veteran ${veteran.id} from KelompokBesar:`, error);
+          }
+        }
+      }
+      
+      
       const mahasiswaKelompokBesar = kelompokBesarResponse.data.map((kb) => ({
         id: kb.mahasiswa.id.toString(),
         nama: kb.mahasiswa.name,
@@ -133,6 +205,7 @@ const KelompokKecil: React.FC = () => {
         angkatan: kb.mahasiswa.angkatan,
         ipk: kb.mahasiswa.ipk,
         gender: kb.mahasiswa.gender,
+        is_veteran: kb.mahasiswa.is_veteran || false, // Tambahkan field is_veteran
       }));
       // Ambil kelompok kecil
       let kelompokKecilData: any[] = [];
@@ -186,6 +259,9 @@ const KelompokKecil: React.FC = () => {
   useEffect(() => {
     loadData();
     loadAllSemesterData(); // Load data semua semester
+    if (semester) {
+      loadVeteranStudents(semester);
+    }
   }, [semester]);
 
   // Fungsi untuk menyimpan data pengelompokan ke API
@@ -232,18 +308,54 @@ const KelompokKecil: React.FC = () => {
 
       // Lakukan batch update jika ada
       if (updates.length > 0) {
-        await kelompokKecilApi.batchUpdate(updates);
+        try {
+          await kelompokKecilApi.batchUpdate(updates);
+        } catch (error: any) {
+          console.error('Error batch updating kelompok:', error);
+          // Jika error, coba update satu per satu
+          for (const update of updates) {
+            try {
+              await kelompokKecilApi.update(update.id, { nama_kelompok: update.nama_kelompok });
+            } catch (singleError: any) {
+              console.error(`Error updating kelompok ${update.id}:`, singleError);
+              // Skip jika error
+              continue;
+            }
+          }
+        }
       }
       // Lakukan insert satu per satu jika ada
       if (inserts.length > 0) {
         for (const insertData of inserts) {
-          await kelompokKecilApi.create(insertData);
+          try {
+            await kelompokKecilApi.create(insertData);
+          } catch (error: any) {
+            console.error('Error inserting mahasiswa to kelompok:', error);
+            // Jika error karena sudah ada, skip saja
+            if (error?.response?.status === 422) {
+              console.log(`Mahasiswa ${insertData.mahasiswa_id} sudah ada di kelompok, skip...`);
+              continue;
+            }
+            // Jika error lain, throw
+            throw error;
+          }
         }
       }
       // Lakukan delete satu per satu jika ada
       if (deletes.length > 0) {
         for (const id of deletes) {
-          await kelompokKecilApi.delete(id);
+          try {
+            await kelompokKecilApi.delete(id);
+          } catch (error: any) {
+            console.error('Error deleting mahasiswa from kelompok:', error);
+            // Jika error karena tidak ada, skip saja
+            if (error?.response?.status === 404) {
+              console.log(`Kelompok dengan ID ${id} tidak ditemukan, skip...`);
+              continue;
+            }
+            // Jika error lain, throw
+            throw error;
+          }
         }
       }
 
@@ -395,8 +507,51 @@ const KelompokKecil: React.FC = () => {
     });
   };
 
-  // Filter mahasiswa berdasarkan angkatan, IPK, dan search
+  // Fungsi untuk handle selection veteran
+  const handleSelectVeteran = (veteranId: string) => {
+    setSelectedVeterans((prev) => {
+      const newSelection = prev.includes(veteranId) 
+        ? prev.filter((id) => id !== veteranId)
+        : [...prev, veteranId];
+      
+      console.log('Veteran selection changed:', {
+        veteranId,
+        previous: prev,
+        new: newSelection,
+        count: newSelection.length
+      });
+      
+      return newSelection;
+    });
+  };
+
+  // Fungsi untuk select all veterans
+  const handleSelectAllVeterans = () => {
+    const availableVeteranIds = veteranStudents.filter(v => v.is_available).map(v => v.id);
+    const allSelected = availableVeteranIds.every(id => selectedVeterans.includes(id));
+    
+    console.log('Select All Veterans:', {
+      availableVeteranIds,
+      currentSelection: selectedVeterans,
+      allSelected,
+      action: allSelected ? 'deselect' : 'select'
+    });
+    
+    if (allSelected) {
+      setSelectedVeterans([]);
+    } else {
+      setSelectedVeterans(availableVeteranIds);
+    }
+  };
+
+  // Filter mahasiswa berdasarkan angkatan, IPK, veteran, dan search
   const filteredMahasiswa = mahasiswa.filter((m) => {
+    // EXCLUDE veteran dari mahasiswa terdaftar untuk mencegah duplikasi
+    // Veteran hanya muncul di section "Mahasiswa Veteran"
+    if (m.is_veteran) {
+      return false;
+    }
+    
     // Filter angkatan
     if (filterAngkatan !== "semua" && m.angkatan !== filterAngkatan) {
       return false;
@@ -405,6 +560,15 @@ const KelompokKecil: React.FC = () => {
     if (filterIPK !== "semua") {
       const ipkValue = parseFloat(filterIPK);
       if (m.ipk < ipkValue) {
+        return false;
+      }
+    }
+    // Filter veteran (untuk mahasiswa biasa saja)
+    if (filterVeteran !== "semua") {
+      if (filterVeteran === "veteran") {
+        return false; // Veteran sudah di-exclude di atas
+      }
+      if (filterVeteran === "biasa" && m.is_veteran) {
         return false;
       }
     }
@@ -427,7 +591,7 @@ const KelompokKecil: React.FC = () => {
       setErrorMsg("Semester tidak ditemukan!");
       return;
     }
-    if (selectedMahasiswa.length === 0) {
+    if (selectedMahasiswa.length === 0 && selectedVeterans.length === 0) {
       setErrorMsg("Pilih minimal satu mahasiswa untuk dikelompokkan");
       return;
     }
@@ -435,14 +599,166 @@ const KelompokKecil: React.FC = () => {
       setErrorMsg("Jumlah kelompok minimal 1");
       return;
     }
+    
+    console.log('=== GENERATE KELOMPOK DEBUG ===');
+    console.log('Selected Mahasiswa:', selectedMahasiswa);
+    console.log('Selected Veterans:', selectedVeterans);
+    console.log('Show Veteran Section:', showVeteranSection);
+    console.log('Jumlah Kelompok:', jumlahKelompok);
+    console.log('Semester:', semester);
+    
     setIsGenerating(true);
     try {
+      // Siapkan data mahasiswa untuk pengelompokan
+      let mahasiswaIds = selectedMahasiswa.map((id) => parseInt(id));
+      
+      // Jika ada veteran yang dipilih, tambahkan veteran yang dipilih ke pengelompokan
+      if (showVeteranSection && selectedVeterans.length > 0) {
+        const veteranIds = selectedVeterans.map(v => parseInt(v));
+        
+        console.log('Veteran IDs to add:', veteranIds);
+        
+        // TAMBAHKAN VETERAN KE KELOMPOK BESAR TERLEBIH DAHULU
+        try {
+          console.log('Adding veterans to Kelompok Besar...');
+          await kelompokBesarApi.create({
+            semester: String(mapSemesterToNumber(semester)),
+            mahasiswa_ids: veteranIds
+          });
+          console.log('Successfully added veterans to Kelompok Besar');
+        } catch (error) {
+          console.error('Error adding veterans to kelompok besar:', error);
+          // Jika error, coba tambahkan satu per satu
+          for (const veteranId of veteranIds) {
+            try {
+              await kelompokBesarApi.create({
+                semester: String(mapSemesterToNumber(semester)),
+                mahasiswa_ids: [veteranId]
+              });
+              console.log(`Successfully added veteran ${veteranId} to Kelompok Besar`);
+            } catch (singleError) {
+              console.error(`Error adding veteran ${veteranId} to kelompok besar:`, singleError);
+              // Lanjutkan meskipun ada error
+            }
+          }
+        }
+
+        // UPDATE VETERAN SEMESTER untuk veteran yang dipilih
+        try {
+          console.log('Updating veteran semester...');
+          for (const veteranId of veteranIds) {
+            try {
+              await mahasiswaVeteranApi.toggleVeteran({
+                user_id: veteranId,
+                is_veteran: true,
+                veteran_semester: semester
+              });
+              console.log(`Successfully updated veteran ${veteranId} semester to ${semester}`);
+            } catch (singleError) {
+              console.error(`Error updating veteran ${veteranId} semester:`, singleError);
+              // Lanjutkan meskipun ada error
+            }
+          }
+        } catch (error) {
+          console.error('Error updating veteran semester:', error);
+        }
+        
+        mahasiswaIds = [...mahasiswaIds, ...veteranIds];
+        console.log('Final mahasiswa IDs:', mahasiswaIds);
+        
+        // Update selectedMahasiswa untuk include veteran yang dipilih
+        setSelectedMahasiswa(prev => [...prev, ...selectedVeterans]);
+      }
+
+      // PENTING: Ambil SEMUA mahasiswa di KelompokBesar untuk semester ini
+      // untuk memastikan tidak ada mahasiswa yang tertinggal
+      try {
+        const allKelompokBesarResponse = await kelompokBesarApi.getBySemester(String(mapSemesterToNumber(semester)));
+        const allKelompokBesarIds = allKelompokBesarResponse.data.map((kb: any) => kb.mahasiswa_id);
+        
+        console.log('All Kelompok Besar IDs:', allKelompokBesarIds);
+        console.log('Selected Mahasiswa IDs:', mahasiswaIds);
+        
+        // HANYA tambahkan mahasiswa biasa yang ada di KelompokBesar, JANGAN tambahkan veteran
+        // karena veteran hanya boleh ditambahkan jika dipilih secara eksplisit
+        const missingIds = allKelompokBesarIds.filter((id: number) => {
+          // Jangan tambahkan jika sudah ada di mahasiswaIds
+          if (mahasiswaIds.includes(id)) return false;
+          
+          // Jangan tambahkan jika ini adalah veteran (cek dari veteranStudents)
+          const isVeteran = veteranStudents.some(v => parseInt(v.id) === id);
+          if (isVeteran) {
+            console.log(`Skipping veteran ${id} from automatic addition`);
+            return false;
+          }
+          
+          return true;
+        });
+        
+        if (missingIds.length > 0) {
+          console.log('Adding missing non-veteran mahasiswa to grouping:', missingIds);
+          mahasiswaIds = [...mahasiswaIds, ...missingIds];
+        }
+        
+        console.log('Final mahasiswa IDs for grouping:', mahasiswaIds);
+        
+        // BERSIHKAN VETERAN YANG TIDAK DIPILIH DARI KELOMPOK BESAR
+        // Hapus veteran yang ada di KelompokBesar tapi tidak dipilih
+        const veteranIdsInKelompokBesar = allKelompokBesarIds.filter((id: number) => {
+          const isVeteran = veteranStudents.some(v => parseInt(v.id) === id);
+          return isVeteran;
+        });
+        
+        const veteranIdsNotSelected = veteranIdsInKelompokBesar.filter((id: number) => {
+          return !mahasiswaIds.includes(id);
+        });
+        
+        if (veteranIdsNotSelected.length > 0) {
+          console.log('Removing unselected veterans from Kelompok Besar:', veteranIdsNotSelected);
+          // Hapus veteran yang tidak dipilih dari KelompokBesar
+          for (const veteranId of veteranIdsNotSelected) {
+            try {
+              await kelompokBesarApi.deleteByMahasiswaId(veteranId, String(mapSemesterToNumber(semester)));
+              console.log(`Removed veteran ${veteranId} from Kelompok Besar`);
+            } catch (error) {
+              console.error(`Error removing veteran ${veteranId} from Kelompok Besar:`, error);
+            }
+          }
+        }
+        
+        // BERSIHKAN VETERAN YANG SALAH SEMESTER
+        // Hapus veteran yang ada di KelompokBesar tapi veteran_semester tidak sesuai
+        const allVeteransInKelompokBesar = allKelompokBesarResponse.data.filter((kb: any) => kb.mahasiswa.is_veteran);
+        for (const kb of allVeteransInKelompokBesar) {
+          const veteran = kb.mahasiswa;
+          // Jika veteran_semester tidak sesuai dengan semester ini, hapus
+          if (veteran.veteran_semester && veteran.veteran_semester !== semester) {
+            console.log(`Removing veteran ${veteran.id} (${veteran.name}) from KelompokBesar - wrong semester (${veteran.veteran_semester} vs ${semester})`);
+            try {
+              await kelompokBesarApi.deleteByMahasiswaId(veteran.id, String(mapSemesterToNumber(semester)));
+            } catch (error) {
+              console.error(`Error removing veteran ${veteran.id} from KelompokBesar:`, error);
+            }
+          }
+        }
+        
+      } catch (error) {
+        console.error('Error getting all Kelompok Besar data:', error);
+        // Lanjutkan dengan mahasiswa yang sudah dipilih
+      }
+
+      console.log('Generating Kelompok Kecil with:', {
+        semester: String(mapSemesterToNumber(semester)),
+        mahasiswa_ids: mahasiswaIds,
+        jumlah_kelompok: jumlahKelompok,
+      });
 
       const res = await kelompokKecilApi.generate({
         semester: String(mapSemesterToNumber(semester)),
-        mahasiswa_ids: selectedMahasiswa.map((id) => parseInt(id)),
+        mahasiswa_ids: mahasiswaIds,
         jumlah_kelompok: jumlahKelompok,
       });
+
 
       await loadData();
       setShowKelompok(true);
@@ -450,9 +766,23 @@ const KelompokKecil: React.FC = () => {
       setHasSavedData(true);
       setSelectedMahasiswa([]);
     } catch (error: any) {
-      console.error("Error generating kelompok:", error);
+      console.error("=== ERROR GENERATING KELOMPOK ===");
+      console.error("Full error object:", error);
+      console.error("Error response:", error?.response);
+      console.error("Error status:", error?.response?.status);
+      console.error("Error data:", error?.response?.data);
+      console.error("Error message:", error?.message);
       console.error("Error details:", handleApiError(error, "Mengenerate kelompok"));
-      setErrorMsg(handleApiError(error, "Mengenerate kelompok"));
+      
+      // Tampilkan error yang lebih spesifik
+      let errorMessage = "Gagal mengenerate kelompok";
+      if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      setErrorMsg(errorMessage);
     } finally {
       setIsGenerating(false);
     }
@@ -468,9 +798,45 @@ const KelompokKecil: React.FC = () => {
         await kelompokKecilApi.delete(kk.id);
       }
       
+      // BERSIHKAN VETERAN SEMESTER untuk semester ini
+      // Hapus veteran yang sudah dipilih di semester ini dari KelompokBesar
+      try {
+        const kelompokBesarResponse = await kelompokBesarApi.getBySemester(String(mapSemesterToNumber(semester)));
+        const veteransInKelompokBesar = kelompokBesarResponse.data.filter((kb: any) => kb.mahasiswa.is_veteran);
+        
+        console.log('Cleaning up veterans from semester', semester);
+        for (const kb of veteransInKelompokBesar) {
+          const veteran = kb.mahasiswa;
+          // Hapus dari KelompokBesar
+          try {
+            await kelompokBesarApi.deleteByMahasiswaId(veteran.id, String(mapSemesterToNumber(semester)));
+            console.log(`Removed veteran ${veteran.id} (${veteran.name}) from KelompokBesar`);
+          } catch (error) {
+            console.error(`Error removing veteran ${veteran.id} from KelompokBesar:`, error);
+          }
+          
+          // Reset veteran_semester jika veteran dipilih di semester ini
+          if (veteran.veteran_semester === semester) {
+            try {
+              await mahasiswaVeteranApi.toggleVeteran({
+                user_id: veteran.id,
+                is_veteran: true,
+                veteran_semester: null // Reset veteran_semester
+              });
+              console.log(`Reset veteran_semester for ${veteran.id} (${veteran.name})`);
+            } catch (error) {
+              console.error(`Error resetting veteran_semester for ${veteran.id}:`, error);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error cleaning up veterans:', error);
+      }
+      
       await loadData();
       
       setSelectedMahasiswa([]);
+      setSelectedVeterans([]); // Reset veteran selection
       setShowKelompok(false);
       setHasSavedData(false);
       setHasUnsavedChanges(false);
@@ -1038,6 +1404,21 @@ const KelompokKecil: React.FC = () => {
                       <option value="1.0">IPK 1.00 ke atas</option>
                     </select>
                   </div>
+
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Status:
+                    </label>
+                    <select
+                      value={filterVeteran}
+                      onChange={(e) => setFilterVeteran(e.target.value)}
+                      className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-brand-500 focus:border-brand-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    >
+                      <option value="semua">Semua Mahasiswa Biasa</option>
+                      <option value="biasa">Mahasiswa Biasa</option>
+                      <option value="veteran" disabled>📌 Veteran (lihat di section Veteran)</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -1095,12 +1476,142 @@ const KelompokKecil: React.FC = () => {
             </div>
           </div>
 
+          {/* Section Mahasiswa Veteran */}
+          {showVeteranSection && (
+            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border border-purple-200 dark:border-purple-700 rounded-xl p-6 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center">
+                    <span className="text-white text-sm">⭐</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
+                      Mahasiswa Veteran
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {veteranStudents.length} mahasiswa veteran (semua veteran)
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      * Veteran yang sudah dipilih di semester lain ditandai dengan label "Sudah Dipilih di Sem X"
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={veteranStudents.filter(v => v.is_available).length > 0 && veteranStudents.filter(v => v.is_available).every(v => selectedVeterans.includes(v.id))}
+                      onChange={handleSelectAllVeterans}
+                      className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                    />
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Pilih Semua ({selectedVeterans.length}/{veteranStudents.filter(v => v.is_available).length})
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {veteranStudents.map((veteran) => (
+                  <div
+                    key={veteran.id}
+                    className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                      veteran.is_available 
+                        ? 'cursor-pointer' 
+                        : 'cursor-not-allowed opacity-60'
+                    } ${
+                      selectedVeterans.includes(veteran.id)
+                        ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-300 dark:border-purple-600'
+                        : 'bg-white dark:bg-gray-800/50 border-purple-200 dark:border-purple-700 hover:bg-purple-25 dark:hover:bg-purple-900/10'
+                    }`}
+                    onClick={() => veteran.is_available && handleSelectVeteran(veteran.id)}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedVeterans.includes(veteran.id)}
+                      onChange={() => veteran.is_available && handleSelectVeteran(veteran.id)}
+                      disabled={!veteran.is_available}
+                      className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center">
+                      <UserIcon className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                        {veteran.nama}
+                      </p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {veteran.nim} • IPK: {veteran.ipk} • Sem: {veteran.semester_asli}
+                        </p>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300 font-medium flex items-center gap-1">
+                          <span className="text-xs">📌</span>
+                          Veteran
+                        </span>
+                        {veteran.veteran_semester && (
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            veteran.veteran_semester === semester
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300'
+                              : 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300'
+                          }`}>
+                            {veteran.veteran_semester === semester 
+                              ? `Sem: ${veteran.veteran_semester}` 
+                              : `Sudah Dipilih di Sem ${veteran.veteran_semester}`
+                            }
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className={`w-2 h-2 rounded-full transition-colors ${
+                      selectedVeterans.includes(veteran.id) 
+                        ? 'bg-purple-600' 
+                        : 'bg-purple-500'
+                    }`}></div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 p-3 bg-white dark:bg-gray-800/50 rounded-lg border border-purple-200 dark:border-purple-700">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {selectedVeterans.length > 0 ? (
+                        `${selectedVeterans.length} veteran yang dipilih akan digabung dengan mahasiswa biasa`
+                      ) : (
+                        'Pilih veteran yang akan dikelompokkan'
+                      )}
+                    </span>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      <div>Debug: {selectedVeterans.length} selected, IDs: [{selectedVeterans.join(', ')}]</div>
+                      <div>Available: {veteranStudents.filter(v => v.is_available).length}, Locked: {veteranStudents.filter(v => !v.is_available).length}</div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowVeteranSection(false)}
+                    className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    Sembunyikan
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Daftar Mahasiswa */}
           <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-                Mahasiswa Terdaftar ({filteredMahasiswa.length} tersedia dari {filteredMahasiswa.length} total)
-              </h3>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
+                  Mahasiswa Terdaftar ({filteredMahasiswa.length} tersedia dari {mahasiswa.filter(m => !m.is_veteran).length} total)
+                </h3>
+                {veteranStudents.length > 0 && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    * Mahasiswa veteran ({veteranStudents.length} orang) dipindahkan ke section "Mahasiswa Veteran" untuk mencegah duplikasi
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Input Search */}
@@ -1232,6 +1743,13 @@ const KelompokKecil: React.FC = () => {
                           >
                             IPK {mhs.ipk.toFixed(2)}
                           </span>
+                          {/* Label Veteran */}
+                          {mhs.is_veteran && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300 font-medium flex items-center gap-1">
+                              <span className="text-xs">📌</span>
+                              Veteran
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1465,6 +1983,13 @@ const KelompokKecil: React.FC = () => {
                                 >
                                   IPK {mhs.ipk.toFixed(2)}
                                 </span>
+                                {/* Label Veteran */}
+                                {mhs.is_veteran && (
+                                  <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300 font-medium flex items-center gap-1">
+                                    <span className="text-xs">📌</span>
+                                    Veteran
+                                  </span>
+                                )}
                               </div>
                             </div>
                             <div className="text-gray-400 dark:text-gray-500 text-xs">

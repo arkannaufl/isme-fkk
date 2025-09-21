@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\DB;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use App\Http\Controllers\AuthController;
@@ -26,6 +27,7 @@ use App\Http\Controllers\DashboardTimAkademikController;
 use App\Http\Controllers\ForumController;
 use App\Http\Controllers\SupportCenterController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\MahasiswaVeteranController;
 
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -164,6 +166,7 @@ Route::middleware('auth:sanctum')->get('/kelompok-besar', [KelompokBesarControll
 Route::middleware('auth:sanctum')->get('/kelompok-besar/semester/{semesterId}', [KelompokBesarController::class, 'getBySemesterId']);
 Route::middleware('auth:sanctum')->post('/kelompok-besar', [KelompokBesarController::class, 'store']);
 Route::middleware('auth:sanctum')->delete('/kelompok-besar/{id}', [KelompokBesarController::class, 'destroy']);
+Route::middleware('auth:sanctum')->delete('/kelompok-besar/mahasiswa/{mahasiswaId}/semester/{semester}', [KelompokBesarController::class, 'deleteByMahasiswaId']);
 Route::middleware('auth:sanctum')->post('/kelompok-besar/batch-by-semester', [\App\Http\Controllers\KelompokBesarController::class, 'batchBySemester']);
 
 Route::middleware('auth:sanctum')->get('/kelompok-kecil', [KelompokKecilController::class, 'index']);
@@ -442,7 +445,7 @@ Route::get('/test/users-check', function () {
         'total_users' => $totalUsers,
         'super_admin_count' => $superAdminCount,
         'latest_super_admin' => $latestSuperAdmin,
-        'all_roles' => \App\Models\User::select('role', \DB::raw('count(*) as count'))->groupBy('role')->get()
+        'all_roles' => \App\Models\User::select('role', DB::raw('count(*) as count'))->groupBy('role')->get()
     ]);
 });
 
@@ -481,7 +484,7 @@ Route::prefix('forum')->group(function () {
         Route::get('/bookmarks/forums/simple', [ForumController::class, 'getUserForumBookmarksSimple']);
         Route::get('/{id}/viewers', [ForumController::class, 'getForumViewers']);
 
-        
+
     });
 
     // Forum detail tanpa auth agar bisa diakses tanpa login
@@ -517,6 +520,15 @@ Route::prefix('support-center')->group(function () {
         Route::delete('/developers/{id}', [SupportCenterController::class, 'destroy']);
     });
 });
+
+        // Mahasiswa Veteran Routes (Super Admin & Tim Akademik)
+        Route::middleware(['auth:sanctum', 'validate.token', 'role:super_admin,tim_akademik'])->prefix('mahasiswa-veteran')->group(function () {
+            Route::get('/', [MahasiswaVeteranController::class, 'index']);
+            Route::post('/toggle', [MahasiswaVeteranController::class, 'toggleVeteran']);
+            Route::post('/bulk-toggle', [MahasiswaVeteranController::class, 'bulkToggleVeteran']);
+            Route::post('/release-from-semester', [MahasiswaVeteranController::class, 'releaseFromSemester']);
+            Route::get('/statistics', [MahasiswaVeteranController::class, 'statistics']);
+        });
 
 // Admin Management Routes (Super Admin only)
 Route::middleware(['auth:sanctum', 'role:super_admin'])->prefix('admin')->group(function () {

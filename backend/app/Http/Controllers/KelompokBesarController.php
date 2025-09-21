@@ -34,14 +34,20 @@ class KelompokBesarController extends Controller
         $semester = $request->semester;
         $mahasiswaIds = $request->mahasiswa_ids;
 
-        // Simpan (replace: hapus dulu data semester ini, lalu insert baru)
+        // Simpan (tambah saja, jangan hapus yang sudah ada)
         DB::transaction(function() use ($semester, $mahasiswaIds) {
-            KelompokBesar::where('semester', $semester)->delete();
             foreach ($mahasiswaIds as $id) {
-                KelompokBesar::create([
-                    'semester' => $semester,
-                    'mahasiswa_id' => $id
-                ]);
+                // Cek apakah sudah ada, jika belum ada baru insert
+                $existing = KelompokBesar::where('semester', $semester)
+                    ->where('mahasiswa_id', $id)
+                    ->first();
+
+                if (!$existing) {
+                    KelompokBesar::create([
+                        'semester' => $semester,
+                        'mahasiswa_id' => $id
+                    ]);
+                }
             }
         });
 
@@ -95,4 +101,31 @@ class KelompokBesarController extends Controller
         }
         return response()->json($result);
     }
-} 
+
+    // Delete kelompok besar by mahasiswa ID and semester
+    public function deleteByMahasiswaId($mahasiswaId, $semester)
+    {
+        try {
+            $kelompokBesar = KelompokBesar::where('mahasiswa_id', $mahasiswaId)
+                ->where('semester', $semester)
+                ->first();
+
+            if (!$kelompokBesar) {
+                return response()->json([
+                    'message' => 'Mahasiswa tidak ditemukan di kelompok besar semester ini'
+                ], 404);
+            }
+
+            $kelompokBesar->delete();
+
+            return response()->json([
+                'message' => 'Mahasiswa berhasil dihapus dari kelompok besar'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal menghapus mahasiswa dari kelompok besar',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+}

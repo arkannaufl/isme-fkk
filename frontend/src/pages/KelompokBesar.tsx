@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ChevronLeftIcon, UserIcon } from "../icons";
 import { motion, AnimatePresence } from "framer-motion";
-import { kelompokBesarApi, mahasiswaApi, Mahasiswa } from "../api/generateApi";
+import { kelompokBesarApi, mahasiswaApi, mahasiswaVeteranApi, Mahasiswa } from "../api/generateApi";
 import type { KelompokBesar } from "../api/generateApi";
 import { handleApiError } from "../utils/api";
 
@@ -39,6 +39,9 @@ const KelompokBesar: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [isResetting, setIsResetting] = useState(false);
+  
+  // State untuk veteran
+  const [veteranStudents, setVeteranStudents] = useState<Mahasiswa[]>([]);
 
   // Load data from API
   useEffect(() => {
@@ -47,14 +50,22 @@ const KelompokBesar: React.FC = () => {
         setLoading(true);
         setError(null);
         
-        // Fetch data mahasiswa dan kelompok besar secara paralel
+        // Fetch data mahasiswa, kelompok besar, dan veteran secara paralel
         if (semester) {
-          const [mahasiswaResponse, kelompokResponse] = await Promise.all([
+          const [mahasiswaResponse, kelompokResponse, veteranResponse] = await Promise.all([
             mahasiswaApi.getBySemester(semester),
-            kelompokBesarApi.batchBySemester({ semesters: [String(mapSemesterToNumber(semester))] })
+            kelompokBesarApi.batchBySemester({ semesters: [String(mapSemesterToNumber(semester))] }),
+            mahasiswaVeteranApi.getAll({ veteran_only: true })
           ]);
           setMahasiswaList(mahasiswaResponse.data);
           setKelompokBesarData(kelompokResponse.data[String(mapSemesterToNumber(semester))]);
+          
+          // Filter veteran yang dipilih di semester ini
+          const veteransInThisSemester = veteranResponse.data.filter((veteran: any) => 
+            veteran.veteran_semester === semester
+          );
+          setVeteranStudents(veteransInThisSemester);
+          
           const selectedIds = (kelompokResponse.data[String(mapSemesterToNumber(semester))] || []).map((kb: any) => kb.mahasiswa_id.toString());
           setSelectedMahasiswa(selectedIds);
           setHasSaved(selectedIds.length > 0);
@@ -84,6 +95,10 @@ const KelompokBesar: React.FC = () => {
   const filteredMahasiswa = mahasiswaBySemester.filter(m => {
     // Exclude yang sudah dipilih
     if (selectedMahasiswa.includes(m.id.toString())) return false;
+    
+    // EXCLUDE VETERAN dari pilihan mahasiswa biasa
+    if (m.is_veteran) return false;
+    
     // Filter angkatan
     if (filterAngkatan !== "semua" && m.angkatan !== filterAngkatan) {
       return false;
@@ -318,6 +333,67 @@ const allSelected = allIds.every(id => selectedMahasiswa.includes(id)) && allIds
           </span>
         </div>
       )}
+      
+      {/* Section Mahasiswa Veteran */}
+      {veteranStudents.length > 0 && (
+        <div className="mb-6 relative">
+          <div className="flex flex-col sm:flex-row items-start justify-between mb-2">
+            <h2 className="text-lg font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-2 mb-5">
+              <span className="text-2xl">⭐</span>
+              Mahasiswa Veteran
+              <span className="inline-block px-2 py-0.5 text-xs rounded-full bg-purple-600 text-white">{veteranStudents.length}</span>
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {veteranStudents.map(veteran => (
+              <div
+                key={veteran.id}
+                className="flex items-center gap-3 p-3 rounded-lg border border-purple-300 bg-purple-50 dark:bg-purple-900/20 transition-all duration-300"
+              >
+                <div className="w-8 h-8 rounded-full bg-purple-200 dark:bg-purple-700 flex items-center justify-center">
+                  <UserIcon className="w-4 h-4 text-purple-700 dark:text-purple-200" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-purple-900 dark:text-purple-100 text-sm">{veteran.name}</p>
+                  <div className="flex items-center gap-2 flex-wrap mt-1">
+                    <p className="text-xs text-purple-600 dark:text-purple-400">{veteran.nim}</p>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300">
+                      {veteran.angkatan}
+                    </span>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full ${
+                        veteran.ipk >= 3.5
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300"
+                          : veteran.ipk >= 3.0
+                          ? "bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
+                          : veteran.ipk >= 2.5
+                          ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300"
+                          : "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300"
+                      }`}
+                    >
+                      IPK {veteran.ipk.toFixed(2)}
+                    </span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300 font-medium flex items-center gap-1">
+                      <span className="text-xs">📌</span>
+                      Veteran
+                    </span>
+                  </div>
+                </div>
+                <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-700">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+              <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                Mahasiswa veteran yang dipilih di semester {semester} untuk dikelompokkan
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Section Mahasiswa Terpilih */}
       {selectedMahasiswaFiltered.length > 0 && (
         <div className="mb-6 relative">
@@ -513,6 +589,11 @@ const allSelected = allIds.every(id => selectedMahasiswa.includes(id)) && allIds
       </div>
       <div className="mb-4 text-sm text-gray-600 dark:text-gray-300">
         Mahasiswa terpilih: <span className="font-bold">{selectedMahasiswaFiltered.filter(id => filteredMahasiswa.map(m => m.id.toString()).includes(id)).length}</span>
+        {veteranStudents.length > 0 && (
+          <span className="ml-2 text-xs text-purple-600 dark:text-purple-400">
+            • Mahasiswa veteran ({veteranStudents.length} orang) dipindahkan ke section "Mahasiswa Veteran" untuk mencegah duplikasi
+          </span>
+        )}
       </div>
       
       {filteredMahasiswa.length === 0 ? (

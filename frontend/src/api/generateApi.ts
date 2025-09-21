@@ -11,6 +11,14 @@ export interface Mahasiswa {
   angkatan: string;
   role: string;
   semester?: number;
+  is_veteran?: boolean;
+  veteran_notes?: string;
+  veteran_set_at?: string;
+  veteran_set_by?: {
+    id: number;
+    name: string;
+  };
+  veteran_semester?: string;
 }
 
 export interface Semester {
@@ -111,6 +119,10 @@ export const kelompokBesarApi = {
   delete: (id: number) =>
     api.delete(`/kelompok-besar/${id}`),
 
+  // Delete kelompok besar by mahasiswa ID and semester
+  deleteByMahasiswaId: (mahasiswaId: number, semester: string) =>
+    api.delete(`/kelompok-besar/mahasiswa/${mahasiswaId}/semester/${semester}`),
+
   // Batch by semester
   batchBySemester: (data: { semesters: string[] }) =>
     api.post('/kelompok-besar/batch-by-semester', data),
@@ -209,6 +221,45 @@ export const mahasiswaApi = {
   // Get mahasiswa berdasarkan semester
   getBySemester: (semester: string) =>
     api.get<Mahasiswa[]>(`/users?role=mahasiswa&semester=${semester}`),
+};
+
+// Mahasiswa Veteran API
+export const mahasiswaVeteranApi = {
+  // Get semua mahasiswa veteran
+  getAll: (params?: {
+    veteran_only?: boolean;
+    angkatan?: string;
+    search?: string;
+  }) =>
+    api.get<Mahasiswa[]>('/mahasiswa-veteran', { params }),
+
+  // Toggle veteran status
+  toggleVeteran: (data: {
+    user_id: number;
+    is_veteran: boolean;
+    veteran_notes?: string;
+    veteran_semester?: string;
+  }) =>
+    api.post('/mahasiswa-veteran/toggle', data),
+
+  // Bulk toggle veteran status
+  bulkToggleVeteran: (data: {
+    user_ids: number[];
+    is_veteran: boolean;
+    veteran_notes?: string;
+  }) =>
+    api.post('/mahasiswa-veteran/bulk-toggle', data),
+
+  // Get veteran statistics
+  getStatistics: () =>
+    api.get('/mahasiswa-veteran/statistics'),
+
+  // Release veteran from semester
+  releaseFromSemester: (data: {
+    user_id: number;
+    semester: string;
+  }) =>
+    api.post('/mahasiswa-veteran/release-from-semester', data),
 };
 
 // Forum API

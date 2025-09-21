@@ -24,6 +24,7 @@ import KelompokBesar from "./pages/KelompokBesar";
 import Kelompok from "./pages/Kelompok";
 import KelompokKecil from "./pages/KelompokKecil";
 import KelasDetail from "./pages/KelasDetail";
+import MahasiswaVeteran from "./pages/MahasiswaVeteran";
 import Histori from "./pages/Histori";
 import ReportingDosen from "./pages/ReportingDosen";
 import PBLDetail from "./pages/PBL-detail";
@@ -273,6 +274,11 @@ function AppContent() {
               <Route path="/generate/kelas" element={
                 <RequireDosenRole allowedRoles={["super_admin", "tim_akademik", "dosen"]}>
                   <Kelas />
+                </RequireDosenRole>
+              } />
+              <Route path="/generate/mahasiswa-veteran" element={
+                <RequireDosenRole allowedRoles={["super_admin", "tim_akademik", "dosen"]}>
+                  <MahasiswaVeteran />
                 </RequireDosenRole>
               } />
               <Route path="/reporting/dosen" element={
