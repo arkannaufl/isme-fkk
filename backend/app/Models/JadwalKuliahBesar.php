@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class JadwalKuliahBesar extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity;
 
     protected $table = 'jadwal_kuliah_besar';
 
@@ -63,5 +65,13 @@ class JadwalKuliahBesar extends Model
             return implode(', ', $dosenNames);
         }
         return $this->dosen ? $this->dosen->name : '';
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn(string $eventName) => "Jadwal Kuliah Besar telah di-{$eventName}");
     }
 }

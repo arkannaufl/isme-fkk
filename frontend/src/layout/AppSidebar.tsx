@@ -87,6 +87,7 @@ const getNavItems = (userRole?: string): NavItem[] => {
     subItems: [
         { name: "Kelompok", path: "/generate/kelompok", roles: ["super_admin", "tim_akademik", "dosen"] },
         { name: "Kelas", path: "/generate/kelas", roles: ["super_admin", "tim_akademik", "dosen"] },
+        { name: "Mahasiswa Veteran", path: "/generate/mahasiswa-veteran", roles: ["super_admin", "tim_akademik", "dosen"] },
     ],
       roles: ["super_admin", "tim_akademik", "dosen"],
   },

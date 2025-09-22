@@ -133,6 +133,16 @@ class PenilaianJurnalController extends Controller
             // Update jadwal jurnal reading status penilaian_submitted
             $this->updateJadwalJurnalPenilaianStatus($jurnal_id);
 
+            // Log activity
+            activity()
+                ->withProperties([
+                    'mata_kuliah_kode' => $kode_blok,
+                    'kelompok' => $kelompok,
+                    'jurnal_id' => $jurnal_id,
+                    'penilaian_count' => count($request->penilaian)
+                ])
+                ->log("Penilaian Jurnal created: {$kode_blok} - {$kelompok} - {$jurnal_id}");
+
             return response()->json(['message' => 'Penilaian jurnal berhasil disimpan'], 200);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Gagal menyimpan penilaian: ' . $e->getMessage()], 500);

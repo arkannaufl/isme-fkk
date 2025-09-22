@@ -36,6 +36,10 @@ class UserController extends Controller
         if ($request->has('semester')) {
             $query->where('semester', $request->semester);
         }
+        if ($request->has('keahlian')) {
+            $keahlian = $request->keahlian;
+            $query->whereJsonContains('keahlian', $keahlian);
+        }
         $users = $query->get();
         // Tambahan: jika role dosen, tambahkan field peran multi
         if ($request->role === 'dosen') {

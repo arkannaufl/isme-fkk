@@ -115,6 +115,17 @@ class KelasController extends Controller
                 'deskripsi' => $deskripsi
             ]);
 
+            // Log activity
+            activity()
+                ->performedOn($kelas)
+                ->withProperties([
+                    'semester' => $semester,
+                    'nama_kelas' => $namaKelas,
+                    'deskripsi' => $deskripsi,
+                    'kelompok_count' => count($kelompokIds)
+                ])
+                ->log("Kelas created: {$namaKelas}");
+
             // Simpan relasi kelompok (jika ada)
             foreach ($kelompokIds as $namaKelompok) {
                 DB::table('kelas_kelompok')->insert([
@@ -196,6 +207,17 @@ class KelasController extends Controller
                 'deskripsi' => $deskripsi
             ]);
 
+            // Log activity
+            activity()
+                ->performedOn($kelas)
+                ->withProperties([
+                    'semester' => $kelas->semester,
+                    'nama_kelas' => $namaKelas,
+                    'deskripsi' => $deskripsi,
+                    'kelompok_count' => count($kelompokIds)
+                ])
+                ->log("Kelas updated: {$namaKelas}");
+
             // Hapus relasi lama
             DB::table('kelas_kelompok')->where('kelas_id', $kelas->id)->delete();
 
@@ -218,6 +240,17 @@ class KelasController extends Controller
     public function destroy($id)
     {
         $kelas = Kelas::findOrFail($id);
+
+        // Log activity before deletion
+        activity()
+            ->performedOn($kelas)
+            ->withProperties([
+                'semester' => $kelas->semester,
+                'nama_kelas' => $kelas->nama_kelas,
+                'deskripsi' => $kelas->deskripsi
+            ])
+            ->log("Kelas deleted: {$kelas->nama_kelas}");
+
         $kelas->delete(); // Relasi akan terhapus otomatis karena onDelete cascade
         return response()->json(['message' => 'Kelas berhasil dihapus']);
     }

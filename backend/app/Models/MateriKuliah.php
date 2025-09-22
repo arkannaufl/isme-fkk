@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class MateriKuliah extends Model
 {
@@ -26,5 +28,13 @@ class MateriKuliah extends Model
     public function mataKuliah()
     {
         return $this->belongsTo(MataKuliah::class, 'kode_mata_kuliah', 'kode');
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn(string $eventName) => "MateriKuliah telah di-{$eventName}");
     }
 }

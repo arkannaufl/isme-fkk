@@ -839,30 +839,56 @@ export default function MataKuliah() {
       if (!validationResult.valid) {
         setValidationErrors(validationResult.errors);
         setCellErrors(validationResult.cellErrors);
+        setLoading(false);
         return;
       }
 
-      // Persiapkan file Excel untuk import
-      const ws = XLSX.utils.json_to_sheet(previewData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "MataKuliah");
-      const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-      const file = new File([excelBuffer], "Data_Import_MataKuliah.xlsx", {
-        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      // Transform data untuk dikirim ke backend (seperti Dosen.tsx)
+      const dataToExport = previewData.map((row) => {
+        // Konversi string ke array untuk peran_dalam_kurikulum dan keahlian_required
+        const peran_dalam_kurikulum = typeof row.peran_dalam_kurikulum === "string"
+          ? row.peran_dalam_kurikulum
+              .split(",")
+              .map((item: string) => item.trim())
+              .filter((item: string) => item !== "")
+          : Array.isArray(row.peran_dalam_kurikulum)
+          ? row.peran_dalam_kurikulum
+              .map((item: string) => item.trim())
+              .filter((item: string) => item !== "")
+          : [];
+
+        const keahlian_required = typeof row.keahlian_required === "string"
+          ? row.keahlian_required
+              .split(",")
+              .map((item: string) => item.trim())
+              .filter((item: string) => item !== "")
+          : Array.isArray(row.keahlian_required)
+          ? row.keahlian_required
+              .map((item: string) => item.trim())
+              .filter((item: string) => item !== "")
+          : [];
+
+        return {
+          ...row,
+          peran_dalam_kurikulum,
+          keahlian_required,
+          // Pastikan tipe_non_block null untuk Blok
+          tipe_non_block: row.jenis === 'Blok' ? null : row.tipe_non_block
+        };
       });
 
-      const formData = new FormData();
-      formData.append('file', file);
+      // Kirim data langsung ke backend (seperti Dosen.tsx)
+      const importResponse = await api.post("/mata-kuliah/bulk-import", dataToExport, {
+        headers: { "Content-Type": "application/json" },
+        validateStatus: () => true,
+        timeout: 120000, // 2 menit timeout untuk import data banyak
+      });
 
-      // Import data
-      const importResponse = await api.post('/mata-kuliah/import', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
+      if (importResponse.status === 200) {
+        const importedCount = importResponse.data.imported_count || 0;
+        if (importedCount > 0) {
+          setSuccess(`${importedCount} Data mata kuliah berhasil diimport ke database.`);
         }
-      });
-
-      if (importResponse.data.success) {
-        setSuccess(`${importResponse.data.imported_count} Data mata kuliah berhasil diimport ke database.`);
         // Reset state
         setPreviewData([]);
         setValidationErrors([]);
@@ -870,12 +896,22 @@ export default function MataKuliah() {
         setImportedFile(null);
         // Refresh data
         fetchData();
+      } else if (importResponse.status === 422) {
+        setError(importResponse.data.message || "Gagal mengimpor data");
+        if (importResponse.data.failed_rows && importResponse.data.failed_rows.length > 0) {
+          setPreviewData(importResponse.data.failed_rows);
+        }
+        if (importResponse.data.cell_errors && importResponse.data.cell_errors.length > 0) {
+          setCellErrors(importResponse.data.cell_errors);
+        }
+        if (importResponse.data.errors && importResponse.data.errors.length > 0) {
+          setValidationErrors(importResponse.data.errors);
+        }
       } else {
         setError(importResponse.data.message || 'Gagal mengimport data');
       }
     } catch (error: any) {
       console.error('Error importing data:', error);
-      console.error('Error details:', handleApiError(error, 'Import data'));
       setError(handleApiError(error, 'Import data'));
     } finally {
       setLoading(false);
@@ -982,10 +1018,11 @@ export default function MataKuliah() {
   // Download template Excel
   const downloadTemplate = async () => {
     const templateData = [
-      // 1 Non Blok
+      // ===== CONTOH SEMESTER REGULER =====
+      // 1. Non Blok Non-CSR (Semester Reguler)
       {
-        kode: 'MK001',
-        nama: 'Contoh Non Blok',
+        kode: 'TEMPLATE001',
+        nama: 'Contoh Non Blok Non-CSR - Semester Reguler',
         semester: 1,
         periode: 'Ganjil',
         jenis: 'Non Blok',
@@ -993,12 +1030,31 @@ export default function MataKuliah() {
         tanggal_mulai: '2024-08-01',
         tanggal_akhir: '2024-12-01',
         blok: null,
-        durasi_minggu: 16
+        durasi_minggu: 16,
+        tipe_non_block: 'Non-CSR',
+        peran_dalam_kurikulum: 'Dasar Klinis, Praktik Klinis',
+        keahlian_required: 'Anamnesis, Pemeriksaan Fisik, Diagnosis Banding'
       },
-      // 4 Blok, tanggal tidak overlap
+      // 2. Non Blok CSR (Semester Reguler)
       {
-        kode: 'MK002',
-        nama: 'Blok 1',
+        kode: 'TEMPLATE002',
+        nama: 'Contoh Non Blok CSR - Semester Reguler',
+        semester: 2,
+        periode: 'Genap',
+        jenis: 'Non Blok',
+        kurikulum: 2024,
+        tanggal_mulai: '2024-02-01',
+        tanggal_akhir: '2024-06-01',
+        blok: null,
+        durasi_minggu: 16,
+        tipe_non_block: 'CSR',
+        peran_dalam_kurikulum: 'Dasar Klinis, Praktik Klinis',
+        keahlian_required: 'Anamnesis, Pemeriksaan Fisik, Diagnosis Banding'
+      },
+      // 3-6. 4 Blok (Semester Reguler) - tanggal tidak overlap
+      {
+        kode: 'TEMPLATE003',
+        nama: 'Blok 1 - Semester Reguler',
         semester: 1,
         periode: 'Ganjil',
         jenis: 'Blok',
@@ -1006,11 +1062,14 @@ export default function MataKuliah() {
         tanggal_mulai: '2024-08-01',
         tanggal_akhir: '2024-08-28',
         blok: 1,
-        durasi_minggu: 4
+        durasi_minggu: 4,
+        tipe_non_block: null,
+        peran_dalam_kurikulum: 'Dasar Klinis',
+        keahlian_required: 'Anamnesis, Pemeriksaan Fisik'
       },
       {
-        kode: 'MK003',
-        nama: 'Blok 2',
+        kode: 'TEMPLATE004',
+        nama: 'Blok 2 - Semester Reguler',
         semester: 1,
         periode: 'Ganjil',
         jenis: 'Blok',
@@ -1018,11 +1077,14 @@ export default function MataKuliah() {
         tanggal_mulai: '2024-09-01',
         tanggal_akhir: '2024-09-28',
         blok: 2,
-        durasi_minggu: 4
+        durasi_minggu: 4,
+        tipe_non_block: null,
+        peran_dalam_kurikulum: 'Dasar Klinis',
+        keahlian_required: 'Anamnesis, Pemeriksaan Fisik'
       },
       {
-        kode: 'MK004',
-        nama: 'Blok 3',
+        kode: 'TEMPLATE005',
+        nama: 'Blok 3 - Semester Reguler',
         semester: 1,
         periode: 'Ganjil',
         jenis: 'Blok',
@@ -1030,11 +1092,14 @@ export default function MataKuliah() {
         tanggal_mulai: '2024-10-01',
         tanggal_akhir: '2024-10-28',
         blok: 3,
-        durasi_minggu: 4
+        durasi_minggu: 4,
+        tipe_non_block: null,
+        peran_dalam_kurikulum: 'Dasar Klinis',
+        keahlian_required: 'Anamnesis, Pemeriksaan Fisik'
       },
       {
-        kode: 'MK005',
-        nama: 'Blok 4',
+        kode: 'TEMPLATE006',
+        nama: 'Blok 4 - Semester Reguler',
         semester: 1,
         periode: 'Ganjil',
         jenis: 'Blok',
@@ -1042,11 +1107,17 @@ export default function MataKuliah() {
         tanggal_mulai: '2024-11-01',
         tanggal_akhir: '2024-11-28',
         blok: 4,
-        durasi_minggu: 4
+        durasi_minggu: 4,
+        tipe_non_block: null,
+        peran_dalam_kurikulum: 'Dasar Klinis',
+        keahlian_required: 'Anamnesis, Pemeriksaan Fisik'
       },
+      
+      // ===== CONTOH SEMESTER ANTARA =====
+
       {
-        kode: 'MK006',
-        nama: 'Contoh Semester Antara',
+        kode: 'TEMPLATE007',
+        nama: 'Contoh Non Blok Non-CSR - Semester Antara',
         semester: 'Antara',
         periode: 'Antara',
         jenis: 'Non Blok',
@@ -1054,10 +1125,32 @@ export default function MataKuliah() {
         tanggal_mulai: '2024-06-01',
         tanggal_akhir: '2024-07-31',
         blok: null,
-        durasi_minggu: 8
+        durasi_minggu: 8,
+        tipe_non_block: 'Non-CSR',
+        peran_dalam_kurikulum: '',
+        keahlian_required: ''
+      },
+      {
+        kode: 'TEMPLATE008',
+        nama: 'Contoh Blok - Semester Antara',
+        semester: 'Antara',
+        periode: 'Antara',
+        jenis: 'Blok',
+        kurikulum: 2024,
+        tanggal_mulai: '2024-06-15',
+        tanggal_akhir: '2024-07-15',
+        blok: 1,
+        durasi_minggu: 4,
+        tipe_non_block: null,
+        peran_dalam_kurikulum: '',
+        keahlian_required: ''
       },
     ];
-    const ws = XLSX.utils.json_to_sheet(templateData);
+    // Buat worksheet dengan header yang eksplisit
+    const ws = XLSX.utils.json_to_sheet(templateData, {
+      header: ['kode', 'nama', 'semester', 'periode', 'jenis', 'kurikulum', 'tanggal_mulai', 'tanggal_akhir', 'blok', 'durasi_minggu', 'tipe_non_block', 'peran_dalam_kurikulum', 'keahlian_required']
+    });
+    
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "MataKuliah");
     XLSX.writeFile(wb, "Template_Import_MataKuliah.xlsx");
@@ -1067,22 +1160,46 @@ export default function MataKuliah() {
   const readExcelFile = (file: File): Promise<any[]> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
+
       reader.onload = (e) => {
         try {
           const data = e.target?.result;
-          const workbook = XLSX.read(data, { type: 'array' });
+          const workbook = XLSX.read(data, { type: "array" });
           const firstSheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[firstSheetName];
-          // Tambahkan opsi raw: true untuk memastikan semua kolom terbaca
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, {
-            raw: true,
-            defval: null // Nilai default untuk sel kosong
-          });
+
+          // Get data as array of arrays
+          const aoa = XLSX.utils.sheet_to_json(worksheet, {
+            header: 1,
+          }) as any[][];
+
+          if (aoa.length === 0) {
+            resolve([]);
+            return;
+          }
+
+          const rawHeaders = aoa[0];
+          // Normalize headers: lowercase, trim spaces, replace spaces with underscores
+          const normalizedHeaders = rawHeaders.map((h: string) =>
+            String(h).toLowerCase().trim().replace(/\s+/g, "_")
+          );
+
+          const jsonData: any[] = [];
+          for (let i = 1; i < aoa.length; i++) {
+            const rowData: any = {};
+            const currentRow = aoa[i];
+            normalizedHeaders.forEach((header, index) => {
+              rowData[header] = currentRow[index];
+            });
+            jsonData.push(rowData);
+          }
+
           resolve(jsonData);
         } catch (error) {
           reject(error);
         }
       };
+
       reader.onerror = (error) => reject(error);
       reader.readAsArrayBuffer(file);
     });
@@ -1100,7 +1217,7 @@ export default function MataKuliah() {
 
     // Validasi header
     const firstRow = excelData[0];
-    const requiredHeaders = ['kode', 'nama', 'semester', 'periode', 'jenis', 'kurikulum', 'tanggal_mulai', 'tanggal_akhir', 'blok', 'durasi_minggu'];
+    const requiredHeaders = ['kode', 'nama', 'semester', 'periode', 'jenis', 'kurikulum', 'tanggal_mulai', 'tanggal_akhir', 'blok', 'durasi_minggu', 'tipe_non_block', 'peran_dalam_kurikulum', 'keahlian_required'];
     const headers = Object.keys(firstRow).map(h => h.toLowerCase());
     const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
     if (missingHeaders.length > 0) {
@@ -1173,7 +1290,17 @@ export default function MataKuliah() {
   const handleCellEdit = (rowIdx: number, key: string, value: string | string[]) => {
     setPreviewData(prev => {
       const newData = [...prev];
-      newData[rowIdx] = { ...newData[rowIdx], [key]: value };
+      
+      // Handle array fields (peran_dalam_kurikulum, keahlian_required)
+      if (key === 'peran_dalam_kurikulum' || key === 'keahlian_required') {
+        const arrayValue = typeof value === 'string' 
+          ? value.split(',').map(item => item.trim()).filter(item => item !== '')
+          : value;
+        newData[rowIdx] = { ...newData[rowIdx], [key]: arrayValue };
+      } else {
+        newData[rowIdx] = { ...newData[rowIdx], [key]: value };
+      }
+      
       // Validasi ulang seluruh data preview
       const validationResult = validateExcelData(newData, data);
       setCellErrors(validationResult.cellErrors);
@@ -1196,9 +1323,60 @@ export default function MataKuliah() {
     if (row.jenis === 'Blok' && (!row.blok || isNaN(Number(row.blok)))) errors.push({ field: 'blok', message: `Blok harus diisi dengan angka jika jenis 'Blok'` });
     if (!row.durasi_minggu || isNaN(Number(row.durasi_minggu))) errors.push({ field: 'durasi_minggu', message: 'Durasi Minggu harus diisi dengan angka' });
     
+    // Validasi tipe_non_block
+    if (row.jenis === 'Non Blok') {
+      if (!row.tipe_non_block || !['CSR', 'Non-CSR'].includes(row.tipe_non_block)) {
+        errors.push({ field: 'tipe_non_block', message: 'Tipe Non-Block harus diisi dengan "CSR" atau "Non-CSR"' });
+      }
+    } else if (row.jenis === 'Blok') {
+      if (row.tipe_non_block && row.tipe_non_block !== null && row.tipe_non_block !== '') {
+        errors.push({ field: 'tipe_non_block', message: 'Tipe Non-Block tidak boleh diisi untuk jenis Blok' });
+      }
+    }
+    
     // Validasi khusus untuk semester Antara
     if (row.semester === 'Antara' && row.jenis === 'Non Blok' && row.tipe_non_block === 'CSR') {
-      errors.push({ field: 'jenis', message: 'Semester Antara tidak dapat memiliki tipe CSR, hanya Non-CSR yang diperbolehkan' });
+      errors.push({ field: 'tipe_non_block', message: 'Semester Antara tidak dapat memiliki tipe CSR, hanya Non-CSR yang diperbolehkan' });
+    }
+    
+    // Validasi peran_dalam_kurikulum (hanya untuk semester bukan Antara)
+    if (row.semester !== 'Antara') {
+      const peranValue = Array.isArray(row.peran_dalam_kurikulum) 
+        ? row.peran_dalam_kurikulum 
+        : (typeof row.peran_dalam_kurikulum === 'string' ? row.peran_dalam_kurikulum.split(',').map(p => p.trim()).filter(p => p !== '') : []);
+      
+      if (!peranValue || peranValue.length === 0) {
+        errors.push({ field: 'peran_dalam_kurikulum', message: 'Peran dalam Kurikulum harus diisi untuk semester reguler' });
+      }
+    } else {
+      // Untuk semester Antara, peran_dalam_kurikulum harus kosong
+      const peranValue = Array.isArray(row.peran_dalam_kurikulum) 
+        ? row.peran_dalam_kurikulum 
+        : (typeof row.peran_dalam_kurikulum === 'string' ? row.peran_dalam_kurikulum.split(',').map(p => p.trim()).filter(p => p !== '') : []);
+      
+      if (peranValue && peranValue.length > 0) {
+        errors.push({ field: 'peran_dalam_kurikulum', message: 'Peran dalam Kurikulum tidak boleh diisi untuk semester Antara' });
+      }
+    }
+    
+    // Validasi keahlian_required (hanya untuk semester bukan Antara)
+    if (row.semester !== 'Antara') {
+      const keahlianValue = Array.isArray(row.keahlian_required) 
+        ? row.keahlian_required 
+        : (typeof row.keahlian_required === 'string' ? row.keahlian_required.split(',').map(k => k.trim()).filter(k => k !== '') : []);
+      
+      if (!keahlianValue || keahlianValue.length === 0) {
+        errors.push({ field: 'keahlian_required', message: 'Keahlian Dibutuhkan harus diisi untuk semester reguler' });
+      }
+    } else {
+      // Untuk semester Antara, keahlian_required harus kosong
+      const keahlianValue = Array.isArray(row.keahlian_required) 
+        ? row.keahlian_required 
+        : (typeof row.keahlian_required === 'string' ? row.keahlian_required.split(',').map(k => k.trim()).filter(k => k !== '') : []);
+      
+      if (keahlianValue && keahlianValue.length > 0) {
+        errors.push({ field: 'keahlian_required', message: 'Keahlian Dibutuhkan tidak boleh diisi untuk semester Antara' });
+      }
     }
     
     // Duplikat kode di file
@@ -1850,7 +2028,10 @@ export default function MataKuliah() {
                               {isEditing ? (
                                 <input
                                   className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                  value={previewData[editingCell.row][editingCell.key] || ""}
+                                  value={Array.isArray(previewData[editingCell.row][editingCell.key]) 
+                                    ? previewData[editingCell.row][editingCell.key].join(', ')
+                                    : (previewData[editingCell.row][editingCell.key] || "")
+                                  }
                                   onChange={e => {
                                     let val = e.target.value;
                                     handleCellEdit(globalRowIdx, colKey, val);
@@ -1859,7 +2040,9 @@ export default function MataKuliah() {
                                   autoFocus
                                 />
                               ) : (
-                                row[colKey]
+                                Array.isArray(row[colKey]) 
+                                  ? row[colKey].join(', ')
+                                  : row[colKey]
                               )}
                             </td>
                           );

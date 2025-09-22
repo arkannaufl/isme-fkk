@@ -98,6 +98,19 @@ class JadwalPBLController extends Controller
         }
 
         $jadwal = JadwalPBL::create($data);
+
+        // Log activity
+        activity()
+            ->performedOn($jadwal)
+            ->withProperties([
+                'mata_kuliah_kode' => $kode,
+                'pbl_id' => $data['modul_pbl_id'],
+                'tanggal' => $data['tanggal'],
+                'jam_mulai' => $data['jam_mulai'],
+                'jam_selesai' => $data['jam_selesai'],
+                'pbl_tipe' => $data['pbl_tipe']
+            ])
+            ->log("Jadwal PBL created: {$jadwal->modulPBL->nama}");
         
         // Load relasi dan tambahkan modul_pbl_id
         $jadwal->load(['modulPBL', 'kelompokKecil', 'kelompokKecilAntara', 'dosen', 'ruangan']);
@@ -236,6 +249,19 @@ class JadwalPBLController extends Controller
         $jadwal->resetPenilaianSubmitted();
         
         $jadwal->update($data);
+
+        // Log activity
+        activity()
+            ->performedOn($jadwal)
+            ->withProperties([
+                'mata_kuliah_kode' => $kode,
+                'pbl_id' => $data['modul_pbl_id'],
+                'tanggal' => $data['tanggal'],
+                'jam_mulai' => $data['jam_mulai'],
+                'jam_selesai' => $data['jam_selesai'],
+                'pbl_tipe' => $data['pbl_tipe']
+            ])
+            ->log("Jadwal PBL updated: {$jadwal->modulPBL->nama}");
         
         // Update penilaian data jika PBL type berubah
         if ($oldPBLType !== $data['pbl_tipe']) {
@@ -263,6 +289,19 @@ class JadwalPBLController extends Controller
         // Cascade delete: hapus penilaian PBL yang terkait
         $kelompokKecil = \App\Models\KelompokKecil::find($jadwal->kelompok_kecil_id);
         $namaKelompok = $kelompokKecil ? $kelompokKecil->nama_kelompok : $jadwal->kelompok_kecil_id;
+
+        // Log activity before deletion
+        activity()
+            ->performedOn($jadwal)
+            ->withProperties([
+                'mata_kuliah_kode' => $kode,
+                'pbl_id' => $jadwal->pbl_id,
+                'tanggal' => $jadwal->tanggal,
+                'jam_mulai' => $jadwal->jam_mulai,
+                'jam_selesai' => $jadwal->jam_selesai,
+                'pbl_tipe' => $jadwal->pbl_tipe
+            ])
+            ->log("Jadwal PBL deleted: {$jadwal->modulPBL->nama}");
 
         // Hapus penilaian PBL berdasarkan mata_kuliah_kode, kelompok, dan pbl_tipe
         \App\Models\PenilaianPBL::where('mata_kuliah_kode', $kode)
@@ -970,6 +1009,45 @@ class JadwalPBLController extends Controller
         }
 
         return null; // Kapasitas mencukupi
+    }
+
+    /**
+     * Get jadwal PBL berdasarkan PBL ID
+     */
+    public function getJadwalByPblId($kode, $pblId)
+    {
+        try {
+            $jadwal = JadwalPBL::with(['modulPBL', 'kelompokKecil', 'kelompokKecilAntara', 'dosen', 'ruangan'])
+                ->where('mata_kuliah_kode', $kode)
+                ->where('pbl_id', $pblId)
+                ->orderBy('tanggal')
+                ->orderBy('jam_mulai')
+                ->get();
+            
+            // Tambahkan modul_pbl_id dan nama_kelompok untuk kompatibilitas dengan frontend
+            $jadwal->transform(function ($item) {
+                $item->modul_pbl_id = $item->pbl_id;
+                
+                // Tambahkan nama kelompok untuk kompatibilitas dengan frontend
+                if ($item->kelompok_kecil_antara) {
+                    $item->nama_kelompok = $item->kelompok_kecil_antara->nama_kelompok;
+                } elseif ($item->kelompok_kecil) {
+                    $item->nama_kelompok = $item->kelompok_kecil->nama_kelompok;
+                }
+                
+                return $item;
+            });
+            
+            return response()->json([
+                'message' => 'Jadwal PBL berhasil diambil',
+                'data' => $jadwal
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal mengambil jadwal PBL',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
 }

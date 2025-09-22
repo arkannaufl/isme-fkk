@@ -439,8 +439,6 @@ const DashboardSuperAdmin: React.FC = () => {
     const lowerName = filename.toLowerCase();
     if (lowerName.includes('data_only') || lowerName.includes('dataonly')) {
       return 'data_only';
-    } else if (lowerName.includes('structure_only') || lowerName.includes('structureonly')) {
-      return 'structure_only';
     } else if (lowerName.includes('full')) {
       return 'full';
     }
@@ -459,9 +457,6 @@ const DashboardSuperAdmin: React.FC = () => {
       } else if (detectedType === 'full' && selectedType === 'data_only') {
         warnings.push(`🔄 File appears to be "Full" backup but "Data Only" is selected`);
         warnings.push(`✅ System will import data portion only as requested`);
-      } else if (detectedType === 'structure_only') {
-        warnings.push(`🔄 File appears to be "Structure Only" backup`);
-        warnings.push(`✅ System will auto-correct to "Structure Only" import`);
       }
       
       setImportTypeWarning(warnings.join('\n'));
@@ -2404,12 +2399,6 @@ const DashboardSuperAdmin: React.FC = () => {
                         label: 'Data Only',
                         description: 'Hanya data (tanpa struktur tabel)',
                         icon: '📊'
-                      },
-                      {
-                        value: 'structure_only',
-                        label: 'Structure Only',
-                        description: 'Hanya struktur tabel (tanpa data)',
-                        icon: '🏗️'
                       }
                     ].map((backup) => {
                       const isSelected = backupType === backup.value;
@@ -2709,7 +2698,7 @@ const DashboardSuperAdmin: React.FC = () => {
                               isSelected ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-600' : ''
                             }`}
                             onClick={() => {
-                              const newType = importType.value as 'full' | 'data_only' | 'structure_only';
+                              const newType = importType.value as 'full' | 'data_only';
                               setBackupType(newType);
                               if (selectedBackupFile) {
                                 checkImportTypeCompatibility(selectedBackupFile, newType);

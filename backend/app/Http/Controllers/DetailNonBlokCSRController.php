@@ -77,8 +77,15 @@ class DetailNonBlokCSRController extends Controller
                             'nomor_csr' => $kategori->nomor_csr
                         ];
                         
-                        // Avoid duplicates by checking if dosen already exists
-                        if (!$dosenList->contains('id', $mapping->dosen->id)) {
+                        // Allow multiple entries for same dosen if they have different keahlian
+                        // Check if this exact combination (dosen + keahlian + csr) already exists
+                        $exists = $dosenList->contains(function ($item) use ($dosenData) {
+                            return $item['id'] === $dosenData['id'] && 
+                                   $item['keahlian'] === $dosenData['keahlian'] && 
+                                   $item['csr_id'] === $dosenData['csr_id'];
+                        });
+                        
+                        if (!$exists) {
                             $dosenList->push($dosenData);
                         }
                     }

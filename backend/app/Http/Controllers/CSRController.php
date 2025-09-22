@@ -67,6 +67,36 @@ class CSRController extends Controller
 
             $csr = CSR::create($request->all());
 
+
+
+            // Log activity
+
+
+            activity()
+
+
+                ->log('CSR deleted');
+
+
+
+            // Log activity
+
+
+            activity()
+
+
+                ->log('CSR updated');
+
+
+
+            // Log activity
+
+
+            activity()
+
+
+                ->log('CSR created');
+
             return response()->json([
                 'message' => 'Mata kuliah CSR berhasil ditambahkan',
                 'data' => $csr

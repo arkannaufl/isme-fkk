@@ -27,12 +27,16 @@ return new class extends Migration
             $table->string('file_jurnal')->nullable();
             $table->enum('status_konfirmasi', ['belum_konfirmasi', 'bisa', 'tidak_bisa'])->default('belum_konfirmasi');
             $table->text('alasan_konfirmasi')->nullable();
+            $table->boolean('penilaian_submitted')->default(false);
+            $table->unsignedBigInteger('penilaian_submitted_by')->nullable();
+            $table->timestamp('penilaian_submitted_at')->nullable();
             $table->timestamps();
 
             $table->foreign('mata_kuliah_kode')->references('kode')->on('mata_kuliah')->onDelete('cascade');
             $table->foreign('kelompok_kecil_id')->references('id')->on('kelompok_kecil')->onDelete('cascade');
             $table->foreign('dosen_id')->references('id')->on('users')->onDelete('cascade');
             $table->foreign('ruangan_id')->references('id')->on('ruangan')->onDelete('cascade');
+            $table->foreign('penilaian_submitted_by')->references('id')->on('users')->onDelete('set null');
         });
     }
 

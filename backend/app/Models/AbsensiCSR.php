@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class AbsensiCSR extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity;
 
     protected $table = 'absensi_csr';
 
@@ -31,5 +33,13 @@ class AbsensiCSR extends Model
     public function mahasiswa()
     {
         return $this->belongsTo(User::class, 'mahasiswa_npm', 'nim');
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn(string $eventName) => "Absensi CSR telah di-{$eventName}");
     }
 }

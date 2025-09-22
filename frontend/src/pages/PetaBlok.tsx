@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
-import MaintenanceGuard from '../components/common/MaintenanceGuard';
 
 const sesiHarian = [
   { jam: '07.20-08.10' },
@@ -270,13 +269,6 @@ export default function PetaBlok() {
   const jadwalHariIni = todayIdx !== -1 ? hariList[todayIdx] : null;
 
   return (
-    <MaintenanceGuard
-      maintenanceConfig={{
-        title: "Peta Blok Sedang Dalam Perbaikan",
-        message: "Fitur Peta Blok sedang dalam proses perbaikan untuk memberikan pengalaman yang lebih baik. Mohon maaf atas ketidaknyamanan ini.",
-        showIcon: true
-      }}
-    >
       <div className="max-w-7xl mx-auto mt-">
       {/* Header */}
       <div className="flex flex-col gap-2 pt-1 ">
@@ -569,6 +561,5 @@ export default function PetaBlok() {
         {/* Legenda warna dummy ... */}
       </div>
       </div>
-    </MaintenanceGuard>
   );
 } 

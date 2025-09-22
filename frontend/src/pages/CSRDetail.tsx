@@ -79,6 +79,9 @@ const CSRDetail: React.FC = () => {
   const [keahlianToDelete, setKeahlianToDelete] = useState<string | null>(null);
   const [isDeletingKeahlian, setIsDeletingKeahlian] = useState(false);
 
+  // Add keahlian loading state
+  const [isAddingKeahlian, setIsAddingKeahlian] = useState(false);
+
   // PBL states
   const [dosenPBLBySemester, setDosenPBLBySemester] = useState<{ [semester: number]: User[] }>({});
   const [loadingDosenPBL, setLoadingDosenPBL] = useState(false);
@@ -147,28 +150,32 @@ const CSRDetail: React.FC = () => {
 
   // Tambah keahlian
   const handleAddKeahlian = async () => {
-    if (!newKeahlian.trim() || !csr) return;
-    // Validasi duplikat (case-insensitive, trim)
-    const newK = newKeahlian.trim().toLowerCase();
-    const exists = csr.keahlian_required.some(k => k.trim().toLowerCase() === newK);
-    if (exists) {
-      setError("Keahlian sudah ada, tidak boleh terduplikat.");
-      return;
-    }
-    // Pastikan nama tidak null
-    const nama = csr.nama || (csr.mata_kuliah && csr.mata_kuliah.nama) || "";
-    if (!nama) {
-      setError("Nama CSR belum diisi. Silakan isi nama CSR terlebih dahulu.");
-      return;
-    }
-    const updated = [...csr.keahlian_required, newKeahlian.trim()];
+    if (!newKeahlian.trim() || !csr || isAddingKeahlian) return;
+    
+    setIsAddingKeahlian(true);
     try {
+      // Validasi duplikat (case-insensitive, trim)
+      const newK = newKeahlian.trim().toLowerCase();
+      const exists = csr.keahlian_required.some(k => k.trim().toLowerCase() === newK);
+      if (exists) {
+        setError("Keahlian sudah ada, tidak boleh terduplikat.");
+        return;
+      }
+      // Pastikan nama tidak null
+      const nama = csr.nama || (csr.mata_kuliah && csr.mata_kuliah.nama) || "";
+      if (!nama) {
+        setError("Nama CSR belum diisi. Silakan isi nama CSR terlebih dahulu.");
+        return;
+      }
+      const updated = [...csr.keahlian_required, newKeahlian.trim()];
       await api.put(`/csr/${csr.id}`, { ...csr, nama, keahlian_required: updated });
       setNewKeahlian("");
       setSuccess("Keahlian berhasil ditambahkan");
       await fetchBatchData();
     } catch (err) {
       setError("Gagal menambah keahlian");
+    } finally {
+      setIsAddingKeahlian(false);
     }
   };
 
@@ -201,7 +208,7 @@ const CSRDetail: React.FC = () => {
     } catch (err: any) {
       const msg = err?.response?.data?.message || "Gagal menugaskan dosen";
       setError(msg);
-      await fetchBatchData(); // Refresh on error to revert
+      // Don't refresh data on error to keep error message visible
     }
   };
 
@@ -211,12 +218,12 @@ const CSRDetail: React.FC = () => {
     if (!csr) return;
     try {
       await api.delete(`/csr/${csr.id}/mappings/${dosenId}/${encodeURIComponent(keahlian)}`);
-              setSuccess("Penugasan dosen dihapus");
-        await fetchBatchData(); // Refresh all data
-          } catch (err) {
-        setError("Gagal menghapus penugasan dosen");
-        await fetchBatchData(); // Refresh on error to revert
-      }
+      setSuccess("Penugasan dosen dihapus");
+      await fetchBatchData(); // Refresh all data
+    } catch (err) {
+      setError("Gagal menghapus penugasan dosen");
+      // Don't refresh data on error to keep error message visible
+    }
   };
 
   // Filtered dosen logic (mirroring CSR.tsx)
@@ -613,10 +620,21 @@ const CSRDetail: React.FC = () => {
               </div>
               <button
                 onClick={handleAddKeahlian}
-                className="flex items-center justify-center gap-2 bg-brand-500 text-white px-4 py-2 rounded-lg font-medium text-sm shadow-md hover:bg-brand-600 hover:scale-105 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-400"
+                disabled={isAddingKeahlian}
+                className="flex items-center justify-center gap-2 bg-brand-500 text-white px-4 py-2 rounded-lg font-medium text-sm shadow-md hover:bg-brand-600 hover:scale-105 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-400 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                 style={{ minWidth: "130px" }}
               >
-                Tambah
+                {isAddingKeahlian ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    Menambah...
+                  </>
+                ) : (
+                  "Tambah"
+                )}
               </button>
             </div>
             <ul className="space-y-5">

@@ -449,7 +449,7 @@ export default function DosenRiwayat() {
   
       doc.setFontSize(12);
       doc.setFont("times", "normal");
-      const statX = margin + 0; // Sedikit indent dari margin
+      const statX = margin; // Gunakan margin standar untuk konsistensi
       yPos = addText(`Total Jadwal Mengajar : ${filteredJadwal.length} pertemuan`, statX, yPos);
       yPos += 8;
       yPos = addText(`Total Sesi Mengajar   : ${totalSesi} sesi`, statX, yPos);
@@ -464,23 +464,34 @@ export default function DosenRiwayat() {
       yPos = addText("RINCIAN PER JENIS KEGIATAN:", statX, yPos);
       yPos += 15;
 
-      // Header tabel
-      const colJenis = margin;
-      const colPertemuan = colJenis + 60; // Mengurangi dari 80 ke 60
-      const colSesi = colPertemuan + 40; // Mengurangi dari 50 ke 40
-      const colJam = colSesi + 40; // Mengurangi dari 50 ke 40
-      const colSemesterType = colJam + 30; // Tambah kolom semester type
+      // Header tabel - Perbaiki layout dengan lebar kolom yang lebih proporsional
+      const colJenis = margin; // Gunakan margin standar untuk konsistensi
+      const colPertemuan = colJenis + 50; // Lebar kolom jenis kegiatan (cukup untuk "Kuliah Besar")
+      const colSesi = colPertemuan + 30; // Lebar kolom pertemuan
+      const colJam = colSesi + 25; // Lebar kolom sesi (jarak sama seperti sesi ke pertemuan)
+      const colSemesterType = colJam + 40; // Lebar kolom jam (jarak sama seperti sesi ke pertemuan)
+      const tableEnd = doc.internal.pageSize.width - margin; // Akhir tabel sampai pojok kanan
 
       doc.text("Jenis Kegiatan", colJenis, yPos);
       doc.text("Pertemuan", colPertemuan, yPos);
       doc.text("Sesi", colSesi, yPos);
       doc.text("Jam", colJam, yPos);
-      doc.text("Semester Type", colSemesterType, yPos);
+      doc.text("Semester", colSemesterType, yPos);
       yPos += 6;
 
       // Garis bawah header
-      doc.line(colJenis, yPos, colSemesterType + 30, yPos); // Perpanjang garis
+      doc.line(colJenis, yPos, tableEnd, yPos);
       yPos += 6;
+
+      // Tambahkan garis vertikal untuk memisahkan kolom
+      const addVerticalLines = (startY: number, endY: number) => {
+        doc.line(colJenis, startY, colJenis, endY); // Garis kiri
+        doc.line(colPertemuan, startY, colPertemuan, endY); // Garis setelah jenis kegiatan
+        doc.line(colSesi, startY, colSesi, endY); // Garis setelah pertemuan
+        doc.line(colJam, startY, colJam, endY); // Garis setelah sesi
+        doc.line(colSemesterType, startY, colSemesterType, endY); // Garis setelah jam
+        doc.line(tableEnd, startY, tableEnd, endY); // Garis kanan
+      };
 
       doc.setFont("times", "normal");
 
@@ -519,6 +530,7 @@ export default function DosenRiwayat() {
             doc.text(`${tipe.jumlah}`, colPertemuan, yPos);
             doc.text(`${tipe.sesi}`, colSesi, yPos);
             doc.text(`${formatJamMenit(tipe.jam)}`, colJam, yPos);
+            doc.text(`R:0 A:0`, colSemesterType, yPos); // Tambahkan kolom semester untuk breakdown
             yPos += 6;
           });
           yPos += 2;
@@ -532,6 +544,7 @@ export default function DosenRiwayat() {
             doc.text(`${jenisCSR.jumlah}`, colPertemuan, yPos);
             doc.text(`${jenisCSR.sesi}`, colSesi, yPos);
             doc.text(`${formatJamMenit(jenisCSR.jam)}`, colJam, yPos);
+            doc.text(`R:0 A:0`, colSemesterType, yPos); // Tambahkan kolom semester untuk breakdown
             yPos += 6;
           });
           yPos += 2;
@@ -539,7 +552,7 @@ export default function DosenRiwayat() {
       });
   
       // Footer halaman
-      const totalPages = doc.getNumberOfPages();
+      const totalPages = (doc as any).internal.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
         doc.setFontSize(8);

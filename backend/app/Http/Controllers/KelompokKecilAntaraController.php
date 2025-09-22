@@ -50,6 +50,16 @@ class KelompokKecilAntaraController extends Controller
 
         $kelompokKecil = KelompokKecilAntara::create($data);
 
+        // Log activity
+        activity()
+            ->performedOn($kelompokKecil)
+            ->withProperties([
+                'nama_kelompok' => $data['nama_kelompok'],
+                'mahasiswa_count' => count($data['mahasiswa_ids']),
+                'mata_kuliah_kode' => $mataKuliahKode
+            ])
+            ->log("Kelompok Kecil Antara created: {$data['nama_kelompok']}");
+
         return response()->json($kelompokKecil, Response::HTTP_CREATED);
     }
 
@@ -79,6 +89,16 @@ class KelompokKecilAntaraController extends Controller
 
         $kelompokKecil->update($data);
 
+        // Log activity
+        activity()
+            ->performedOn($kelompokKecil)
+            ->withProperties([
+                'nama_kelompok' => $data['nama_kelompok'],
+                'mahasiswa_count' => count($data['mahasiswa_ids']),
+                'mata_kuliah_kode' => $mataKuliahKode
+            ])
+            ->log("Kelompok Kecil Antara updated: {$data['nama_kelompok']}");
+
         return response()->json($kelompokKecil);
     }
 
@@ -88,6 +108,16 @@ class KelompokKecilAntaraController extends Controller
     public function destroy($mataKuliahKode = null, $id)
     {
         $kelompokKecil = KelompokKecilAntara::findOrFail($id);
+
+        // Log activity before deletion
+        activity()
+            ->performedOn($kelompokKecil)
+            ->withProperties([
+                'nama_kelompok' => $kelompokKecil->nama_kelompok,
+                'mahasiswa_count' => count($kelompokKecil->mahasiswa_ids),
+                'mata_kuliah_kode' => $mataKuliahKode
+            ])
+            ->log("Kelompok Kecil Antara deleted: {$kelompokKecil->nama_kelompok}");
 
         $kelompokKecil->delete();
 

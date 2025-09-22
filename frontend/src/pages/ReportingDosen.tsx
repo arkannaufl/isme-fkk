@@ -757,7 +757,18 @@ const ReportingDosen: React.FC = () => {
                                       p.tipe_peran === 'dosen_mengajar' || p.tipe_peran === 'mengajar'
                                     );
                                     
+                                    // Cek apakah ada peran koordinator atau tim_blok
+                                    const hasKoordinator = peranArr.some((p: any) => 
+                                      p.tipe_peran === 'koordinator'
+                                    );
+                                    const hasTimBlok = peranArr.some((p: any) => 
+                                      p.tipe_peran === 'tim_blok'
+                                    );
+                                    
+                                    // Jika ada peran koordinator atau tim_blok, jangan tampilkan dosen mengajar
                                     const shouldAddDosenMengajar = !hasDosenMengajar && 
+                                      !hasKoordinator && 
+                                      !hasTimBlok &&
                                       activeTab === "pbl" && 
                                       ((dosen as any).total_pbl > 0 || (dosen as any).total_sesi > 0);
                                     
@@ -855,9 +866,11 @@ const ReportingDosen: React.FC = () => {
                             if ((dosen as any).peran_utama === "koordinator") {
                               label = "Koordinator";
                               badgeClass = "bg-blue-100 text-blue-700";
+                              // Jika koordinator, jangan tampilkan sebagai dosen mengajar
                             } else if ((dosen as any).peran_utama === "tim_blok") {
                               label = "Tim Blok";
                               badgeClass = "bg-green-100 text-yellow-700";
+                              // Jika tim blok, jangan tampilkan sebagai dosen mengajar
                             } else if ((dosen as any).peran_utama === "dosen_mengajar" || (dosen as any).peran_utama === "mengajar") {
                               label = "Dosen Mengajar";
                               badgeClass = "bg-yellow-100 text-yellow-700";
@@ -893,6 +906,7 @@ const ReportingDosen: React.FC = () => {
                             }
                             
                             // Jika tidak ada peran_utama sama sekali, cek apakah ada data mengajar di per_semester
+                            // Tapi hanya jika tidak ada peran koordinator atau tim blok
                             if (!label && activeTab === "pbl") {
                               const pblDosen = dosen as DosenPBLReport;
                               // Cek apakah ada modul PBL yang menunjukkan dosen mengajar
@@ -900,16 +914,17 @@ const ReportingDosen: React.FC = () => {
                                 sem.modul_pbl && sem.modul_pbl.length > 0
                               );
                               
-
-
-
-
-
+                              // Cek apakah ada peran koordinator atau tim blok di dosen_peran
+                              const hasKoordinatorInPeran = Array.isArray((dosen as any).dosen_peran) && 
+                                (dosen as any).dosen_peran.some((p: any) => p.tipe_peran === 'koordinator');
+                              const hasTimBlokInPeran = Array.isArray((dosen as any).dosen_peran) && 
+                                (dosen as any).dosen_peran.some((p: any) => p.tipe_peran === 'tim_blok');
                               
-                              if (pblDosen.total_pbl > 0 || pblDosen.total_sesi > 0 || hasModulPbl) {
+                              // Hanya tampilkan dosen mengajar jika tidak ada peran koordinator atau tim blok
+                              if (!hasKoordinatorInPeran && !hasTimBlokInPeran && 
+                                  (pblDosen.total_pbl > 0 || pblDosen.total_sesi > 0 || hasModulPbl)) {
                                 label = "Dosen Mengajar";
                                 badgeClass = "bg-yellow-100 text-yellow-700";
-
                               }
                             }
                             

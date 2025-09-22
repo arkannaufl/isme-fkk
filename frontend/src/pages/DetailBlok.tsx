@@ -179,12 +179,13 @@ export default function DetailBlok() {
   const [hasAssignedPBL, setHasAssignedPBL] = useState(false);
   const [loadingAssignedPBL, setLoadingAssignedPBL] = useState(false);
 
-  // Fetch materi (keahlian) dinamis saat modal kuliah besar dibuka
+  // Fetch materi (keahlian) dari mata kuliah yang sedang dipilih
   const fetchMateriOptions = async () => {
     if (!data) return;
     try {
-      const res = await api.get(`/kuliah-besar/materi?blok=${data.blok}&semester=${data.semester}`);
-      setMateriOptions(Array.isArray(res.data) ? res.data : []);
+      // Ambil keahlian_required dari mata kuliah yang sedang dipilih
+      const keahlianRequired = data.keahlian_required || [];
+      setMateriOptions(keahlianRequired);
     } catch (error) {
       // Silent fail - materi options are not critical
     }
@@ -194,8 +195,19 @@ export default function DetailBlok() {
   const fetchPengampuOptions = async (materi: string) => {
     if (!data || !materi) return;
     try {
-      const res = await api.get(`/kuliah-besar/pengampu?keahlian=${encodeURIComponent(materi)}&blok=${data.blok}&semester=${data.semester}`);
-      setPengampuOptions(Array.isArray(res.data) ? res.data : []);
+      // Ambil semua dosen yang memiliki keahlian yang dipilih
+      const res = await api.get(`/users?role=dosen&keahlian=${encodeURIComponent(materi)}`);
+      const dosenList = res.data || [];
+      
+      // Filter dosen yang memiliki keahlian yang dipilih
+      const filteredDosen = dosenList.filter((dosen: any) => {
+        const keahlian = Array.isArray(dosen.keahlian) 
+          ? dosen.keahlian 
+          : (dosen.keahlian || '').split(',').map((k: string) => k.trim());
+        return keahlian.includes(materi);
+      });
+      
+      setPengampuOptions(filteredDosen);
     } catch (error) {
       // Silent fail - pengampu options are not critical
     }
@@ -227,14 +239,14 @@ export default function DetailBlok() {
 
 
 
-  // Fetch materi praktikum dinamis
+  // Fetch materi praktikum dinamis - ambil dari keahlian_required mata kuliah
   const fetchMateriPraktikum = async () => {
     if (!data) return;
     try {
-      const res = await api.get(`/praktikum/materi/${data.blok}/${data.semester}`);
-      setMateriPraktikumOptions(Array.isArray(res.data) ? res.data : []);
+      const keahlianRequired = data.keahlian_required || [];
+      setMateriPraktikumOptions(keahlianRequired);
     } catch (error) {
-      // Silent fail - materi praktikum options are not critical
+      // Silent fail
     }
   };
 
@@ -249,14 +261,21 @@ export default function DetailBlok() {
     }
   };
 
-  // Fetch pengampu praktikum berdasarkan materi
+  // Fetch pengampu praktikum berdasarkan materi - ambil dosen yang punya keahlian yang dipilih
   const fetchPengampuPraktikum = async (materi: string) => {
     if (!data || !materi) return;
     try {
-      const res = await api.get(`/praktikum/pengampu/${encodeURIComponent(materi)}/${data.blok}/${data.semester}`);
-      setPengampuPraktikumOptions(Array.isArray(res.data) ? res.data : []);
+      const res = await api.get(`/users?role=dosen&keahlian=${encodeURIComponent(materi)}`);
+      const dosenList = res.data || [];
+      const filteredDosen = dosenList.filter((dosen: any) => {
+        const keahlian = Array.isArray(dosen.keahlian)
+          ? dosen.keahlian
+          : (dosen.keahlian || '').split(',').map((k: string) => k.trim());
+        return keahlian.includes(materi);
+      });
+      setPengampuPraktikumOptions(filteredDosen);
     } catch (error) {
-      // Silent fail - pengampu praktikum options are not critical
+      // Silent fail
     }
   };
 
@@ -266,39 +285,41 @@ export default function DetailBlok() {
       if (form.jenisBaris === 'materi') {
         fetchMateriOptions();
         fetchKelompokBesarOptions();
-        // Reset pengampu options jika materi belum dipilih
-        if (!form.materi) {
+        // Fetch pengampu jika materi sudah dipilih (untuk edit)
+        if (form.materi) {
+          fetchPengampuOptions(form.materi);
+        } else {
           setPengampuOptions([]);
         }
       } else if (form.jenisBaris === 'praktikum') {
         fetchMateriPraktikum();
         fetchKelasPraktikum();
-        // Reset pengampu options jika materi belum dipilih
-        if (!form.materi) {
+        // Fetch pengampu jika materi sudah dipilih (untuk edit)
+        if (form.materi) {
+          fetchPengampuPraktikum(form.materi);
+        } else {
           setPengampuPraktikumOptions([]);
         }
       } else if (form.jenisBaris === 'agenda') {
         fetchKelompokBesarAgendaOptions();
       }
     }
-  }, [showModal, form.jenisBaris]);
+  }, [showModal, form.jenisBaris, form.materi]);
 
   // Saat materi dipilih, fetch pengampu
   useEffect(() => {
     if (form.jenisBaris === 'materi' && form.materi) {
       fetchPengampuOptions(form.materi);
-    } else {
+    } else if (form.jenisBaris !== 'materi') {
       setPengampuOptions([]);
     }
   }, [form.jenisBaris, form.materi]);
-
-
 
   // Saat materi praktikum dipilih, fetch pengampu
   useEffect(() => {
     if (form.jenisBaris === 'praktikum' && form.materi) {
       fetchPengampuPraktikum(form.materi);
-    } else {
+    } else if (form.jenisBaris !== 'praktikum') {
       setPengampuPraktikumOptions([]);
     }
   }, [form.jenisBaris, form.materi]);
@@ -311,11 +332,11 @@ export default function DetailBlok() {
     if (form.jenisBaris !== 'praktikum') {
       setPengampuPraktikumOptions([]);
     }
-    // Reset materi ketika jenis baris berubah
-    if (form.materi) {
+    // Reset materi ketika jenis baris berubah (hanya untuk tambah baru, bukan edit)
+    if (form.materi && !showModal) {
       setForm(f => ({ ...f, materi: '', pengampu: form.jenisBaris === 'praktikum' ? [] : null }));
     }
-  }, [form.jenisBaris]);
+  }, [form.jenisBaris, showModal]);
 
 
   // Fungsi untuk format tanggal yang konsisten seperti di Agenda Khusus
@@ -849,6 +870,14 @@ export default function DetailBlok() {
   useEffect(() => {
     fetchAssignedDosenPBL();
   }, [fetchAssignedDosenPBL]);
+
+  // Fetch materi options saat data berubah
+  useEffect(() => {
+    if (data) {
+      fetchMateriOptions();
+      fetchMateriPraktikum();
+    }
+  }, [data]);
 
   // Listen for PBL assignment updates from PBLGenerate page
   useEffect(() => {

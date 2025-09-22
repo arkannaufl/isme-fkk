@@ -73,6 +73,19 @@ class JadwalKuliahBesarController extends Controller
 
         $jadwal = JadwalKuliahBesar::create($data);
 
+        // Log activity
+        activity()
+            ->performedOn($jadwal)
+            ->withProperties([
+                'mata_kuliah_kode' => $kode,
+                'topik' => $data['topik'] ?? null,
+                'tanggal' => $data['tanggal'],
+                'jam_mulai' => $data['jam_mulai'],
+                'jam_selesai' => $data['jam_selesai'],
+                'is_semester_antara' => $isSemesterAntara
+            ])
+            ->log("Jadwal Kuliah Besar created: {$mataKuliah->nama}");
+
         // Kirim notifikasi ke dosen yang di-assign
         if (!$isSemesterAntara && isset($data['dosen_id'])) {
             // Untuk semester biasa - single dosen
@@ -141,6 +154,20 @@ class JadwalKuliahBesarController extends Controller
         }
 
         $jadwal->update($data);
+
+        // Log activity
+        activity()
+            ->performedOn($jadwal)
+            ->withProperties([
+                'mata_kuliah_kode' => $kode,
+                'topik' => $data['topik'] ?? null,
+                'tanggal' => $data['tanggal'],
+                'jam_mulai' => $data['jam_mulai'],
+                'jam_selesai' => $data['jam_selesai'],
+                'is_semester_antara' => $isSemesterAntara
+            ])
+            ->log("Jadwal Kuliah Besar updated: {$mataKuliah->nama}");
+
         // Reload data dengan relasi
         $jadwal->load(['mataKuliah', 'dosen', 'ruangan', 'kelompokBesarAntara']);
         return response()->json($jadwal);
@@ -150,6 +177,19 @@ class JadwalKuliahBesarController extends Controller
     public function destroy($kode, $id)
     {
         $jadwal = JadwalKuliahBesar::findOrFail($id);
+        
+        // Log activity before deletion
+        activity()
+            ->performedOn($jadwal)
+            ->withProperties([
+                'mata_kuliah_kode' => $kode,
+                'topik' => $jadwal->topik,
+                'tanggal' => $jadwal->tanggal,
+                'jam_mulai' => $jadwal->jam_mulai,
+                'jam_selesai' => $jadwal->jam_selesai
+            ])
+            ->log("Jadwal Kuliah Besar deleted: {$jadwal->mataKuliah->nama}");
+            
         $jadwal->delete();
         return response()->json(['message' => 'Jadwal kuliah besar berhasil dihapus']);
     }

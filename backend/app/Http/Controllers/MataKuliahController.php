@@ -305,6 +305,18 @@ class MataKuliahController extends Controller
         $data['keahlian_required'] = $request->input('keahlian_required', []);
         $data['peran_dalam_kurikulum'] = $request->input('peran_dalam_kurikulum', []);
         $mataKuliah->update($data);
+
+        // Log activity
+        activity()
+            ->performedOn($mataKuliah)
+            ->withProperties([
+                'kode' => $mataKuliah->kode,
+                'nama' => $mataKuliah->nama,
+                'semester' => $mataKuliah->semester,
+                'sks' => $mataKuliah->sks
+            ])
+            ->log("Mata Kuliah updated: {$mataKuliah->nama}");
+
         return response()->json($mataKuliah);
     }
 
@@ -314,6 +326,18 @@ class MataKuliahController extends Controller
     public function destroy($kode)
     {
         $mataKuliah = MataKuliah::findOrFail($kode);
+
+        // Log activity before deletion
+        activity()
+            ->performedOn($mataKuliah)
+            ->withProperties([
+                'kode' => $mataKuliah->kode,
+                'nama' => $mataKuliah->nama,
+                'semester' => $mataKuliah->semester,
+                'sks' => $mataKuliah->sks
+            ])
+            ->log("Mata Kuliah deleted: {$mataKuliah->nama}");
+
         $mataKuliah->delete();
         return response()->json(['message' => 'Mata kuliah berhasil dihapus']);
     }
@@ -331,6 +355,18 @@ class MataKuliahController extends Controller
         $data['keahlian_required'] = $request->input('keahlian_required', []);
         $data['peran_dalam_kurikulum'] = $request->input('peran_dalam_kurikulum', []);
         $mataKuliah = MataKuliah::create($data);
+
+        // Log activity
+        activity()
+            ->performedOn($mataKuliah)
+            ->withProperties([
+                'kode' => $mataKuliah->kode,
+                'nama' => $mataKuliah->nama,
+                'semester' => $mataKuliah->semester,
+                'sks' => $mataKuliah->sks
+            ])
+            ->log("Mata Kuliah created: {$mataKuliah->nama}");
+
         return response()->json($mataKuliah, 201);
     }
 
@@ -413,5 +449,205 @@ class MataKuliahController extends Controller
     {
         $mataKuliah = MataKuliah::findOrFail($kode);
         return response()->json($mataKuliah);
+    }
+
+
+    /**
+     * Bulk import data mata kuliah dari JSON
+     */
+    public function bulkImport(Request $request)
+    {
+        try {
+            $data = $request->all();
+            
+            if (!is_array($data) || empty($data)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data tidak valid atau kosong'
+                ], 422);
+            }
+
+            $importedCount = 0;
+            $errors = [];
+            $failedRows = [];
+            $cellErrors = [];
+
+            foreach ($data as $index => $rowData) {
+                try {
+                    // Validasi data per baris
+                    $validator = \Validator::make($rowData, [
+                        'kode' => 'required|string|unique:mata_kuliah,kode',
+                        'nama' => 'required|string',
+                        'semester' => 'required',
+                        'periode' => 'required|string',
+                        'jenis' => 'required|in:Blok,Non Blok',
+                        'kurikulum' => 'required|integer',
+                        'tanggal_mulai' => 'required|date',
+                        'tanggal_akhir' => 'required|date',
+                        'blok' => 'nullable|integer',
+                        'durasi_minggu' => 'required|integer',
+                        'tipe_non_block' => 'nullable|string|in:CSR,Non-CSR',
+                        'peran_dalam_kurikulum' => 'nullable|array',
+                        'keahlian_required' => 'nullable|array',
+                    ]);
+
+                    if ($validator->fails()) {
+                        foreach ($validator->errors()->messages() as $field => $messages) {
+                            foreach ($messages as $msg) {
+                                $errors[] = $msg . " (Baris " . ($index + 1) . ", Kolom " . strtoupper($field) . ")";
+                                $cellErrors[] = [
+                                    'row' => $index,
+                                    'field' => $field,
+                                    'message' => $msg,
+                                    'kode' => $rowData['kode'] ?? '',
+                                ];
+                            }
+                        }
+                        $failedRows[] = $rowData;
+                        continue;
+                    }
+
+                    // Validasi khusus semester
+                    if ($rowData['semester'] !== 'Antara' && !is_numeric($rowData['semester'])) {
+                        $errors[] = "Semester harus berupa angka atau 'Antara' (Baris " . ($index + 1) . ")";
+                        $cellErrors[] = [
+                            'row' => $index,
+                            'field' => 'semester',
+                            'message' => 'Semester harus berupa angka atau "Antara"',
+                            'kode' => $rowData['kode'] ?? '',
+                        ];
+                        $failedRows[] = $rowData;
+                        continue;
+                    }
+
+                    // Validasi tipe_non_block
+                    if ($rowData['jenis'] === 'Non Blok') {
+                        if (empty($rowData['tipe_non_block']) || !in_array($rowData['tipe_non_block'], ['CSR', 'Non-CSR'])) {
+                            $errors[] = "Tipe Non-Block harus diisi dengan 'CSR' atau 'Non-CSR' untuk jenis Non Blok (Baris " . ($index + 1) . ")";
+                            $cellErrors[] = [
+                                'row' => $index,
+                                'field' => 'tipe_non_block',
+                                'message' => 'Tipe Non-Block harus diisi dengan "CSR" atau "Non-CSR"',
+                                'kode' => $rowData['kode'] ?? '',
+                            ];
+                            $failedRows[] = $rowData;
+                            continue;
+                        }
+                    } else if ($rowData['jenis'] === 'Blok') {
+                        if (!empty($rowData['tipe_non_block'])) {
+                            $errors[] = "Tipe Non-Block tidak boleh diisi untuk jenis Blok (Baris " . ($index + 1) . ")";
+                            $cellErrors[] = [
+                                'row' => $index,
+                                'field' => 'tipe_non_block',
+                                'message' => 'Tipe Non-Block tidak boleh diisi untuk jenis Blok',
+                                'kode' => $rowData['kode'] ?? '',
+                            ];
+                            $failedRows[] = $rowData;
+                            continue;
+                        }
+                    }
+
+                    // Validasi khusus untuk semester Antara
+                    if ($rowData['semester'] === 'Antara') {
+                        if ($rowData['jenis'] === 'Non Blok' && $rowData['tipe_non_block'] === 'CSR') {
+                            $errors[] = "Semester Antara tidak dapat memiliki tipe CSR, hanya Non-CSR yang diperbolehkan (Baris " . ($index + 1) . ")";
+                            $cellErrors[] = [
+                                'row' => $index,
+                                'field' => 'tipe_non_block',
+                                'message' => 'Semester Antara tidak dapat memiliki tipe CSR',
+                                'kode' => $rowData['kode'] ?? '',
+                            ];
+                            $failedRows[] = $rowData;
+                            continue;
+                        }
+                    }
+
+                    // Validasi peran_dalam_kurikulum dan keahlian_required untuk semester reguler
+                    if ($rowData['semester'] !== 'Antara') {
+                        if (empty($rowData['peran_dalam_kurikulum']) || !is_array($rowData['peran_dalam_kurikulum']) || count($rowData['peran_dalam_kurikulum']) === 0) {
+                            $errors[] = "Peran dalam Kurikulum harus diisi untuk semester reguler (Baris " . ($index + 1) . ")";
+                            $cellErrors[] = [
+                                'row' => $index,
+                                'field' => 'peran_dalam_kurikulum',
+                                'message' => 'Peran dalam Kurikulum harus diisi untuk semester reguler',
+                                'kode' => $rowData['kode'] ?? '',
+                            ];
+                            $failedRows[] = $rowData;
+                            continue;
+                        }
+
+                        if (empty($rowData['keahlian_required']) || !is_array($rowData['keahlian_required']) || count($rowData['keahlian_required']) === 0) {
+                            $errors[] = "Keahlian Dibutuhkan harus diisi untuk semester reguler (Baris " . ($index + 1) . ")";
+                            $cellErrors[] = [
+                                'row' => $index,
+                                'field' => 'keahlian_required',
+                                'message' => 'Keahlian Dibutuhkan harus diisi untuk semester reguler',
+                                'kode' => $rowData['kode'] ?? '',
+                            ];
+                            $failedRows[] = $rowData;
+                            continue;
+                        }
+                    } else {
+                        // Untuk semester Antara, peran_dalam_kurikulum dan keahlian_required harus kosong
+                        if (!empty($rowData['peran_dalam_kurikulum']) && is_array($rowData['peran_dalam_kurikulum']) && count($rowData['peran_dalam_kurikulum']) > 0) {
+                            $errors[] = "Peran dalam Kurikulum tidak boleh diisi untuk semester Antara (Baris " . ($index + 1) . ")";
+                            $cellErrors[] = [
+                                'row' => $index,
+                                'field' => 'peran_dalam_kurikulum',
+                                'message' => 'Peran dalam Kurikulum tidak boleh diisi untuk semester Antara',
+                                'kode' => $rowData['kode'] ?? '',
+                            ];
+                            $failedRows[] = $rowData;
+                            continue;
+                        }
+
+                        if (!empty($rowData['keahlian_required']) && is_array($rowData['keahlian_required']) && count($rowData['keahlian_required']) > 0) {
+                            $errors[] = "Keahlian Dibutuhkan tidak boleh diisi untuk semester Antara (Baris " . ($index + 1) . ")";
+                            $cellErrors[] = [
+                                'row' => $index,
+                                'field' => 'keahlian_required',
+                                'message' => 'Keahlian Dibutuhkan tidak boleh diisi untuk semester Antara',
+                                'kode' => $rowData['kode'] ?? '',
+                            ];
+                            $failedRows[] = $rowData;
+                            continue;
+                        }
+                    }
+
+                    // Jika valid, create MataKuliah
+                    MataKuliah::create($rowData);
+                    $importedCount++;
+
+                } catch (\Exception $e) {
+                    $errors[] = "Error pada baris " . ($index + 1) . ": " . $e->getMessage();
+                    $failedRows[] = $rowData;
+                }
+            }
+
+            if ($importedCount > 0) {
+                return response()->json([
+                    'success' => true,
+                    'imported_count' => $importedCount,
+                    'errors' => $errors,
+                    'failed_rows' => $failedRows,
+                    'cell_errors' => $cellErrors,
+                ], 200);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Semua data gagal diimpor. Periksa kembali format dan isian data.',
+                    'errors' => $errors,
+                    'cell_errors' => $cellErrors,
+                ], 422);
+            }
+
+        } catch (\Exception $e) {
+            \Log::error("Error in bulk import mata kuliah: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat mengimpor data: ' . $e->getMessage(),
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

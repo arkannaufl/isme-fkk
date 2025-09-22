@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class PenilaianJurnal extends Model
 {
+    use LogsActivity;
     protected $table = 'penilaian_jurnal';
 
     protected $fillable = [
@@ -35,5 +38,13 @@ class PenilaianJurnal extends Model
     public function jurnalReading()
     {
         return $this->belongsTo(JadwalJurnalReading::class, 'jurnal_reading_id');
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn(string $eventName) => "Penilaian Jurnal telah di-{$eventName}");
     }
 }

@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class JadwalPBL extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity;
 
     protected $table = 'jadwal_pbl';
 
@@ -116,5 +118,13 @@ class JadwalPBL extends Model
             ->where('kelompok', $this->kelompok_kecil_id ?? '')
             ->where('pertemuan', $this->pbl_tipe)
             ->update(['peta_konsep' => null]);
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn(string $eventName) => "Jadwal PBL telah di-{$eventName}");
     }
 }

@@ -32,6 +32,18 @@ class MataKuliahCSRController extends Controller
         ]);
         $validated['mata_kuliah_kode'] = $kode;
         $csr = CSR::create($validated);
+
+        // Log activity
+        activity()
+            ->performedOn($csr)
+            ->withProperties([
+                'mata_kuliah_kode' => $kode,
+                'nomor_csr' => $csr->nomor_csr,
+                'keahlian_required' => $csr->keahlian_required,
+                'tanggal_mulai' => $csr->tanggal_mulai,
+                'tanggal_akhir' => $csr->tanggal_akhir
+            ])
+            ->log("CSR created: {$csr->nomor_csr}");
         
         return response()->json($csr, Response::HTTP_CREATED);
     }
@@ -59,6 +71,18 @@ class MataKuliahCSRController extends Controller
         ]);
         
         $csr->update($validated);
+
+        // Log activity
+        activity()
+            ->performedOn($csr)
+            ->withProperties([
+                'mata_kuliah_kode' => $csr->mata_kuliah_kode,
+                'nomor_csr' => $csr->nomor_csr,
+                'keahlian_required' => $csr->keahlian_required,
+                'tanggal_mulai' => $csr->tanggal_mulai,
+                'tanggal_akhir' => $csr->tanggal_akhir
+            ])
+            ->log("CSR updated: {$csr->nomor_csr}");
         
         return response()->json($csr);
     }
@@ -69,6 +93,19 @@ class MataKuliahCSRController extends Controller
     public function destroy($id)
     {
         $csr = CSR::findOrFail($id);
+
+        // Log activity before deletion
+        activity()
+            ->performedOn($csr)
+            ->withProperties([
+                'mata_kuliah_kode' => $csr->mata_kuliah_kode,
+                'nomor_csr' => $csr->nomor_csr,
+                'keahlian_required' => $csr->keahlian_required,
+                'tanggal_mulai' => $csr->tanggal_mulai,
+                'tanggal_akhir' => $csr->tanggal_akhir
+            ])
+            ->log("CSR deleted: {$csr->nomor_csr}");
+
         $csr->delete();
         
         return response()->json(null, Response::HTTP_NO_CONTENT);

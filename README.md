@@ -267,7 +267,7 @@ npm run dev
 | `/api/system/import` | POST | Import backup | Super Admin |
 | `/api/reporting/*` | GET | Activity logs & reports | Super Admin |
 | `/api/users/import` | POST | Bulk user import | Super Admin |
-| `/api/mata-kuliah/import` | POST | Course data import | Tim Akademik |
+| `/api/mata-kuliah/bulk-import` | POST | Course data import | Tim Akademik |
 
 ### 🔑 Default Credentials
 
@@ -431,7 +431,7 @@ npm run dev
 - `pbls` - Data modul PBL
 - `csrs` - Data CSR dan case study
 - `jadwal_*` - Berbagai jenis jadwal akademik
-- `absensi_*` - Data absensi per jenis kegiatan
+- `absensi_*` - Data absensi per jenis jadwal
 - `penilaian_*` - Data penilaian dan nilai
 - `dosen_peran` - Peran dosen dalam mata kuliah
 - `mata_kuliah_keahlian` - Keahlian yang dibutuhkan per mata kuliah

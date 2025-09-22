@@ -21,7 +21,7 @@ class CSRDetailBatchController extends Controller
             
             // Get all dosen with role 'dosen'
             $allDosen = User::where('role', 'dosen')
-                ->select('id', 'name', 'nid', 'nidn', 'email', 'keahlian', 'role')
+                ->select('id', 'name', 'nid', 'nidn', 'email', 'keahlian', 'role', 'csr_assignment_count')
                 ->get()
                 ->map(function ($dosen) {
                     // Normalize keahlian to array
@@ -39,6 +39,7 @@ class CSRDetailBatchController extends Controller
                         'email' => $dosen->email,
                         'keahlian' => $keahlian,
                         'role' => $dosen->role,
+                        'csr_assignment_count' => $dosen->csr_assignment_count ?? 0,
                     ];
                 });
 
@@ -67,7 +68,8 @@ class CSRDetailBatchController extends Controller
                     'users.nidn',
                     'users.email',
                     'users.keahlian as user_keahlian',
-                    'users.role'
+                    'users.role',
+                    'users.csr_assignment_count'
                 )
                 ->get();
 
@@ -93,6 +95,7 @@ class CSRDetailBatchController extends Controller
                         'email' => $mapping->email,
                         'keahlian' => $userKeahlian,
                         'role' => $mapping->role,
+                        'csr_assignment_count' => $mapping->csr_assignment_count ?? 0,
                     ];
                 }
             }
@@ -125,7 +128,8 @@ class CSRDetailBatchController extends Controller
                         'users.nidn',
                         'users.email',
                         'users.keahlian',
-                        'users.role'
+                        'users.role',
+                        'users.csr_assignment_count'
                     )
                     ->get()
                     ->groupBy('pbl_id');
@@ -149,6 +153,7 @@ class CSRDetailBatchController extends Controller
                                     'email' => $dosen->email,
                                     'keahlian' => $keahlian,
                                     'role' => $dosen->role,
+                                    'csr_assignment_count' => $dosen->csr_assignment_count ?? 0,
                                 ]);
                             }
                         }

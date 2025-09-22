@@ -102,6 +102,36 @@ class JadwalCSRController extends Controller
                 'topik' => $request->topik,
             ]);
 
+
+            
+            // Log activity
+
+            
+            activity()
+
+            
+                ->log('Jadwal CSR deleted');
+
+
+            
+            // Log activity
+
+            
+            activity()
+
+            
+                ->log('Jadwal CSR updated');
+
+
+            
+            // Log activity
+
+            
+            activity()
+
+            
+                ->log('Jadwal CSR created');
+
             $jadwalCSR = $jadwalCSR->load(['dosen', 'ruangan', 'kelompokKecil', 'kategori']);
             
             // Konversi format jam dari HH:MM ke HH.MM untuk frontend (tanpa detik)

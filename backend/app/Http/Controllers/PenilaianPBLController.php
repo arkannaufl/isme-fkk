@@ -149,6 +149,17 @@ class PenilaianPBLController extends Controller
         // Update jadwal PBL status penilaian_submitted
         $this->updateJadwalPenilaianStatus($kode, $kelompok, $pertemuan);
 
+        // Log activity
+        activity()
+            ->withProperties([
+                'mata_kuliah_kode' => $kode,
+                'kelompok' => $kelompok,
+                'pertemuan' => $pertemuan,
+                'is_pbl2' => $isPBL2,
+                'penilaian_count' => count($validated['penilaian'])
+            ])
+            ->log($isPBL2 ? 'Penilaian PBL 2 created' : 'Penilaian PBL 1 created');
+
         $message = $isPBL2 ? 'Penilaian PBL 2 berhasil disimpan' : 'Penilaian PBL 1 berhasil disimpan';
         return response()->json(['message' => $message]);
     }
@@ -318,6 +329,18 @@ class PenilaianPBLController extends Controller
         // Update jadwal PBL status penilaian_submitted untuk semester antara
         $this->updateJadwalPenilaianStatusAntara($kode, $kelompok, $pertemuan);
 
+        // Log activity
+        activity()
+            ->withProperties([
+                'mata_kuliah_kode' => $kode,
+                'kelompok' => $kelompok,
+                'pertemuan' => $pertemuan,
+                'is_pbl2' => $isPBL2,
+                'penilaian_count' => count($validated['penilaian']),
+                'semester' => 'Antara'
+            ])
+            ->log($isPBL2 ? 'Penilaian PBL 2 (Antara) created' : 'Penilaian PBL 1 (Antara) created');
+
         $message = $isPBL2 ? 'Penilaian PBL 2 (Antara) berhasil disimpan' : 'Penilaian PBL 1 (Antara) berhasil disimpan';
         return response()->json(['message' => $message]);
     }
@@ -366,6 +389,16 @@ class PenilaianPBLController extends Controller
                     'hadir' => $absen['hadir'],
                 ]);
             }
+
+            // Log activity
+            activity()
+                ->withProperties([
+                    'mata_kuliah_kode' => $kode,
+                    'kelompok' => $kelompok,
+                    'pertemuan' => $pertemuan,
+                    'absensi_count' => count($request->absensi)
+                ])
+                ->log("Absensi PBL created: {$kode} - {$kelompok} - {$pertemuan}");
 
             return response()->json(['message' => 'Absensi berhasil disimpan']);
         } catch (\Exception $e) {

@@ -52,6 +52,27 @@ class CSRMappingController extends Controller
             'dosen_id' => $request->dosen_id,
             'keahlian' => $request->keahlian,
         ]);
+
+
+        // Log activity
+
+        activity()
+
+            ->log('CSR Mapping deleted');
+
+
+        // Log activity
+
+        activity()
+
+            ->log('CSR Mapping updated');
+
+
+        // Log activity
+
+        activity()
+
+            ->log('CSR Mapping created');
         // Increment count
         $user = \App\Models\User::find($request->dosen_id);
         if ($user) $user->increment('csr_assignment_count');

@@ -270,6 +270,36 @@ class JadwalNonBlokNonCSRController extends Controller
                 'status_konfirmasi' => 'belum_konfirmasi'
             ]);
 
+
+
+            // Log activity
+
+
+            activity()
+
+
+                ->log('Jadwal Non Blok Non CSR deleted');
+
+
+
+            // Log activity
+
+
+            activity()
+
+
+                ->log('Jadwal Non Blok Non CSR updated');
+
+
+
+            // Log activity
+
+
+            activity()
+
+
+                ->log('Jadwal Non Blok Non CSR created');
+
             $this->sendJadwalNotifications($jadwal);
 
             return response()->json([

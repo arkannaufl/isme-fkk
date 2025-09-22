@@ -79,7 +79,15 @@ const formatCourseBarText = (course: MataKuliah | any) => {
     return `CSR ${course.parent_course.semester}.${course.csr_number}: ${namaCsr}`;
   }
   if (course.jenis === 'Non Blok') {
-    return `Non Blok : ${course.nama}`;
+    // Tampilkan detail jenis non blok berdasarkan tipe_non_block
+    if (course.tipe_non_block === 'CSR') {
+      return `Non Blok CSR: ${course.nama}`;
+    } else if (course.tipe_non_block === 'Non-CSR') {
+      return `Non Blok Non CSR: ${course.nama}`;
+    } else {
+      // Fallback untuk data yang belum ada tipe_non_block
+      return `Non Blok: ${course.nama}`;
+    }
   }
   return course.nama;
 };
@@ -101,6 +109,15 @@ const formatCourseTooltip = (course: MataKuliah | any) => {
     courseName = course.parent_course.nama;
     courseType = `CSR ${course.parent_course.semester}.${course.csr_number}`;
     nomorCsr = course.nomor_csr ? `Nomor CSR: ${course.nomor_csr}` : '';
+  } else if (course.jenis === 'Non Blok') {
+    // Tampilkan detail jenis non blok berdasarkan tipe_non_block
+    if (course.tipe_non_block === 'CSR') {
+      courseType = 'Non Blok CSR';
+    } else if (course.tipe_non_block === 'Non-CSR') {
+      courseType = 'Non Blok Non CSR';
+    } else {
+      courseType = 'Non Blok';
+    }
   }
 
   const details = [
@@ -237,10 +254,10 @@ interface CalendarTableProps {
   semesterLayouts: Map<number, { lanes: (MataKuliah | any)[][] }>;
   colorMap: Map<string, string>;
   holidayMap: Map<string, Holiday>;
-  kegiatanMap: Map<string, any>;
+  onCourseClick: (course: MataKuliah | any) => void;
 }
 
-const CalendarTable = memo(({ semesterLayouts, colorMap, holidayMap, kegiatanMap }: CalendarTableProps) => {
+const CalendarTable = memo(({ semesterLayouts, colorMap, holidayMap, onCourseClick }: CalendarTableProps) => {
     // Calculate the overall date range for this table
     const allCourses = Array.from(semesterLayouts.values()).flatMap(layout => layout.lanes.flat());
     
@@ -284,14 +301,6 @@ const CalendarTable = memo(({ semesterLayouts, colorMap, holidayMap, kegiatanMap
       const dateString = `${year}-${month}-${day}`;
       return holidayMap.get(dateString);
     };
-
-  const getKegiatan = (date: Date): any | undefined => {
-    const year = date.getFullYear();
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const day = date.getDate().toString().padStart(2, '0');
-    const dateString = `${year}-${month}-${day}`;
-    return kegiatanMap.get(dateString);
-  };
     
     return (
       <div className="overflow-x-auto no-scrollbar border rounded-lg border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
@@ -319,22 +328,18 @@ const CalendarTable = memo(({ semesterLayouts, colorMap, holidayMap, kegiatanMap
               <div className="w-48 shrink-0 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"></div>
               {dates.map(date => {
                 const holiday = getHoliday(date);
-              const kegiatan = getKegiatan(date);
                 const dayOfWeek = date.getDay();
-              const weekend = !holiday && !kegiatan && (dayOfWeek === 0 || dayOfWeek === 6);
+                const weekend = !holiday && (dayOfWeek === 0 || dayOfWeek === 6);
               
-              let dayBgClass = 'bg-gray-50 dark:bg-gray-800';
-              let title = '';
-              if (holiday) {
-                dayBgClass = 'bg-red-100 dark:bg-red-900/50';
-                title = holiday.holiday_name;
-              } else if (kegiatan) {
-                dayBgClass = 'bg-gray-200';
-                title = kegiatan.nama;
-              } else if (weekend) {
-                dayBgClass = 'bg-gray-100 dark:bg-gray-700/40';
-                title = 'Libur Akhir Pekan Sabtu & Minggu';
-              }
+                let dayBgClass = 'bg-gray-50 dark:bg-gray-800';
+                let title = '';
+                if (holiday) {
+                  dayBgClass = 'bg-red-100 dark:bg-red-900/50';
+                  title = holiday.holiday_name;
+                } else if (weekend) {
+                  dayBgClass = 'bg-gray-100 dark:bg-gray-700/40';
+                  title = 'Libur Akhir Pekan Sabtu & Minggu';
+                }
 
                 return (
                   <div
@@ -359,9 +364,8 @@ const CalendarTable = memo(({ semesterLayouts, colorMap, holidayMap, kegiatanMap
             <div className="absolute top-0 left-48 right-0 bottom-0 flex z-0">
               {dates.map((date, index) => {
                 const holiday = getHoliday(date);
-              const kegiatan = getKegiatan(date);
                 const dayOfWeek = date.getDay();
-              const weekend = !holiday && !kegiatan && (dayOfWeek === 0 || dayOfWeek === 6);
+                const weekend = !holiday && (dayOfWeek === 0 || dayOfWeek === 6);
                 return (
                   <div
                     key={index}
@@ -374,12 +378,6 @@ const CalendarTable = memo(({ semesterLayouts, colorMap, holidayMap, kegiatanMap
                         title={holiday.holiday_name}
                       />
                     )}
-                  {kegiatan && !holiday && (
-                    <div 
-                      className="w-full h-full bg-gray-200"
-                      title={kegiatan.nama}
-                    />
-                  )}
                     {weekend && (
                       <div className="w-full h-full bg-gray-500/10 dark:bg-gray-400/10" title="Libur Akhir Pekan Sabtu & Minggu" />
                     )}
@@ -401,7 +399,7 @@ const CalendarTable = memo(({ semesterLayouts, colorMap, holidayMap, kegiatanMap
                       className="w-48 shrink-0 border-r border-b border-gray-200 dark:border-gray-700 font-semibold text-sm flex items-center justify-center p-2 bg-gray-50 dark:bg-gray-800" 
                       style={{ height: `${semesterBlockHeight}px` }}
                     >
-                      Semester {semester}
+                      {typeof semester === 'string' && (semester === 'Antara' || semester === 'antara') ? 'Semester Antara' : `Semester ${semester}`}
                     </div>
 
                     {/* Course lanes */}
@@ -427,7 +425,7 @@ const CalendarTable = memo(({ semesterLayouts, colorMap, holidayMap, kegiatanMap
                               return (
                                 <div
                                   key={course.kode}
-                                  className={`absolute px-2 py-1 flex items-center rounded text-white text-sm font-medium shadow-md ${colorMap.get(course.kode)} leading-tight`}
+                                  className={`absolute px-2 py-1 flex items-center justify-between rounded text-white text-sm font-medium shadow-md ${colorMap.get(course.kode)} leading-tight hover:opacity-90 hover:shadow-lg transition-all duration-200 group`}
                                   style={{ 
                                     left: `${left}px`, 
                                     width: `${width}px`, 
@@ -436,11 +434,18 @@ const CalendarTable = memo(({ semesterLayouts, colorMap, holidayMap, kegiatanMap
                                     cursor: 'pointer',
                                     overflow: 'hidden'
                                   }}
-                                  title={tooltipText}
+                                  title={tooltipText + '\n\n👆🏻 Klik untuk melihat detail jadwal harian'}
+                                  onClick={() => onCourseClick(course)}
                                 >
-                                  <span className="truncate text-sm leading-tight">
+                                  <span className="truncate text-sm leading-tight flex-1">
                                     {barText}
                                   </span>
+                                  <div className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0">
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                  </div>
                                 </div>
                               );
                             })}
@@ -463,12 +468,29 @@ const CalendarTable = memo(({ semesterLayouts, colorMap, holidayMap, kegiatanMap
     );
 });
 
+// Skeleton loading for jadwal harian table
+function JadwalHarianSkeleton() {
+  return (
+    <div className="space-y-3">
+      {Array.from({ length: 5 }).map((_, index) => (
+        <div key={index} className="flex items-center space-x-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+          <div className="w-20 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          <div className="w-16 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          <div className="w-24 h-6 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
+          <div className="w-32 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          <div className="w-24 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function PetaAkademikSkeleton() {
-  // Skeleton for 2 semester sections, each with a fake calendar header and 2 lanes
+  // Skeleton for 3 semester sections, each with a fake calendar header and 2 lanes
   return (
     <div>
-      {['Semester Ganjil', 'Semester Genap'].map((title, idx) => (
-        <div className={idx === 1 ? 'mt-8' : 'mt-4'} key={title}>
+      {['Semester Ganjil', 'Semester Genap', 'Semester Antara'].map((title, idx) => (
+        <div className={idx > 0 ? 'mt-8' : 'mt-4'} key={title}>
           <div className="text-xl font-bold mb-4 h-7 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
           <div className="overflow-x-auto no-scrollbar border rounded-lg border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
             <div style={{ minWidth: 'calc(12rem + 20*40px)' }}>
@@ -569,7 +591,51 @@ export default function PetaAkademikPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [csrData, setCsrData] = useState<CSR[]>([]);
+  
+  // Modal states
+  const [selectedCourse, setSelectedCourse] = useState<MataKuliah | any>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [jadwalHarian, setJadwalHarian] = useState<any[]>([]);
+  const [isLoadingJadwal, setIsLoadingJadwal] = useState(false);
 
+  // Badge color function for schedule types
+  const getBadgeColor = (jenisJadwal: string) => {
+    switch (jenisJadwal) {
+      case 'Kuliah Besar': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400';
+      case 'PBL': return 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400';
+      case 'Jurnal Reading': return 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400';
+      case 'Agenda Khusus': return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
+      case 'CSR': case 'CSR Reguler': case 'CSR Responsi': return 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/20 dark:text-cyan-400';
+      case 'Praktikum': return 'bg-pink-100 text-pink-800 dark:bg-pink-900/20 dark:text-pink-400';
+      case 'Non Blok Non CSR': return 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-400';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
+    }
+  };
+
+  // Handle course click to show modal
+  const handleCourseClick = useCallback(async (course: MataKuliah | any) => {
+    setSelectedCourse(course);
+    setIsModalOpen(true);
+    setIsLoadingJadwal(true);
+    
+    try {
+      const response = await api.get(`/jadwal-harian/mata-kuliah/${course.kode}`);
+      setJadwalHarian(response.data.data || []);
+    } catch (error) {
+      console.error('Error fetching jadwal harian:', error);
+      console.error('Error details:', handleApiError(error, 'Memuat jadwal harian'));
+      setJadwalHarian([]);
+    } finally {
+      setIsLoadingJadwal(false);
+    }
+  }, []);
+
+  // Close modal
+  const closeModal = useCallback(() => {
+    setIsModalOpen(false);
+    setSelectedCourse(null);
+    setJadwalHarian([]);
+  }, []);
 
   const fetchAllData = useCallback(async () => {
     setError(null);
@@ -621,8 +687,9 @@ export default function PetaAkademikPage() {
       setHolidays(allHolidays);
 
     } catch (err) {
-      setError('Gagal mengambil data');
-      console.error(err);
+      console.error('Error fetching data:', err);
+      console.error('Error details:', handleApiError(err, 'Memuat data peta akademik'));
+      setError(handleApiError(err, 'Memuat data peta akademik'));
     } finally {
       setLoading(false);
     }
@@ -649,6 +716,8 @@ export default function PetaAkademikPage() {
           setCsrData([]);
         }
       } catch (error) {
+        console.error('Error fetching CSR data:', error);
+        console.error('Error details:', handleApiError(error, 'Memuat data CSR'));
         setCsrData([]);
       }
     };
@@ -656,7 +725,7 @@ export default function PetaAkademikPage() {
   }, [data]);
 
 
-  const { ganjilLayouts, genapLayouts, colorMap, holidayMap } = useMemo(() => {
+  const { ganjilLayouts, genapLayouts, antaraLayouts, colorMap, holidayMap } = useMemo(() => {
     const holidayMap = new Map<string, Holiday>();
     holidays.forEach(h => {
       if (h.is_national_holiday && h.holiday_date) {
@@ -701,13 +770,21 @@ export default function PetaAkademikPage() {
     // Combine regular courses with CSR courses
     const allCourses = [...validCourses, ...csrCourses];
 
-    // Split into ganjil (odd) and genap (even) semesters
-    const ganjilCourses = allCourses.filter(c => c.semester % 2 !== 0);
-    const genapCourses = allCourses.filter(c => c.semester % 2 === 0);
+    // Split into ganjil (odd), genap (even), and antara semesters
+    const ganjilCourses = allCourses.filter(c => {
+      const semester = parseInt(c.semester);
+      return !isNaN(semester) && semester % 2 !== 0;
+    });
+    const genapCourses = allCourses.filter(c => {
+      const semester = parseInt(c.semester);
+      return !isNaN(semester) && semester % 2 === 0;
+    });
+    const antaraCourses = allCourses.filter(c => c.semester === 'Antara' || c.semester === 'antara');
 
     // Generate layouts for each semester group
     const ganjilLayouts = generateLayout(ganjilCourses);
     const genapLayouts = generateLayout(genapCourses);
+    const antaraLayouts = generateLayout(antaraCourses);
 
     // Create color mapping for courses
     const colorMap = new Map<string, string>();
@@ -732,18 +809,25 @@ export default function PetaAkademikPage() {
       }
     });
 
-    return { ganjilLayouts, genapLayouts, colorMap, holidayMap };
+    return { ganjilLayouts, genapLayouts, antaraLayouts, colorMap, holidayMap };
   }, [data, holidays, csrData]);
 
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-      <div className="flex justify-between items-center px-5 pt-5 lg:px-6 lg:pt-6">
+      <div className="px-5 pt-5 lg:px-6 lg:pt-6">
         <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
           Peta Akademik
         </h3>
+        <div className="mt-3 flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-lg border border-blue-200 dark:border-blue-800/30">
+          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span className="font-medium">Tips:</span>
+          <span>Klik pada bar mata kuliah untuk melihat jadwal harian lengkap</span>
+        </div>
       </div>
-      <div className="p-5 pt-4 lg:p-6 lg:pt-4">
+      <div className="px-5 pb-5 lg:px-6 lg:pb-6">
         {loading ? (
           <PetaAkademikSkeleton />
         ) : error ? (
@@ -759,7 +843,7 @@ export default function PetaAkademikPage() {
                     semesterLayouts={ganjilLayouts} 
                     colorMap={colorMap}
                     holidayMap={holidayMap}
-                    kegiatanMap={new Map()}
+                    onCourseClick={handleCourseClick}
                   />
                 </div>
               )}
@@ -772,12 +856,24 @@ export default function PetaAkademikPage() {
                   semesterLayouts={genapLayouts} 
                   colorMap={colorMap}
                   holidayMap={holidayMap}
-                  kegiatanMap={new Map()}
+                  onCourseClick={handleCourseClick}
                 />
               </div>
             )}
             
-            {(ganjilLayouts.size > 0 || genapLayouts.size > 0) && (
+            {antaraLayouts.size > 0 && (
+              <div className="mt-8">
+                <h3 className="text-xl font-bold mb-4">Semester Antara</h3>
+                <CalendarTable 
+                  semesterLayouts={antaraLayouts} 
+                  colorMap={colorMap}
+                  holidayMap={holidayMap}
+                  onCourseClick={handleCourseClick}
+                />
+              </div>
+            )}
+            
+            {(ganjilLayouts.size > 0 || genapLayouts.size > 0 || antaraLayouts.size > 0) && (
               <div className="mt-8">
                 <h3 className="text-md font-bold mb-3">Legenda Warna</h3>
                 <div className="flex flex-wrap gap-x-6 gap-y-2">
@@ -835,6 +931,164 @@ export default function PetaAkademikPage() {
           </div>
         )}
       </div>
+
+      {/* Modal Detail Jadwal Harian */}
+      <AnimatePresence>
+        {isModalOpen && selectedCourse && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={closeModal}
+            ></motion.div>
+            
+            {/* Modal Content */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={closeModal}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" className="w-6 h-6">
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+
+              <div>
+                {/* Modal Header */}
+                <div className="flex items-center justify-between pb-4 sm:pb-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-xl flex items-center justify-center">
+                      <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
+                        {selectedCourse.jenis === 'CSR' && selectedCourse.parent_course 
+                          ? selectedCourse.parent_course.nama 
+                          : selectedCourse.nama}
+                      </h2>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        {selectedCourse.jenis === 'CSR' && selectedCourse.parent_course 
+                          ? selectedCourse.parent_course.kode 
+                          : selectedCourse.kode} • {selectedCourse.jenis} • Semester {selectedCourse.semester}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Modal Content */}
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      Jadwal Lengkap
+                    </h3>
+                    <div className="flex items-center gap-2">
+                      {isLoadingJadwal ? (
+                        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                          <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+                          <span>Memuat...</span>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full">
+                          {jadwalHarian.length} jadwal tersedia
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 dark:bg-gray-900/50 rounded-2xl p-6">
+                    {isLoadingJadwal ? (
+                      <JadwalHarianSkeleton />
+                    ) : jadwalHarian.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b border-gray-200 dark:border-gray-600">
+                              <th className="text-left py-4 px-4 font-semibold text-gray-900 dark:text-white w-80 whitespace-nowrap">Tanggal</th>
+                              <th className="text-left py-4 px-4 font-semibold text-gray-900 dark:text-white w-32 whitespace-nowrap">Jam</th>
+                              <th className="text-left py-4 px-4 font-semibold text-gray-900 dark:text-white w-40 whitespace-nowrap">Jenis</th>
+                              <th className="text-left py-4 px-4 font-semibold text-gray-900 dark:text-white">Materi/Agenda</th>
+                              <th className="text-left py-4 px-4 font-semibold text-gray-900 dark:text-white">Dosen</th>
+                              <th className="text-left py-4 px-4 font-semibold text-gray-900 dark:text-white">Ruangan</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                            {jadwalHarian.map((schedule, index) => (
+                              <tr key={index} className="hover:bg-white dark:hover:bg-gray-800/50 transition-colors duration-200">
+                                <td className="py-4 px-4 text-sm text-gray-900 dark:text-white whitespace-nowrap">
+                                  {new Date(schedule.tanggal).toLocaleDateString('id-ID', {
+                                    weekday: 'long',
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric'
+                                  })}
+                                </td>
+                                <td className="py-4 px-4 text-sm text-gray-900 dark:text-white whitespace-nowrap font-medium">
+                                  {schedule.jam_mulai} - {schedule.jam_selesai}
+                                </td>
+                                <td className="py-4 px-4 whitespace-nowrap">
+                                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getBadgeColor((schedule as any).jenis_jadwal_display || (schedule.jenis_baris === 'materi' ? 'Materi' : 'Agenda'))}`}>
+                                    {(schedule as any).jenis_jadwal_display || (schedule.jenis_baris === 'materi' ? 'Materi' : 'Agenda')}
+                                  </span>
+                                </td>
+                                <td className="py-4 px-4 text-sm text-gray-900 dark:text-white">
+                                  <div className="max-w-xs">
+                                    <p className="truncate">{schedule.materi || schedule.agenda || '-'}</p>
+                                  </div>
+                                </td>
+                                <td className="py-4 px-4 text-sm text-gray-900 dark:text-white">
+                                  <div className="max-w-xs">
+                                    <p className="truncate">{schedule.dosen?.name || (schedule as any).dosen_names || '-'}</p>
+                                  </div>
+                                </td>
+                                <td className="py-4 px-4 text-sm text-gray-900 dark:text-white">
+                                  <div className="max-w-xs">
+                                    <p className="truncate">{schedule.ruangan?.nama || '-'}</p>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="text-center py-16">
+                        <div className="mx-auto w-20 h-20 bg-gray-100 dark:bg-gray-700 rounded-2xl flex items-center justify-center mb-6">
+                          <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Tidak ada jadwal</h3>
+                        <p className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
+                          Belum ada jadwal harian untuk mata kuliah ini. Silakan hubungi administrator untuk menambahkan jadwal.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 } 
+
+

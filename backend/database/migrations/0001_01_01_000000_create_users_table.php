@@ -21,6 +21,11 @@ return new class extends Migration
             $table->string('gender')->nullable();
             $table->float('ipk')->nullable();
             $table->string('status')->nullable();
+            $table->boolean('is_veteran')->default(false);
+            $table->text('veteran_notes')->nullable();
+            $table->timestamp('veteran_set_at')->nullable();
+            $table->unsignedBigInteger('veteran_set_by')->nullable();
+            $table->string('veteran_semester')->nullable()->comment('Semester dimana veteran dipilih untuk dikelompokkan');
             $table->string('angkatan')->nullable();
             $table->string('name');
             $table->string('username');
@@ -54,6 +59,9 @@ return new class extends Migration
             // Composite unique indexes for (email, role) and (username, role)
             $table->unique(['email', 'role']);
             $table->unique(['username', 'role']);
+            
+            // Foreign key constraint for veteran_set_by
+            $table->foreign('veteran_set_by')->references('id')->on('users')->onDelete('set null');
         });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {

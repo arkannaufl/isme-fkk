@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { faChevronUp, faChevronDown } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -10,10 +10,12 @@ import {
   faExclamationTriangle,
   faClock,
   faEye,
+  faCog,
 } from "@fortawesome/free-solid-svg-icons";
 import { AnimatePresence, motion } from "framer-motion";
 import api, { handleApiError } from "../utils/api";
 import { useParams, useNavigate } from "react-router-dom";
+import { pblGenerateApi } from "../api/generateApi";
 
 type MataKuliah = {
   kode: string;
@@ -112,8 +114,114 @@ export default function PBL() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [warning, setWarning] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+
+  // PERBAIKAN BARU: State untuk tracking apakah sudah ada data yang di-generate
+  const [hasGeneratedData, setHasGeneratedData] = useState<boolean>(false);
+  
+  // State untuk validasi generate status
+  const [isGenerateValidated, setIsGenerateValidated] = useState<boolean>(false);
+  const [generateValidationError, setGenerateValidationError] = useState<string | null>(null);
+
+  // PERBAIKAN BARU: Fungsi untuk mengecek apakah sudah ada data yang di-generate
+  const checkHasGeneratedData = () => {
+    const totalAssignedDosen = Object.values(assignedDosen).flat().length;
+    const hasData = totalAssignedDosen > 0;
+    setHasGeneratedData(hasData);
+    console.log(
+      `🔍 Check Generated Data: ${totalAssignedDosen} assigned dosen, hasGeneratedData: ${hasData}`
+    );
+    return hasData;
+  };
+
+  // Fungsi untuk validasi generate status
+  const validateGenerateStatus = async () => {
+    if (!blokId) {
+      setGenerateValidationError('Blok ID tidak ditemukan');
+      return false;
+    }
+
+    try {
+      const response = await pblGenerateApi.checkGenerateStatus(parseInt(blokId));
+      console.log('🔍 PBL-detail validation response:', response.data);
+      
+      const isGenerated = response.data.success && response.data.data?.is_generated === true;
+      console.log('🎯 PBL-detail validation result:', { isGenerated, success: response.data.success });
+      
+      if (!isGenerated) {
+        setGenerateValidationError('Blok ini belum di-generate. Silakan generate dosen terlebih dahulu.');
+        setIsGenerateValidated(false);
+        return false;
+      }
+
+      setIsGenerateValidated(true);
+      setGenerateValidationError(null);
+      return true;
+    } catch (error) {
+      console.error('Error validating generate status:', error);
+      setGenerateValidationError('Error mengecek status generate');
+      setIsGenerateValidated(false);
+      return false;
+    }
+  };
+
+  // PERBAIKAN BARU: Fungsi khusus untuk refresh assignment data setelah assignment manual
+  const refreshAssignmentData = async (pblIds: number[]) => {
+    try {
+      const assignedRes = await api.post("/pbl-generate/get-assignments", {
+        pbl_ids: pblIds,
+      });
+
+      if (assignedRes.data.success) {
+        const assignmentsData = assignedRes.data.data || {};
+        setAssignedDosen((prev) => {
+          const updated = { ...prev };
+          pblIds.forEach((pblId) => {
+            if (pblId !== undefined) {
+              const assignments = assignmentsData[pblId] || [];
+              updated[pblId] = assignments.map((assignment) => ({
+                id: assignment.dosen.id,
+                name: assignment.dosen.name,
+                nid: assignment.dosen.nid,
+                pbl_role: assignment.role,
+                pbl_assignment_count: assignment.pbl_assignment_count || 0,
+                keahlian: assignment.dosen.keahlian || [],
+                keahlianArr: Array.isArray(assignment.dosen.keahlian)
+                  ? assignment.dosen.keahlian
+                  : (assignment.dosen.keahlian || "")
+                      .split(",")
+                      .map((k) => k.trim()),
+                dosen_peran: assignment.dosen.dosen_peran || [],
+                peran_utama: assignment.dosen.peran_utama,
+                peran_kurikulum: assignment.dosen.peran_kurikulum,
+                peran_kurikulum_mengajar:
+                  assignment.dosen.peran_kurikulum_mengajar,
+                matkul_ketua_nama: assignment.dosen.matkul_ketua_nama,
+                matkul_ketua_semester: assignment.dosen.matkul_ketua_semester,
+                matkul_anggota_nama: assignment.dosen.matkul_anggota_nama,
+                matkul_anggota_semester:
+                  assignment.dosen.matkul_anggota_semester,
+              }));
+            }
+          });
+          return updated;
+        });
+
+        console.log(
+          "🔄 Assignment data refreshed successfully:",
+          assignmentsData
+        );
+      } else {
+        console.error(
+          "❌ Failed to refresh assignment data:",
+          assignedRes.data
+        );
+      }
+    } catch (error) {
+      console.error("❌ Error refreshing assignment data:", error);
+    }
+  };
   const [blokMataKuliah, setBlokMataKuliah] = useState<MataKuliah[]>([]);
   const [filterSemester, setFilterSemester] = useState("semua");
   const [filterBlok, setFilterBlok] = useState("semua");
@@ -214,8 +322,6 @@ export default function PBL() {
   const [peranAnggotaCount, setPeranAnggotaCount] = useState<number>(0);
   const [dosenMengajarCount, setDosenMengajarCount] = useState<number>(0);
 
-  const fetchAllRef = useRef(fetchAll);
-
   // Fungsi untuk mengecek apakah keahlian dosen sesuai dengan mata kuliah
   const checkKeahlianMatch = (dosen: Dosen, mk: MataKuliah): boolean => {
     const dosenKeahlian = Array.isArray(dosen.keahlian)
@@ -250,18 +356,81 @@ export default function PBL() {
 
   // Fungsi untuk menangani assignment dosen
   const handleAssignDosen = async (dosen: Dosen, pbl: PBL, mk: MataKuliah) => {
+    console.log(
+      `🚀 MANUAL ASSIGNMENT STARTED - ${dosen.name} to ${mk.nama} (${mk.kode})`
+    );
+    console.log(`📋 Assignment Details:`, {
+      dosenName: dosen.name,
+      dosenId: dosen.id,
+      dosenKeahlian: dosen.keahlian,
+      pblId: pbl.id,
+      pblName: pbl.nama_modul,
+      mkKode: mk.kode,
+      mkName: mk.nama,
+      requiredKeahlian: mk.keahlian_required,
+      isKeahlianMatch: checkKeahlianMatch(dosen, mk),
+    });
+
+    // PERBAIKAN BARU: Validasi yang lebih fleksibel - cek apakah ada data PBL
+    const hasPblData = Object.keys(pblData).length > 0;
+    if (!hasPblData) {
+      console.log(`❌ MANUAL ASSIGNMENT FAILED - No PBL data available`);
+      setError(
+        "Tidak dapat melakukan assignment manual. Silakan generate dosen terlebih dahulu di halaman PBL Generate."
+      );
+      return;
+    }
+
     try {
       // Cari semua PBL dalam semester yang sama
       const currentSemester = mk.semester;
-      const semesterPBLs = Object.values(pblData)
+      console.log(`🔍 Finding PBLs for semester ${currentSemester}...`);
+
+      console.log(`📊 Debug Data:`, {
+        pblDataKeys: Object.keys(pblData || {}),
+        pblDataValues: Object.values(pblData || {}).map((arr) => arr.length),
+        blokMataKuliahCount: (blokMataKuliah || []).length,
+        currentMkKode: mk.kode,
+        currentMkSemester: mk.semester,
+        blokMataKuliahSemesters: (blokMataKuliah || []).map((m) => ({
+          kode: m.kode,
+          semester: m.semester,
+        })),
+      });
+
+      const semesterPBLs = Object.values(pblData || {})
         .flat()
         .filter((p) => {
-          const mk = blokMataKuliah.find((m) => m.kode === p.mata_kuliah_kode);
-          return mk && mk.semester === currentSemester;
+          const mk = (blokMataKuliah || []).find(
+            (m) => m.kode === p.mata_kuliah_kode
+          );
+          // PERBAIKAN: Konversi kedua semester menjadi number untuk perbandingan yang benar
+          const mkSemesterNum = mk ? parseInt(mk.semester.toString()) : null;
+          const currentSemesterNum = parseInt(currentSemester.toString());
+          const matches = mk && mkSemesterNum === currentSemesterNum;
+
+          console.log(
+            `🔍 Filtering PBL ${p.nama_modul} (${p.mata_kuliah_kode}):`,
+            {
+              mkFound: mk ? mk.nama : "NOT FOUND",
+              mkSemester: mk ? mk.semester : "N/A",
+              mkSemesterNum: mkSemesterNum,
+              currentSemester: currentSemester,
+              currentSemesterNum: currentSemesterNum,
+              matches: matches,
+            }
+          );
+          return matches;
         });
 
+      console.log(
+        `📋 Found ${semesterPBLs.length} PBLs for semester ${currentSemester}:`,
+        semesterPBLs.map((p) => ({ id: p.id, name: p.nama_modul }))
+      );
+
       // Assign dosen ke semua PBL dalam semester yang sama
-      const assignPromises = semesterPBLs.map(async (semesterPbl) => {
+      console.log(`🚀 Starting API calls for ${semesterPBLs.length} PBLs...`);
+      const assignPromises = (semesterPBLs || []).map(async (semesterPbl) => {
         try {
           // Tentukan role berdasarkan dosen_peran
           let role = "dosen_mengajar"; // default
@@ -275,6 +444,10 @@ export default function PBL() {
             role = dosenPeran.tipe_peran;
           }
 
+          console.log(
+            `📡 API Call - Assigning ${dosen.name} to PBL ${semesterPbl.id} with role ${role}`
+          );
+
           const response = await api.post(
             `/pbls/${semesterPbl.id}/assign-dosen`,
             {
@@ -282,8 +455,14 @@ export default function PBL() {
               role: role,
             }
           );
+
+          console.log(`✅ API Success - PBL ${semesterPbl.id}:`, response.data);
           return { pblId: semesterPbl.id, success: true, response };
         } catch (error: any) {
+          console.log(
+            `❌ API Error - PBL ${semesterPbl.id}:`,
+            error?.response?.data || error.message
+          );
           return {
             pblId: semesterPbl.id,
             success: false,
@@ -296,22 +475,95 @@ export default function PBL() {
       const successfulAssignments = results.filter((r) => r.success);
       const failedAssignments = results.filter((r) => !r.success);
 
-      // Refresh assigned dosen data untuk semua PBL yang berhasil
-      if (successfulAssignments.length > 0) {
-        const pblIds = successfulAssignments.map((r) => r.pblId);
-        const assignedRes = await api.post("/pbls/assigned-dosen-batch", {
-          pbl_ids: pblIds,
-        });
+      console.log(`📊 API Results:`, {
+        total: results.length,
+        successful: successfulAssignments.length,
+        failed: failedAssignments.length,
+        successfulPblIds: successfulAssignments.map((r) => r.pblId),
+        failedPblIds: failedAssignments.map((r) => r.pblId),
+      });
 
+      // PERBAIKAN BARU: Refresh assigned dosen data untuk semua PBL yang berhasil
+
+      if (successfulAssignments.length > 0) {
+        // PERBAIKAN BARU: Langsung tambahkan dosen ke state assignedDosen untuk immediate UI update
+        console.log(
+          `🔄 Starting immediate state update for PBL IDs:`,
+          successfulAssignments.map((r) => r.pblId)
+        );
         setAssignedDosen((prev) => {
+          console.log(`📊 Current assignedDosen state before update:`, prev);
           const updated = { ...prev };
-          pblIds.forEach((pblId) => {
-            if (pblId !== undefined) {
-              updated[pblId] = assignedRes.data[pblId] || [];
-            }
-          });
+          successfulAssignments
+            .map((r) => r.pblId)
+            .forEach((pblId) => {
+              if (pblId !== undefined) {
+                const existingAssignments = updated[pblId] || [];
+                console.log(
+                  `🔍 PBL ${pblId} existing assignments:`,
+                  existingAssignments.map((d) => d.name)
+                );
+
+                // Cek apakah dosen sudah ada di PBL ini
+                const isAlreadyAssigned = existingAssignments.some(
+                  (d) => d.id === dosen.id
+                );
+                console.log(
+                  `❓ Is ${dosen.name} already assigned to PBL ${pblId}?`,
+                  isAlreadyAssigned
+                );
+
+                if (!isAlreadyAssigned) {
+                  // Tambahkan dosen dengan data lengkap
+                  const newDosenData = {
+                    id: dosen.id,
+                    name: dosen.name,
+                    nid: dosen.nid,
+                    pbl_role: "dosen_mengajar", // Default untuk manual assignment
+                    pbl_assignment_count: dosen.pbl_assignment_count || 0,
+                    keahlian: dosen.keahlian || [],
+                    keahlianArr: Array.isArray(dosen.keahlian)
+                      ? dosen.keahlian
+                      : (dosen.keahlian || "").split(",").map((k) => k.trim()),
+                    dosen_peran: dosen.dosen_peran || [],
+                    peran_utama: dosen.peran_utama,
+                    peran_kurikulum: dosen.peran_kurikulum,
+                    peran_kurikulum_mengajar: dosen.peran_kurikulum_mengajar,
+                    matkul_ketua_nama: dosen.matkul_ketua_nama,
+                    matkul_ketua_semester: dosen.matkul_ketua_semester,
+                    matkul_anggota_nama: dosen.matkul_anggota_nama,
+                    matkul_anggota_semester: dosen.matkul_anggota_semester,
+                  };
+
+                  updated[pblId] = [...existingAssignments, newDosenData];
+                  console.log(
+                    `✅ Added ${dosen.name} to PBL ${pblId}. New assignments:`,
+                    updated[pblId].map((d) => d.name)
+                  );
+
+                  // DEBUG: Log penambahan dosen ke state
+                  console.log(
+                    `✅ Manual Assignment - Added ${dosen.name} to PBL ${pblId}:`,
+                    {
+                      dosenData: newDosenData,
+                      keahlian: dosen.keahlian,
+                      requiredKeahlian: mk.keahlian_required,
+                      isKeahlianMatch: checkKeahlianMatch(dosen, mk),
+                    }
+                  );
+                } else {
+                  console.log(
+                    `⚠️ ${dosen.name} already assigned to PBL ${pblId}, skipping`
+                  );
+                }
+              }
+            });
+          console.log(`📊 Final assignedDosen state after update:`, updated);
           return updated;
         });
+
+        // PERBAIKAN BARU: Gunakan fungsi khusus untuk refresh assignment data
+        await refreshAssignmentData(successfulAssignments.map((r) => r.pblId));
 
         // PERBAIKAN: Update role assignments untuk UI coloring
         const newRoleAssignments: {
@@ -329,31 +581,33 @@ export default function PBL() {
         );
 
         if (dosenPeran) {
-          pblIds.forEach((pblId) => {
-            if (pblId !== undefined) {
-              if (!newRoleAssignments[pblId]) {
-                newRoleAssignments[pblId] = {};
-              }
+          successfulAssignments
+            .map((r) => r.pblId)
+            .forEach((pblId) => {
+              if (pblId !== undefined) {
+                if (!newRoleAssignments[pblId]) {
+                  newRoleAssignments[pblId] = {};
+                }
 
-              if (dosenPeran.tipe_peran === "koordinator") {
-                if (!newRoleAssignments[pblId].koordinator) {
-                  newRoleAssignments[pblId].koordinator = [];
-                }
-                if (
-                  !newRoleAssignments[pblId].koordinator!.includes(dosen.id)
-                ) {
-                  newRoleAssignments[pblId].koordinator!.push(dosen.id);
-                }
-              } else if (dosenPeran.tipe_peran === "tim_blok") {
-                if (!newRoleAssignments[pblId].timBlok) {
-                  newRoleAssignments[pblId].timBlok = [];
-                }
-                if (!newRoleAssignments[pblId].timBlok!.includes(dosen.id)) {
-                  newRoleAssignments[pblId].timBlok!.push(dosen.id);
+                if (dosenPeran.tipe_peran === "koordinator") {
+                  if (!newRoleAssignments[pblId].koordinator) {
+                    newRoleAssignments[pblId].koordinator = [];
+                  }
+                  if (
+                    !newRoleAssignments[pblId].koordinator!.includes(dosen.id)
+                  ) {
+                    newRoleAssignments[pblId].koordinator!.push(dosen.id);
+                  }
+                } else if (dosenPeran.tipe_peran === "tim_blok") {
+                  if (!newRoleAssignments[pblId].timBlok) {
+                    newRoleAssignments[pblId].timBlok = [];
+                  }
+                  if (!newRoleAssignments[pblId].timBlok!.includes(dosen.id)) {
+                    newRoleAssignments[pblId].timBlok!.push(dosen.id);
+                  }
                 }
               }
-            }
-          });
+            });
         }
 
         setRoleAssignments(newRoleAssignments);
@@ -361,28 +615,80 @@ export default function PBL() {
 
       // Show success notification
       const isKeahlianMatch = checkKeahlianMatch(dosen, mk);
-      if (successfulAssignments.length === semesterPBLs.length) {
+      if (successfulAssignments.length === (semesterPBLs || []).length) {
         // Semua berhasil
         if (isKeahlianMatch) {
           setSuccess(
             `${dosen.name} berhasil di-assign ke semua modul semester ${currentSemester}`
           );
         } else {
-          setWarning(
+          setSuccess(
             `${dosen.name} berhasil di-assign ke semua modul semester ${currentSemester} (Keahlian tidak sesuai)`
           );
         }
+
+        // Dispatch event untuk update real-time di Dosen.tsx
+        console.log(
+          "📡 Dispatching pbl-assignment-updated event (ALL SUCCESS):",
+          {
+            dosenId: dosen.id,
+            dosenName: dosen.name,
+            pblIds: successfulAssignments.map((r) => r.pblId),
+            isKeahlianMatch: isKeahlianMatch,
+          }
+        );
+        window.dispatchEvent(
+          new CustomEvent("pbl-assignment-updated", {
+            detail: {
+              timestamp: Date.now(),
+              dosenId: dosen.id,
+              dosenName: dosen.name,
+              pblIds: successfulAssignments.map((r) => r.pblId),
+              isKeahlianMatch: isKeahlianMatch,
+            },
+          })
+        );
+        console.log("✅ Event dispatched successfully (ALL SUCCESS)");
       } else if (successfulAssignments.length > 0) {
         // Sebagian berhasil
         if (isKeahlianMatch) {
           setSuccess(
-            `${dosen.name} berhasil di-assign ke ${successfulAssignments.length}/${semesterPBLs.length} modul semester ${currentSemester}`
+            `${dosen.name} berhasil di-assign ke ${
+              successfulAssignments.length
+            }/${(semesterPBLs || []).length} modul semester ${currentSemester}`
           );
         } else {
-          setWarning(
-            `${dosen.name} berhasil di-assign ke ${successfulAssignments.length}/${semesterPBLs.length} modul semester ${currentSemester} (Keahlian tidak sesuai)`
+          setSuccess(
+            `${dosen.name} berhasil di-assign ke ${
+              successfulAssignments.length
+            }/${
+              (semesterPBLs || []).length
+            } modul semester ${currentSemester} (Keahlian tidak sesuai)`
           );
         }
+
+        // Dispatch event untuk update real-time di Dosen.tsx
+        console.log(
+          "📡 Dispatching pbl-assignment-updated event (PARTIAL SUCCESS):",
+          {
+            dosenId: dosen.id,
+            dosenName: dosen.name,
+            pblIds: successfulAssignments.map((r) => r.pblId),
+            isKeahlianMatch: isKeahlianMatch,
+          }
+        );
+        window.dispatchEvent(
+          new CustomEvent("pbl-assignment-updated", {
+            detail: {
+              timestamp: Date.now(),
+              dosenId: dosen.id,
+              dosenName: dosen.name,
+              pblIds: successfulAssignments.map((r) => r.pblId),
+              isKeahlianMatch: isKeahlianMatch,
+            },
+          })
+        );
+        console.log("✅ Event dispatched successfully (PARTIAL SUCCESS)");
       } else {
         // Semua gagal
         setError(
@@ -390,20 +696,35 @@ export default function PBL() {
         );
       }
 
-      // Clear notification after 3 seconds
+      // Clear notification after 3 seconds (PERBAIKAN: Jangan hapus warnings)
       setTimeout(() => {
         setSuccess(null);
-        setWarning(null);
+        // setWarnings([]); // PERBAIKAN: Jangan hapus warnings, biarkan recalculateWarnings yang mengatur
         setError(null);
       }, 3000);
+
+      // PERBAIKAN BARU: Tunggu sebentar agar data ter-update sebelum fetchAll
+      setTimeout(async () => {
+        await fetchAll();
+
+        // PERBAIKAN BARU: Hitung ulang warning setelah data ter-refresh
+        console.log(
+          "Debug - Before recalculateWarnings after manual assignment"
+        );
+        setTimeout(() => {
+          recalculateWarnings();
+          console.log(
+            "Debug - After recalculateWarnings after manual assignment"
+          );
+        }, 100);
+      }, 200);
+
+      // PERBAIKAN BARU: Cek status generated data setelah assignment
+      checkHasGeneratedData();
     } catch (error: any) {
       setError(error?.response?.data?.message || "Gagal assign dosen");
     }
   };
-
-  useEffect(() => {
-    fetchAllRef.current = fetchAll;
-  }, [fetchAll]);
 
   // Helper untuk mendapatkan dosen yang di-assign per semester
   const getDosenBySemester = (semester: number) => {
@@ -437,12 +758,25 @@ export default function PBL() {
     // Tidak menampilkan Koordinator & Tim Blok dari UserSeeder sampai di-generate
     const assignedFromMappings = assignedDosen[pblId] || [];
 
+    console.log("🔍 getAllAssignedDosen Debug:", {
+      pblId,
+      modul: mk.nama,
+      assignedCount: assignedFromMappings.length,
+      assignedNames: assignedFromMappings.map((d) => d.name),
+      fullAssignedDosenState: assignedDosen,
+      specificPblData: assignedDosen[pblId],
+    });
+
     // Jika belum ada assignment (belum di-generate), return array kosong
     if (assignedFromMappings.length === 0) {
+      console.log(`❌ No assignments found for PBL ${pblId}`);
       return [];
     }
 
     // Jika sudah ada assignment, hanya tampilkan dosen dari pbl_mappings
+    console.log(
+      `✅ Found ${assignedFromMappings.length} assignments for PBL ${pblId}`
+    );
     return assignedFromMappings;
   };
 
@@ -513,16 +847,10 @@ export default function PBL() {
     }
   }, [error]);
 
-  useEffect(() => {
-    if (warning) {
-      const timer = setTimeout(() => {
-        setWarning(null);
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [warning]);
+  // Warning tidak auto-clear, harus manual ditambah dosen
 
   async function fetchAll() {
+    console.log("Debug - fetchAll started");
     setLoading(true);
     setError(null);
     try {
@@ -532,6 +860,10 @@ export default function PBL() {
         api.get("/users?role=dosen"),
         api.get("/kelompok-kecil"),
       ]);
+      console.log("Debug - fetchAll data fetched:", {
+        pblRes: pblRes.data,
+        dosenRes: dosenRes.data,
+      });
 
       const data = pblRes.data || {};
       const blokListMapped: MataKuliah[] = Array.from(
@@ -568,119 +900,135 @@ export default function PBL() {
         blokId || "semua"
       );
 
+      // PERBAIKAN: Hitung kekurangan dosen dan warning seperti PBLGenerate.tsx
+      calculateWarnings(
+        filteredBlokMataKuliah,
+        dosenRes.data || [],
+        kelompokKecilRes.data || []
+      );
+
       // Fetch assigned dosen batch (all pblId)
       const allPbls = Object.values(pblMap).flat();
-      const pblIds = allPbls.map((pbl) => pbl.id).filter(Boolean);
+      const allPblIds = allPbls.map((pbl) => pbl.id).filter(Boolean);
 
-      if (pblIds.length > 0) {
+      if (allPblIds.length > 0) {
         try {
-          // Retry mechanism for API call
-          let retryCount = 0;
-          const maxRetries = 3;
-          let assignedRes = null;
+          // PERBAIKAN: Hapus retry mechanism yang menyebabkan masalah
+          const assignedRes = await api.post("/pbl-generate/get-assignments", {
+            pbl_ids: allPblIds,
+          });
 
-          while (retryCount < maxRetries && !assignedRes) {
-            try {
-              assignedRes = await api.post("/pbls/assigned-dosen-batch", {
-                pbl_ids: pblIds,
-              });
+          console.log(
+            "Debug - fetchAll assigned dosen fetched:",
+            assignedRes.data
+          );
 
-              setAssignedDosen(assignedRes.data || {});
-
-              // PERBAIKAN: Update role assignments untuk UI coloring saat data di-load
-              const newRoleAssignments: {
-                [pblId: number]: { koordinator?: number[]; timBlok?: number[] };
-              } = {};
-
-              // Iterate through assigned dosen data to determine roles
-              Object.entries(assignedRes.data || {}).forEach(
-                ([pblIdStr, assignedDosenList]: [string, any]) => {
-                  const pblId = parseInt(pblIdStr);
-                  if (
-                    pblId &&
-                    assignedDosenList &&
-                    Array.isArray(assignedDosenList)
-                  ) {
-                    assignedDosenList.forEach((dosen: any) => {
-                      // Gunakan pbl_role dari backend alih-alih dosen_peran
-                      const pblRole = dosen.pbl_role || "dosen_mengajar";
-
-                      if (pblRole === "koordinator" || pblRole === "tim_blok") {
-                        if (!newRoleAssignments[pblId]) {
-                          newRoleAssignments[pblId] = {};
-                        }
-
-                        if (pblRole === "koordinator") {
-                          if (!newRoleAssignments[pblId].koordinator) {
-                            newRoleAssignments[pblId].koordinator = [];
-                          }
-                          if (
-                            !newRoleAssignments[pblId].koordinator!.includes(
-                              dosen.id
-                            )
-                          ) {
-                            newRoleAssignments[pblId].koordinator!.push(
-                              dosen.id
-                            );
-                          }
-                        } else if (pblRole === "tim_blok") {
-                          if (!newRoleAssignments[pblId].timBlok) {
-                            newRoleAssignments[pblId].timBlok = [];
-                          }
-                          if (
-                            !newRoleAssignments[pblId].timBlok!.includes(
-                              dosen.id
-                            )
-                          ) {
-                            newRoleAssignments[pblId].timBlok!.push(dosen.id);
-                          }
-                        }
-                      }
-                    });
-                  }
-                }
+          // PERBAIKAN: Convert data seperti di PBLGenerate.tsx untuk memastikan pbl_assignment_count benar
+          if (assignedRes.data.success) {
+            const assignmentsData = assignedRes.data.data || {};
+            const convertedData = {};
+            Object.keys(assignmentsData).forEach((pblId) => {
+              const assignments = assignmentsData[pblId];
+              convertedData[parseInt(pblId)] = assignments.map(
+                (assignment) => ({
+                  id: assignment.dosen.id,
+                  name: assignment.dosen.name,
+                  nid: assignment.dosen.nid,
+                  pbl_role: assignment.role,
+                  pbl_assignment_count: assignment.pbl_assignment_count || 0,
+                  keahlian: assignment.dosen.keahlian || [],
+                  keahlianArr: Array.isArray(assignment.dosen.keahlian)
+                    ? assignment.dosen.keahlian
+                    : (assignment.dosen.keahlian || "")
+                        .split(",")
+                        .map((k) => k.trim()),
+                  dosen_peran: assignment.dosen.dosen_peran || [],
+                  peran_utama: assignment.dosen.peran_utama,
+                  peran_kurikulum: assignment.dosen.peran_kurikulum,
+                  peran_kurikulum_mengajar:
+                    assignment.dosen.peran_kurikulum_mengajar,
+                  matkul_ketua_nama: assignment.dosen.matkul_ketua_nama,
+                  matkul_ketua_semester: assignment.dosen.matkul_ketua_semester,
+                  matkul_anggota_nama: assignment.dosen.matkul_anggota_nama,
+                  matkul_anggota_semester:
+                    assignment.dosen.matkul_anggota_semester,
+                })
               );
+            });
 
-              setRoleAssignments(newRoleAssignments);
+            console.log("🔄 Converted assigned dosen data:", convertedData);
+            setAssignedDosen(convertedData);
 
-              // Trigger statistics calculation after data is set
-              setTimeout(() => {
-                if (blokMataKuliah.length > 0) {
-                  api.get("/kelompok-kecil").then((kelompokKecilRes) => {
-                    let filteredBlokMataKuliah = blokMataKuliah;
-                    if (blokId) {
-                      filteredBlokMataKuliah = blokMataKuliah.filter(
-                        (mk: MataKuliah) => String(mk.blok) === String(blokId)
-                      );
+            // PERBAIKAN BARU: Cek apakah sudah ada data yang di-generate setelah setAssignedDosen
+            setTimeout(() => {
+              checkHasGeneratedData();
+            }, 100);
+          } else {
+            console.error(
+              "❌ Failed to fetch assigned dosen:",
+              assignedRes.data
+            );
+            setAssignedDosen({});
+          }
+          console.log("Debug - assignedDosen state updated successfully");
+
+          // PERBAIKAN: Update role assignments untuk UI coloring saat data di-load
+          const newRoleAssignments: {
+            [pblId: number]: { koordinator?: number[]; timBlok?: number[] };
+          } = {};
+
+          // Iterate through assigned dosen data to determine roles
+          Object.entries(assignedRes.data.data || {}).forEach(
+            ([pblIdStr, assignedDosenList]: [string, any]) => {
+              const pblId = parseInt(pblIdStr);
+              if (
+                pblId &&
+                assignedDosenList &&
+                Array.isArray(assignedDosenList)
+              ) {
+                assignedDosenList.forEach((dosen: any) => {
+                  // Gunakan role dari backend alih-alih pbl_role
+                  const pblRole = dosen.role || "dosen_mengajar";
+
+                  if (pblRole === "koordinator" || pblRole === "tim_blok") {
+                    if (!newRoleAssignments[pblId]) {
+                      newRoleAssignments[pblId] = {};
                     }
-                    calculateStatistics(
-                      filteredBlokMataKuliah,
-                      dosenList,
-                      kelompokKecilRes.data || [],
-                      activeSemesterJenis,
-                      blokId || "semua"
-                    );
-                  });
-                }
-              }, 100);
 
-              break;
-            } catch (error) {
-              retryCount++;
-              console.error(
-                `Debug - Error fetching assigned dosen (attempt ${retryCount}):`,
-                error
-              );
-              if (retryCount >= maxRetries) {
-                setAssignedDosen({});
-              } else {
-                // Wait before retry
-                await new Promise((resolve) => setTimeout(resolve, 1000));
+                    if (pblRole === "koordinator") {
+                      if (!newRoleAssignments[pblId].koordinator) {
+                        newRoleAssignments[pblId].koordinator = [];
+                      }
+                      if (
+                        !newRoleAssignments[pblId].koordinator!.includes(
+                          dosen.dosen.id
+                        )
+                      ) {
+                        newRoleAssignments[pblId].koordinator!.push(
+                          dosen.dosen.id
+                        );
+                      }
+                    } else if (pblRole === "tim_blok") {
+                      if (!newRoleAssignments[pblId].timBlok) {
+                        newRoleAssignments[pblId].timBlok = [];
+                      }
+                      if (
+                        !newRoleAssignments[pblId].timBlok!.includes(
+                          dosen.dosen.id
+                        )
+                      ) {
+                        newRoleAssignments[pblId].timBlok!.push(dosen.dosen.id);
+                      }
+                    }
+                  }
+                });
               }
             }
-          }
+          );
+
+          setRoleAssignments(newRoleAssignments);
         } catch (error) {
-          console.error("Debug - Final error fetching assigned dosen:", error);
+          console.error("Debug - Error fetching assigned dosen:", error);
           setAssignedDosen({});
         }
       } else {
@@ -694,8 +1042,275 @@ export default function PBL() {
       setAssignedDosen({});
     } finally {
       setLoading(false);
+      console.log("Debug - fetchAll completed");
     }
   }
+
+  // PERBAIKAN: Fungsi untuk menghitung warning seperti PBLGenerate.tsx
+  const calculateWarnings = (
+    mataKuliahList: MataKuliah[],
+    dosenList: Dosen[],
+    kelompokKecilList: any[]
+  ) => {
+    const newWarnings: string[] = [];
+
+    // Loop untuk setiap semester
+    const semesters = [1, 3, 5, 7]; // Semester Ganjil
+
+    for (const semester of semesters) {
+      // Cari mata kuliah untuk semester ini
+      const mkInSemester = mataKuliahList.filter(
+        (mk) => String(mk.semester) === String(semester)
+      );
+
+      if (mkInSemester.length === 0) {
+        continue;
+      }
+
+      // Cari semua PBL untuk semester ini
+      const allPBLs: any[] = [];
+      for (const mk of mkInSemester) {
+        const pbls = pblData[mk.kode] || [];
+        for (const pbl of pbls) {
+          allPBLs.push({ mk, pbl });
+        }
+      }
+
+      if (allPBLs.length === 0) {
+        continue;
+      }
+
+      // RUMUS: Kelompok × Modul = Total Dosen Required
+      const totalModul = allPBLs.length;
+      const totalKelompok = (() => {
+        const semesterKey = String(semester);
+        // PERBAIKAN: Gunakan kelompokKecilListBySemester seperti di PBLGenerate.tsx
+        const semesterData = kelompokKecilListBySemester[semesterKey] || [];
+        const uniqueKelompok = new Set(
+          semesterData.map((item: any) => item.nama_kelompok)
+        );
+        return uniqueKelompok.size;
+      })();
+
+      const totalDosenRequired = totalKelompok * totalModul;
+
+      // CARI KOORDINATOR (dari dosen_peran dengan tipe_peran = koordinator)
+      const koordinatorForSemester = dosenList.filter((dosen) => {
+        return dosen.dosen_peran?.some(
+          (peran: any) =>
+            peran.tipe_peran === "koordinator" &&
+            peran.semester === String(semester) &&
+            mkInSemester.some((mk) => mk.kode === peran.mata_kuliah_kode)
+        );
+      });
+
+      // CARI TIM BLOK (dari dosen_peran dengan tipe_peran = tim_blok)
+      const timBlokForSemester = dosenList.filter((dosen) => {
+        return dosen.dosen_peran?.some(
+          (peran: any) =>
+            peran.tipe_peran === "tim_blok" &&
+            peran.semester === String(semester) &&
+            mkInSemester.some((mk) => mk.kode === peran.mata_kuliah_kode)
+        );
+      });
+
+      // PERBAIKAN BARU: Semua dosen dihitung sama, tidak ada pengurangan Koordinator/Tim Blok
+      const koordinatorCount = koordinatorForSemester.length;
+      const timBlokCount = timBlokForSemester.length;
+      const dosenMengajarNeeded = totalDosenRequired; // Tidak ada pengurangan
+
+      // PERBAIKAN: Hitung dosen yang sudah di-assign sebagai Dosen Mengajar di semester ini
+      const assignedDosenMengajarIds = new Set();
+      for (const mk of mkInSemester) {
+        const pbls = pblData[mk.kode] || [];
+        for (const pbl of pbls) {
+          const assignedDosenForPbl = assignedDosen[pbl.id] || [];
+          for (const assignedD of assignedDosenForPbl) {
+            // Cek apakah dosen ini adalah Dosen Mengajar (bukan Koordinator/Tim Blok)
+            const isKoordinatorOrTimBlok = assignedD.dosen_peran?.some(
+              (peran: any) =>
+                (peran.tipe_peran === "koordinator" ||
+                  peran.tipe_peran === "tim_blok") &&
+                peran.semester === String(semester) &&
+                mkInSemester.some((mk) => mk.kode === peran.mata_kuliah_kode)
+            );
+
+            if (!isKoordinatorOrTimBlok) {
+              assignedDosenMengajarIds.add(assignedD.id);
+            }
+          }
+        }
+      }
+
+      // Cari dosen yang punya keahlian sesuai (termasuk yang sudah di-assign)
+      const dosenMengajar = dosenList.filter((dosen) => {
+        // PERBAIKAN: Kecualikan dosen yang sudah menjadi Koordinator atau Tim Blok
+        const isKoordinatorOrTimBlok = dosen.dosen_peran?.some(
+          (peran: any) =>
+            (peran.tipe_peran === "koordinator" ||
+              peran.tipe_peran === "tim_blok") &&
+            peran.semester === String(semester) &&
+            mkInSemester.some((mk) => mk.kode === peran.mata_kuliah_kode)
+        );
+
+        if (isKoordinatorOrTimBlok) {
+          return false;
+        }
+
+        // Pastikan punya keahlian
+        if (!dosen.keahlian) {
+          return false;
+        }
+
+        // Handle jika keahlian bukan array
+        let keahlianArray = [];
+        if (Array.isArray(dosen.keahlian)) {
+          keahlianArray = dosen.keahlian;
+        } else if (typeof dosen.keahlian === "string") {
+          keahlianArray = [dosen.keahlian];
+        } else {
+          return false;
+        }
+
+        if (keahlianArray.length === 0) {
+          return false;
+        }
+
+        // Cek apakah keahlian dosen cocok dengan yang dibutuhkan
+        const hasMatchingKeahlian = mkInSemester.some((mk) => {
+          // Handle jika keahlian_required bukan array
+          let keahlianRequiredArray = [];
+          if (Array.isArray(mk.keahlian_required)) {
+            keahlianRequiredArray = mk.keahlian_required;
+          } else if (typeof mk.keahlian_required === "string") {
+            keahlianRequiredArray = [mk.keahlian_required];
+          } else {
+            return false;
+          }
+
+          if (keahlianRequiredArray.length === 0) {
+            return false;
+          }
+
+          const hasMatch = keahlianRequiredArray.some((keahlian) => {
+            return keahlianArray.includes(keahlian);
+          });
+
+          return hasMatch;
+        });
+
+        return hasMatchingKeahlian;
+      });
+
+      // PERBAIKAN BARU: Hitung dosen mengajar yang sudah di-assign
+      const assignedDosenMengajarCount = assignedDosenMengajarIds.size;
+
+      // DEBUG: Log perhitungan untuk debug
+      console.log(`🔍 DEBUG Semester ${semester}:`, {
+        totalKelompok,
+        totalModul,
+        totalDosenRequired,
+        koordinatorCount,
+        timBlokCount,
+        dosenMengajarNeeded: totalDosenRequired, // PERBAIKAN: Sama dengan totalDosenRequired
+        assignedDosenMengajarCount,
+        kekurangan: totalDosenRequired - assignedDosenMengajarCount, // PERBAIKAN: Berdasarkan totalDosenRequired
+        dosenMengajarAvailable: dosenMengajar.length,
+      });
+
+      // PERBAIKAN BARU: Cek kekurangan dosen berdasarkan totalDosenRequired
+      if (assignedDosenMengajarCount < totalDosenRequired) {
+        const kekurangan = totalDosenRequired - assignedDosenMengajarCount;
+        const keahlianRequired = mkInSemester
+          .map((mk) => mk.keahlian_required)
+          .flat()
+          .filter(Boolean);
+
+        const warningMessage = `Semester ${semester} kekurangan ${kekurangan} dosen dengan keahlian: ${keahlianRequired.join(
+          ", "
+        )} (dibutuhkan ${totalDosenRequired} dosen dari ${totalDosenRequired} total dosen)`;
+
+        newWarnings.push(warningMessage);
+      } else if (totalDosenRequired > 0 && assignedDosenMengajarCount === 0) {
+        const keahlianRequired = mkInSemester
+          .map((mk) => mk.keahlian_required)
+          .flat()
+          .filter(Boolean);
+
+        const warningMessage = `Semester ${semester} tidak memiliki dosen dengan keahlian: ${keahlianRequired.join(
+          ", "
+        )} (dibutuhkan ${totalDosenRequired} dosen dari ${totalDosenRequired} total dosen)`;
+
+        newWarnings.push(warningMessage);
+      }
+    }
+
+    // PERBAIKAN: Gunakan setWarnings dengan filter seperti PBLGenerate.tsx
+    setWarnings((prev) => {
+      // Hapus semua warning lama
+      const filtered = prev.filter((w) => !w.includes("Semester"));
+
+      // PERBAIKAN BARU: Hapus warning "peran tidak cocok" yang sudah tidak relevan
+      // karena sekarang dosen mengajar dengan keahlian sesuai tidak perlu warning peran tidak cocok
+      const filteredPeranWarnings = filtered.filter((w) => {
+        if (
+          w.includes("peran tidak cocok") ||
+          w.includes("peran yang sesuai")
+        ) {
+          // Cek apakah dosen yang disebutkan dalam warning masih memiliki masalah peran
+          const dosenNameMatch = w.match(/Dosen ([^ ]+)/);
+          if (dosenNameMatch) {
+            const dosenName = dosenNameMatch[1];
+            const dosen = dosenList.find((d) => d.name === dosenName);
+            if (dosen && dosen.peran_utama === "dosen_mengajar") {
+              // Untuk dosen mengajar, tidak perlu warning peran tidak cocok
+              return false;
+            }
+          }
+        }
+        return true;
+      });
+
+      // Tambahkan warning baru
+      return [...filteredPeranWarnings, ...newWarnings];
+    });
+  };
+
+  // PERBAIKAN BARU: Fungsi untuk menghitung ulang warning secara real-time
+  const recalculateWarnings = useCallback(() => {
+    if (blokMataKuliah.length === 0 || dosenList.length === 0) {
+      return;
+    }
+
+    // Filter mata kuliah berdasarkan activeSemesterJenis dan blokId
+    let filteredBlokMataKuliah = blokMataKuliah;
+    if (blokId) {
+      filteredBlokMataKuliah = blokMataKuliah.filter(
+        (mk: MataKuliah) => String(mk.blok) === String(blokId)
+      );
+    }
+
+    if (activeSemesterJenis) {
+      filteredBlokMataKuliah = filteredBlokMataKuliah.filter(
+        (mk: MataKuliah) =>
+          mk.periode &&
+          mk.periode.trim().toLowerCase() ===
+            activeSemesterJenis.trim().toLowerCase()
+      );
+    }
+
+    // PERBAIKAN: Gunakan kelompokKecilListBySemester untuk perhitungan yang akurat
+    const allKelompokKecil = Object.values(kelompokKecilListBySemester).flat();
+
+    // Hitung warning dengan data terbaru
+    calculateWarnings(filteredBlokMataKuliah, dosenList, allKelompokKecil);
+  }, [
+    blokMataKuliah,
+    dosenList,
+    kelompokKecilListBySemester,
+    activeSemesterJenis,
+    blokId,
+  ]);
 
   // Function to calculate statistics
   const calculateStatistics = (
@@ -874,7 +1489,21 @@ export default function PBL() {
     setPeranAnggotaCount(peranAnggotaCount);
     setDosenMengajarCount(dosenMengajarCount);
   };
+  // Validasi generate status saat component mount
   useEffect(() => {
+    const validateAndFetch = async () => {
+      const isValid = await validateGenerateStatus();
+      if (isValid) {
+        fetchAll();
+      }
+    };
+
+    validateAndFetch();
+  }, [blokId]);
+
+  useEffect(() => {
+    if (!isGenerateValidated) return;
+
     fetchAll();
 
     // Listen for PBL generation completion
@@ -906,7 +1535,7 @@ export default function PBL() {
         handlePblAssignmentUpdated
       );
     };
-  }, []);
+  }, [isGenerateValidated]);
 
   // Recalculate statistics when active semester changes or assignedDosen changes
   useEffect(() => {
@@ -930,6 +1559,13 @@ export default function PBL() {
             activeSemesterJenis,
             blokId || "semua"
           );
+
+          // PERBAIKAN: Hitung kekurangan dosen dan warning seperti PBLGenerate.tsx
+          calculateWarnings(
+            filteredBlokMataKuliah,
+            dosenList,
+            kelompokKecilRes.data || []
+          );
         })
         .catch(() => {
           let filteredBlokMataKuliah = blokMataKuliah;
@@ -947,6 +1583,13 @@ export default function PBL() {
               kelompokKecilRes.data || [],
               activeSemesterJenis,
               blokId || "semua"
+            );
+
+            // PERBAIKAN: Hitung kekurangan dosen dan warning seperti PBLGenerate.tsx
+            calculateWarnings(
+              filteredBlokMataKuliah,
+              dosenList,
+              kelompokKecilRes.data || []
             );
           });
         });
@@ -1141,9 +1784,12 @@ export default function PBL() {
         await fetchBatchMapping(mk?.semester || null);
         await fetchBatchKelompokDetail(mk?.semester || null);
       } catch (error: unknown) {
-        console.error('Error saving mapping kelompok:', error);
-        console.error('Error details:', handleApiError(error, 'Menyimpan mapping kelompok'));
-        alert(handleApiError(error, 'Menyimpan mapping kelompok'));
+        console.error("Error saving mapping kelompok:", error);
+        console.error(
+          "Error details:",
+          handleApiError(error, "Menyimpan mapping kelompok")
+        );
+        alert(handleApiError(error, "Menyimpan mapping kelompok"));
       } finally {
         setIsSavingKelompok(false);
       }
@@ -1179,27 +1825,27 @@ export default function PBL() {
   };
 
   // Filter for single blok if blokId param exists or filterBlok is set
-  let blokMataKuliahFilteredByBlok = blokMataKuliah;
+  let blokMataKuliahFilteredByBlok = blokMataKuliah || [];
   if (blokId) {
-    blokMataKuliahFilteredByBlok = blokMataKuliah.filter(
+    blokMataKuliahFilteredByBlok = (blokMataKuliah || []).filter(
       (mk: MataKuliah) => String(mk.blok) === String(blokId)
     );
   } else if (filterBlok !== "semua") {
-    blokMataKuliahFilteredByBlok = blokMataKuliah.filter(
+    blokMataKuliahFilteredByBlok = (blokMataKuliah || []).filter(
       (mk: MataKuliah) => String(mk.blok) === String(filterBlok)
     );
   }
 
   // Group blokMataKuliah by semester, filter by activeSemesterJenis
   const blokMataKuliahFiltered = activeSemesterJenis
-    ? blokMataKuliahFilteredByBlok.filter(
+    ? (blokMataKuliahFilteredByBlok || []).filter(
         (mk: MataKuliah) =>
           mk.periode &&
           mk.periode.trim().toLowerCase() ===
             activeSemesterJenis.trim().toLowerCase()
       )
-    : blokMataKuliahFilteredByBlok;
-  const groupedBySemester = blokMataKuliahFiltered.reduce(
+    : blokMataKuliahFilteredByBlok || [];
+  const groupedBySemester = (blokMataKuliahFiltered || []).reduce(
     (acc: Record<number, MataKuliah[]>, mk: MataKuliah) => {
       if (!acc[mk.semester]) acc[mk.semester] = [];
       acc[mk.semester].push(mk);
@@ -1207,7 +1853,7 @@ export default function PBL() {
     },
     {}
   );
-  const sortedSemesters = Object.keys(groupedBySemester)
+  const sortedSemesters = Object.keys(groupedBySemester || {})
     .map(Number)
     .sort((a, b) => a - b);
 
@@ -1217,7 +1863,7 @@ export default function PBL() {
   // Blok options - get unique blok numbers from mata kuliah
   const blokOptions = Array.from(
     new Set(
-      blokMataKuliah
+      (blokMataKuliah || [])
         .map((mk) => mk.blok)
         .filter((blok) => blok !== null)
         .sort((a, b) => (a || 0) - (b || 0))
@@ -1227,14 +1873,17 @@ export default function PBL() {
   // Filtered semester list
   const filteredSemesters =
     filterSemester === "semua"
-      ? sortedSemesters
-      : sortedSemesters.filter(
+      ? sortedSemesters || []
+      : (sortedSemesters || []).filter(
           (s: number) => String(s) === String(filterSemester)
         );
 
   // Filtered mata kuliah by search & status
-  const filterMataKuliah = (mkList: MataKuliah[]) =>
-    mkList.filter((mk: MataKuliah) => {
+  const filterMataKuliah = (mkList: MataKuliah[]) => {
+    if (!mkList || !Array.isArray(mkList)) {
+      return [];
+    }
+    return mkList.filter((mk: MataKuliah) => {
       const matchSearch =
         mk.nama.toLowerCase().includes(searchQuery.toLowerCase()) ||
         mk.kode.toLowerCase().includes(searchQuery.toLowerCase());
@@ -1254,34 +1903,41 @@ export default function PBL() {
       }
       return true;
     });
+  };
 
   // Filter mata kuliah by active semester (sama seperti PBLGenerate.tsx)
   const filteredMataKuliah = activeSemesterJenis
-    ? blokMataKuliahFiltered.filter(
+    ? (blokMataKuliahFiltered || []).filter(
         (mk: MataKuliah) =>
           mk.periode &&
           mk.periode.trim().toLowerCase() ===
             activeSemesterJenis.trim().toLowerCase()
       )
-    : blokMataKuliahFiltered;
+    : blokMataKuliahFiltered || [];
 
   // After filtering and grouping, flatten all mkList from all semesters into a single array:
-  const allFilteredMataKuliah = filteredSemesters.flatMap((semester: number) =>
-    filterMataKuliah(groupedBySemester[semester]).map((mk: MataKuliah) => ({
-      ...mk,
-      semester,
-    }))
+  const allFilteredMataKuliah = filteredSemesters.flatMap(
+    (semester: number) => {
+      const semesterMataKuliah = groupedBySemester[semester];
+      if (!semesterMataKuliah) {
+        return [];
+      }
+      return filterMataKuliah(semesterMataKuliah).map((mk: MataKuliah) => ({
+        ...mk,
+        semester,
+      }));
+    }
   );
 
   // Calculate statistics for filtered blok only (sama seperti PBLGenerate.tsx)
-  const totalPBL = filteredMataKuliah.reduce(
+  const totalPBL = (filteredMataKuliah || []).reduce(
     (acc: number, mk: MataKuliah) => acc + (pblData[mk.kode]?.length || 0),
     0
   );
   const pblStats = (() => {
     let belum = 0,
       sudah = 0;
-    allFilteredMataKuliah.forEach((mk) => {
+    (allFilteredMataKuliah || []).forEach((mk) => {
       (pblData[mk.kode] || []).forEach((pbl) => {
         const assigned = pbl.id ? assignedDosen[pbl.id] || [] : [];
         if (assigned.length > 0) sudah++;
@@ -1292,8 +1948,8 @@ export default function PBL() {
   })();
 
   // --- Pagination logic (MUST be before any return) ---
-  const totalPages = Math.ceil(allFilteredMataKuliah.length / pageSize);
-  const paginatedMataKuliah = allFilteredMataKuliah.slice(
+  const totalPages = Math.ceil((allFilteredMataKuliah || []).length / pageSize);
+  const paginatedMataKuliah = (allFilteredMataKuliah || []).slice(
     (page - 1) * pageSize,
     page * pageSize
   );
@@ -1404,17 +2060,61 @@ export default function PBL() {
       setReportingData(reportingRes.data?.data || []);
 
       // Optional: Trigger event untuk update di halaman lain
+      console.log(
+        "📡 Dispatching pbl-assignment-updated event (REPORTING UPDATE):",
+        {
+          timestamp: Date.now(),
+        }
+      );
       window.dispatchEvent(
         new CustomEvent("pbl-assignment-updated", {
           detail: { timestamp: Date.now() },
         })
       );
+      console.log("✅ Event dispatched successfully (REPORTING UPDATE)");
     } catch (error) {
       // Error handling for reporting data update
     } finally {
       setIsUpdatingReporting(false);
     }
   };
+
+  // Tampilkan error jika belum generate
+  if (generateValidationError) {
+    return (
+      <div className="w-full mx-auto">
+        <div className="flex flex-col items-center justify-center py-16">
+          <div className="w-20 h-20 rounded-full bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center mb-6">
+            <FontAwesomeIcon 
+              icon={faExclamationTriangle} 
+              className="w-10 h-10 text-orange-500 dark:text-orange-400" 
+            />
+          </div>
+          <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-4">
+            Blok Belum Di-generate
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 text-center mb-8 max-w-md">
+            {generateValidationError}
+          </p>
+          <div className="flex gap-4">
+            <button
+              onClick={() => navigate("/pbl")}
+              className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition"
+            >
+              Kembali ke PBL
+            </button>
+            <button
+              onClick={() => navigate(`/pbl/generate/${blokId}`)}
+              className="px-6 py-3 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition flex items-center gap-2"
+            >
+              <FontAwesomeIcon icon={faCog} className="w-4 h-4" />
+              Generate Dosen
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -1425,8 +2125,8 @@ export default function PBL() {
           <div className="h-4 w-96 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
         </div>
 
-        {/* Statistics Cards Skeleton */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        {/* Statistics Cards Skeleton - Hidden for now */}
+        {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           {Array.from({ length: 6 }).map((_, i) => (
             <div
               key={i}
@@ -1441,7 +2141,7 @@ export default function PBL() {
               </div>
             </div>
           ))}
-        </div>
+        </div> */}
 
         {/* Filter Card Skeleton */}
         <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6 mb-6">
@@ -1622,8 +2322,8 @@ export default function PBL() {
           </div>
         </div>
       </div>
-      {/* Statistik Summary Card */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      {/* Statistik Summary Card - Hidden for now */}
+      {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
@@ -1732,7 +2432,7 @@ export default function PBL() {
             </div>
           </div>
         </div>
-      </div>
+      </div> */}
       {/* Filterisasi dalam card ala CSR */}
       <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6 mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full">
@@ -1782,6 +2482,7 @@ export default function PBL() {
       <AnimatePresence>
         {success && (
           <motion.div
+            key="success-message"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
@@ -1792,6 +2493,7 @@ export default function PBL() {
         )}
         {error && (
           <motion.div
+            key="error-message"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
@@ -1800,16 +2502,34 @@ export default function PBL() {
             {error}
           </motion.div>
         )}
-        {warning && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="bg-yellow-100 border text-yellow-700 p-3 rounded-lg mb-6"
-          >
-            <div className="font-semibold mb-2">Warning:</div>
-            <div>{warning}</div>
-          </motion.div>
+        {warnings.length > 0 && (
+          <div className="mb-6 space-y-3">
+            {warnings.map((warning, index) => (
+              <div
+                key={`warning-${index}-${warning.substring(0, 20)}`}
+                className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-500 dark:border-yellow-700 rounded-lg flex items-center justify-between gap-3"
+              >
+                <div className="flex items-center gap-3">
+                  <FontAwesomeIcon
+                    icon={faExclamationTriangle}
+                    className="w-6 h-6 text-yellow-500"
+                  />
+                  <span className="text-yellow-700 dark:text-yellow-300">
+                    {warning}
+                  </span>
+                </div>
+                <button
+                  onClick={() =>
+                    setWarnings((prev) => prev.filter((_, i) => i !== index))
+                  }
+                  className="text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-200 transition-colors duration-200"
+                  title="Tutup warning"
+                >
+                  <FontAwesomeIcon icon={faTimes} className="w-5 h-5" />
+                </button>
+              </div>
+            ))}
+          </div>
         )}
       </AnimatePresence>
       {/* Main Content: Grid 2 kolom */}
@@ -1837,8 +2557,8 @@ export default function PBL() {
               </div>
             ) : (
               <div className="space-y-8">
-                {sortedSemesters.map((semester) => {
-                  const semesterPBLs = allFilteredMataKuliah.filter(
+                {(sortedSemesters || []).map((semester) => {
+                  const semesterPBLs = (allFilteredMataKuliah || []).filter(
                     (mk: MataKuliah) => mk.semester === semester
                   );
                   // Calculate total modul in this semester (sum all modules, not just mata kuliah)
@@ -1878,7 +2598,7 @@ export default function PBL() {
                                 {(() => {
                                   // Ambil semua dosen yang ditugaskan ke PBL di semester ini
                                   const assignedDosenSet = new Set<number>();
-                                  semesterPBLs.forEach((mk) => {
+                                  (semesterPBLs || []).forEach((mk) => {
                                     (pblData[mk.kode] || []).forEach((pbl) => {
                                       if (pbl.id) {
                                         (assignedDosen[pbl.id] || []).forEach(
@@ -1995,7 +2715,7 @@ export default function PBL() {
                       </div>
                       {/* PBL Cards Grid */}
                       <div className="grid gap-4">
-                        {semesterPBLs.map((mk: MataKuliah) => {
+                        {(semesterPBLs || []).map((mk: MataKuliah) => {
                           const pblList = pblData[mk.kode] || [];
                           return pblList.length === 0
                             ? null
@@ -2105,14 +2825,9 @@ export default function PBL() {
                                       const assignmentCount =
                                         draggedDosen.pbl_assignment_count || 0;
                                       if (assignmentCount > 3 && !isStandby) {
-                                        setWarning(
-                                          `Dosen ${draggedDosen.name} sudah memiliki ${assignmentCount} assignment. Pertimbangkan untuk menggunakan dosen dengan beban kerja yang lebih rendah untuk distribusi yang adil.`
-                                        );
-                                        // Clear warning after 5 seconds
-                                        setTimeout(
-                                          () => setWarning(null),
-                                          5000
-                                        );
+                                        setWarnings([
+                                          `Dosen ${draggedDosen.name} sudah memiliki ${assignmentCount} assignment. Pertimbangkan untuk menggunakan dosen dengan beban kerja yang lebih rendah untuk distribusi yang adil.`,
+                                        ]);
                                       }
 
                                       // Validasi peran_utama - sama seperti PBLGenerate.tsx
@@ -2332,14 +3047,24 @@ export default function PBL() {
                                       }
 
                                       // Jika tidak ada perfect match dan bukan standby, berikan warning tapi tetap izinkan
+                                      // PERBAIKAN: Untuk dosen_mengajar, jika keahlian sudah sesuai, tidak perlu warning peran tidak cocok
                                       if (!isPerfectMatch && !isStandby) {
-                                        const warningMsg = `Dosen ${draggedDosen.name} tidak memiliki peran yang sesuai untuk ${mk.nama} (${mk.kode}). Keahlian sesuai tetapi peran tidak cocok.`;
-                                        setWarning(warningMsg);
-                                        // Clear warning after 5 seconds
-                                        setTimeout(
-                                          () => setWarning(null),
-                                          5000
-                                        );
+                                        const isKeahlianMatch =
+                                          checkKeahlianMatch(draggedDosen, mk);
+                                        const isDosenMengajar =
+                                          draggedDosen.peran_utama ===
+                                          "dosen_mengajar";
+
+                                        // Jika dosen mengajar dan keahlian sudah sesuai, tidak perlu warning peran tidak cocok
+                                        if (
+                                          isDosenMengajar &&
+                                          isKeahlianMatch
+                                        ) {
+                                          // Tidak perlu warning untuk dosen mengajar dengan keahlian sesuai
+                                        } else {
+                                          const warningMsg = `Dosen ${draggedDosen.name} tidak memiliki peran yang sesuai untuk ${mk.nama} (${mk.kode}). Keahlian sesuai tetapi peran tidak cocok.`;
+                                          setWarnings([warningMsg]);
+                                        }
                                       }
                                       setIsMovingDosen(true);
                                       try {
@@ -2393,6 +3118,78 @@ export default function PBL() {
                                           setRoleAssignments(
                                             newRoleAssignments
                                           );
+
+                                          // PERBAIKAN BARU: Refresh data setelah unassign dari PBL asal
+                                          try {
+                                            // Refresh assignedDosen untuk PBL asal
+                                            const assignedRes = await api.post(
+                                              "/pbl-generate/get-assignments",
+                                              {
+                                                pbl_ids: [draggedFromPBLId],
+                                              }
+                                            );
+                                            // PERBAIKAN: Convert data seperti di PBLGenerate.tsx
+                                            if (assignedRes.data.success) {
+                                              const assignmentsData =
+                                                assignedRes.data.data || {};
+                                              const assignments =
+                                                assignmentsData[
+                                                  draggedFromPBLId
+                                                ] || [];
+                                              const convertedAssignments =
+                                                assignments.map(
+                                                  (assignment) => ({
+                                                    id: assignment.dosen.id,
+                                                    name: assignment.dosen.name,
+                                                    pbl_role: assignment.role,
+                                                    pbl_assignment_count:
+                                                      assignment.pbl_assignment_count ||
+                                                      0,
+                                                    keahlian:
+                                                      assignment.dosen
+                                                        .keahlian || [],
+                                                    dosen_peran:
+                                                      assignment.dosen
+                                                        .dosen_peran || [],
+                                                  })
+                                                );
+                                              setAssignedDosen((prev) => ({
+                                                ...prev,
+                                                [draggedFromPBLId]:
+                                                  convertedAssignments,
+                                              }));
+                                            } else {
+                                              console.error(
+                                                "❌ Failed to fetch assigned dosen:",
+                                                assignedRes.data
+                                              );
+                                            }
+
+                                            // Refresh dosenList untuk update assignment count
+                                            const dosenRes = await api.get(
+                                              "/users?role=dosen"
+                                            );
+                                            setDosenList(dosenRes.data || []);
+                                          } catch (error) {
+                                            console.error(
+                                              "Error refreshing data after drag unassign:",
+                                              error
+                                            );
+                                          }
+
+                                          // PERBAIKAN BARU: Hitung ulang warning setelah unassign dari PBL asal
+                                          console.log(
+                                            "Debug - Before recalculateWarnings after drag unassign"
+                                          );
+                                          setTimeout(() => {
+                                            recalculateWarnings();
+                                            console.log(
+                                              "Debug - After recalculateWarnings after drag unassign"
+                                            );
+                                          }, 50);
+
+                                          // PERBAIKAN BARU: Cek status generated data setelah drag unassign
+                                          checkHasGeneratedData();
                                         }
 
                                         // Assign ke SEMUA PBL dalam mata kuliah yang sama
@@ -2541,7 +3338,7 @@ export default function PBL() {
                                         setRoleAssignments(newRoleAssignments);
 
                                         // Refresh all data to ensure real-time updates
-                                        await fetchAllRef.current();
+                                        await fetchAll();
                                         setSuccess(
                                           isStandby
                                             ? `Dosen ${draggedDosen.name} (Standby) berhasil di-assign ke semua modul ${mk.nama} (${mk.kode}).`
@@ -2551,10 +3348,29 @@ export default function PBL() {
                                         );
                                         // Update reporting data secara real-time
                                         await updateReportingData();
+
+                                        // PERBAIKAN BARU: Tunggu sebentar agar data ter-update sebelum fetchAll
+                                        setTimeout(async () => {
+                                          await fetchAll();
+
+                                          // PERBAIKAN BARU: Hitung ulang warning setelah data ter-refresh
+                                          console.log(
+                                            "Debug - Before recalculateWarnings after drag assignment"
+                                          );
+                                          setTimeout(() => {
+                                            recalculateWarnings();
+                                            console.log(
+                                              "Debug - After recalculateWarnings after drag assignment"
+                                            );
+                                          }, 100);
+                                        }, 200);
+
+                                        // PERBAIKAN BARU: Cek status generated data setelah drag assignment
+                                        checkHasGeneratedData();
                                       } catch (err) {
                                         setError("Gagal assign dosen");
                                         // If assignment fails, refresh data to revert UI changes
-                                        await fetchAllRef.current();
+                                        await fetchAll();
                                       } finally {
                                         setIsMovingDosen(false);
                                         setDraggedDosen(null);
@@ -2640,6 +3456,17 @@ export default function PBL() {
                                         pbl.id!,
                                         mk
                                       );
+                                      console.log(
+                                        `🎨 UI Render - PBL ${pbl.id} (${mk.nama}):`,
+                                        {
+                                          allAssignedCount: allAssigned.length,
+                                          allAssignedNames: allAssigned.map(
+                                            (d) => d.name
+                                          ),
+                                          pblId: pbl.id,
+                                          mkKode: mk.kode,
+                                        }
+                                      );
                                       return allAssigned.length > 0 ? (
                                         <div className="mt-4 p-3 bg-green-50 border border-green-200 dark:bg-green-900/20 dark:border-green-700 rounded-lg">
                                           <div className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">
@@ -2659,7 +3486,64 @@ export default function PBL() {
                                                     .toLowerCase()
                                                     .includes("standby");
 
-                                              // Tentukan peran dan warna berdasarkan data yang ada (sama seperti PBLGenerate.tsx)
+                                              // PERBAIKAN: Tentukan peran berdasarkan dosen_peran atau pbl_role seperti PBLGenerate.tsx
+                                              let pblRole = (dosen as any)
+                                                .pbl_role;
+
+                                              // Jika pbl_role tidak ada, cek dosen_peran untuk menentukan peran
+                                              if (
+                                                !pblRole &&
+                                                dosen.dosen_peran
+                                              ) {
+                                                const currentSemester =
+                                                  parseInt(semester.toString());
+                                                const currentMataKuliah =
+                                                  blokMataKuliahFiltered.map(
+                                                    (mk) => mk.kode
+                                                  );
+
+                                                const koordinatorPeran =
+                                                  dosen.dosen_peran.find(
+                                                    (peran: any) =>
+                                                      peran.tipe_peran ===
+                                                        "koordinator" &&
+                                                      peran.semester ===
+                                                        String(
+                                                          currentSemester
+                                                        ) &&
+                                                      currentMataKuliah.includes(
+                                                        peran.mata_kuliah_kode
+                                                      )
+                                                  );
+
+                                                const timBlokPeran =
+                                                  dosen.dosen_peran.find(
+                                                    (peran: any) =>
+                                                      peran.tipe_peran ===
+                                                        "tim_blok" &&
+                                                      peran.semester ===
+                                                        String(
+                                                          currentSemester
+                                                        ) &&
+                                                      currentMataKuliah.includes(
+                                                        peran.mata_kuliah_kode
+                                                      )
+                                                  );
+
+                                                if (koordinatorPeran) {
+                                                  pblRole = "koordinator";
+                                                } else if (timBlokPeran) {
+                                                  pblRole = "tim_blok";
+                                                } else {
+                                                  pblRole = "dosen_mengajar";
+                                                }
+                                              }
+
+                                              // Fallback jika masih tidak ada peran
+                                              if (!pblRole) {
+                                                pblRole = "dosen_mengajar";
+                                              }
+
                                               let dosenRole = "Dosen Mengajar";
                                               let avatarColor = "bg-green-500";
                                               let borderColor =
@@ -2669,19 +3553,7 @@ export default function PBL() {
                                               let bgColor =
                                                 "bg-green-100 dark:bg-green-900/40";
 
-                                              // PERBAIKAN FINAL: Cek peran berdasarkan role assignments yang baru dibuat
-                                              const pblRoles =
-                                                roleAssignments?.[pbl.id!];
-                                              const isKoordinator =
-                                                pblRoles?.koordinator?.includes(
-                                                  dosen.id
-                                                ) || false;
-                                              const isTimBlok =
-                                                pblRoles?.timBlok?.includes(
-                                                  dosen.id
-                                                ) || false;
-
-                                              if (isKoordinator) {
+                                              if (pblRole === "koordinator") {
                                                 dosenRole = "Koordinator";
                                                 avatarColor = "bg-blue-500";
                                                 borderColor = "border-blue-200";
@@ -2689,7 +3561,9 @@ export default function PBL() {
                                                   "text-blue-700 dark:text-blue-200";
                                                 bgColor =
                                                   "bg-blue-100 dark:bg-blue-900/40";
-                                              } else if (isTimBlok) {
+                                              } else if (
+                                                pblRole === "tim_blok"
+                                              ) {
                                                 dosenRole = "Tim Blok";
                                                 avatarColor = "bg-purple-500";
                                                 borderColor =
@@ -2703,6 +3577,25 @@ export default function PBL() {
                                               // Cek apakah keahlian dosen sesuai dengan mata kuliah
                                               const isKeahlianMatch =
                                                 checkKeahlianMatch(dosen, mk);
+
+                                              // DEBUG: Log untuk badge rendering
+                                              console.log(
+                                                `🔍 Badge Debug - ${dosen.name}:`,
+                                                {
+                                                  keahlian: dosen.keahlian,
+                                                  requiredKeahlian:
+                                                    mk.keahlian_required,
+                                                  isKeahlianMatch,
+                                                  pblRole,
+                                                  isStandby,
+                                                }
+                                              );
+
+                                              // PERBAIKAN: Definisikan isKoordinator dan isTimBlok untuk badge logic
+                                              const isKoordinator =
+                                                pblRole === "koordinator";
+                                              const isTimBlok =
+                                                pblRole === "tim_blok";
 
                                               // Jika standby, override warna
                                               if (isStandby) {
@@ -2726,6 +3619,18 @@ export default function PBL() {
                                                   "text-red-700 dark:text-red-200";
                                                 bgColor =
                                                   "bg-red-100 dark:bg-red-900/40";
+
+                                                // DEBUG: Log badge merah
+                                                console.log(
+                                                  `🔴 Badge Merah untuk ${dosen.name}:`,
+                                                  {
+                                                    isKeahlianMatch,
+                                                    isKoordinator,
+                                                    isTimBlok,
+                                                    avatarColor,
+                                                    bgColor,
+                                                  }
+                                                );
                                               }
 
                                               return (
@@ -2737,7 +3642,8 @@ export default function PBL() {
                                                     className={`w-6 h-6 rounded-full flex items-center justify-center relative ${avatarColor}`}
                                                   >
                                                     <span className="text-white text-xs font-bold">
-                                                      {dosen.name.charAt(0)}
+                                                      {dosen.name?.charAt(0) ||
+                                                        "?"}
                                                     </span>
                                                     {!isStandby && (
                                                       <span
@@ -2755,7 +3661,8 @@ export default function PBL() {
                                                   <span
                                                     className={`text-xs font-medium ${textColor}`}
                                                   >
-                                                    {dosen.name}
+                                                    {dosen.name ||
+                                                      "Dosen Tidak Diketahui"}
                                                     <span className="ml-1 text-[10px] opacity-75">
                                                       ({dosenRole})
                                                     </span>
@@ -2766,53 +3673,181 @@ export default function PBL() {
                                                     title="Hapus penugasan"
                                                     onClick={async (e) => {
                                                       e.stopPropagation();
+
+                                                      // PERBAIKAN BARU: Validasi yang lebih fleksibel - cek apakah ada data PBL
+                                                      const hasPblData =
+                                                        Object.keys(pblData)
+                                                          .length > 0;
+                                                      if (!hasPblData) {
+                                                        setError(
+                                                          "Tidak dapat melakukan unassign. Silakan generate dosen terlebih dahulu di halaman PBL Generate."
+                                                        );
+                                                        return;
+                                                      }
+
                                                       try {
                                                         // Cari semua PBL dalam semester yang sama yang memiliki dosen ini
                                                         const currentSemester =
                                                           mk.semester;
+
+                                                        console.log(
+                                                          "Debug - Current semester:",
+                                                          currentSemester
+                                                        );
+                                                        console.log(
+                                                          "Debug - pblData keys:",
+                                                          Object.keys(
+                                                            pblData || {}
+                                                          )
+                                                        );
+                                                        console.log(
+                                                          "Debug - blokMataKuliah length:",
+                                                          (blokMataKuliah || [])
+                                                            .length
+                                                        );
+                                                        console.log(
+                                                          "Debug - blokMataKuliah data:",
+                                                          (
+                                                            blokMataKuliah || []
+                                                          ).map((mk) => ({
+                                                            kode: mk.kode,
+                                                            nama: mk.nama,
+                                                            semester:
+                                                              mk.semester,
+                                                          }))
+                                                        );
+                                                        console.log(
+                                                          "Debug - All PBLs:",
+                                                          Object.values(
+                                                            pblData || {}
+                                                          )
+                                                            .flat()
+                                                            .map((p) => ({
+                                                              id: p.id,
+                                                              mata_kuliah_kode:
+                                                                p.mata_kuliah_kode,
+                                                              nama_modul:
+                                                                p.nama_modul,
+                                                            }))
+                                                        );
+
                                                         const semesterPBLs =
-                                                          Object.values(pblData)
+                                                          Object.values(
+                                                            pblData || {}
+                                                          )
                                                             .flat()
                                                             .filter((p) => {
-                                                              const mk =
-                                                                blokMataKuliah.find(
-                                                                  (m) =>
-                                                                    m.kode ===
-                                                                    p.mata_kuliah_kode
-                                                                );
-                                                              return (
-                                                                mk &&
-                                                                mk.semester ===
-                                                                  currentSemester
+                                                              const mk = (
+                                                                blokMataKuliah ||
+                                                                []
+                                                              ).find(
+                                                                (m) =>
+                                                                  m.kode ===
+                                                                  p.mata_kuliah_kode
                                                               );
+                                                              const isMatch =
+                                                                mk &&
+                                                                mk.semester ==
+                                                                  currentSemester;
+                                                              console.log(
+                                                                "Debug - PBL",
+                                                                p.id,
+                                                                "mata_kuliah_kode:",
+                                                                p.mata_kuliah_kode,
+                                                                "found mk:",
+                                                                mk?.nama,
+                                                                "semester:",
+                                                                mk?.semester,
+                                                                "isMatch:",
+                                                                isMatch
+                                                              );
+                                                              return isMatch;
                                                             });
-                                                        const removePromises =
-                                                          semesterPBLs.map(
-                                                            async (
-                                                              semesterPbl
-                                                            ) => {
-                                                              const semesterAssigned =
-                                                                assignedDosen[
-                                                                  semesterPbl.id!
-                                                                ] || [];
-                                                              if (
-                                                                semesterAssigned.some(
-                                                                  (d) =>
-                                                                    d.id ===
-                                                                    dosen.id
-                                                                )
-                                                              ) {
-                                                                return api.delete(
-                                                                  `/pbls/${semesterPbl.id}/unassign-dosen/${dosen.id}`
-                                                                );
-                                                              }
-                                                              return Promise.resolve();
-                                                            }
-                                                          );
 
-                                                        await Promise.all(
-                                                          removePromises
+                                                        console.log(
+                                                          "Debug - Unassign dosen:",
+                                                          dosen.name,
+                                                          "dari semester:",
+                                                          currentSemester
                                                         );
+                                                        console.log(
+                                                          "Debug - Semester PBLs found:",
+                                                          semesterPBLs.map(
+                                                            (p) => ({
+                                                              id: p.id,
+                                                              mata_kuliah_kode:
+                                                                p.mata_kuliah_kode,
+                                                              nama_modul:
+                                                                p.nama_modul,
+                                                            })
+                                                          )
+                                                        );
+                                                        const removePromises = (
+                                                          semesterPBLs || []
+                                                        ).map(
+                                                          async (
+                                                            semesterPbl
+                                                          ) => {
+                                                            const semesterAssigned =
+                                                              assignedDosen[
+                                                                semesterPbl.id!
+                                                              ] || [];
+                                                            if (
+                                                              semesterAssigned.some(
+                                                                (d) =>
+                                                                  d.id ===
+                                                                  dosen.id
+                                                              )
+                                                            ) {
+                                                              console.log(
+                                                                "Debug - Unassigning dosen",
+                                                                dosen.name,
+                                                                "from PBL",
+                                                                semesterPbl.id,
+                                                                "modul:",
+                                                                semesterPbl.nama_modul
+                                                              );
+                                                              return api.delete(
+                                                                `/pbls/${semesterPbl.id}/unassign-dosen/${dosen.id}`
+                                                              );
+                                                            }
+                                                            return Promise.resolve();
+                                                          }
+                                                        );
+
+                                                        console.log(
+                                                          "Debug - Executing",
+                                                          removePromises.length,
+                                                          "unassign promises"
+                                                        );
+                                                        const unassignResults =
+                                                          await Promise.all(
+                                                            removePromises
+                                                          );
+                                                        console.log(
+                                                          "Debug - All unassign promises completed:",
+                                                          unassignResults
+                                                        );
+
+                                                        // PERBAIKAN: Cek apakah ada yang gagal
+                                                        const failedUnassigns =
+                                                          unassignResults.filter(
+                                                            (result) =>
+                                                              result &&
+                                                              typeof result ===
+                                                                "object" &&
+                                                              result.status !==
+                                                                200
+                                                          );
+                                                        if (
+                                                          failedUnassigns.length >
+                                                          0
+                                                        ) {
+                                                          console.error(
+                                                            "Debug - Some unassigns failed:",
+                                                            failedUnassigns
+                                                          );
+                                                        }
 
                                                         // PERBAIKAN: Update role assignments untuk UI coloring
                                                         const newRoleAssignments: {
@@ -2825,7 +3860,9 @@ export default function PBL() {
                                                         };
 
                                                         // Hapus dosen dari role assignments
-                                                        semesterPBLs.forEach(
+                                                        (
+                                                          semesterPBLs || []
+                                                        ).forEach(
                                                           (semesterPbl) => {
                                                             if (
                                                               semesterPbl.id
@@ -2881,12 +3918,67 @@ export default function PBL() {
                                                         );
 
                                                         // Refresh all data to ensure real-time updates
-                                                        await fetchAllRef.current();
+                                                        console.log(
+                                                          "Debug - Before fetchAll after unassign"
+                                                        );
+                                                        await fetchAll();
+                                                        console.log(
+                                                          "Debug - After fetchAll after unassign"
+                                                        );
+                                                        console.log(
+                                                          "Debug - Current assignedDosen after fetchAll:",
+                                                          assignedDosen
+                                                        );
+                                                        console.log(
+                                                          "Debug - Checking if dosen",
+                                                          dosen.name,
+                                                          "still exists in assignedDosen:",
+                                                          Object.entries(
+                                                            assignedDosen
+                                                          ).filter(
+                                                            ([
+                                                              pblId,
+                                                              dosenList,
+                                                            ]) =>
+                                                              dosenList.some(
+                                                                (d) =>
+                                                                  d.id ===
+                                                                  dosen.id
+                                                              )
+                                                          )
+                                                        );
                                                         setSuccess(
                                                           `Dosen ${dosen.name} berhasil di-unassign dari semua modul PBL Semester ${mk.semester}.`
                                                         );
                                                         // Update reporting data secara real-time
                                                         await updateReportingData();
+
+                                                        // PERBAIKAN BARU: Refresh dosenList untuk update assignment count
+                                                        try {
+                                                          const dosenRes =
+                                                            await api.get(
+                                                              "/users?role=dosen"
+                                                            );
+                                                          setDosenList(
+                                                            dosenRes.data || []
+                                                          );
+                                                        } catch (error) {
+                                                          console.error(
+                                                            "Error refreshing dosen list:",
+                                                            error
+                                                          );
+                                                        }
+
+                                                        // PERBAIKAN BARU: Refresh data setelah unassign berhasil
+                                                        await fetchAll();
+
+                                                        // PERBAIKAN BARU: Hitung ulang warning setelah data ter-refresh
+                                                        setTimeout(() => {
+                                                          recalculateWarnings();
+                                                        }, 100);
+
+                                                        // PERBAIKAN BARU: Cek status generated data setelah unassign
+                                                        checkHasGeneratedData();
                                                       } catch (err) {
                                                         const errorMsg =
                                                           err &&
@@ -2914,7 +4006,13 @@ export default function PBL() {
                                                           String(errorMsg)
                                                         );
                                                         // If unassignment fails, refresh data to revert UI changes
-                                                        await fetchAllRef.current();
+                                                        console.log(
+                                                          "Debug - Before fetchAll after unassign error"
+                                                        );
+                                                        await fetchAll();
+                                                        console.log(
+                                                          "Debug - After fetchAll after unassign error"
+                                                        );
                                                       }
                                                     }}
                                                   >
@@ -2930,29 +4028,49 @@ export default function PBL() {
                                         </div>
                                       ) : (
                                         <div className="bg-gray-50 dark:bg-gray-800/50 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4 text-center mt-2">
-                                          <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                                            Seret dosen dari semester{" "}
-                                            {mk.semester} ke sini
-                                          </div>
-                                          <div className="text-xs text-gray-400 dark:text-gray-500 mb-2">
-                                            Hanya dosen dari semester yang sama
-                                            yang dapat di-assign
-                                          </div>
-                                          <div className="text-xs text-yellow-600 dark:text-yellow-400 mb-2">
-                                            Dosen standby dapat di-assign ke
-                                            modul manapun
-                                          </div>
-                                          {availableDosen.length > 0 ? (
-                                            <div className="text-xs text-gray-400 dark:text-gray-500">
-                                              {availableDosen.length} dosen
-                                              tersedia dengan keahlian yang
-                                              sesuai
+                                          {Object.keys(pblData).length === 0 ? (
+                                            <div className="text-center">
+                                              <div className="text-sm text-red-500 dark:text-red-400 mb-2 font-medium">
+                                                ⚠️ Assignment Manual Tidak
+                                                Tersedia
+                                              </div>
+                                              <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                                Silakan generate dosen terlebih
+                                                dahulu di halaman PBL Generate
+                                              </div>
+                                              <div className="text-xs text-blue-500 dark:text-blue-400">
+                                                Setelah generate, Anda dapat
+                                                melakukan assignment manual di
+                                                sini
+                                              </div>
                                             </div>
                                           ) : (
-                                            <div className="text-xs text-red-400 dark:text-red-300">
-                                              Tidak ada dosen dengan keahlian
-                                              yang sesuai
-                                            </div>
+                                            <>
+                                              <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                                                Seret dosen dari semester{" "}
+                                                {mk.semester} ke sini
+                                              </div>
+                                              <div className="text-xs text-gray-400 dark:text-gray-500 mb-2">
+                                                Hanya dosen dari semester yang
+                                                sama yang dapat di-assign
+                                              </div>
+                                              <div className="text-xs text-yellow-600 dark:text-yellow-400 mb-2">
+                                                Dosen standby dapat di-assign ke
+                                                modul manapun
+                                              </div>
+                                              {availableDosen.length > 0 ? (
+                                                <div className="text-xs text-gray-400 dark:text-gray-500">
+                                                  {availableDosen.length} dosen
+                                                  tersedia dengan keahlian yang
+                                                  sesuai
+                                                </div>
+                                              ) : (
+                                                <div className="text-xs text-red-400 dark:text-red-300">
+                                                  Tidak ada dosen dengan
+                                                  keahlian yang sesuai
+                                                </div>
+                                              )}
+                                            </>
                                           )}
                                         </div>
                                       );
@@ -2998,7 +4116,7 @@ export default function PBL() {
                       <div className="flex items-start gap-3 mb-3">
                         <div className="w-10 h-10 rounded-full bg-brand-500 flex items-center justify-center relative">
                           <span className="text-white text-sm font-bold">
-                            {dosen.name.charAt(0)}
+                            {dosen.name?.charAt(0) || "?"}
                           </span>
                           <span
                             className="absolute -top-1 -right-1 bg-blue-500 text-white text-[10px] font-semibold rounded-full flex justify-center items-center w-6 h-6 border-2 border-white dark:border-gray-800"
@@ -3208,7 +4326,7 @@ export default function PBL() {
                       <div className="flex items-start gap-3 mb-3">
                         <div className="w-10 h-10 rounded-full bg-yellow-400 flex items-center justify-center relative">
                           <span className="text-white text-sm font-bold">
-                            {dosen.name.charAt(0)}
+                            {dosen.name?.charAt(0) || "?"}
                           </span>
                           <span
                             className="absolute -top-1 -right-1 bg-blue-500 text-white text-[10px] font-semibold rounded-full flex justify-center items-center w-6 h-6 border-2 border-white dark:border-gray-800"
@@ -3257,6 +4375,7 @@ export default function PBL() {
         {showMahasiswaModal && (
           <div className="fixed inset-0 z-[100000] flex items-center justify-center">
             <motion.div
+              key="modal-backdrop"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -3264,6 +4383,7 @@ export default function PBL() {
               onClick={() => setShowMahasiswaModal(null)}
             ></motion.div>
             <motion.div
+              key="modal-content"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}

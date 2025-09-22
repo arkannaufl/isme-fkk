@@ -69,6 +69,17 @@ class SupportCenterController extends Controller
 
         $developer = Developer::create($request->all());
 
+        // Log activity
+        activity()
+            ->performedOn($developer)
+            ->withProperties([
+                'name' => $developer->name,
+                'email' => $developer->email,
+                'role' => $developer->role,
+                'expertise' => $developer->expertise
+            ])
+            ->log('Developer created: ' . $developer->name);
+
         return response()->json([
             'success' => true,
             'message' => 'Developer created successfully',
@@ -112,6 +123,18 @@ class SupportCenterController extends Controller
 
         $developer->update($request->all());
 
+        // Log activity
+        activity()
+            ->performedOn($developer)
+            ->withProperties([
+                'name' => $developer->name,
+                'email' => $developer->email,
+                'role' => $developer->role,
+                'expertise' => $developer->expertise,
+                'is_active' => $developer->is_active
+            ])
+            ->log('Developer updated: ' . $developer->name);
+
         return response()->json([
             'success' => true,
             'message' => 'Developer updated successfully',
@@ -134,6 +157,18 @@ class SupportCenterController extends Controller
         }
 
         $developer = Developer::findOrFail($id);
+        
+        // Log activity before deletion
+        activity()
+            ->performedOn($developer)
+            ->withProperties([
+                'name' => $developer->name,
+                'email' => $developer->email,
+                'role' => $developer->role,
+                'expertise' => $developer->expertise
+            ])
+            ->log('Developer deleted: ' . $developer->name);
+            
         $developer->delete();
 
         return response()->json([

@@ -107,7 +107,10 @@ export default function Dosen() {
   const [cellErrors, setCellErrors] = useState<
     { row: number; field: string; message: string; nid?: string }[]
   >([]);
-  const [editingCell, setEditingCell] = useState<{ row: number; key: string } | null>(null);
+  const [editingCell, setEditingCell] = useState<{
+    row: number;
+    key: string;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [modalError, setModalError] = useState("");
   const [filterKompetensi, setFilterKompetensi] = useState<string[]>([]);
@@ -121,6 +124,8 @@ export default function Dosen() {
   const [peranKurikulumOptions, setPeranKurikulumOptions] = useState<string[]>(
     []
   );
+  // State untuk peran kurikulum yang difilter berdasarkan mata kuliah
+  const [filteredPeranKurikulumOptions, setFilteredPeranKurikulumOptions] = useState<string[]>([]);
   // Untuk fitur peran utama dosen
   const [peranUtama, setPeranUtama] = useState<string>("");
   const [matkulList, setMatkulList] = useState<
@@ -130,19 +135,22 @@ export default function Dosen() {
       semester: number;
       blok?: number;
       jenis?: string;
+      keahlian_required?: string[];
+      peran_dalam_kurikulum?: string[];
     }[]
   >([]);
+  // State untuk validasi keahlian
+  const [keahlianValidationMessage, setKeahlianValidationMessage] =
+    useState<string>("");
   const [matkulKetua, setMatkulKetua] = useState<string>("");
   const [matkulAnggota, setMatkulAnggota] = useState<string>("");
   const [peranKurikulumMengajar, setPeranKurikulumMengajar] =
     useState<string>("");
-  // 1. Tambahkan state untuk multi-peran
-  const [peranKetua, setPeranKetua] = useState([
-    { mata_kuliah_kode: "", peran_kurikulum: "", blok: "", semester: "" },
-  ]);
-  const [peranAnggota, setPeranAnggota] = useState([
-    { mata_kuliah_kode: "", peran_kurikulum: "", blok: "", semester: "" },
-  ]);
+  // 1. State untuk single peran selection
+  const [selectedPeranType, setSelectedPeranType] = useState<string>("none"); // "none", "koordinator", "tim_blok"
+  const [selectedMataKuliah, setSelectedMataKuliah] = useState<string>("");
+  const [selectedPeranKurikulum, setSelectedPeranKurikulum] =
+    useState<string>("");
   // HILANGKAN peranMengajar - Dosen Mengajar di-generate otomatis
   // State untuk expand/collapse per grup peran dan show all peran
   const [expandedGroups, setExpandedGroups] = useState<{
@@ -231,12 +239,9 @@ export default function Dosen() {
     setEditMode(false);
     setModalError("");
     setNewKompetensi("");
-    setPeranKetua([
-      { mata_kuliah_kode: "", peran_kurikulum: "", blok: "", semester: "" },
-    ]);
-    setPeranAnggota([
-      { mata_kuliah_kode: "", peran_kurikulum: "", blok: "", semester: "" },
-    ]);
+    setSelectedPeranType("none");
+    setSelectedMataKuliah("");
+    setSelectedPeranKurikulum("");
     // HILANGKAN peranMengajar
   };
 
@@ -251,7 +256,8 @@ export default function Dosen() {
     form.username &&
     form.email &&
     form.telp &&
-    (editMode || form.password);
+    (editMode || form.password) &&
+    !keahlianValidationMessage; // Tambahkan validasi keahlian
 
   useEffect(() => {
     setLoading(true);
@@ -261,7 +267,7 @@ export default function Dosen() {
         if (Array.isArray(res.data)) {
           setData(res.data);
         } else {
-          console.error(
+          console.warn(
             "API response for /users?role=dosen is not an array:",
             res.data
           );
@@ -277,32 +283,33 @@ export default function Dosen() {
 
   // PERBAIKAN: Pindahkan function ke level component agar bisa diakses
   const fetchSemesterAndMatkul = async () => {
-      try {
-  
+    try {
       const [tahunRes, mkRes, pblRes] = await Promise.all([
         api.get("/tahun-ajaran"),
         api.get("/mata-kuliah"),
         api.get("/pbls/all"),
       ]);
 
-        const tahunAktif = tahunRes.data.find((t: any) => t.aktif);
-        let semesterAktif = null;
-        if (tahunAktif && tahunAktif.semesters) {
-          const semAktif = tahunAktif.semesters.find((s: any) => s.aktif);
-          semesterAktif = semAktif ? semAktif.jenis : null;
-        }
+      const tahunAktif = tahunRes.data.find((t: any) => t.aktif);
+      let semesterAktif = null;
+      if (tahunAktif && tahunAktif.semesters) {
+        const semAktif = tahunAktif.semesters.find((s: any) => s.aktif);
+        semesterAktif = semAktif ? semAktif.jenis : null;
+      }
 
       // Set mata kuliah list
       const mkList = mkRes.data;
-        setMatkulList(
-          mkList.map((mk: any) => ({
-            kode: mk.kode,
-            nama: mk.nama,
-            semester: mk.semester,
-            blok: mk.blok,
-            jenis: mk.jenis,
-          }))
-        );
+      setMatkulList(
+        mkList.map((mk: any) => ({
+          kode: mk.kode,
+          nama: mk.nama,
+          semester: mk.semester,
+          blok: mk.blok,
+          jenis: mk.jenis,
+          keahlian_required: mk.keahlian_required || [],
+          peran_dalam_kurikulum: mk.peran_dalam_kurikulum || [],
+        }))
+      );
 
       // PERBAIKAN: Transform data structure dari API /pbls/all
       // API mengembalikan: { "MKB101": { "mata_kuliah": {...}, "pbls": [...] } }
@@ -312,13 +319,10 @@ export default function Dosen() {
         transformedPblData[mkKode] = item.pbls || [];
       });
       setPblData(transformedPblData);
-
-      
-      } catch (e) {
-      console.error("Failed to fetch semester and matkul data:", e);
-        setMatkulList([]);
+    } catch (e) {
+      setMatkulList([]);
       setPblData({});
-      }
+    }
   };
 
   useEffect(() => {
@@ -336,12 +340,9 @@ export default function Dosen() {
       setMatkulKetua("");
       setMatkulAnggota("");
       setPeranKurikulumMengajar("");
-      setPeranKetua([
-        { mata_kuliah_kode: "", peran_kurikulum: "", blok: "", semester: "" },
-      ]);
-      setPeranAnggota([
-        { mata_kuliah_kode: "", peran_kurikulum: "", blok: "", semester: "" },
-      ]);
+      setSelectedPeranType("none");
+      setSelectedMataKuliah("");
+      setSelectedPeranKurikulum("");
     }
   }, [showModal, editMode]);
 
@@ -357,7 +358,10 @@ export default function Dosen() {
     } else if (peranUtama === "aktif") {
       // Hanya reset jika bukan edit mode atau jika kompetensi/keahlian masih kosong
       setForm((prev) => {
-        if (!editMode || (Array.isArray(prev.kompetensi) && prev.kompetensi.length === 0)) {
+        if (
+          !editMode ||
+          (Array.isArray(prev.kompetensi) && prev.kompetensi.length === 0)
+        ) {
           return {
             ...prev,
             keahlian: [],
@@ -595,18 +599,33 @@ export default function Dosen() {
     setIsSaving(true);
     setModalError("");
     try {
-      // Validasi frontend multi-peran
-      // 1. Hitung total peran per blok (hanya untuk ketua & anggota)
-      const blokCount: { [kode: string]: number } = {};
-      [...peranKetua, ...peranAnggota].forEach((p) => {
-        if (p.mata_kuliah_kode) {
-          blokCount[p.mata_kuliah_kode] =
-            (blokCount[p.mata_kuliah_kode] || 0) + 1;
+      // Validasi frontend single peran
+      if (
+        selectedPeranType !== "none" &&
+        (!selectedMataKuliah || !selectedPeranKurikulum)
+      ) {
+        throw new Error(
+          "Pilih mata kuliah dan peran kurikulum jika memilih peran khusus."
+        );
+      }
+
+      // Validasi keahlian jika ada peran khusus
+      if (selectedPeranType !== "none" && selectedMataKuliah && form.keahlian) {
+        const keahlianArray = Array.isArray(form.keahlian)
+          ? form.keahlian
+          : typeof form.keahlian === "string"
+          ? [form.keahlian]
+          : [];
+        const isValidKeahlian = validateKeahlian(
+          keahlianArray,
+          selectedMataKuliah
+        );
+        if (!isValidKeahlian) {
+          throw new Error(
+            "Keahlian dosen tidak sesuai dengan keahlian yang dibutuhkan di mata kuliah yang dipilih."
+          );
         }
-      });
-      // 2. Validasi total peran (max 4) - HILANGKAN peranMengajar
-      const totalPeran = peranKetua.length + peranAnggota.length;
-      if (totalPeran > 4) throw new Error("Maksimal 4 peran untuk satu dosen.");
+      }
       // Payload - konversi "-" menjadi null untuk field NID, NIDN, NUPTK
       let payload: any = {
         ...form,
@@ -616,12 +635,19 @@ export default function Dosen() {
         role: "dosen",
         peran_utama: peranUtama === "standby" ? "standby" : "dosen_mengajar",
       };
-      // Hanya kirim dosen_peran jika peranUtama 'aktif'
-      if (peranUtama === "aktif") {
+      // Hanya kirim dosen_peran jika peranUtama 'aktif' dan ada peran khusus
+      if (peranUtama === "aktif" && selectedPeranType !== "none") {
+        const selectedMatkul = matkulList.find(
+          (mk) => mk.kode === selectedMataKuliah
+        );
         payload.dosen_peran = [
-          ...peranKetua.map((p) => ({ ...p, tipe_peran: "koordinator" })),
-          ...peranAnggota.map((p) => ({ ...p, tipe_peran: "tim_blok" })),
-          // HILANGKAN peranMengajar - Dosen Mengajar di-generate otomatis
+          {
+            mata_kuliah_kode: selectedMataKuliah,
+            peran_kurikulum: selectedPeranKurikulum,
+            blok: String(selectedMatkul?.blok || ""),
+            semester: String(selectedMatkul?.semester || ""),
+            tipe_peran: selectedPeranType,
+          },
         ];
       } else {
         payload.dosen_peran = [];
@@ -658,12 +684,9 @@ export default function Dosen() {
       });
       setShowPassword(false);
       setNewKompetensi("");
-      setPeranKetua([
-        { mata_kuliah_kode: "", peran_kurikulum: "", blok: "", semester: "" },
-      ]);
-      setPeranAnggota([
-        { mata_kuliah_kode: "", peran_kurikulum: "", blok: "", semester: "" },
-      ]);
+      setSelectedPeranType("none");
+      setSelectedMataKuliah("");
+      setSelectedPeranKurikulum("");
       // HILANGKAN peranMengajar
     } catch (err: any) {
       // Cek error dari backend (axios)
@@ -730,13 +753,9 @@ export default function Dosen() {
       kompetensi: kompetensiArr,
       keahlian: keahlianArr,
     });
-    
+
     // Tentukan status berdasarkan keahlian
-    console.log("Debug handleEdit - Data dosen:", d);
-    console.log("Debug handleEdit - Keahlian raw:", d.keahlian);
-    console.log("Debug handleEdit - Keahlian array:", keahlianArr);
-    const isStandby = keahlianArr.some(k => k.toLowerCase() === "standby");
-    console.log("Debug handleEdit - Is standby:", isStandby);
+    const isStandby = keahlianArr.some((k) => k.toLowerCase() === "standby");
     setPeranUtama(isStandby ? "standby" : "aktif");
     setMatkulKetua(
       d.matkul_ketua_nama
@@ -749,45 +768,32 @@ export default function Dosen() {
         : ""
     );
     setPeranKurikulumMengajar(d.peran_kurikulum_mengajar || "");
-    // Set peran dari backend
-    setPeranKetua(
-      Array.isArray(d.dosen_peran)
-        ? d.dosen_peran
-            .filter((p) => p.tipe_peran === "koordinator")
-            .map((p) => ({
-              mata_kuliah_kode: p.mata_kuliah_kode,
-              peran_kurikulum: p.peran_kurikulum,
-              blok: String(p.blok || ""),
-              semester: String(p.semester || ""),
-            }))
-        : [
-            {
-              mata_kuliah_kode: "",
-              peran_kurikulum: "",
-              blok: "",
-              semester: "",
-            },
-          ]
-    );
-    setPeranAnggota(
-      Array.isArray(d.dosen_peran)
-        ? d.dosen_peran
-            .filter((p) => p.tipe_peran === "tim_blok")
-            .map((p) => ({
-              mata_kuliah_kode: p.mata_kuliah_kode,
-              peran_kurikulum: p.peran_kurikulum,
-              blok: String(p.blok || ""),
-              semester: String(p.semester || ""),
-            }))
-        : [
-            {
-              mata_kuliah_kode: "",
-              peran_kurikulum: "",
-              blok: "",
-              semester: "",
-            },
-          ]
-    );
+    // Set peran dari backend - ambil peran pertama saja
+    if (Array.isArray(d.dosen_peran) && d.dosen_peran.length > 0) {
+      const firstPeran = d.dosen_peran[0];
+
+      // Parse peran_kurikulum dari JSON string ke array, lalu ambil yang pertama
+      let peranKurikulumDisplay = "";
+      try {
+        const peranArray =
+          typeof firstPeran.peran_kurikulum === "string"
+            ? JSON.parse(firstPeran.peran_kurikulum)
+            : firstPeran.peran_kurikulum;
+        peranKurikulumDisplay = Array.isArray(peranArray)
+          ? peranArray[0] || ""
+          : String(firstPeran.peran_kurikulum || "");
+      } catch (e) {
+        peranKurikulumDisplay = String(firstPeran.peran_kurikulum || "");
+      }
+
+      setSelectedPeranType(firstPeran.tipe_peran);
+      setSelectedMataKuliah(firstPeran.mata_kuliah_kode);
+      setSelectedPeranKurikulum(peranKurikulumDisplay);
+    } else {
+      setSelectedPeranType("none");
+      setSelectedMataKuliah("");
+      setSelectedPeranKurikulum("");
+    }
     // HILANGKAN peranMengajar
     setShowModal(true);
     setEditMode(true);
@@ -834,38 +840,43 @@ export default function Dosen() {
 
         // Cek apakah ada kolom gabungan NID/NIDN/NUPTK
         const headers = Object.keys(row);
-        let combinedIdKey = headers.find(h => 
-          h.toLowerCase().includes('nid') && h.toLowerCase().includes('/')
+        let combinedIdKey = headers.find(
+          (h) =>
+            h.toLowerCase().includes("nid") && h.toLowerCase().includes("/")
         );
-        
+
         // Cek juga untuk format yang lebih spesifik
         if (!combinedIdKey) {
-          combinedIdKey = headers.find(h => 
-            h.toLowerCase() === 'nid/nidn/nuptk' || 
-            h.toLowerCase().includes('nid/nidn') ||
-            h.toLowerCase().includes('nid/nidn/nuptk')
+          combinedIdKey = headers.find(
+            (h) =>
+              h.toLowerCase() === "nid/nidn/nuptk" ||
+              h.toLowerCase().includes("nid/nidn") ||
+              h.toLowerCase().includes("nid/nidn/nuptk")
           );
         }
-        
+
         // Jika tidak ada header yang jelas, cari berdasarkan data
         if (!combinedIdKey) {
-          combinedIdKey = headers.find(h => {
+          combinedIdKey = headers.find((h) => {
             const value = row[h];
-            if (typeof value === 'string' && value.includes('/')) {
-              const parts = value.split('/');
-              return parts.length >= 2 && parts.every(part => /^[0-9]+$/.test(part.trim()));
+            if (typeof value === "string" && value.includes("/")) {
+              const parts = value.split("/");
+              return (
+                parts.length >= 2 &&
+                parts.every((part) => /^[0-9]+$/.test(part.trim()))
+              );
             }
             return false;
           });
         }
-        
+
         if (combinedIdKey && row[combinedIdKey]) {
           // Parse data gabungan menjadi field terpisah
           const parsedData = parseCombinedIdData(String(row[combinedIdKey]));
           newRow.nid = parsedData.nid;
           newRow.nidn = parsedData.nidn;
           newRow.nuptk = parsedData.nuptk;
-          
+
           // Hapus kolom gabungan dari data
           delete newRow[combinedIdKey];
         }
@@ -894,27 +905,29 @@ export default function Dosen() {
       // Gabungkan kolom NID/NIDN/NUPTK untuk preview
       const previewDataWithCombinedColumns = transformedData.map((row) => {
         const newRow = { ...row };
-        
+
         // Gabungkan NID/NIDN/NUPTK menjadi satu kolom
         if (newRow.nid || newRow.nidn || newRow.nuptk) {
-          const nid = newRow.nid || '';
-          const nidn = newRow.nidn || '';
-          const nuptk = newRow.nuptk || '';
-          
+          const nid = newRow.nid || "";
+          const nidn = newRow.nidn || "";
+          const nuptk = newRow.nuptk || "";
+
           if (nid && nidn) {
-            newRow['NID / NIDN / NUPTK'] = `${nid} / ${nidn}${nuptk ? ` / ${nuptk}` : ''}`;
+            newRow["NID / NIDN / NUPTK"] = `${nid} / ${nidn}${
+              nuptk ? ` / ${nuptk}` : ""
+            }`;
           } else {
-            newRow['NID / NIDN / NUPTK'] = nid || nidn || nuptk || '-';
+            newRow["NID / NIDN / NUPTK"] = nid || nidn || nuptk || "-";
           }
         } else {
-          newRow['NID / NIDN / NUPTK'] = '-';
+          newRow["NID / NIDN / NUPTK"] = "-";
         }
-        
+
         // Hapus kolom terpisah
         delete newRow.nid;
         delete newRow.nidn;
         delete newRow.nuptk;
-        
+
         return newRow;
       });
 
@@ -940,10 +953,12 @@ export default function Dosen() {
     setLoading(true);
     setImportedCount(0);
     setCellErrors([]);
-    
+
     // Show progress message for large datasets
     if (previewData.length > 50) {
-      setSuccess("Sedang memproses data... Mohon tunggu, ini mungkin memakan waktu beberapa menit untuk data yang banyak.");
+      setSuccess(
+        "Sedang memproses data... Mohon tunggu, ini mungkin memakan waktu beberapa menit untuk data yang banyak."
+      );
     }
 
     const validationResult = validateExcelData(previewData, data);
@@ -970,7 +985,6 @@ export default function Dosen() {
                 .map((item: string) => item.trim())
                 .filter((item: string) => item !== "")
             : [];
-
 
         const keahlianArray =
           typeof row.keahlian === "string"
@@ -1022,7 +1036,7 @@ export default function Dosen() {
       if (Array.isArray(updatedDataRes.data)) {
         setData(updatedDataRes.data);
       } else {
-        console.error(
+          console.warn(
           "API response for /users?role=dosen after import is not an array:",
           updatedDataRes.data
         );
@@ -1058,10 +1072,12 @@ export default function Dosen() {
       }
     } catch (err: any) {
       setImportedCount(0);
-      
+
       // Handle timeout specifically
-      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
-        setError("Import memakan waktu terlalu lama. Data mungkin terlalu banyak. Silakan coba dengan file yang lebih kecil atau hubungi administrator.");
+      if (err.code === "ECONNABORTED" || err.message?.includes("timeout")) {
+        setError(
+          "Import memakan waktu terlalu lama. Data mungkin terlalu banyak. Silakan coba dengan file yang lebih kecil atau hubungi administrator."
+        );
       } else {
         setError(err.message || "Gagal mengimpor data");
       }
@@ -1123,15 +1139,15 @@ export default function Dosen() {
 
   // Fungsi untuk memisahkan data NID/NIDN/NUPTK dari format gabungan
   const parseCombinedIdData = (combinedData: string) => {
-    if (!combinedData || typeof combinedData !== 'string') {
-      return { nid: '', nidn: '', nuptk: '' };
+    if (!combinedData || typeof combinedData !== "string") {
+      return { nid: "", nidn: "", nuptk: "" };
     }
-    
-    const parts = combinedData.split('/');
+
+    const parts = combinedData.split("/");
     return {
-      nid: parts[0]?.trim() || '',
-      nidn: parts[1]?.trim() || '',
-      nuptk: parts[2]?.trim() || ''
+      nid: parts[0]?.trim() || "",
+      nidn: parts[1]?.trim() || "",
+      nuptk: parts[2]?.trim() || "",
     };
   };
 
@@ -1153,41 +1169,45 @@ export default function Dosen() {
     // Cek header kolom
     const firstRow = excelData[0];
     const headers = Object.keys(firstRow);
-    
+
     // Cek apakah ada kolom gabungan NID/NIDN/NUPTK atau kolom terpisah
-    const hasCombinedId = headers.some(h => 
-      h.toLowerCase().includes('nid') && h.toLowerCase().includes('/')
+    const hasCombinedId = headers.some(
+      (h) => h.toLowerCase().includes("nid") && h.toLowerCase().includes("/")
     );
-    
+
     // Cek juga untuk format "nid/nidn/nuptk" yang lebih spesifik
-    const hasSpecificCombinedId = headers.some(h => 
-      h.toLowerCase() === 'nid/nidn/nuptk' || 
-      h.toLowerCase().includes('nid/nidn') ||
-      h.toLowerCase().includes('nid/nidn/nuptk')
+    const hasSpecificCombinedId = headers.some(
+      (h) =>
+        h.toLowerCase() === "nid/nidn/nuptk" ||
+        h.toLowerCase().includes("nid/nidn") ||
+        h.toLowerCase().includes("nid/nidn/nuptk")
     );
-    
+
     // Cek apakah ada kolom yang berisi data gabungan (berdasarkan data, bukan header)
-    const hasCombinedData = excelData.some(row => {
-      return Object.values(row).some(value => {
-        if (typeof value === 'string' && value.includes('/')) {
-          const parts = value.split('/');
+    const hasCombinedData = excelData.some((row) => {
+      return Object.values(row).some((value) => {
+        if (typeof value === "string" && value.includes("/")) {
+          const parts = value.split("/");
           // Cek apakah format seperti NID/NIDN/NUPTK (angka/angka/angka)
-          return parts.length >= 2 && parts.every(part => /^[0-9]+$/.test(part.trim()));
+          return (
+            parts.length >= 2 &&
+            parts.every((part) => /^[0-9]+$/.test(part.trim()))
+          );
         }
         return false;
       });
     });
-    
-    const hasSeparateNid = headers.includes('nid');
-    const hasSeparateNidn = headers.includes('nidn');
-    
+
+    const hasSeparateNid = headers.includes("nid");
+    const hasSeparateNidn = headers.includes("nidn");
+
     let requiredHeaders: string[];
-    
+
     if (hasCombinedId || hasSpecificCombinedId || hasCombinedData) {
       // Jika ada kolom gabungan atau data gabungan, tidak perlu kolom nid dan nidn terpisah
       requiredHeaders = [
         "nama",
-        "username", 
+        "username",
         "email",
         "telepon",
         "password",
@@ -1197,17 +1217,17 @@ export default function Dosen() {
     } else {
       // Jika tidak ada kolom gabungan, perlu kolom nid, nidn, dan nuptk terpisah
       requiredHeaders = [
-      "nid",
-      "nidn",
-      "nuptk",
-      "nama",
-      "username",
-      "email",
-      "telepon",
-      "password",
-      "kompetensi",
-      "keahlian",
-    ];
+        "nid",
+        "nidn",
+        "nuptk",
+        "nama",
+        "username",
+        "email",
+        "telepon",
+        "password",
+        "kompetensi",
+        "keahlian",
+      ];
     }
 
     const missingHeaders = requiredHeaders.filter(
@@ -1228,30 +1248,34 @@ export default function Dosen() {
 
     excelData.forEach((row, index) => {
       const rowNum = index + 2; // +2 karena header di row 1 dan index mulai dari 0
-      
+
       let rowNid = "";
       let rowNidn = "";
       let rowNuptk = "";
-      
+
       // Cek apakah data dalam format gabungan atau terpisah
       if (hasCombinedId || hasSpecificCombinedId || hasCombinedData) {
         // Cari kolom yang berisi data gabungan
-        let combinedIdKey = headers.find(h => 
-          h.toLowerCase().includes('nid') && h.toLowerCase().includes('/')
+        let combinedIdKey = headers.find(
+          (h) =>
+            h.toLowerCase().includes("nid") && h.toLowerCase().includes("/")
         );
-        
+
         // Jika tidak ada header yang jelas, cari berdasarkan data
         if (!combinedIdKey) {
-          combinedIdKey = headers.find(h => {
+          combinedIdKey = headers.find((h) => {
             const value = row[h];
-            if (typeof value === 'string' && value.includes('/')) {
-              const parts = value.split('/');
-              return parts.length >= 2 && parts.every(part => /^[0-9]+$/.test(part.trim()));
+            if (typeof value === "string" && value.includes("/")) {
+              const parts = value.split("/");
+              return (
+                parts.length >= 2 &&
+                parts.every((part) => /^[0-9]+$/.test(part.trim()))
+              );
             }
             return false;
           });
         }
-        
+
         if (combinedIdKey && row[combinedIdKey]) {
           const parsedData = parseCombinedIdData(String(row[combinedIdKey]));
           rowNid = parsedData.nid;
@@ -1264,7 +1288,7 @@ export default function Dosen() {
         rowNidn = row.nidn ? String(row.nidn).trim() : "";
         rowNuptk = row.nuptk ? String(row.nuptk).trim() : "";
       }
-      
+
       const rowUsername = row.username
         ? String(row.username).toLowerCase()
         : "";
@@ -1272,8 +1296,10 @@ export default function Dosen() {
 
       // Basic required and format validations
       // NID dan NIDN wajib diisi dengan angka atau "-"
-      if (!rowNid || (!/^[0-9]+$/.test(rowNid) && rowNid !== '-')) {
-        errors.push(`NID harus diisi dengan angka atau "-" (Baris ${rowNum}, Kolom NID): ${rowNid}`);
+      if (!rowNid || (!/^[0-9]+$/.test(rowNid) && rowNid !== "-")) {
+        errors.push(
+          `NID harus diisi dengan angka atau "-" (Baris ${rowNum}, Kolom NID): ${rowNid}`
+        );
         newCellErrors.push({
           row: index,
           field: "nid",
@@ -1281,8 +1307,10 @@ export default function Dosen() {
           nid: rowNid,
         });
       }
-      if (!rowNidn || (!/^[0-9]+$/.test(rowNidn) && rowNidn !== '-')) {
-        errors.push(`NIDN harus diisi dengan angka atau "-" (Baris ${rowNum}, Kolom NIDN): ${rowNidn}`);
+      if (!rowNidn || (!/^[0-9]+$/.test(rowNidn) && rowNidn !== "-")) {
+        errors.push(
+          `NIDN harus diisi dengan angka atau "-" (Baris ${rowNum}, Kolom NIDN): ${rowNidn}`
+        );
         newCellErrors.push({
           row: index,
           field: "nidn",
@@ -1291,8 +1319,10 @@ export default function Dosen() {
         });
       }
       // NUPTK wajib diisi dengan angka atau "-"
-      if (!rowNuptk || (!/^[0-9]+$/.test(rowNuptk) && rowNuptk !== '-')) {
-        errors.push(`NUPTK harus diisi dengan angka atau "-" (Baris ${rowNum}, Kolom NUPTK): ${rowNuptk}`);
+      if (!rowNuptk || (!/^[0-9]+$/.test(rowNuptk) && rowNuptk !== "-")) {
+        errors.push(
+          `NUPTK harus diisi dengan angka atau "-" (Baris ${rowNum}, Kolom NUPTK): ${rowNuptk}`
+        );
         newCellErrors.push({
           row: index,
           field: "nuptk",
@@ -1350,15 +1380,19 @@ export default function Dosen() {
       // Validasi keahlian dan kompetensi berdasarkan standby logic
       const keahlianValue = String(row.keahlian || "").trim();
       const kompetensiValue = String(row.kompetensi || "").trim();
-      
+
       // Cek apakah keahlian mengandung "standby"
       const isStandby = keahlianValue.toLowerCase().includes("standby");
-      
+
       if (isStandby) {
         // Jika standby, keahlian harus HANYA "standby"
-        const keahlianArray = keahlianValue.split(",").map(k => k.trim().toLowerCase());
+        const keahlianArray = keahlianValue
+          .split(",")
+          .map((k) => k.trim().toLowerCase());
         if (keahlianArray.length !== 1 || keahlianArray[0] !== "standby") {
-          errors.push(`Jika keahlian mengandung "standby", maka harus HANYA "standby" saja (Baris ${rowNum})`);
+          errors.push(
+            `Jika keahlian mengandung "standby", maka harus HANYA "standby" saja (Baris ${rowNum})`
+          );
           newCellErrors.push({
             row: index,
             field: "keahlian",
@@ -1366,32 +1400,34 @@ export default function Dosen() {
             nid: rowNid,
           });
         }
-        
+
         // Jika standby, kompetensi harus kosong
         if (kompetensiValue !== "") {
-          errors.push(`Jika keahlian "standby", kompetensi harus kosong (Baris ${rowNum})`);
-        newCellErrors.push({
-          row: index,
-          field: "kompetensi",
+          errors.push(
+            `Jika keahlian "standby", kompetensi harus kosong (Baris ${rowNum})`
+          );
+          newCellErrors.push({
+            row: index,
+            field: "kompetensi",
             message: `Jika keahlian "standby", kompetensi harus kosong`,
-          nid: rowNid,
-        });
-      }
+            nid: rowNid,
+          });
+        }
       } else {
         // Jika tidak standby, kompetensi harus diisi
         if (!kompetensiValue) {
           errors.push(`Kompetensi harus diisi (Baris ${rowNum})`);
-        newCellErrors.push({
-          row: index,
+          newCellErrors.push({
+            row: index,
             field: "kompetensi",
             message: `Kompetensi harus diisi`,
-          nid: rowNid,
-        });
+            nid: rowNid,
+          });
         }
       }
 
       // Duplikat dalam file Excel - skip untuk nilai "-"
-      if (rowNid && rowNid !== '-') {
+      if (rowNid && rowNid !== "-") {
         if (nidSetInFile.has(rowNid)) {
           errors.push(
             `NID ${rowNid} sudah terdaftar dalam file Excel ini (Baris ${rowNum})`
@@ -1406,7 +1442,7 @@ export default function Dosen() {
           nidSetInFile.add(rowNid);
         }
       }
-      if (rowNidn && rowNidn !== '-') {
+      if (rowNidn && rowNidn !== "-") {
         if (nidnSetInFile.has(rowNidn)) {
           errors.push(
             `NIDN ${rowNidn} sudah terdaftar dalam file Excel ini (Baris ${rowNum})`
@@ -1568,53 +1604,174 @@ export default function Dosen() {
   // Fetch daftar peran kurikulum global dari backend
   useEffect(() => {
     api.get("/mata-kuliah/peran-kurikulum-options").then((res) => {
-      if (Array.isArray(res.data)) setPeranKurikulumOptions(res.data);
+      if (Array.isArray(res.data)) {
+        setPeranKurikulumOptions(res.data);
+        setFilteredPeranKurikulumOptions(res.data); // Set default filtered options
+      }
     });
   }, []);
 
+  // Fungsi untuk memfilter peran kurikulum berdasarkan mata kuliah yang dipilih
+  const filterPeranKurikulumByMataKuliah = (mataKuliahKode: string) => {
+    if (!mataKuliahKode) {
+      // Jika tidak ada mata kuliah yang dipilih, tampilkan semua peran kurikulum
+      setFilteredPeranKurikulumOptions(peranKurikulumOptions);
+      return;
+    }
+
+    // Cari mata kuliah yang dipilih
+    const selectedMatkul = matkulList.find(mk => mk.kode === mataKuliahKode);
+    if (!selectedMatkul) {
+      setFilteredPeranKurikulumOptions(peranKurikulumOptions);
+      return;
+    }
+
+    // Ambil peran kurikulum yang spesifik untuk mata kuliah ini
+    // Data peran_dalam_kurikulum dari database sudah spesifik per mata kuliah
+    const mataKuliahPeranKurikulum = selectedMatkul.peran_dalam_kurikulum || [];
+    
+    // Debug: Log data mata kuliah yang dipilih
+    console.log('Selected Mata Kuliah:', selectedMatkul);
+    console.log('Peran dalam kurikulum untuk mata kuliah ini:', mataKuliahPeranKurikulum);
+    
+    // Jika ada peran kurikulum spesifik untuk mata kuliah ini, gunakan itu
+    if (Array.isArray(mataKuliahPeranKurikulum) && mataKuliahPeranKurikulum.length > 0) {
+      console.log('Using specific peran kurikulum for this mata kuliah:', mataKuliahPeranKurikulum);
+      setFilteredPeranKurikulumOptions(mataKuliahPeranKurikulum);
+      return;
+    }
+
+    // Fallback: Filter berdasarkan semester dan blok jika tidak ada data spesifik
+    const filteredPeran = peranKurikulumOptions.filter(peran => {
+      const semester = selectedMatkul.semester;
+      const blok = selectedMatkul.blok;
+      
+      const peranLower = peran.toLowerCase();
+      
+      // Cek semester
+      const semesterPatterns = [
+        `semester ${semester}`,
+        `sem ${semester}`,
+        `smt ${semester}`
+      ];
+      
+      const hasCorrectSemester = semesterPatterns.some(pattern => 
+        peranLower.includes(pattern)
+      );
+      
+      if (!hasCorrectSemester) {
+        return false;
+      }
+      
+      // Cek blok jika ada
+      if (blok) {
+        const blokPatterns = [
+          `blok ${blok}`,
+          `blok ke-${blok}`
+        ];
+        
+        const hasCorrectBlok = blokPatterns.some(pattern => 
+          peranLower.includes(pattern)
+        );
+        
+        return hasCorrectBlok;
+      }
+      
+      return true;
+    });
+
+    setFilteredPeranKurikulumOptions(filteredPeran.length > 0 ? filteredPeran : peranKurikulumOptions);
+  };
+
+  // Effect untuk memfilter peran kurikulum ketika mata kuliah berubah
+  useEffect(() => {
+    filterPeranKurikulumByMataKuliah(selectedMataKuliah);
+    // Reset peran kurikulum yang dipilih ketika mata kuliah berubah
+    if (selectedMataKuliah) {
+      setSelectedPeranKurikulum("");
+    }
+  }, [selectedMataKuliah, peranKurikulumOptions, matkulList]);
+
+  // Validasi keahlian ketika ada perubahan pada keahlian dosen atau mata kuliah yang dipilih
+  useEffect(() => {
+    if (form.keahlian && selectedMataKuliah && selectedPeranType !== "none") {
+      const keahlianArray = Array.isArray(form.keahlian)
+        ? form.keahlian
+        : typeof form.keahlian === "string"
+        ? [form.keahlian]
+        : [];
+      validateKeahlian(keahlianArray, selectedMataKuliah);
+    } else {
+      setKeahlianValidationMessage("");
+    }
+  }, [form.keahlian, selectedMataKuliah, selectedPeranType, matkulList]);
+
   // Tambahkan sebelum return/modal render - HILANGKAN peranMengajar
-  const totalPeran = peranKetua.length + peranAnggota.length;
+
+  // Function untuk validasi keahlian dosen dengan mata kuliah
+  const validateKeahlian = (
+    dosenKeahlian: string[],
+    mataKuliahKode: string
+  ) => {
+    if (!mataKuliahKode || selectedPeranType === "none") {
+      setKeahlianValidationMessage("");
+      return true;
+    }
+
+    const mataKuliah = matkulList.find((mk) => mk.kode === mataKuliahKode);
+    if (
+      !mataKuliah ||
+      !mataKuliah.keahlian_required ||
+      mataKuliah.keahlian_required.length === 0
+    ) {
+      setKeahlianValidationMessage("");
+      return true;
+    }
+
+    // Cek apakah ada keahlian dosen yang sesuai dengan keahlian yang dibutuhkan
+    const hasMatchingKeahlian = dosenKeahlian.some((keahlian) =>
+      mataKuliah.keahlian_required!.some(
+        (required) =>
+          keahlian.toLowerCase().includes(required.toLowerCase()) ||
+          required.toLowerCase().includes(keahlian.toLowerCase())
+      )
+    );
+
+    if (!hasMatchingKeahlian) {
+      setKeahlianValidationMessage(
+        `Keahlian tidak sesuai yang dibutuhkan. Mata kuliah "${
+          mataKuliah.nama
+        }" membutuhkan: ${mataKuliah.keahlian_required.join(", ")}`
+      );
+      return false;
+    } else {
+      setKeahlianValidationMessage("");
+      return true;
+    }
+  };
 
   // Function untuk fetch assignment data
   const fetchAssignmentData = async () => {
-
     try {
-      
-
-      // Langsung ambil data assignment dari /pbls/assigned-dosen-batch
-      // tanpa perlu fetch /pbls/all yang bermasalah
-      const assignedRes = await api.post("/pbls/assigned-dosen-batch", {
+      // PERBAIKAN: Gunakan endpoint yang sama dengan PBL-detail.tsx untuk konsistensi
+      // PERBAIKAN: Gunakan POST method dengan pbl_ids seperti di PBL-detail.tsx
+      const assignedRes = await api.post("/pbl-generate/get-assignments", {
         pbl_ids: [
           1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
           21, 22, 23, 24, 25, 26, 27, 28,
         ], // Hardcode PBL IDs yang ada
       });
 
-
-
-
-
-
-      
-
-
-      setAssignmentData(assignedRes.data || {});
-
-
+      // PERBAIKAN: Sesuaikan dengan format data dari PBL-detail.tsx
+      const assignmentData = assignedRes.data.data || {};
+      setAssignmentData(assignmentData);
     } catch (error: any) {
-      console.error("Failed to fetch assignment data:", error);
-      console.error("Error details:", error.response?.data);
       setAssignmentData({});
     }
   };
 
   // Function untuk menghitung assignment count per dosen
   const getAssignmentCount = (dosenId: number): number => {
-
-
-
-
-    
     const uniqueMataKuliah = new Set<string>();
 
     // Dapatkan mata kuliah yang sudah di-assign sebagai Tim Blok atau Koordinator
@@ -1630,66 +1787,47 @@ export default function Dosen() {
         }
       });
     }
-    
-
 
     // GUNAKAN PBL MAPPING - Dosen Mengajar di-generate dari PBL assignment
     Object.entries(assignmentData).forEach(([pblId, dosenList]) => {
-
       dosenList.forEach((dosen: { id: number }) => {
         if (dosen.id === dosenId) {
-
-          
           // Ambil data PBL untuk mendapatkan mata kuliah
           const pblIdNum = parseInt(pblId);
           let mataKuliahKode = "";
 
-                  // Cari di data PBL yang sudah di-fetch (sama seperti PBL-detail.tsx)
-        if (pblData && Object.keys(pblData).length > 0) {
+          // Cari di data PBL yang sudah di-fetch (sama seperti PBL-detail.tsx)
+          if (pblData && Object.keys(pblData).length > 0) {
+            // Loop melalui semua mata kuliah untuk mencari PBL yang sesuai
+            Object.entries(pblData).forEach(([mkKode, pblList]) => {
+              // PERBAIKAN: Tambah null check dan type safety
+              if (!pblList || !Array.isArray(pblList)) {
+                return; // Skip jika bukan array
+              }
 
+              const pbls = pblList as any[];
 
+              const foundPBL = pbls.find((pbl) => pbl && pbl.id === pblIdNum);
 
-          
-          // Loop melalui semua mata kuliah untuk mencari PBL yang sesuai
-          Object.entries(pblData).forEach(([mkKode, pblList]) => {
-            // PERBAIKAN: Tambah null check dan type safety
-            if (!pblList || !Array.isArray(pblList)) {
+              if (foundPBL) {
+                mataKuliahKode = mkKode;
+              }
+            });
+          } else {
+          }
 
-              return; // Skip jika bukan array
-            }
-            
-            const pbls = pblList as any[];
-
-            const foundPBL = pbls.find(pbl => pbl && pbl.id === pblIdNum);
-            
-            if (foundPBL) {
-              mataKuliahKode = mkKode;
-
-            }
-          });
-        } else {
-
-
-
-        }
-          
           // Jika tidak ditemukan di pblData, gunakan fallback yang sudah diperbaiki
           if (!mataKuliahKode) {
-
           }
 
           // Hanya tambahkan jika mata kuliah tidak di-exclude (bukan Tim Blok/Koordinator)
           if (mataKuliahKode && !excludedMataKuliah.has(mataKuliahKode)) {
             uniqueMataKuliah.add(mataKuliahKode);
-
           } else {
-
           }
         }
       });
     });
-
-
 
     return uniqueMataKuliah.size;
   };
@@ -1713,115 +1851,146 @@ export default function Dosen() {
       });
     }
 
-
-
-
-
     // GUNAKAN PBL MAPPING - Dosen Mengajar di-generate dari PBL assignment
-  // PERBAIKAN: Gunakan data yang sama dengan PBL-detail.tsx untuk konsistensi
+    // PERBAIKAN: Gunakan data yang sama dengan PBL-detail.tsx untuk konsistensi
     Object.entries(assignmentData).forEach(([pblId, dosenList]) => {
-
       dosenList.forEach((dosen: { id: number }) => {
         if (dosen.id === dosenId) {
-
-        
-        // PERBAIKAN: Gunakan data yang sama dengan PBL-detail.tsx
+          // PERBAIKAN: Gunakan data yang sama dengan PBL-detail.tsx
           const pblIdNum = parseInt(pblId);
           let mataKuliahKode = "";
           let semester = 1;
           let blok = 1;
 
-        // Cari di data PBL yang sudah di-fetch (sama seperti PBL-detail.tsx)
-        if (pblData && Object.keys(pblData).length > 0) {
-          // Loop melalui semua mata kuliah untuk mencari PBL yang sesuai
-          Object.entries(pblData).forEach(([mkKode, pblList]) => {
-            // PERBAIKAN: Tambah null check dan type safety
-            if (!pblList || !Array.isArray(pblList)) {
+          // Cari di data PBL yang sudah di-fetch (sama seperti PBL-detail.tsx)
+          if (pblData && Object.keys(pblData).length > 0) {
+            // Loop melalui semua mata kuliah untuk mencari PBL yang sesuai
+            Object.entries(pblData).forEach(([mkKode, pblList]) => {
+              // PERBAIKAN: Tambah null check dan type safety
+              if (!pblList || !Array.isArray(pblList)) {
+                return; // Skip jika bukan array
+              }
 
-              return; // Skip jika bukan array
-            }
-            
-            const pbls = pblList as any[];
-            const foundPBL = pbls.find(pbl => pbl && pbl.id === pblIdNum);
-            
-            if (foundPBL) {
-              // PERBAIKAN: Gunakan data yang sama dengan PBL-detail.tsx
-              // Ambil data mata kuliah dari matkulList (filter hanya yang Blok)
-              const mataKuliah = matkulList
-                .filter(mk => mk.jenis === "Blok")
-                .find(mk => mk.kode === mkKode);
-              
-              if (mataKuliah) {
-                mataKuliahKode = mataKuliah.kode;
-                semester = mataKuliah.semester;
-                blok = mataKuliah.blok || 1;
+              const pbls = pblList as any[];
+              const foundPBL = pbls.find((pbl) => pbl && pbl.id === pblIdNum);
 
+              if (foundPBL) {
+                // PERBAIKAN: Gunakan data yang sama dengan PBL-detail.tsx
+                // Ambil data mata kuliah dari matkulList (filter hanya yang Blok)
+                const mataKuliah = matkulList
+                  .filter((mk) => mk.jenis === "Blok")
+                  .find((mk) => mk.kode === mkKode);
+
+                if (mataKuliah) {
+                  mataKuliahKode = mataKuliah.kode;
+                  semester = mataKuliah.semester;
+                  blok = mataKuliah.blok || 1;
+                }
+              }
+            });
+          }
+
+          // PERBAIKAN: Jika tidak ditemukan, gunakan data dari backend yang sudah benar
+          if (!mataKuliahKode) {
+            // Coba ambil dari data yang sudah ada di backend
+            // Ini akan menggunakan data yang sama dengan PBL-detail.tsx
+            const backendMataKuliah = matkulList
+              .filter((mk) => mk.jenis === "Blok")
+              .find((mk) => {
+                // PERBAIKAN: Tambah null check dan type safety
+                const pbls = pblData[mk.kode];
+                if (!pbls || !Array.isArray(pbls)) {
+                  return false; // Skip jika bukan array
+                }
+                return pbls.some((pbl: any) => pbl && pbl.id === pblIdNum);
+              });
+
+            if (backendMataKuliah) {
+              mataKuliahKode = backendMataKuliah.kode;
+              semester = backendMataKuliah.semester;
+              blok = backendMataKuliah.blok || 1;
+            } else {
+              // PERBAIKAN: Fallback mapping yang benar sesuai dengan data yang di-generate
+              // PBL ID = Blok number, semester = dari data yang sebenarnya
+              if (pblIdNum >= 1 && pblIdNum <= 4) {
+                // Jika PBL ID 1-4, berarti blok 1-4, tapi semester harus dari data yang sebenarnya
+                // JANGAN hardcode semester, gunakan data yang ada
+                mataKuliahKode = `MKB10${pblIdNum}`; // Format kode mata kuliah
+                blok = pblIdNum; // Blok = PBL ID
+                // Semester harus dari data yang sebenarnya, bukan hardcode
               }
             }
-          });
-        }
-        
-        // PERBAIKAN: Jika tidak ditemukan, gunakan data dari backend yang sudah benar
-        if (!mataKuliahKode) {
-
-          
-                     // Coba ambil dari data yang sudah ada di backend
-           // Ini akan menggunakan data yang sama dengan PBL-detail.tsx
-           const backendMataKuliah = matkulList
-             .filter(mk => mk.jenis === "Blok")
-             .find(mk => {
-               // PERBAIKAN: Tambah null check dan type safety
-               const pbls = pblData[mk.kode];
-               if (!pbls || !Array.isArray(pbls)) {
-
-                 return false; // Skip jika bukan array
-               }
-               return pbls.some((pbl: any) => pbl && pbl.id === pblIdNum);
-             });
-          
-          if (backendMataKuliah) {
-            mataKuliahKode = backendMataKuliah.kode;
-            semester = backendMataKuliah.semester;
-            blok = backendMataKuliah.blok || 1;
-
-          } else {
-
-            // PERBAIKAN: Fallback mapping yang benar sesuai dengan data yang di-generate
-            // PBL ID = Blok number, semester = dari data yang sebenarnya
-            if (pblIdNum >= 1 && pblIdNum <= 4) {
-              // Jika PBL ID 1-4, berarti blok 1-4, tapi semester harus dari data yang sebenarnya
-              // JANGAN hardcode semester, gunakan data yang ada
-              mataKuliahKode = `MKB10${pblIdNum}`; // Format kode mata kuliah
-              blok = pblIdNum; // Blok = PBL ID
-              // Semester harus dari data yang sebenarnya, bukan hardcode
-
-            }
-          }
           }
 
           // Hanya tambahkan jika mata kuliah belum ada dan tidak di-exclude
-          if (mataKuliahKode && !uniqueMataKuliah.has(mataKuliahKode) && !excludedMataKuliah.has(mataKuliahKode)) {
+          if (
+            mataKuliahKode &&
+            !uniqueMataKuliah.has(mataKuliahKode) &&
+            !excludedMataKuliah.has(mataKuliahKode)
+          ) {
             uniqueMataKuliah.add(mataKuliahKode);
             const matkulNama = getMataKuliahNama(mataKuliahKode);
-            const detail = `${mataKuliahKode} - ${matkulNama} Semester ${semester} | Blok ${blok}`;
+
+            // PERBAIKAN: Tambahkan informasi keahlian ke detail assignment
+            const dosen = data.find((d) => d.id === dosenId);
+            const mataKuliah = matkulList.find(
+              (mk) => mk.kode === mataKuliahKode
+            );
+            let keahlianInfo = "";
+
+            if (dosen && mataKuliah) {
+              const dosenKeahlian = Array.isArray(dosen.keahlian)
+                ? dosen.keahlian
+                : (dosen.keahlian || "").split(",").map((k) => k.trim());
+              const requiredKeahlian = mataKuliah.keahlian_required || [];
+
+              // Check if dosen is standby
+              const isStandby = dosenKeahlian.some((k) =>
+                k.toLowerCase().includes("standby")
+              );
+
+              if (isStandby) {
+                keahlianInfo = " (Standby)";
+              } else {
+                // Check if keahlian matches
+                const isKeahlianMatch = requiredKeahlian.some((req) =>
+                  dosenKeahlian.some((dosenKeahlian) => {
+                    const reqLower = req.toLowerCase();
+                    const dosenKeahlianLower = dosenKeahlian.toLowerCase();
+                    return (
+                      dosenKeahlianLower.includes(reqLower) ||
+                      reqLower.includes(dosenKeahlianLower) ||
+                      reqLower
+                        .split(" ")
+                        .some((word) => dosenKeahlianLower.includes(word)) ||
+                      dosenKeahlianLower
+                        .split(" ")
+                        .some((word) => reqLower.includes(word))
+                    );
+                  })
+                );
+
+                if (!isKeahlianMatch) {
+                  keahlianInfo = " (Keahlian tidak sesuai)";
+                }
+              }
+            }
+
+            const detail = `${mataKuliahKode} - ${matkulNama} Semester ${semester} | Blok ${blok}${keahlianInfo}`;
             details.push(detail);
-
           } else {
-
           }
         }
       });
     });
-    
 
     return details;
   };
 
   // Fetch assignment data saat component mount
   useEffect(() => {
-
     fetchAssignmentData();
-    
+
     // PERBAIKAN: Pastikan pblData dan matkulList ter-fetch
 
     fetchSemesterAndMatkul();
@@ -1835,7 +2004,6 @@ export default function Dosen() {
         const res = await api.get("/users?role=dosen");
         setData(res.data);
       } catch (error) {
-        console.error("Failed to fetch dosen data:", error);
         setError("Gagal memuat data dosen");
       } finally {
         setLoading(false);
@@ -1848,7 +2016,6 @@ export default function Dosen() {
   // Event listener untuk update real-time saat assignment berubah
   useEffect(() => {
     const handleAssignmentUpdate = () => {
-
       fetchAssignmentData();
     };
 
@@ -1909,7 +2076,6 @@ export default function Dosen() {
           </button>
           <button
             onClick={() => {
-
               fetchAssignmentData();
             }}
             className="px-4 py-2 rounded-lg bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 text-sm font-medium shadow-theme-xs hover:bg-purple-200 dark:hover:bg-purple-800 transition flex items-center gap-2"
@@ -2280,49 +2446,92 @@ export default function Dosen() {
               <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
                 <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                   <tr>
-                    {previewData[0] && Object.keys(previewData[0]).map((colKey) => (
-                      <th key={colKey} className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400">
-                        {colKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                      </th>
-                    ))}
+                    {previewData[0] &&
+                      Object.keys(previewData[0]).map((colKey) => (
+                        <th
+                          key={colKey}
+                          className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400"
+                        >
+                          {colKey
+                            .replace(/_/g, " ")
+                            .replace(/\b\w/g, (l) => l.toUpperCase())}
+                        </th>
+                      ))}
                   </tr>
                 </thead>
                 <tbody>
                   {paginatedPreviewData.map((row, i) => {
-                    const globalRowIdx = (previewPage - 1) * previewPageSize + i;
-                              return (
-                      <tr key={i} className={i % 2 === 1 ? "bg-gray-50 dark:bg-white/[0.02]" : ""}>
-                        {previewData[0] && Object.keys(previewData[0]).map((colKey, _) => {
-                          const isEditing = editingCell?.row === globalRowIdx && editingCell?.key === colKey;
-                          return (
-                            <td
-                              key={colKey}
-                              className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 cursor-pointer ${
-                                cellErrors.some(error => error.row === globalRowIdx && error.field === colKey) ? 'bg-red-100 dark:bg-red-900/30' : ''
-                              }`}
-                              title={cellErrors.find(error => error.row === globalRowIdx && error.field === colKey)?.message || ''}
-                              onClick={() => setEditingCell({ row: globalRowIdx, key: colKey })}
-                            >
-                              {isEditing ? (
-                                <input
-                                  className="w-full px-1 border-none outline-none text-xs md:text-sm"
-                                  value={previewData[editingCell.row][editingCell.key] || ""}
-                                  onChange={e => {
-                                    let val = e.target.value;
-                                    if (["nid", "nidn", "nuptk", "telepon"].includes(colKey)) {
-                                      val = val.replace(/[^0-9-]/g, ""); // Allow dash for NID fields
+                    const globalRowIdx =
+                      (previewPage - 1) * previewPageSize + i;
+                    return (
+                      <tr
+                        key={i}
+                        className={
+                          i % 2 === 1 ? "bg-gray-50 dark:bg-white/[0.02]" : ""
+                        }
+                      >
+                        {previewData[0] &&
+                          Object.keys(previewData[0]).map((colKey, _) => {
+                            const isEditing =
+                              editingCell?.row === globalRowIdx &&
+                              editingCell?.key === colKey;
+                            return (
+                              <td
+                                key={colKey}
+                                className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 cursor-pointer ${
+                                  cellErrors.some(
+                                    (error) =>
+                                      error.row === globalRowIdx &&
+                                      error.field === colKey
+                                  )
+                                    ? "bg-red-100 dark:bg-red-900/30"
+                                    : ""
+                                }`}
+                                title={
+                                  cellErrors.find(
+                                    (error) =>
+                                      error.row === globalRowIdx &&
+                                      error.field === colKey
+                                  )?.message || ""
+                                }
+                                onClick={() =>
+                                  setEditingCell({
+                                    row: globalRowIdx,
+                                    key: colKey,
+                                  })
+                                }
+                              >
+                                {isEditing ? (
+                                  <input
+                                    className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                    value={
+                                      previewData[editingCell.row][
+                                        editingCell.key
+                                      ] || ""
                                     }
-                                    handleCellEdit(globalRowIdx, colKey, val);
-                                  }}
-                                  onBlur={() => setEditingCell(null)}
-                                  autoFocus
-                                />
-                              ) : (
-                                row[colKey]
-                              )}
-                            </td>
-                          );
-                        })}
+                                    onChange={(e) => {
+                                      let val = e.target.value;
+                                      if (
+                                        [
+                                          "nid",
+                                          "nidn",
+                                          "nuptk",
+                                          "telepon",
+                                        ].includes(colKey)
+                                      ) {
+                                        val = val.replace(/[^0-9-]/g, ""); // Allow dash for NID fields
+                                      }
+                                      handleCellEdit(globalRowIdx, colKey, val);
+                                    }}
+                                    onBlur={() => setEditingCell(null)}
+                                    autoFocus
+                                  />
+                                ) : (
+                                  row[colKey]
+                                )}
+                              </td>
+                            );
+                          })}
                       </tr>
                     );
                   })}
@@ -2360,73 +2569,83 @@ export default function Dosen() {
                 >
                   Prev
                 </button>
-                
+
                 {/* Smart Pagination with Scroll for Preview */}
-                <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll" style={{
-                  scrollbarWidth: 'thin',
-                  scrollbarColor: '#cbd5e1 #f1f5f9'
-                }}>
+                <div
+                  className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll"
+                  style={{
+                    scrollbarWidth: "thin",
+                    scrollbarColor: "#cbd5e1 #f1f5f9",
+                  }}
+                >
                   {/* Always show first page */}
                   <button
                     onClick={() => setPreviewPage(1)}
                     className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
                       previewPage === 1
-                        ? 'bg-brand-500 text-white'
-                        : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                     }`}
                   >
                     1
                   </button>
-                  
+
                   {/* Show ellipsis if current page is far from start */}
                   {previewPage > 4 && (
-                    <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
+                    <span className="px-2 text-gray-500 dark:text-gray-400">
+                      ...
+                    </span>
                   )}
-                  
+
                   {/* Show pages around current page */}
                   {Array.from({ length: previewTotalPages }, (_, i) => {
                     const pageNum = i + 1;
                     // Show pages around current page (2 pages before and after)
-                    const shouldShow = pageNum > 1 && pageNum < previewTotalPages && 
-                      (pageNum >= previewPage - 2 && pageNum <= previewPage + 2);
-                    
+                    const shouldShow =
+                      pageNum > 1 &&
+                      pageNum < previewTotalPages &&
+                      pageNum >= previewPage - 2 &&
+                      pageNum <= previewPage + 2;
+
                     if (!shouldShow) return null;
-                    
+
                     return (
                       <button
                         key={i}
                         onClick={() => setPreviewPage(pageNum)}
                         className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
                           previewPage === pageNum
-                            ? 'bg-brand-500 text-white'
-                            : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                            ? "bg-brand-500 text-white"
+                            : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                         }`}
                       >
                         {pageNum}
                       </button>
                     );
                   })}
-                  
+
                   {/* Show ellipsis if current page is far from end */}
                   {previewPage < previewTotalPages - 3 && (
-                    <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
+                    <span className="px-2 text-gray-500 dark:text-gray-400">
+                      ...
+                    </span>
                   )}
-                  
+
                   {/* Always show last page if it's not the first page */}
                   {previewTotalPages > 1 && (
                     <button
                       onClick={() => setPreviewPage(previewTotalPages)}
                       className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
                         previewPage === previewTotalPages
-                          ? 'bg-brand-500 text-white'
-                          : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                          ? "bg-brand-500 text-white"
+                          : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                       }`}
                     >
                       {previewTotalPages}
                     </button>
                   )}
                 </div>
-                
+
                 <button
                   onClick={() =>
                     setPreviewPage((p) => Math.min(previewTotalPages, p + 1))
@@ -2545,7 +2764,9 @@ export default function Dosen() {
                         setSelectedRows([]);
                       } else {
                         setSelectedRows(
-                          filteredAndSearchedData.map((d) => String(d.id || d.nid))
+                          filteredAndSearchedData.map((d) =>
+                            String(d.id || d.nid)
+                          )
                         );
                       }
                     }}
@@ -2712,7 +2933,7 @@ export default function Dosen() {
                         const nid = d.nid || "-";
                         const nidn = d.nidn || "-";
                         const nuptk = d.nuptk || "-";
-                        
+
                         return `${nid} / ${nidn} / ${nuptk}`;
                       })()}
                     </td>
@@ -2765,14 +2986,18 @@ export default function Dosen() {
                       {/* Koordinator Badge */}
                       {(() => {
                         const koordinatorPeran = Array.isArray(d.dosen_peran)
-                          ? d.dosen_peran.filter(
-                              (p) => p.tipe_peran === "koordinator"
-                            ).filter((p, index, self) => 
-                              // HILANGKAN DUPLIKASI: Unique berdasarkan mata_kuliah_kode
-                              index === self.findIndex(peran => 
-                                peran.mata_kuliah_kode === p.mata_kuliah_kode
+                          ? d.dosen_peran
+                              .filter((p) => p.tipe_peran === "koordinator")
+                              .filter(
+                                (p, index, self) =>
+                                  // HILANGKAN DUPLIKASI: Unique berdasarkan mata_kuliah_kode
+                                  index ===
+                                  self.findIndex(
+                                    (peran) =>
+                                      peran.mata_kuliah_kode ===
+                                      p.mata_kuliah_kode
+                                  )
                               )
-                            )
                           : [];
 
                         if (koordinatorPeran.length > 0) {
@@ -2821,7 +3046,11 @@ export default function Dosen() {
                                           Semester {p.semester} | Blok {p.blok}
                                         </div>
                                         <div className="text-xs text-gray-500">
-                                          {p.peran_kurikulum}
+                                          {p.tipe_peran === "koordinator"
+                                            ? "Koordinator"
+                                            : p.tipe_peran === "tim_blok"
+                                            ? "Tim Blok"
+                                            : p.peran_kurikulum}
                                         </div>
                                       </div>
                                     </li>
@@ -2870,14 +3099,18 @@ export default function Dosen() {
                       {/* Tim Blok Badge */}
                       {(() => {
                         const timBlokPeran = Array.isArray(d.dosen_peran)
-                          ? d.dosen_peran.filter(
-                              (p) => p.tipe_peran === "tim_blok"
-                            ).filter((p, index, self) => 
-                              // HILANGKAN DUPLIKASI: Unique berdasarkan mata_kuliah_kode
-                              index === self.findIndex(peran => 
-                                peran.mata_kuliah_kode === p.mata_kuliah_kode
+                          ? d.dosen_peran
+                              .filter((p) => p.tipe_peran === "tim_blok")
+                              .filter(
+                                (p, index, self) =>
+                                  // HILANGKAN DUPLIKASI: Unique berdasarkan mata_kuliah_kode
+                                  index ===
+                                  self.findIndex(
+                                    (peran) =>
+                                      peran.mata_kuliah_kode ===
+                                      p.mata_kuliah_kode
+                                  )
                               )
-                            )
                           : [];
 
                         if (timBlokPeran.length > 0) {
@@ -2926,7 +3159,11 @@ export default function Dosen() {
                                           Semester {p.semester} | Blok {p.blok}
                                         </div>
                                         <div className="text-xs text-gray-500">
-                                          {p.peran_kurikulum}
+                                          {p.tipe_peran === "koordinator"
+                                            ? "Koordinator"
+                                            : p.tipe_peran === "tim_blok"
+                                            ? "Tim Blok"
+                                            : p.peran_kurikulum}
                                         </div>
                                       </div>
                                     </li>
@@ -2991,9 +3228,7 @@ export default function Dosen() {
                             >
                               Dosen Mengajar ({assignmentCount})
                               <FontAwesomeIcon
-                                icon={
-                                  isExpanded ? faChevronUp : faChevronDown
-                                }
+                                icon={isExpanded ? faChevronUp : faChevronDown}
                                 className="ml-1 w-3 h-3"
                               />
                             </button>
@@ -3043,7 +3278,6 @@ export default function Dosen() {
                           </div>
                         );
                       })()}
-
                     </td>
                     {/* Kolom Aksi */}
                     <td className="px-6 py-4 whitespace-nowrap text-center align-middle">
@@ -3128,14 +3362,18 @@ export default function Dosen() {
             >
               Prev
             </button>
-            
+
             {/* Smart Pagination with Scroll */}
-            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll" style={{
-              scrollbarWidth: 'thin',
-              scrollbarColor: '#cbd5e1 #f1f5f9'
-            }}>
-              <style dangerouslySetInnerHTML={{
-                __html: `
+            <div
+              className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll"
+              style={{
+                scrollbarWidth: "thin",
+                scrollbarColor: "#cbd5e1 #f1f5f9",
+              }}
+            >
+              <style
+                dangerouslySetInnerHTML={{
+                  __html: `
                   .pagination-scroll::-webkit-scrollbar {
                     height: 6px;
                   }
@@ -3159,70 +3397,78 @@ export default function Dosen() {
                   .dark .pagination-scroll::-webkit-scrollbar-thumb:hover {
                     background: #64748b;
                   }
-                `
-              }} />
-              
+                `,
+                }}
+              />
+
               {/* Always show first page */}
               <button
                 onClick={() => setPage(1)}
                 className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
                   page === 1
-                    ? 'bg-brand-500 text-white'
-                    : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    ? "bg-brand-500 text-white"
+                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                 }`}
               >
                 1
               </button>
-              
+
               {/* Show ellipsis if current page is far from start */}
               {page > 4 && (
-                <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
+                <span className="px-2 text-gray-500 dark:text-gray-400">
+                  ...
+                </span>
               )}
-              
+
               {/* Show pages around current page */}
               {Array.from({ length: totalPages }, (_, i) => {
                 const pageNum = i + 1;
                 // Show pages around current page (2 pages before and after)
-                const shouldShow = pageNum > 1 && pageNum < totalPages && 
-                  (pageNum >= page - 2 && pageNum <= page + 2);
-                
+                const shouldShow =
+                  pageNum > 1 &&
+                  pageNum < totalPages &&
+                  pageNum >= page - 2 &&
+                  pageNum <= page + 2;
+
                 if (!shouldShow) return null;
-                
+
                 return (
                   <button
                     key={i}
                     onClick={() => setPage(pageNum)}
                     className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
                       page === pageNum
-                        ? 'bg-brand-500 text-white'
-                        : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                     }`}
                   >
                     {pageNum}
                   </button>
                 );
               })}
-              
+
               {/* Show ellipsis if current page is far from end */}
               {page < totalPages - 3 && (
-                <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
+                <span className="px-2 text-gray-500 dark:text-gray-400">
+                  ...
+                </span>
               )}
-              
+
               {/* Always show last page if it's not the first page */}
               {totalPages > 1 && (
                 <button
                   onClick={() => setPage(totalPages)}
                   className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
                     page === totalPages
-                      ? 'bg-brand-500 text-white'
-                      : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                   }`}
                 >
                   {totalPages}
                 </button>
               )}
             </div>
-            
+
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
@@ -3345,8 +3591,8 @@ export default function Dosen() {
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
                     />
                   </div>
-                   {/* NID, NIDN & NUPTK */}
-                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* NID, NIDN & NUPTK */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                         NID
@@ -3376,20 +3622,20 @@ export default function Dosen() {
                         autoComplete="off"
                       />
                     </div>
-                     <div className="mb-4">
-                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                         NUPTK
-                       </label>
-                       <input
-                         type="text"
-                         name="nuptk"
-                         value={form.nuptk || ""}
-                         onChange={handleInputChange}
-                         className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
-                         placeholder="Masukkan NUPTK atau - jika belum ada"
-                         autoComplete="off"
-                       />
-                     </div>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                        NUPTK
+                      </label>
+                      <input
+                        type="text"
+                        name="nuptk"
+                        value={form.nuptk || ""}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        placeholder="Masukkan NUPTK atau - jika belum ada"
+                        autoComplete="off"
+                      />
+                    </div>
                   </div>
                   {/* Email & Telepon */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -3462,83 +3708,98 @@ export default function Dosen() {
                   {peranUtama === "aktif" && (
                     <>
                       <div className="mb-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          {/* Peran Ketua */}
+                        <div className="space-y-6">
+                          {/* Peran Selection */}
                           <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
-                                Koordinator
+                            <div className="mb-2">
+                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                                Peran Khusus
                               </label>
-                              <button
-                                type="button"
-                                className={`text-xs font-medium px-2 py-1 rounded transition ${
-                                  totalPeran >= 4
-                                    ? "text-gray-200 dark:text-gray-500 cursor-not-allowed opacity-60"
-                                    : "text-brand-500 hover:text-brand-600"
-                                }`}
-                                disabled={totalPeran >= 4}
-                                onClick={() =>
-                                  setPeranKetua([
-                                    ...peranKetua,
-                                    {
-                                      mata_kuliah_kode: "",
-                                      peran_kurikulum: "",
-                                      blok: "",
-                                      semester: "",
-                                    },
-                                  ])
-                                }
+                              <Listbox
+                                value={selectedPeranType}
+                                onChange={setSelectedPeranType}
                               >
-                                + Tambah
-                              </button>
-                            </div>
-                            {peranKetua.map((item, idx) => (
-                              <div
-                                key={idx}
-                                className="mb-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg"
-                              >
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className="text-xs text-gray-500">
-                                    Ketua {idx + 1}
-                                  </span>
-                                  {peranKetua.length > 0 && (
-                                    <button
-                                      type="button"
-                                      className="text-xs text-red-500 hover:text-red-600"
-                                      onClick={() =>
-                                        setPeranKetua(
-                                          peranKetua.filter((_, i) => i !== idx)
-                                        )
-                                      }
+                                {({ open }) => (
+                                  <div className="relative">
+                                    <Listbox.Button className="relative w-full cursor-default rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-2 pl-3 pr-10 text-left text-gray-800 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 sm:text-sm">
+                                      <span className="block truncate">
+                                        {selectedPeranType === "none" &&
+                                          "None (Dosen Mengajar)"}
+                                        {selectedPeranType === "koordinator" &&
+                                          "Koordinator"}
+                                        {selectedPeranType === "tim_blok" &&
+                                          "Tim Blok"}
+                                      </span>
+                                      <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                                        <FontAwesomeIcon
+                                          icon={faChevronDown}
+                                          className="h-5 w-5 text-gray-400"
+                                        />
+                                      </span>
+                                    </Listbox.Button>
+                                    <Transition
+                                      show={open}
+                                      as={"div"}
+                                      leave="transition ease-in duration-100"
+                                      leaveFrom="opacity-100"
+                                      leaveTo="opacity-0"
+                                      className="absolute z-50 mt-1 w-full overflow-auto rounded-md bg-white dark:bg-gray-800 py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm max-h-60 hide-scroll"
                                     >
-                                      Hapus
-                                    </button>
-                                  )}
+                                      <Listbox.Options static>
+                                        <Listbox.Option
+                                          className={({ active }) =>
+                                            `relative cursor-default select-none py-2 pl-4 pr-4 ${
+                                              active
+                                                ? "bg-brand-100 text-brand-900"
+                                                : "text-gray-900 dark:text-gray-100"
+                                            }`
+                                          }
+                                          value="none"
+                                        >
+                                          None (Dosen Mengajar)
+                                        </Listbox.Option>
+                                        <Listbox.Option
+                                          className={({ active }) =>
+                                            `relative cursor-default select-none py-2 pl-4 pr-4 ${
+                                              active
+                                                ? "bg-brand-100 text-brand-900"
+                                                : "text-gray-900 dark:text-gray-100"
+                                            }`
+                                          }
+                                          value="koordinator"
+                                        >
+                                          Koordinator
+                                        </Listbox.Option>
+                                        <Listbox.Option
+                                          className={({ active }) =>
+                                            `relative cursor-default select-none py-2 pl-4 pr-4 ${
+                                              active
+                                                ? "bg-brand-100 text-brand-900"
+                                                : "text-gray-900 dark:text-gray-100"
+                                            }`
+                                          }
+                                          value="tim_blok"
+                                        >
+                                          Tim Blok
+                                        </Listbox.Option>
+                                      </Listbox.Options>
+                                    </Transition>
+                                  </div>
+                                )}
+                              </Listbox>
+                            </div>
+                            {/* Dropdown Mata Kuliah - hanya muncul jika peran bukan none */}
+                            {selectedPeranType !== "none" && (
+                              <div className="mb-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg w-full">
+                                <div className="mb-2">
+                                  <span className="text-xs text-gray-500">
+                                    Pilih Mata Kuliah
+                                  </span>
                                 </div>
                                 {/* Listbox Matkul */}
                                 <Listbox
-                                  value={item.mata_kuliah_kode}
-                                  onChange={(value) => {
-                                    const selectedMatkul = matkulList.find(
-                                      (mk) => mk.kode === value
-                                    );
-                                    setPeranKetua(
-                                      peranKetua.map((p, i) =>
-                                        i === idx
-                                          ? {
-                                              ...p,
-                                              mata_kuliah_kode: value,
-                                              blok: String(
-                                                selectedMatkul?.blok || ""
-                                              ),
-                                              semester: String(
-                                                selectedMatkul?.semester || ""
-                                              ),
-                                            }
-                                          : p
-                                      )
-                                    );
-                                  }}
+                                  value={selectedMataKuliah}
+                                  onChange={setSelectedMataKuliah}
                                 >
                                   {({ open }) => (
                                     <div className="relative mb-2">
@@ -3548,8 +3809,7 @@ export default function Dosen() {
                                             const selectedMatkul =
                                               matkulList.find(
                                                 (mk) =>
-                                                  mk.kode ===
-                                                  item.mata_kuliah_kode
+                                                  mk.kode === selectedMataKuliah
                                               );
                                             return selectedMatkul
                                               ? `Blok ${selectedMatkul.blok}: ${selectedMatkul.nama}`
@@ -3662,336 +3922,34 @@ export default function Dosen() {
                                   )}
                                 </Listbox>
                                 {/* Listbox Peran Kurikulum */}
-                                <Listbox
-                                  value={item.peran_kurikulum}
-                                  onChange={(value) =>
-                                    !editMode &&
-                                    setPeranKetua(
-                                      peranKetua.map((p, i) =>
-                                        i === idx
-                                          ? { ...p, peran_kurikulum: value }
-                                          : p
-                                      )
-                                    )
-                                  }
-                                  disabled={editMode}
-                                >
-                                  {({ open }) => (
-                                    <div className="relative">
-                                      <Listbox.Button className="relative w-full cursor-default rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-2 pl-3 pr-10 text-left text-gray-800 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 sm:text-sm">
-                                        <span className="block truncate">
-                                          {item.peran_kurikulum ||
-                                            "Pilih Peran Kurikulum"}
-                                        </span>
-                                        <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                                          <FontAwesomeIcon
-                                            icon={faChevronDown}
-                                            className="h-5 w-5 text-gray-400"
-                                          />
-                                        </span>
-                                      </Listbox.Button>
-                                      <Transition
-                                        show={open}
-                                        as={"div"}
-                                        leave="transition ease-in duration-100"
-                                        leaveFrom="opacity-100"
-                                        leaveTo="opacity-0"
-                                        className="absolute z-50 mt-1 w-full overflow-auto rounded-md bg-white dark:bg-gray-800 py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm max-h-60 hide-scroll"
-                                      >
-                                        <Listbox.Options static>
-                                          {peranKurikulumOptions.length ===
-                                          0 ? (
-                                            <Listbox.Option
-                                              className="relative cursor-default select-none py-2.5 pl-4 pr-4 text-gray-400 dark:text-gray-500"
-                                              value=""
-                                              disabled
-                                            >
-                                              Belum ada peran kurikulum
-                                            </Listbox.Option>
-                                          ) : (
-                                            peranKurikulumOptions.map(
-                                              (peran) => (
-                                                <Listbox.Option
-                                                  key={peran}
-                                                  className={({ active }) =>
-                                                    `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
-                                                      active
-                                                        ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
-                                                        : "text-gray-900 dark:text-gray-100"
-                                                    }`
-                                                  }
-                                                  value={peran}
-                                                >
-                                                  {({ selected }) => (
-                                                    <div className="flex items-center justify-between">
-                                                      <span
-                                                        className={`block truncate ${
-                                                          selected
-                                                            ? "font-medium"
-                                                            : "font-normal"
-                                                        }`}
-                                                      >
-                                                        {peran}
-                                                      </span>
-                                                      {selected && (
-                                                        <span className="text-brand-500">
-                                                          <svg
-                                                            className="w-5 h-5"
-                                                            fill="none"
-                                                            stroke="currentColor"
-                                                            viewBox="0 0 24 24"
-                                                          >
-                                                            <path
-                                                              strokeLinecap="round"
-                                                              strokeLinejoin="round"
-                                                              strokeWidth={2}
-                                                              d="M5 13l4 4L19 7"
-                                                            />
-                                                          </svg>
-                                                        </span>
-                                                      )}
-                                                    </div>
-                                                  )}
-                                                </Listbox.Option>
-                                              )
-                                            )
-                                          )}
-                                        </Listbox.Options>
-                                      </Transition>
-                                    </div>
-                                  )}
-                                </Listbox>
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* Peran Anggota */}
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
-                              <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
-                                Tim Blok
-                              </label>
-                              <button
-                                type="button"
-                                className={`text-xs font-medium px-2 py-1 rounded transition ${
-                                  totalPeran >= 4
-                                    ? "text-gray-200 dark:text-gray-500 cursor-not-allowed opacity-60"
-                                    : "text-brand-500 hover:text-brand-600"
-                                }`}
-                                disabled={totalPeran >= 4}
-                                onClick={() =>
-                                  setPeranAnggota([
-                                    ...peranAnggota,
-                                    {
-                                      mata_kuliah_kode: "",
-                                      peran_kurikulum: "",
-                                      blok: "",
-                                      semester: "",
-                                    },
-                                  ])
-                                }
-                              >
-                                + Tambah
-                              </button>
-                            </div>
-                            {peranAnggota.map((item, idx) => (
-                              <div
-                                key={idx}
-                                className="mb-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg"
-                              >
-                                <div className="flex items-center justify-between mb-2">
+                                <div className="mb-2">
                                   <span className="text-xs text-gray-500">
-                                    Anggota {idx + 1}
+                                    Pilih Peran Kurikulum
+                                    {selectedMataKuliah && (
+                                      <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">
+                                        (Difilter berdasarkan mata kuliah yang dipilih - {filteredPeranKurikulumOptions.length} tersedia)
+                                      </span>
+                                    )}
                                   </span>
-                                  {peranAnggota.length > 0 && (
-                                    <button
-                                      type="button"
-                                      className={`text-xs text-red-500 hover:text-red-600 ${
-                                        editMode
-                                          ? "opacity-60 cursor-not-allowed pointer-events-none"
-                                          : ""
-                                      }`}
-                                      onClick={() =>
-                                        !editMode &&
-                                        setPeranAnggota(
-                                          peranAnggota.filter(
-                                            (_, i) => i !== idx
-                                          )
-                                        )
-                                      }
-                                      disabled={editMode}
-                                    >
-                                      Hapus
-                                    </button>
-                                  )}
                                 </div>
-                                {/* Listbox Matkul */}
                                 <Listbox
-                                  value={item.mata_kuliah_kode}
-                                  onChange={(value) => {
-                                    const selectedMatkul = matkulList.find(
-                                      (mk) => mk.kode === value
-                                    );
-                                    setPeranAnggota(
-                                      peranAnggota.map((p, i) =>
-                                        i === idx
-                                          ? {
-                                              ...p,
-                                              mata_kuliah_kode: value,
-                                              blok: String(
-                                                selectedMatkul?.blok || ""
-                                              ),
-                                              semester: String(
-                                                selectedMatkul?.semester || ""
-                                              ),
-                                            }
-                                          : p
-                                      )
-                                    );
-                                  }}
-                                >
-                                  {({ open }) => (
-                                    <div className="relative mb-2">
-                                      <Listbox.Button className="relative w-full cursor-default rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-2 pl-3 pr-10 text-left text-gray-800 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 sm:text-sm">
-                                        <span className="block truncate">
-                                          {(() => {
-                                            const selectedMatkul =
-                                              matkulList.find(
-                                                (mk) =>
-                                                  mk.kode ===
-                                                  item.mata_kuliah_kode
-                                              );
-                                            return selectedMatkul
-                                              ? `Blok ${selectedMatkul.blok}: ${selectedMatkul.nama}`
-                                              : "Pilih Mata Kuliah";
-                                          })()}
-                                        </span>
-                                        <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                                          <FontAwesomeIcon
-                                            icon={faChevronDown}
-                                            className="h-5 w-5 text-gray-400"
-                                          />
-                                        </span>
-                                      </Listbox.Button>
-                                      <Transition
-                                        show={open}
-                                        as={"div"}
-                                        leave="transition ease-in duration-100"
-                                        leaveFrom="opacity-100"
-                                        leaveTo="opacity-0"
-                                        className="absolute z-50 mt-1 w-full overflow-auto rounded-md bg-white dark:bg-gray-800 py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm max-h-60 hide-scroll"
-                                      >
-                                        <Listbox.Options static>
-                                          {(() => {
-                                            const blokMataKuliah = matkulList
-                                              .filter(
-                                                (mk) => mk.jenis === "Blok"
-                                              )
-                                              .sort((a, b) => {
-                                                if (a.semester !== b.semester)
-                                                  return (
-                                                    a.semester - b.semester
-                                                  );
-                                                return (
-                                                  (a.blok || 0) - (b.blok || 0)
-                                                );
-                                              });
-
-                                            const groupedBySemester =
-                                              blokMataKuliah.reduce(
-                                                (acc, mk) => {
-                                                  if (!acc[mk.semester])
-                                                    acc[mk.semester] = [];
-                                                  acc[mk.semester].push(mk);
-                                                  return acc;
-                                                },
-                                                {} as Record<
-                                                  number,
-                                                  typeof blokMataKuliah
-                                                >
-                                              );
-
-                                            return Object.entries(
-                                              groupedBySemester
-                                            ).map(([semester, mataKuliah]) => (
-                                              <div key={semester}>
-                                                <div className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700">
-                                                  Semester {semester}
-                                                </div>
-                                                {mataKuliah.map((mk) => (
-                                                  <Listbox.Option
-                                                    key={mk.kode}
-                                                    className={({ active }) =>
-                                                      `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
-                                                        active
-                                                          ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
-                                                          : "text-gray-900 dark:text-gray-100"
-                                                      }`
-                                                    }
-                                                    value={mk.kode}
-                                                  >
-                                                    {({ selected }) => (
-                                                      <div className="flex items-center justify-between">
-                                                        <span
-                                                          className={`block truncate ${
-                                                            selected
-                                                              ? "font-medium"
-                                                              : "font-normal"
-                                                          }`}
-                                                        >
-                                                          Blok {mk.blok}:{" "}
-                                                          {mk.nama}
-                                                        </span>
-                                                        {selected && (
-                                                          <span className="text-brand-500">
-                                                            <svg
-                                                              className="w-5 h-5"
-                                                              fill="none"
-                                                              stroke="currentColor"
-                                                              viewBox="0 0 24 24"
-                                                            >
-                                                              <path
-                                                                strokeLinecap="round"
-                                                                strokeLinejoin="round"
-                                                                strokeWidth={2}
-                                                                d="M5 13l4 4L19 7"
-                                                              />
-                                                            </svg>
-                                                          </span>
-                                                        )}
-                                                      </div>
-                                                    )}
-                                                  </Listbox.Option>
-                                                ))}
-                                              </div>
-                                            ));
-                                          })()}
-                                        </Listbox.Options>
-                                      </Transition>
-                                    </div>
-                                  )}
-                                </Listbox>
-                                {/* Listbox Peran Kurikulum */}
-                                <Listbox
-                                  value={item.peran_kurikulum}
-                                  onChange={(value) =>
-                                    !editMode &&
-                                    setPeranAnggota(
-                                      peranAnggota.map((p, i) =>
-                                        i === idx
-                                          ? { ...p, peran_kurikulum: value }
-                                          : p
-                                      )
-                                    )
-                                  }
-                                  disabled={editMode}
+                                  value={selectedPeranKurikulum}
+                                  onChange={setSelectedPeranKurikulum}
                                 >
                                   {({ open }) => (
                                     <div className="relative">
                                       <Listbox.Button className="relative w-full cursor-default rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-2 pl-3 pr-10 text-left text-gray-800 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 sm:text-sm">
                                         <span className="block truncate">
-                                          {item.peran_kurikulum ||
-                                            "Pilih Peran Kurikulum"}
+                                          {selectedPeranKurikulum ||
+                                            (selectedMataKuliah 
+                                              ? `Pilih Peran Kurikulum untuk ${(() => {
+                                                  const selectedMatkul = matkulList.find(mk => mk.kode === selectedMataKuliah);
+                                                  return selectedMatkul 
+                                                    ? `Blok ${selectedMatkul.blok}: ${selectedMatkul.nama}` 
+                                                    : "Mata Kuliah yang Dipilih";
+                                                })()}`
+                                              : "Pilih Peran Kurikulum"
+                                            )}
                                         </span>
                                         <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
                                           <FontAwesomeIcon
@@ -4009,17 +3967,30 @@ export default function Dosen() {
                                         className="absolute z-50 mt-1 w-full overflow-auto rounded-md bg-white dark:bg-gray-800 py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm max-h-60 hide-scroll"
                                       >
                                         <Listbox.Options static>
-                                          {peranKurikulumOptions.length ===
+                                          {/* Header informasi mata kuliah yang dipilih */}
+                                          {selectedMataKuliah && (
+                                            <div className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+                                              Peran kurikulum untuk: {(() => {
+                                                const selectedMatkul = matkulList.find(mk => mk.kode === selectedMataKuliah);
+                                                return selectedMatkul 
+                                                  ? `Blok ${selectedMatkul.blok}: ${selectedMatkul.nama}` 
+                                                  : "Mata Kuliah yang Dipilih";
+                                              })()}
+                                            </div>
+                                          )}
+                                          {filteredPeranKurikulumOptions.length ===
                                           0 ? (
                                             <Listbox.Option
                                               className="relative cursor-default select-none py-2.5 pl-4 pr-4 text-gray-400 dark:text-gray-500"
                                               value=""
                                               disabled
                                             >
-                                              Belum ada peran kurikulum
+                                              {selectedMataKuliah 
+                                                ? "Tidak ada peran kurikulum untuk mata kuliah ini" 
+                                                : "Belum ada peran kurikulum"}
                                             </Listbox.Option>
                                           ) : (
-                                            peranKurikulumOptions.map(
+                                            filteredPeranKurikulumOptions.map(
                                               (peran) => (
                                                 <Listbox.Option
                                                   key={peran}
@@ -4072,7 +4043,7 @@ export default function Dosen() {
                                   )}
                                 </Listbox>
                               </div>
-                            ))}
+                            )}
                           </div>
                         </div>
                       </div>
@@ -4095,27 +4066,38 @@ export default function Dosen() {
                       </div>
                     </div>
                   )}
-                  
+
                   {/* Info khusus untuk dosen standby */}
                   {peranUtama === "standby" && (
                     <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                       <div className="flex items-start space-x-3">
-                        <svg className="w-6 h-6 text-yellow-600 dark:text-yellow-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                        <svg
+                          className="w-6 h-6 text-yellow-600 dark:text-yellow-400 mt-0.5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+                          />
                         </svg>
                         <div>
                           <h3 className="text-sm font-semibold text-yellow-800 dark:text-yellow-200 mb-2">
                             📋 Dosen Standby
                           </h3>
                           <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                            Dosen ini akan otomatis memiliki keahlian "Standby" dan kompetensi kosong. 
-                            Dosen standby siap untuk di-assign ke modul PBL kapan saja.
+                            Dosen ini akan otomatis memiliki keahlian "Standby"
+                            dan kompetensi kosong. Dosen standby siap untuk
+                            di-assign ke modul PBL kapan saja.
                           </p>
                         </div>
                       </div>
                     </div>
                   )}
-                  
+
                   {/* Field kompetensi & keahlian hanya muncul jika bukan standby */}
                   {peranUtama !== "standby" && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -4135,10 +4117,14 @@ export default function Dosen() {
                           }
                           onChange={(newSelection) => {
                             // Cek apakah keahlian mengandung standby
-                            const hasStandby = Array.isArray(form.keahlian) 
-                              ? form.keahlian.some(k => k.toLowerCase() === "standby")
-                              : (form.keahlian || "").toLowerCase().includes("standby");
-                            
+                            const hasStandby = Array.isArray(form.keahlian)
+                              ? form.keahlian.some(
+                                  (k) => k.toLowerCase() === "standby"
+                                )
+                              : (form.keahlian || "")
+                                  .toLowerCase()
+                                  .includes("standby");
+
                             // Jika standby, kompetensi harus kosong
                             if (hasStandby) {
                               setForm((prev) => ({
@@ -4153,9 +4139,15 @@ export default function Dosen() {
                             }
                           }}
                           multiple
-                          disabled={Array.isArray(form.keahlian) 
-                            ? form.keahlian.some(k => k.toLowerCase() === "standby")
-                            : (form.keahlian || "").toLowerCase().includes("standby")}
+                          disabled={
+                            Array.isArray(form.keahlian)
+                              ? form.keahlian.some(
+                                  (k) => k.toLowerCase() === "standby"
+                                )
+                              : (form.keahlian || "")
+                                  .toLowerCase()
+                                  .includes("standby")
+                          }
                         >
                           {({ open }) => (
                             <div className="relative">
@@ -4307,7 +4299,9 @@ export default function Dosen() {
                           }
                           onChange={(newSelection) => {
                             // Validasi standby: jika ada "standby", harus HANYA "standby"
-                            const hasStandby = newSelection.some(k => k.toLowerCase() === "standby");
+                            const hasStandby = newSelection.some(
+                              (k) => k.toLowerCase() === "standby"
+                            );
                             if (hasStandby && newSelection.length > 1) {
                               // Jika ada standby dan ada keahlian lain, hanya ambil standby
                               setForm((prev) => ({
@@ -4458,6 +4452,29 @@ export default function Dosen() {
                           </button>
                         </div>
                       </div>
+                      {/* Pesan validasi keahlian */}
+                      {keahlianValidationMessage && (
+                        <div className="mt-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                          <div className="flex items-center">
+                            <svg
+                              className="w-5 h-5 text-red-500 mr-2"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+                              />
+                            </svg>
+                            <span className="text-sm text-red-700 dark:text-red-300">
+                              {keahlianValidationMessage}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                   {/* Form Actions */}
@@ -4663,4 +4680,3 @@ export default function Dosen() {
     </div>
   );
 }
-

@@ -128,6 +128,36 @@ class JadwalJurnalReadingController extends Controller
         }
 
         $jadwal = JadwalJurnalReading::create($data);
+
+
+
+        // Log activity
+
+
+        activity()
+
+
+            ->log('Jadwal Jurnal Reading deleted');
+
+
+
+        // Log activity
+
+
+        activity()
+
+
+            ->log('Jadwal Jurnal Reading updated');
+
+
+
+        // Log activity
+
+
+        activity()
+
+
+            ->log('Jadwal Jurnal Reading created');
         
         // Load relasi dan tambahkan dosen_names
         $jadwal->load(['kelompokKecil', 'kelompokKecilAntara', 'dosen', 'ruangan', 'mataKuliah']);
@@ -300,6 +330,27 @@ class JadwalJurnalReadingController extends Controller
         $jadwal->resetPenilaianSubmitted();
         
         $jadwal->update($data);
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Jadwal Jurnal Reading deleted');
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Jadwal Jurnal Reading updated');
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Jadwal Jurnal Reading created');
         
         // Load relasi dan tambahkan dosen_names
         $jadwal->load(['kelompokKecil', 'kelompokKecilAntara', 'dosen', 'ruangan']);
@@ -324,6 +375,27 @@ class JadwalJurnalReadingController extends Controller
         }
 
         $jadwal->delete();
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Jadwal Jurnal Reading deleted');
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Jadwal Jurnal Reading updated');
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Jadwal Jurnal Reading created');
         return response()->json(['message' => 'Jadwal Jurnal Reading berhasil dihapus']);
     }
 
@@ -1000,6 +1072,27 @@ class JadwalJurnalReadingController extends Controller
             'status_konfirmasi' => $request->status,
             'alasan_konfirmasi' => $request->alasan
         ]);
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Jadwal Jurnal Reading deleted');
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Jadwal Jurnal Reading updated');
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Jadwal Jurnal Reading created');
 
         // Get dosen info
         $dosen = User::find($request->dosen_id);

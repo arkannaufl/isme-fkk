@@ -22,10 +22,14 @@ return new class extends Migration
             $table->string('jam_mulai');
             $table->string('jam_selesai');
             $table->integer('jumlah_sesi')->default(1);
+            $table->boolean('penilaian_submitted')->default(false);
+            $table->unsignedBigInteger('penilaian_submitted_by')->nullable();
+            $table->timestamp('penilaian_submitted_at')->nullable();
             $table->timestamps();
 
             $table->foreign('mata_kuliah_kode')->references('kode')->on('mata_kuliah')->onDelete('cascade');
             $table->foreign('ruangan_id')->references('id')->on('ruangan')->onDelete('cascade');
+            $table->foreign('penilaian_submitted_by')->references('id')->on('users')->onDelete('set null');
         });
 
         // Tabel untuk relasi many-to-many antara jadwal praktikum dan dosen

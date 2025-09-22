@@ -54,6 +54,36 @@ class JadwalPraktikumController extends Controller
 
         $jadwal = JadwalPraktikum::create($data);
 
+
+
+        // Log activity
+
+
+        activity()
+
+
+            ->log('Jadwal Praktikum deleted');
+
+
+
+        // Log activity
+
+
+        activity()
+
+
+            ->log('Jadwal Praktikum updated');
+
+
+
+        // Log activity
+
+
+        activity()
+
+
+            ->log('Jadwal Praktikum created');
+
         // Attach dosen
         $jadwal->dosen()->attach($data['dosen_ids']);
 
@@ -100,6 +130,27 @@ class JadwalPraktikumController extends Controller
 
         $jadwal->update($data);
 
+
+        // Log activity
+
+        activity()
+
+            ->log('Jadwal Praktikum deleted');
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Jadwal Praktikum updated');
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Jadwal Praktikum created');
+
         // Sync dosen (replace semua dosen yang ada)
         $jadwal->dosen()->sync($data['dosen_ids']);
 
@@ -114,6 +165,27 @@ class JadwalPraktikumController extends Controller
     {
         $jadwal = JadwalPraktikum::findOrFail($id);
         $jadwal->delete();
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Jadwal Praktikum deleted');
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Jadwal Praktikum updated');
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Jadwal Praktikum created');
         return response()->json(['message' => 'Jadwal praktikum berhasil dihapus']);
     }
 

@@ -10,8 +10,6 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
-use Symfony\Component\Process\Process;
-use Symfony\Component\Process\Exception\ProcessFailedException;
 
 class SystemBackupController extends Controller
 {
@@ -34,7 +32,7 @@ class SystemBackupController extends Controller
     {
         try {
             $request->validate([
-                'type' => 'required|in:full,data_only,structure_only',
+                'type' => 'required|in:full,data_only',
                 'include_files' => 'boolean'
             ]);
 
@@ -73,6 +71,16 @@ class SystemBackupController extends Controller
 
             // Update last backup time in system health
             $this->updateLastBackupTime();
+
+            // Log backup activity
+            activity()
+                ->withProperties([
+                    'type' => $type,
+                    'filename' => $filename,
+                    'include_files' => $includeFiles,
+                    'file_size' => filesize($filepath)
+                ])
+                ->log("System backup created: {$type} backup - {$filename}");
 
             // Return file download and delete from server after sending
             return response()->download($filepath, $filename)->deleteFileAfterSend(true);
@@ -349,6 +357,18 @@ class SystemBackupController extends Controller
                     $message .= " Import type was auto-corrected from '{$type}' to '{$correctedType}' based on file content.";
                 }
                 
+                // Log import activity
+                activity()
+                    ->withProperties([
+                        'filename' => $backupFile->getClientOriginalName(),
+                        'backup_type' => $correctedType,
+                        'original_requested_type' => $type,
+                        'detected_file_type' => $detectedType,
+                        'pre_import_backup' => basename($preImportBackup),
+                        'file_size' => $backupFile->getSize()
+                    ])
+                    ->log("System backup imported: {$correctedType} backup from {$backupFile->getClientOriginalName()}");
+
                 $responseData = [
                     'success' => true,
                     'message' => $message,
@@ -634,7 +654,7 @@ class SystemBackupController extends Controller
                 }
                 
                 // Add table structure if needed
-                if ($type === 'full' || $type === 'structure_only') {
+                if ($type === 'full') {
                     $sql .= "-- Table structure for table `{$table}`\n";
                     $sql .= "DROP TABLE IF EXISTS `{$table}`;\n";
                     
@@ -708,54 +728,6 @@ class SystemBackupController extends Controller
         }
     }
 
-    /**
-     * Generate mysqldump command based on backup type (fallback method)
-     */
-    private function generateBackupCommand(string $type, string $filepath): string
-    {
-        $host = config('database.connections.mysql.host');
-        $port = config('database.connections.mysql.port');
-        $database = config('database.connections.mysql.database');
-        $username = config('database.connections.mysql.username');
-        $password = config('database.connections.mysql.password');
-
-        // Escape filepath for Windows
-        $escapedFilepath = '"' . str_replace('/', '\\', $filepath) . '"';
-        
-        // Build command array for better security and Windows compatibility
-        $command = ['mysqldump'];
-        $command[] = "--host={$host}";
-        $command[] = "--port={$port}";
-        $command[] = "--user={$username}";
-        
-        if ($password) {
-            $command[] = "--password={$password}";
-        }
-
-        // Add type-specific options
-        switch ($type) {
-            case 'structure_only':
-                $command[] = '--no-data';
-                $command[] = '--routines';
-                $command[] = '--triggers';
-                break;
-            case 'data_only':
-                $command[] = '--no-create-info';
-                $command[] = '--complete-insert';
-                break;
-            case 'full':
-            default:
-                $command[] = '--routines';
-                $command[] = '--triggers';
-                $command[] = '--complete-insert';
-                break;
-        }
-
-        $command[] = $database;
-        
-        // Return as string command with output redirect
-        return implode(' ', $command) . " > {$escapedFilepath}";
-    }
 
     /**
      * Import SQL file to database using PHP approach (more reliable)
@@ -936,33 +908,6 @@ class SystemBackupController extends Controller
         }
     }
 
-    /**
-     * Import SQL file to database (fallback method using mysql command)
-     */
-    private function importSqlFile(string $sqlFile, string $type): void
-    {
-        $host = config('database.connections.mysql.host');
-        $port = config('database.connections.mysql.port');
-        $database = config('database.connections.mysql.database');
-        $username = config('database.connections.mysql.username');
-        $password = config('database.connections.mysql.password');
-
-        $command = "mysql -h{$host} -P{$port} -u{$username}";
-        
-        if ($password) {
-            $command .= " -p{$password}";
-        }
-
-        $command .= " {$database} < {$sqlFile}";
-
-        $process = Process::fromShellCommandline($command);
-        $process->setTimeout(600); // 10 minutes timeout for large imports
-        $process->run();
-
-        if (!$process->isSuccessful()) {
-            throw new ProcessFailedException($process);
-        }
-    }
 
     /**
      * Add storage files to ZIP archive
@@ -1059,21 +1004,6 @@ class SystemBackupController extends Controller
         return round($bytes, $precision) . ' ' . $units[$i];
     }
 
-    /**
-     * Get backup type from filename
-     */
-    private function getBackupType(string $filename): string
-    {
-        if (strpos($filename, '_full_') !== false) {
-            return 'full';
-        } elseif (strpos($filename, '_data_only_') !== false) {
-            return 'data_only';
-        } elseif (strpos($filename, '_structure_only_') !== false) {
-            return 'structure_only';
-        }
-        
-        return 'unknown';
-    }
     
     /**
      * Check if file is a ZIP file by reading file signature
@@ -1149,8 +1079,6 @@ class SystemBackupController extends Controller
                 $detectedType = 'full';
             } elseif ($hasInsertData && ($hasTruncate || stripos($content, 'DELETE FROM') !== false)) {
                 $detectedType = 'data_only';
-            } elseif ($hasCreateTable && !$hasInsertData) {
-                $detectedType = 'structure_only';
             } else {
                 $detectedType = 'unknown';
             }
@@ -1190,9 +1118,6 @@ class SystemBackupController extends Controller
             } elseif ($detectedType === 'full' && $requestedType === 'data_only') {
                 // Keep as 'data_only' - will import data portion only
                 $warnings[] = "Importing data portion only from full backup as requested";
-            } elseif ($detectedType === 'structure_only') {
-                $correctedType = 'structure_only';
-                $warnings[] = "Auto-corrected import type to 'structure_only' based on file content";
             }
         }
         

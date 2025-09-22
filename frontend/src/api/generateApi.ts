@@ -11,6 +11,15 @@ export interface Mahasiswa {
   angkatan: string;
   role: string;
   semester?: number;
+  is_veteran?: boolean;
+  veteran_notes?: string;
+  veteran_set_at?: string;
+  veteran_set_by?: number;
+  veteran_semester?: string;
+  veteranSetBy?: {
+    id: number;
+    name: string;
+  };
 }
 
 export interface Semester {
@@ -110,6 +119,10 @@ export const kelompokBesarApi = {
   // Hapus mahasiswa dari kelompok besar
   delete: (id: number) =>
     api.delete(`/kelompok-besar/${id}`),
+
+  // Hapus mahasiswa dari kelompok besar berdasarkan mahasiswa ID
+  deleteByMahasiswaId: (mahasiswaId: number, semester: string) =>
+    api.delete(`/kelompok-besar/mahasiswa/${mahasiswaId}?semester=${semester}`),
 
   // Batch by semester
   batchBySemester: (data: { semesters: string[] }) =>
@@ -211,9 +224,77 @@ export const mahasiswaApi = {
     api.get<Mahasiswa[]>(`/users?role=mahasiswa&semester=${semester}`),
 };
 
+// Mahasiswa Veteran API
+export const mahasiswaVeteranApi = {
+  // Get semua mahasiswa veteran
+  getAll: (params?: {
+    veteran_only?: boolean;
+    angkatan?: string;
+    search?: string;
+  }) =>
+    api.get<Mahasiswa[]>('/mahasiswa-veteran', { params }),
+
+  // Toggle veteran status
+  toggleVeteran: (data: {
+    user_id: number;
+    is_veteran: boolean;
+    veteran_notes?: string;
+    veteran_semester?: string;
+  }) =>
+    api.post('/mahasiswa-veteran/toggle', data),
+
+  // Bulk toggle veteran status
+  bulkToggleVeteran: (data: {
+    user_ids: number[];
+    is_veteran: boolean;
+    veteran_notes?: string;
+  }) =>
+    api.post('/mahasiswa-veteran/bulk-toggle', data),
+
+  // Get veteran statistics
+  getStatistics: () =>
+    api.get('/mahasiswa-veteran/statistics'),
+
+  // Release veteran from semester
+  releaseFromSemester: (data: {
+    user_id: number;
+    semester: string;
+  }) =>
+    api.post('/mahasiswa-veteran/release-from-semester', data),
+};
+
 // Forum API
 export const forumApi = {
   // Get forum viewers
   getViewers: (id: number) =>
     api.get(`/forum/${id}/viewers`),
+};
+
+// PBL Generate API
+export const pblGenerateApi = {
+  // Generate assignments
+  generateAssignments: (data: {
+    assignments: Array<{
+      pbl_id: number;
+      dosen_id: number;
+      role: string;
+    }>;
+  }) =>
+    api.post('/pbl-generate/assignments', data),
+
+  // Reset assignments
+  resetAssignments: (data: {
+    pbl_ids: number[];
+  }) =>
+    api.post('/pbl-generate/reset', data),
+
+  // Get assignments
+  getAssignments: (data: {
+    pbl_ids: number[];
+  }) =>
+    api.post('/pbl-generate/get-assignments', data),
+
+  // Check generate status per blok
+  checkGenerateStatus: (blok: number) =>
+    api.get(`/pbl-generate/check-status?blok=${blok}`),
 }; 

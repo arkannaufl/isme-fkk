@@ -70,6 +70,17 @@ class NotificationController extends Controller
                 'is_read' => true,
                 'read_at' => now()
             ]);
+
+            // Log activity
+            activity()
+                ->performedOn($notification)
+                ->withProperties([
+                    'notification_id' => $notification->id,
+                    'title' => $notification->title,
+                    'type' => $notification->type
+                ])
+                ->log('Notification marked as read: ' . $notification->title);
+                
             return response()->json(['message' => 'Notification marked as read']);
         }
         
@@ -79,6 +90,16 @@ class NotificationController extends Controller
             'is_read' => true,
             'read_at' => now()
         ]);
+
+        // Log activity
+        activity()
+            ->performedOn($notification)
+            ->withProperties([
+                'notification_id' => $notification->id,
+                'title' => $notification->title,
+                'type' => $notification->type
+            ])
+            ->log('Notification marked as read: ' . $notification->title);
 
         return response()->json(['message' => 'Notification marked as read']);
     }
@@ -136,6 +157,8 @@ class NotificationController extends Controller
             ],
         ]);
 
+
+
         return $notification;
     }
 
@@ -182,6 +205,8 @@ class NotificationController extends Controller
                 // Field semester dihapus untuk menghindari inkonsistensi
             ],
         ]);
+
+
 
         return $notification;
     }
@@ -392,6 +417,27 @@ class NotificationController extends Controller
 
         $deleted = Notification::where('user_id', $userId)->delete();
 
+
+        // Log activity
+
+        activity()
+
+            ->log('Notification deleted');
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Notification updated');
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Notification created');
+
         return response()->json([
             'message' => 'All notifications cleared',
             'deleted_count' => $deleted
@@ -411,6 +457,27 @@ class NotificationController extends Controller
         }
 
         $notification->delete();
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Notification deleted');
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Notification updated');
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Notification created');
 
         return response()->json(['message' => 'Notification deleted']);
     }
@@ -434,6 +501,27 @@ class NotificationController extends Controller
                 'is_read' => false,
                 'read_at' => null
             ]);
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Notification deleted');
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Notification updated');
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Notification created');
 
             // Determine jadwal_type from notification data or request
             $jadwalType = $request->jadwal_type;
@@ -478,6 +566,27 @@ class NotificationController extends Controller
                 'is_read' => false,
                 'data' => $notification->data
             ]);
+
+
+            // Log activity
+
+            activity()
+
+                ->log('Notification deleted');
+
+
+            // Log activity
+
+            activity()
+
+                ->log('Notification updated');
+
+
+            // Log activity
+
+            activity()
+
+                ->log('Notification created');
 
             return response()->json([
                 'message' => 'Dosen diminta untuk konfirmasi ulang',
@@ -646,6 +755,27 @@ class NotificationController extends Controller
                 'read_at' => now()
             ]);
 
+
+            // Log activity
+
+            activity()
+
+                ->log('Notification deleted');
+
+
+            // Log activity
+
+            activity()
+
+                ->log('Notification updated');
+
+
+            // Log activity
+
+            activity()
+
+                ->log('Notification created');
+
             // Create notification for new dosen
             $newNotification = Notification::create([
                 'user_id' => $request->new_dosen_id,
@@ -659,6 +789,27 @@ class NotificationController extends Controller
                     'admin_action' => 'replaced'
                 ])
             ]);
+
+
+            // Log activity
+
+            activity()
+
+                ->log('Notification deleted');
+
+
+            // Log activity
+
+            activity()
+
+                ->log('Notification updated');
+
+
+            // Log activity
+
+            activity()
+
+                ->log('Notification created');
 
             return response()->json([
                 'message' => 'Dosen berhasil diganti',

@@ -95,4 +95,37 @@ class KelompokBesarController extends Controller
         }
         return response()->json($result);
     }
+
+    public function deleteByMahasiswaId(Request $request, $mahasiswaId)
+    {
+        $semester = $request->query('semester');
+        
+        if (!$semester) {
+            return response()->json([
+                'message' => 'Semester parameter is required'
+            ], 400);
+        }
+
+        try {
+            $deleted = KelompokBesar::where('mahasiswa_id', $mahasiswaId)
+                ->where('semester', $semester)
+                ->delete();
+
+            if ($deleted > 0) {
+                return response()->json([
+                    'message' => 'Mahasiswa berhasil dihapus dari kelompok besar',
+                    'deleted_count' => $deleted
+                ]);
+            } else {
+                return response()->json([
+                    'message' => 'Mahasiswa tidak ditemukan di kelompok besar semester ini'
+                ], 404);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal menghapus mahasiswa dari kelompok besar',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 } 

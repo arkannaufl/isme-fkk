@@ -26,6 +26,9 @@ return new class extends Migration
             $table->text('topik');
             $table->enum('status_konfirmasi', ['belum_konfirmasi', 'bisa', 'tidak_bisa'])->default('belum_konfirmasi');
             $table->text('alasan_konfirmasi')->nullable();
+            $table->boolean('penilaian_submitted')->default(false);
+            $table->unsignedBigInteger('penilaian_submitted_by')->nullable();
+            $table->timestamp('penilaian_submitted_at')->nullable();
             $table->timestamps();
             
             // Foreign keys
@@ -34,6 +37,7 @@ return new class extends Migration
             $table->foreign('ruangan_id')->references('id')->on('ruangan')->onDelete('cascade');
             $table->foreign('kelompok_kecil_id')->references('id')->on('kelompok_kecil')->onDelete('cascade');
             $table->foreign('kategori_id')->references('id')->on('csrs')->onDelete('cascade');
+            $table->foreign('penilaian_submitted_by')->references('id')->on('users')->onDelete('set null');
         });
     }
 

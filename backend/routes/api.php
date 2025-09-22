@@ -26,9 +26,11 @@ use App\Http\Controllers\DashboardTimAkademikController;
 use App\Http\Controllers\ForumController;
 use App\Http\Controllers\SupportCenterController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\PBLGenerateController;
 
 
 Route::post('/login', [AuthController::class, 'login']);
+
 
 Route::middleware(['auth:sanctum', 'validate.token'])->post('/logout', [AuthController::class, 'logout']);
 Route::post('/force-logout-by-token', [AuthController::class, 'forceLogoutByToken']);
@@ -58,7 +60,7 @@ Route::middleware('auth:sanctum')->get('/users/{id}/jadwal-mengajar', [UserContr
 
 Route::middleware('auth:sanctum')->post('/ruangan/import', [RuanganController::class, 'importRuangan']);
 
-Route::middleware('auth:sanctum')->post('/mata-kuliah/import', [MataKuliahController::class, 'import']);
+Route::middleware('auth:sanctum')->post('/mata-kuliah/bulk-import', [MataKuliahController::class, 'bulkImport']);
 
 Route::get('/mata-kuliah/filter-options', [MataKuliahController::class, 'filterOptions']);
 
@@ -109,8 +111,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/tahun-ajaran/active', [App\Http\Controllers\TahunAjaranController::class, 'active']);
     Route::get('/tahun-ajaran/available-semesters', [TahunAjaranController::class, 'getAvailableSemesters']);
 
-    Route::post('kegiatan-akademik-mahasiswa', [MataKuliahController::class, 'getMataKuliahMahasiswa']);
-    Route::post('pilih-mata-kuliah', [MataKuliahController::class, 'pilihMataKuliah']);
 
     Route::apiResource('mata-kuliah.csrs', MataKuliahCSRController::class)->shallow();
     Route::get('/pbls/all', [MataKuliahPBLController::class, 'all']);
@@ -138,6 +138,14 @@ Route::middleware('auth:sanctum')->group(function () {
     // Get PBL assignments for specific dosen
     Route::get('/dosen/{dosenId}/pbl-assignments', [App\Http\Controllers\MataKuliahPBLController::class, 'getDosenPBLAssignments']);
 
+    // PBL Generate Routes - Controller khusus untuk generate sederhana
+    Route::middleware(['auth:sanctum', 'validate.token'])->post('/pbl-generate/assignments', [App\Http\Controllers\PBLGenerateController::class, 'generateAssignments']);
+    Route::middleware(['auth:sanctum', 'validate.token'])->post('/pbl-generate/reset', [App\Http\Controllers\PBLGenerateController::class, 'resetAssignments']);
+    Route::middleware(['auth:sanctum', 'validate.token'])->post('/pbl-generate/get-assignments', [App\Http\Controllers\PBLGenerateController::class, 'getAssignments']);
+    Route::middleware(['auth:sanctum', 'validate.token'])->get('/pbl-generate/check-status', [App\Http\Controllers\PBLGenerateController::class, 'checkGenerateStatus']);
+    
+    
+
     // Admin notification tracking routes (MUST come BEFORE parameterized routes)
     Route::middleware(['auth:sanctum', 'role:super_admin,tim_akademik'])->get('/notifications/admin/all', [App\Http\Controllers\NotificationController::class, 'getAllNotificationsForAdmin']);
     Route::middleware(['auth:sanctum', 'role:super_admin,tim_akademik'])->get('/notifications/admin/stats', [App\Http\Controllers\NotificationController::class, 'getNotificationStats']);
@@ -164,6 +172,7 @@ Route::middleware('auth:sanctum')->get('/kelompok-besar', [KelompokBesarControll
 Route::middleware('auth:sanctum')->get('/kelompok-besar/semester/{semesterId}', [KelompokBesarController::class, 'getBySemesterId']);
 Route::middleware('auth:sanctum')->post('/kelompok-besar', [KelompokBesarController::class, 'store']);
 Route::middleware('auth:sanctum')->delete('/kelompok-besar/{id}', [KelompokBesarController::class, 'destroy']);
+Route::middleware('auth:sanctum')->delete('/kelompok-besar/mahasiswa/{mahasiswaId}', [KelompokBesarController::class, 'deleteByMahasiswaId']);
 Route::middleware('auth:sanctum')->post('/kelompok-besar/batch-by-semester', [\App\Http\Controllers\KelompokBesarController::class, 'batchBySemester']);
 
 Route::middleware('auth:sanctum')->get('/kelompok-kecil', [KelompokKecilController::class, 'index']);
@@ -212,6 +221,9 @@ Route::middleware('auth:sanctum')->prefix('mata-kuliah/{kode}')->group(function 
     Route::apiResource('jadwal-pbl', App\Http\Controllers\JadwalPBLController::class)->parameters([
         'jadwal-pbl' => 'id'
     ]);
+
+    // Route untuk jadwal PBL berdasarkan PBL ID
+    Route::get('/pbls/{pblId}/jadwal', [App\Http\Controllers\JadwalPBLController::class, 'getJadwalByPblId']);
 
     // Batch endpoint untuk DetailBlok page optimization
     Route::get('/batch-data', [App\Http\Controllers\DetailBlokController::class, 'getBatchData']);
@@ -291,6 +303,9 @@ Route::middleware('auth:sanctum')->prefix('kelompok-kecil-antara')->group(functi
 
 
 Route::middleware('auth:sanctum')->prefix('agenda-khusus')->group(function () {
+    Route::get('/', [App\Http\Controllers\AgendaKhususController::class, 'index']);
+    Route::get('/mata-kuliah/{kode}', [App\Http\Controllers\AgendaKhususController::class, 'getByMataKuliah']);
+    Route::get('/date-range', [App\Http\Controllers\AgendaKhususController::class, 'getByDateRange']);
     Route::get('/jadwal/{kode}', [App\Http\Controllers\JadwalAgendaKhususController::class, 'index']);
     Route::post('/jadwal/{kode}', [App\Http\Controllers\JadwalAgendaKhususController::class, 'store']);
     Route::put('/jadwal/{kode}/{id}', [App\Http\Controllers\JadwalAgendaKhususController::class, 'update']);
@@ -318,14 +333,6 @@ Route::middleware('auth:sanctum')->prefix('jurnal-reading')->group(function () {
 // Route download tanpa auth untuk memudahkan akses file
 Route::get('/jurnal-reading/download/{kode}/{id}', [App\Http\Controllers\JadwalJurnalReadingController::class, 'downloadFile'])->name('jurnal.download');
 
-// Route test untuk debugging
-Route::get('/test-jurnal-download', function() {
-    return response()->json([
-        'message' => 'Route test berhasil',
-        'timestamp' => now(),
-        'storage_path' => storage_path('app/public/jurnal_reading')
-    ]);
-});
 
 // Reference data endpoints untuk CSR
 Route::middleware('auth:sanctum')->get('/dosen-options', [JadwalCSRController::class, 'getDosenOptions']);
@@ -369,6 +376,12 @@ Route::middleware('auth:sanctum')->prefix('non-blok-non-csr')->group(function ()
     Route::put('/jadwal/{kode}/{id}', [JadwalNonBlokNonCSRController::class, 'update']);
     Route::delete('/jadwal/{kode}/{id}', [JadwalNonBlokNonCSRController::class, 'destroy']);
     Route::get('/kelompok-besar', [JadwalNonBlokNonCSRController::class, 'kelompokBesar']);
+});
+
+// Jadwal Harian routes
+Route::middleware('auth:sanctum')->prefix('jadwal-harian')->group(function () {
+    Route::get('/', [App\Http\Controllers\JadwalHarianController::class, 'index']);
+    Route::get('/mata-kuliah/{kode}', [App\Http\Controllers\JadwalHarianController::class, 'getByMataKuliah']);
 });
 
 // Routes untuk penilaian jurnal
@@ -422,32 +435,6 @@ Route::middleware(['auth:sanctum', 'role:super_admin'])->prefix('reports')->grou
     Route::post('/export/academic', [App\Http\Controllers\ReportController::class, 'exportAcademic']);
 });
 
-// Test route untuk debugging dashboard (tanpa middleware auth)
-Route::get('/test/dashboard-health', function () {
-    return response()->json([
-        'status' => 'success',
-        'message' => 'Dashboard controller accessible',
-        'timestamp' => now(),
-        'laravel_version' => app()->version(),
-    ]);
-});
-
-// Test route untuk check users data
-Route::get('/test/users-check', function () {
-    $totalUsers = \App\Models\User::count();
-    $superAdminCount = \App\Models\User::where('role', 'super_admin')->count();
-    $latestSuperAdmin = \App\Models\User::where('role', 'super_admin')->latest()->first(['name', 'email', 'username', 'created_at']);
-
-    return response()->json([
-        'total_users' => $totalUsers,
-        'super_admin_count' => $superAdminCount,
-        'latest_super_admin' => $latestSuperAdmin,
-        'all_roles' => \App\Models\User::select('role', \DB::raw('count(*) as count'))->groupBy('role')->get()
-    ]);
-});
-
-// Test dashboard controller tanpa auth untuk debugging
-Route::get('/test/dashboard-data', [App\Http\Controllers\DashboardSuperAdminController::class, 'index']);
 
 // Forum Diskusi Routes
 Route::prefix('forum')->group(function () {
@@ -477,7 +464,6 @@ Route::prefix('forum')->group(function () {
         // Forum bookmarks
         Route::post('/{forumId}/bookmark', [ForumController::class, 'toggleForumBookmark']);
         Route::get('/bookmarks/forums', [ForumController::class, 'getUserForumBookmarks']);
-        Route::get('/bookmarks/forums/debug', [ForumController::class, 'getUserForumBookmarksDebug']);
         Route::get('/bookmarks/forums/simple', [ForumController::class, 'getUserForumBookmarksSimple']);
         Route::get('/{id}/viewers', [ForumController::class, 'getForumViewers']);
 
@@ -487,8 +473,6 @@ Route::prefix('forum')->group(function () {
     // Forum detail tanpa auth agar bisa diakses tanpa login
     Route::get('/{slug}', [ForumController::class, 'show']);
 
-    // Test route untuk nested reply (sementara, hapus setelah testing)
-    Route::post('/{forumId}/replies/test', [ForumController::class, 'storeReplyTest']);
 
     // Categories CRUD dengan auth (hanya Super Admin & Tim Akademik)
     Route::middleware('auth:sanctum')->group(function () {
@@ -516,6 +500,15 @@ Route::prefix('support-center')->group(function () {
         Route::put('/developers/{id}', [SupportCenterController::class, 'update']);
         Route::delete('/developers/{id}', [SupportCenterController::class, 'destroy']);
     });
+});
+
+// Mahasiswa Veteran Routes (Super Admin & Tim Akademik)
+Route::middleware(['auth:sanctum', 'validate.token', 'role:super_admin,tim_akademik'])->prefix('mahasiswa-veteran')->group(function () {
+    Route::get('/', [App\Http\Controllers\MahasiswaVeteranController::class, 'index']);
+    Route::post('/toggle', [App\Http\Controllers\MahasiswaVeteranController::class, 'toggleVeteran']);
+    Route::post('/bulk-toggle', [App\Http\Controllers\MahasiswaVeteranController::class, 'bulkToggleVeteran']);
+    Route::post('/release-from-semester', [App\Http\Controllers\MahasiswaVeteranController::class, 'releaseFromSemester']);
+    Route::get('/statistics', [App\Http\Controllers\MahasiswaVeteranController::class, 'statistics']);
 });
 
 // Admin Management Routes (Super Admin only)

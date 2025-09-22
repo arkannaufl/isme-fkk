@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class UserReplyBookmark extends Model
@@ -28,5 +30,13 @@ class UserReplyBookmark extends Model
     public function reply(): BelongsTo
     {
         return $this->belongsTo(ForumReply::class, 'forum_reply_id');
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn(string $eventName) => "UserReplyBookmark telah di-{$eventName}");
     }
 }

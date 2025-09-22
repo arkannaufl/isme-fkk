@@ -24,6 +24,7 @@ import KelompokBesar from "./pages/KelompokBesar";
 import Kelompok from "./pages/Kelompok";
 import KelompokKecil from "./pages/KelompokKecil";
 import KelasDetail from "./pages/KelasDetail";
+import MahasiswaVeteran from "./pages/MahasiswaVeteran";
 import Histori from "./pages/Histori";
 import ReportingDosen from "./pages/ReportingDosen";
 import PBLDetail from "./pages/PBL-detail";
@@ -46,7 +47,6 @@ import DosenRiwayat from "./pages/DosenRiwayat";
 import MataKuliahDosen from "./pages/MataKuliahDosen";
 import AdminNotifications from "./pages/AdminNotifications";
 import DashboardTimAkademik from "./pages/DashboardTimAkademik";
-import MaintenanceGuard from "./components/common/MaintenanceGuard";
 import ForumDiskusi from "./pages/ForumDiskusi";
 import ForumDetail from "./pages/ForumDetail";
 import ForumCategory from "./pages/ForumCategory";
@@ -120,30 +120,14 @@ function AppContent() {
               {/* Super Admin Only Routes */}
               <Route path="/pbl" element={
                 <RequireDosenRole allowedRoles={["super_admin"]}>
-               <MaintenanceGuard
-                      maintenanceConfig={{
-                        title: "Sistem PBL Sedang Dalam Perbaikan",
-                        message:
-                          "Fitur PBL sedang dalam proses perbaikan untuk memberikan pengalaman yang lebih baik. Mohon maaf atas ketidaknyamanan ini.",
-                      }}
-                    >
-                      <PBLList />
-                    </MaintenanceGuard>
+                  <PBLList />
                 </RequireDosenRole>
               } />
              <Route
                 path="/pbl/blok/:blokId"
                 element={
                   <RequireDosenRole allowedRoles={["super_admin"]}>
-                    <MaintenanceGuard
-                      maintenanceConfig={{
-                        title: "Sistem PBL Sedang Dalam Perbaikan",
-                        message:
-                          "Fitur PBL sedang dalam proses perbaikan untuk memberikan pengalaman yang lebih baik. Mohon maaf atas ketidaknyamanan ini.",
-                      }}
-                    >
-                      <PBLDetail />
-                    </MaintenanceGuard>
+                    <PBLDetail />
                   </RequireDosenRole>
                 }
               />
@@ -151,15 +135,7 @@ function AppContent() {
                 path="/pbl/generate/:blokId"
                 element={
                   <RequireDosenRole allowedRoles={["super_admin"]}>
-                    <MaintenanceGuard
-                      maintenanceConfig={{
-                        title: "Sistem PBL Sedang Dalam Perbaikan",
-                        message:
-                          "Fitur PBL sedang dalam proses perbaikan untuk memberikan pengalaman yang lebih baik. Mohon maaf atas ketidaknyamanan ini.",
-                      }}
-                    >
-                      <PBLGenerate />
-                    </MaintenanceGuard>
+                    <PBLGenerate />
                   </RequireDosenRole>
                 }
               />
@@ -167,42 +143,18 @@ function AppContent() {
                 path="/pbl/keahlian"
                 element={
                   <RequireDosenRole allowedRoles={["super_admin"]}>
-                    <MaintenanceGuard
-                      maintenanceConfig={{
-                        title: "Sistem PBL Sedang Dalam Perbaikan",
-                        message:
-                          "Fitur PBL sedang dalam proses perbaikan untuk memberikan pengalaman yang lebih baik. Mohon maaf atas ketidaknyamanan ini.",
-                      }}
-                    >
-                      <MataKuliahKeahlian />
-                    </MaintenanceGuard>
+                    <MataKuliahKeahlian />
                   </RequireDosenRole>
                 }
               />
               <Route path="/csr" element={
                 <RequireDosenRole allowedRoles={["super_admin", "tim_akademik"]}>
-                  <MaintenanceGuard
-                    maintenanceConfig={{
-                      title: "Sistem CSR Sedang Dalam Perbaikan",
-                      message:
-                        "Fitur CSR sedang dalam proses perbaikan untuk memberikan pengalaman yang lebih baik. Mohon maaf atas ketidaknyamanan ini.",
-                    }}
-                  >
-                    <CSR />
-                  </MaintenanceGuard>
+                  <CSR />
                 </RequireDosenRole>
               } />
               <Route path="/csr/:csrId" element={
                 <RequireDosenRole allowedRoles={["super_admin", "tim_akademik"]}>
-                  <MaintenanceGuard
-                    maintenanceConfig={{
-                      title: "Sistem CSR Sedang Dalam Perbaikan",
-                      message:
-                        "Fitur CSR sedang dalam proses perbaikan untuk memberikan pengalaman yang lebih baik. Mohon maaf atas ketidaknyamanan ini.",
-                    }}
-                  >
-                    <CSRDetail />
-                  </MaintenanceGuard>
+                  <CSRDetail />
                 </RequireDosenRole>
               } />
               <Route path="/dosen" element={
@@ -275,6 +227,11 @@ function AppContent() {
                   <Kelas />
                 </RequireDosenRole>
               } />
+              <Route path="/generate/mahasiswa-veteran" element={
+                <RequireDosenRole allowedRoles={["super_admin", "tim_akademik", "dosen"]}>
+                  <MahasiswaVeteran />
+                </RequireDosenRole>
+              } />
               <Route path="/reporting/dosen" element={
                 <RequireDosenRole allowedRoles={["super_admin", "tim_akademik"]}>
                   <ReportingDosen />
@@ -320,15 +277,7 @@ function AppContent() {
                 path="/mata-kuliah/non-blok-csr/:kode"
                 element={
                   <RequireDosenRole allowedRoles={["super_admin", "tim_akademik"]}>
-                    <MaintenanceGuard
-                      maintenanceConfig={{
-                        title: "Sistem CSR Sedang Dalam Perbaikan",
-                        message:
-                          "Fitur CSR sedang dalam proses perbaikan untuk memberikan pengalaman yang lebih baik. Mohon maaf atas ketidaknyamanan ini.",
-                      }}
-                    >
-                      <DetailNonBlokCSR />
-                    </MaintenanceGuard>
+                    <DetailNonBlokCSR />
                   </RequireDosenRole>
                 }
               />

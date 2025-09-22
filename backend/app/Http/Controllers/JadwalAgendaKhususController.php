@@ -52,6 +52,36 @@ class JadwalAgendaKhususController extends Controller
         }
 
         $jadwal = JadwalAgendaKhusus::create($data);
+
+
+
+        // Log activity
+
+
+        activity()
+
+
+            ->log('Jadwal Agenda Khusus deleted');
+
+
+
+        // Log activity
+
+
+        activity()
+
+
+            ->log('Jadwal Agenda Khusus updated');
+
+
+
+        // Log activity
+
+
+        activity()
+
+
+            ->log('Jadwal Agenda Khusus created');
         return response()->json($jadwal, Response::HTTP_CREATED);
     }
 
@@ -87,6 +117,27 @@ class JadwalAgendaKhususController extends Controller
         }
 
         $jadwal->update($data);
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Jadwal Agenda Khusus deleted');
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Jadwal Agenda Khusus updated');
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Jadwal Agenda Khusus created');
         return response()->json($jadwal);
     }
 
@@ -95,6 +146,27 @@ class JadwalAgendaKhususController extends Controller
     {
         $jadwal = JadwalAgendaKhusus::findOrFail($id);
         $jadwal->delete();
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Jadwal Agenda Khusus deleted');
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Jadwal Agenda Khusus updated');
+
+
+        // Log activity
+
+        activity()
+
+            ->log('Jadwal Agenda Khusus created');
         return response()->json(['message' => 'Jadwal agenda khusus berhasil dihapus']);
     }
 

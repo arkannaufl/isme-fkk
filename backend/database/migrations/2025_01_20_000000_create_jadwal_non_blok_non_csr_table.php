@@ -29,11 +29,15 @@ return new class extends Migration
             $table->boolean('use_ruangan')->default(true); // Flag untuk menentukan apakah menggunakan ruangan atau tidak
             $table->enum('status_konfirmasi', ['belum_konfirmasi', 'bisa', 'tidak_bisa'])->default('belum_konfirmasi');
             $table->text('alasan_konfirmasi')->nullable();
+            $table->boolean('penilaian_submitted')->default(false);
+            $table->unsignedBigInteger('penilaian_submitted_by')->nullable();
+            $table->timestamp('penilaian_submitted_at')->nullable();
             $table->timestamps();
 
             $table->foreign('mata_kuliah_kode')->references('kode')->on('mata_kuliah')->onDelete('cascade');
             $table->foreign('dosen_id')->references('id')->on('users')->onDelete('cascade');
             $table->foreign('ruangan_id')->references('id')->on('ruangan')->onDelete('cascade')->nullable();
+            $table->foreign('penilaian_submitted_by')->references('id')->on('users')->onDelete('set null');
         });
     }
 

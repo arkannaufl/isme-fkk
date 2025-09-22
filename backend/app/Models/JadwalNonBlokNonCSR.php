@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class JadwalNonBlokNonCSR extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity;
 
     protected $table = 'jadwal_non_blok_non_csr';
 
@@ -73,5 +75,16 @@ class JadwalNonBlokNonCSR extends Model
             return implode(', ', $dosenNames);
         }
         return $this->dosen ? $this->dosen->name : '';
+    }
+
+    /**
+     * Get the activity log options for the model.
+     */
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn(string $eventName) => "Jadwal Non Blok Non CSR telah di-{$eventName}");
     }
 } 

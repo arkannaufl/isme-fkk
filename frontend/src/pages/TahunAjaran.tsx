@@ -8,7 +8,6 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import React from "react";
 import api, { handleApiError } from "../utils/api"; // Import the api instance
-import MaintenanceToggle from "../components/admin/MaintenanceToggle";
 
 // Define interfaces for our data structures
 interface Semester {
@@ -513,10 +512,6 @@ export default function TahunAjaran() {
         Daftar Tahun Ajaran
       </h1>
 
-      {/* Maintenance Toggle for Super Admin */}
-      <div className="mb-6">
-        <MaintenanceToggle />
-      </div>
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
         <div className="flex gap-2">

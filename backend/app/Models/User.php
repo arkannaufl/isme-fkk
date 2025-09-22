@@ -31,6 +31,7 @@ class User extends Authenticatable
         'semester',
         'tahun_ajaran_masuk_id', 'semester_masuk',
         'matkul_ketua_id', 'matkul_anggota_id', 'peran_kurikulum_mengajar','peran_utama',
+        'is_veteran', 'veteran_notes', 'veteran_set_at', 'veteran_set_by', 'veteran_semester',
     ];
 
     /**
@@ -55,6 +56,8 @@ class User extends Authenticatable
             'password' => 'hashed',
             'kompetensi' => 'array',
             'keahlian' => 'array',
+            'is_veteran' => 'boolean',
+            'veteran_set_at' => 'datetime',
         ];
     }
 
@@ -120,5 +123,13 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(ForumReply::class, 'user_reply_bookmarks', 'user_id', 'forum_reply_id')
             ->withTimestamps();
+    }
+
+    /**
+     * Get the user who set this user as veteran
+     */
+    public function veteranSetBy()
+    {
+        return $this->belongsTo(User::class, 'veteran_set_by');
     }
 }

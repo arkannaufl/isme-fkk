@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class JadwalCSR extends Model
@@ -55,5 +57,13 @@ class JadwalCSR extends Model
     public function kategori(): BelongsTo
     {
         return $this->belongsTo(CSR::class, 'kategori_id');
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn(string $eventName) => "JadwalCSR telah di-{$eventName}");
     }
 }

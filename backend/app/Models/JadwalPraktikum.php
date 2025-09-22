@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class JadwalPraktikum extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity;
 
     protected $table = 'jadwal_praktikum';
 
@@ -27,4 +29,12 @@ class JadwalPraktikum extends Model
     public function mataKuliah() { return $this->belongsTo(MataKuliah::class, 'mata_kuliah_kode', 'kode'); }
     public function ruangan() { return $this->belongsTo(Ruangan::class, 'ruangan_id'); }
     public function dosen() { return $this->belongsToMany(User::class, 'jadwal_praktikum_dosen', 'jadwal_praktikum_id', 'dosen_id'); }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn(string $eventName) => "JadwalPraktikum telah di-{$eventName}");
+    }
 }

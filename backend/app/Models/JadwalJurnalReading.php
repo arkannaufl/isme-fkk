@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class JadwalJurnalReading extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity;
 
     protected $table = 'jadwal_jurnal_reading';
 
@@ -74,5 +76,13 @@ class JadwalJurnalReading extends Model
             'penilaian_submitted_by' => null,
             'penilaian_submitted_at' => null,
         ]);
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn(string $eventName) => "JadwalJurnalReading telah di-{$eventName}");
     }
 }

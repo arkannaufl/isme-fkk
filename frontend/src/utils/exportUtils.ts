@@ -174,12 +174,12 @@ export const exportToPDF = (
     }
 
     // Add footer
-    const pageCount = doc.getNumberOfPages();
+    const pageCount = (doc as any).internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
       doc.setFontSize(8);
       doc.setTextColor(127, 140, 141);
-      doc.text(`Page ${i} of ${pageCount}`, 105, doc.internal.pageSize.height - 10, { align: 'center' });
+      doc.text(`Page ${i} of ${pageCount}`, 105, (doc as any).internal.pageSize.height - 10, { align: 'center' });
     }
 
     // Save PDF

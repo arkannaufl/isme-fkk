@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class AbsensiJurnal extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity;
 
     protected $table = 'absensi_jurnal';
     
@@ -29,5 +31,13 @@ class AbsensiJurnal extends Model
     public function mahasiswa()
     {
         return $this->belongsTo(User::class, 'mahasiswa_nim', 'nim');
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn(string $eventName) => "Absensi Jurnal telah di-{$eventName}");
     }
 }

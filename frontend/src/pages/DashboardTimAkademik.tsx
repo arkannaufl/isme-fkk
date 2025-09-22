@@ -261,21 +261,21 @@ const DashboardTimAkademik: React.FC = () => {
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
-      case 'success': return <CheckCircleIcon className="w-5 h-5 text-green-500" />;
-      case 'warning': return <AlertIcon className="w-5 h-5 text-yellow-500" />;
-      case 'error': return <ErrorIcon className="w-5 h-5 text-red-500" />;
-      case 'info': return <InfoIcon className="w-5 h-5 text-blue-500" />;
-      default: return <BoltIcon className="w-5 h-5 text-gray-500" />;
+      case 'success': return <CheckCircleIcon className="w-5 h-5 text-green-500 dark:text-green-400" />;
+      case 'warning': return <AlertIcon className="w-5 h-5 text-yellow-500 dark:text-yellow-400" />;
+      case 'error': return <ErrorIcon className="w-5 h-5 text-red-500 dark:text-red-400" />;
+      case 'info': return <InfoIcon className="w-5 h-5 text-blue-500 dark:text-blue-400" />;
+      default: return <BoltIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />;
     }
   };
 
   const getNotificationColor = (type: string) => {
     switch (type) {
-      case 'success': return 'bg-green-50 border-green-200';
-      case 'warning': return 'bg-yellow-50 border-yellow-200';
-      case 'error': return 'bg-red-50 border-red-200';
-      case 'info': return 'bg-blue-50 border-blue-200';
-      default: return 'bg-gray-50 border-gray-200';
+      case 'success': return 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800';
+      case 'warning': return 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800';
+      case 'error': return 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800';
+      case 'info': return 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800';
+      default: return 'bg-gray-50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700';
     }
   };
 
@@ -651,7 +651,11 @@ const DashboardTimAkademik: React.FC = () => {
                   <div className="flex bg-gray-50 dark:bg-gray-800/50 rounded-xl p-1 relative">
                     {isTabLoading && (
                       <div className="absolute inset-0 bg-white/50 dark:bg-gray-800/50 rounded-xl flex items-center justify-center z-10">
-                        <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                        <div className="flex space-x-2">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                        </div>
                       </div>
                     )}
                     <button
@@ -776,7 +780,11 @@ const DashboardTimAkademik: React.FC = () => {
                   <div className="flex bg-gray-50 dark:bg-gray-800/50 rounded-xl p-1 relative">
                     {isTabLoading && (
                       <div className="absolute inset-0 bg-white/50 dark:bg-gray-800/50 rounded-xl flex items-center justify-center z-10">
-                        <div className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+                        <div className="flex space-x-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                        </div>
                       </div>
                     )}
                     <button
@@ -883,7 +891,11 @@ const DashboardTimAkademik: React.FC = () => {
                   <div className="flex bg-gray-50 dark:bg-gray-800/50 rounded-xl p-1 relative">
                     {isTabLoading && (
                       <div className="absolute inset-0 bg-white/50 dark:bg-gray-800/50 rounded-xl flex items-center justify-center z-10">
-                        <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+                        <div className="flex space-x-2">
+                          <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
+                          <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                          <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                        </div>
                       </div>
                     )}
                     <button
@@ -977,7 +989,7 @@ const DashboardTimAkademik: React.FC = () => {
                           {getNotificationIcon(notification.type)}
                           <div className="ml-2 flex-1">
                             <p className="text-sm font-medium text-gray-900 dark:text-white">{notification.title}</p>
-                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{notification.message}</p>
+                            <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">{notification.message}</p>
                           </div>
                         </div>
                       </div>

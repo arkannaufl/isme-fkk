@@ -233,6 +233,17 @@ class ForumController extends Controller
 
             DB::commit();
 
+            // Log forum creation activity
+            activity()
+                ->performedOn($forum)
+                ->withProperties([
+                    'title' => $forum->title,
+                    'category_id' => $forum->category_id,
+                    'access_type' => $forum->access_type,
+                    'attachments_count' => $forum->attachments()->count()
+                ])
+                ->log("Forum created: {$forum->title}");
+
             // Send notifications
             try {
                 $this->sendForumNotification($forum->load(['user', 'category']));
@@ -986,6 +997,18 @@ class ForumController extends Controller
 
                 DB::commit();
 
+                // Log reply creation activity
+                activity()
+                    ->performedOn($reply)
+                    ->withProperties([
+                        'forum_id' => $forum->id,
+                        'forum_title' => $forum->title,
+                        'parent_id' => $request->parent_id,
+                        'is_anonymous' => $request->get('is_anonymous', false),
+                        'attachments_count' => $reply->attachments()->count()
+                    ])
+                    ->log("Forum reply created for: {$forum->title}");
+
                 $reply->load(['user:id,name,role', 'attachments']);
 
                 // Send notifications
@@ -1029,61 +1052,6 @@ class ForumController extends Controller
         }
     }
 
-    /**
-     * Store a reply to forum (TEST VERSION - NO AUTH)
-     */
-    public function storeReplyTest(Request $request, $forumId): JsonResponse
-    {
-        try {
-            // Debug: Log request data
-            \Illuminate\Support\Facades\Log::info('=== DEBUG STORE REPLY TEST ===');
-            \Illuminate\Support\Facades\Log::info('Forum ID: ' . $forumId);
-            \Illuminate\Support\Facades\Log::info('Request Data: ' . json_encode($request->all()));
-            \Illuminate\Support\Facades\Log::info('========================');
-
-            $validator = Validator::make($request->all(), [
-                'content' => 'required|string',
-                'parent_id' => 'nullable|exists:forum_replies,id',
-                'user_id' => 'required|integer|exists:users,id',
-                'attachments' => 'nullable|array',
-                'is_anonymous' => 'boolean'
-            ]);
-
-            if ($validator->fails()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Validation error',
-                    'errors' => $validator->errors()
-                ], 422);
-            }
-
-            $forum = Forum::findOrFail($forumId);
-            $user = \App\Models\User::findOrFail($request->user_id);
-
-            $reply = ForumReply::create([
-                'forum_id' => $forum->id,
-                'user_id' => $user->id,
-                'parent_id' => $request->parent_id,
-                'content' => $request->content,
-                'attachments' => $request->attachments,
-                'is_anonymous' => $request->get('is_anonymous', false)
-            ]);
-
-            $reply->load(['user:id,name,role']);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Reply berhasil ditambahkan (TEST)',
-                'data' => $reply
-            ], 201);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal menambahkan reply',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
 
     /**
      * Update reply
@@ -1501,52 +1469,6 @@ class ForumController extends Controller
         }
     }
 
-    /**
-     * Debug method untuk forum bookmarks
-     */
-    public function getUserForumBookmarksDebug(Request $request): JsonResponse
-    {
-        try {
-            // Cek auth dengan berbagai cara
-            $user = null;
-            $authMethod = 'none';
-
-            if (Auth::guard('sanctum')->check()) {
-                $user = Auth::guard('sanctum')->user();
-                $authMethod = 'sanctum';
-            } elseif (Auth::check()) {
-                $user = Auth::user();
-                $authMethod = 'default';
-            }
-
-            // Cek token dari header
-            $token = $request->header('Authorization');
-            $hasToken = !empty($token);
-
-            // Cek semua bookmarks tanpa filter user
-            $allBookmarks = UserForumBookmark::with(['forum.user:id,name,role', 'forum.category:id,name,slug,color'])->get();
-
-            return response()->json([
-                'success' => true,
-                'debug_info' => [
-                    'auth_method' => $authMethod,
-                    'user_authenticated' => $user ? true : false,
-                    'user_id' => $user ? $user->id : null,
-                    'user_name' => $user ? $user->name : null,
-                    'has_token_header' => $hasToken,
-                    'token_preview' => $hasToken ? substr($token, 0, 30) . '...' : null,
-                    'total_bookmarks_in_db' => UserForumBookmark::count(),
-                    'all_bookmarks' => $allBookmarks
-                ]
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ], 500);
-        }
-    }
 
     /**
      * Simple method untuk forum bookmarks tanpa pagination

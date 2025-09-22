@@ -500,7 +500,7 @@ class UserSeeder extends Seeder
                     'role' => 'dosen',
                     'password' => Hash::make('password'),
                     'kompetensi' => null,
-                    'keahlian' => 'standby',
+                    'keahlian' => ['standby'],
                     'nid' => $dosen['nid'],
                     'nidn' => $dosen['nidn'],
                     'is_logged_in' => false,

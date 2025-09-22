@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class JadwalAgendaKhusus extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity;
 
     protected $table = 'jadwal_agenda_khusus';
 
@@ -42,5 +44,13 @@ class JadwalAgendaKhusus extends Model
     public function kelompokBesarAntara()
     {
         return $this->belongsTo(KelompokBesarAntara::class, 'kelompok_besar_antara_id');
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn(string $eventName) => "JadwalAgendaKhusus telah di-{$eventName}");
     }
 }
