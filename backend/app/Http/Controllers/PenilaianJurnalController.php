@@ -26,14 +26,10 @@ class PenilaianJurnalController extends Controller
                 return response()->json(['message' => 'Jurnal reading tidak ditemukan'], 404);
             }
 
-            // Validasi: Cek apakah user yang akses adalah dosen yang "bisa ngajar"
+            // Validasi: Cek apakah user yang akses adalah dosen atau super admin
             $user = auth()->user();
             if ($user->role === 'dosen') {
-                // Cek apakah dosen ini ada di daftar dosen_ids dan status_konfirmasi = 'bisa'
-                $dosenIds = is_array($jurnalReading->dosen_ids) ? $jurnalReading->dosen_ids : json_decode($jurnalReading->dosen_ids, true);
-                if (!in_array($user->id, $dosenIds) || $jurnalReading->status_konfirmasi !== 'bisa') {
-                    return response()->json(['error' => 'Anda tidak memiliki akses untuk menilai jadwal ini'], 403);
-                }
+                // Dosen bisa menilai jadwal apapun
             }
 
             // Ambil data mahasiswa dari kelompok kecil
@@ -489,14 +485,10 @@ class PenilaianJurnalController extends Controller
             abort(404, 'Jurnal reading tidak ditemukan');
         }
 
-        // Validasi: Cek apakah user yang akses adalah dosen yang "bisa ngajar"
+        // Validasi: Cek apakah user yang akses adalah dosen atau super admin
         $user = auth()->user();
         if ($user->role === 'dosen') {
-            // Cek apakah dosen ini ada di daftar dosen_ids dan status_konfirmasi = 'bisa'
-            $dosenIds = is_array($jurnalReading->dosen_ids) ? $jurnalReading->dosen_ids : json_decode($jurnalReading->dosen_ids, true);
-            if (!in_array($user->id, $dosenIds) || $jurnalReading->status_konfirmasi !== 'bisa') {
-                abort(403, 'Anda tidak memiliki akses untuk menilai jadwal ini');
-            }
+            // Dosen bisa menilai jadwal apapun
         }
     }
 }

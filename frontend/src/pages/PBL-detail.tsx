@@ -123,6 +123,9 @@ export default function PBL() {
   // State untuk validasi generate status
   const [isGenerateValidated, setIsGenerateValidated] = useState<boolean>(false);
   const [generateValidationError, setGenerateValidationError] = useState<string | null>(null);
+  
+  // State untuk Clear Cache Modal
+  const [showClearCacheModal, setShowClearCacheModal] = useState(false);
 
   // PERBAIKAN BARU: Fungsi untuk mengecek apakah sudah ada data yang di-generate
   const checkHasGeneratedData = () => {
@@ -144,10 +147,16 @@ export default function PBL() {
 
     try {
       const response = await pblGenerateApi.checkGenerateStatus(parseInt(blokId));
-      console.log('🔍 PBL-detail validation response:', response.data);
+      console.log('🔍 PBL-detail validation response:', response);
+      console.log('🔍 PBL-detail validation data:', response.data);
       
+      // Hanya gunakan data dari API (database)
       const isGenerated = response.data.success && response.data.data?.is_generated === true;
-      console.log('🎯 PBL-detail validation result:', { isGenerated, success: response.data.success });
+      
+      console.log('🎯 PBL-detail validation result:', { 
+        isGenerated, 
+        success: response.data.success 
+      });
       
       if (!isGenerated) {
         setGenerateValidationError('Blok ini belum di-generate. Silakan generate dosen terlebih dahulu.');
@@ -160,6 +169,8 @@ export default function PBL() {
       return true;
     } catch (error) {
       console.error('Error validating generate status:', error);
+      
+      // Jika API gagal, return false
       setGenerateValidationError('Error mengecek status generate');
       setIsGenerateValidated(false);
       return false;
@@ -1801,6 +1812,23 @@ export default function PBL() {
     setShowKelompokModal(null);
   };
 
+  const handleClearCache = () => {
+    setShowClearCacheModal(true);
+  };
+
+  const handleConfirmClearCache = () => {
+    // Refresh dari API (tidak ada localStorage lagi)
+    if (blokId) {
+      console.log(`🔄 Refreshing status for blok ${blokId} from database`);
+      validateGenerateStatus();
+    }
+    setShowClearCacheModal(false);
+  };
+
+  const handleCancelClearCache = () => {
+    setShowClearCacheModal(false);
+  };
+
   const handleLihatMahasiswa = async (kelompok: KelompokKecil) => {
     try {
       // Fetch mahasiswa dari kelompok kecil berdasarkan semester aktif
@@ -2308,7 +2336,7 @@ export default function PBL() {
             <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center">
               <span className="text-white text-xs font-bold">i</span>
             </div>
-            <div>
+            <div className="flex-1">
               <h4 className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-1">
                 Sistem Penugasan Dosen
               </h4>
@@ -2318,6 +2346,14 @@ export default function PBL() {
                 <span className="font-semibold">Dosen standby</span> dapat
                 di-assign ke modul manapun tanpa batasan keahlian atau semester.
               </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleClearCache}
+                className="px-3 py-1 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors duration-200"
+              >
+                Clear Cache
+              </button>
             </div>
           </div>
         </div>
@@ -4649,6 +4685,74 @@ export default function PBL() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Clear Cache Modal */}
+      {showClearCacheModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full mx-4">
+            <div className="p-6">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Clear Cache
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Tindakan Darurat
+                  </p>
+                </div>
+              </div>
+              
+              <div className="mb-6">
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4">
+                  <div className="flex items-start gap-3">
+                    <svg className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                    <div>
+                      <h4 className="text-sm font-semibold text-red-800 dark:text-red-200 mb-1">
+                        ⚠️ Peringatan Keadaan Darurat
+                      </h4>
+                      <p className="text-sm text-red-700 dark:text-red-300">
+                        Tindakan ini akan menghapus cache status generate PBL untuk blok ini. 
+                        <strong> Sebelum melanjutkan, hubungi developer atau administrator sistem.</strong>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  <p className="mb-2">Tindakan ini akan:</p>
+                  <ul className="list-disc list-inside space-y-1 ml-2">
+                    <li>Menghapus cache status generate PBL untuk blok {blokId}</li>
+                    <li>Memaksa sistem untuk mengambil data fresh dari database</li>
+                    <li>Mengembalikan blok ke status "Belum di-generate"</li>
+                  </ul>
+                </div>
+              </div>
+              
+              <div className="flex gap-3">
+                <button
+                  onClick={handleCancelClearCache}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors duration-200"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handleConfirmClearCache}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200"
+                >
+                  Ya, Clear Cache
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

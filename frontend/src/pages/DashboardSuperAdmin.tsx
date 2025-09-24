@@ -1,16 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import { 
   exportToExcel, 
   exportToPDF, 
   generateAttendanceReport, 
   generateAssessmentReport, 
-  generateAcademicReport 
-} from '../utils/exportUtils';
-import api, { BASE_URL, handleApiError } from '../utils/api';
-
-
+} from "../utils/exportUtils";
+import api, { BASE_URL, handleApiError } from "../utils/api";
 
 interface SuperAdmin {
   id: number;
@@ -63,7 +60,7 @@ interface Activity {
       os?: string;
       method?: string;
       path?: string;
-    }
+    };
   } | null;
   created_at: string;
   causer?: {
@@ -76,9 +73,9 @@ interface Activity {
 }
 
 interface SystemHealth {
-  database: 'healthy' | 'warning' | 'error';
-  storage: 'healthy' | 'warning' | 'error';
-  server: 'healthy' | 'warning' | 'error';
+  database: "healthy" | "warning" | "error";
+  storage: "healthy" | "warning" | "error";
+  server: "healthy" | "warning" | "error";
   lastBackup: string;
 }
 
@@ -115,7 +112,7 @@ interface AssessmentStats {
 }
 
 interface SystemNotification {
-  type: 'info' | 'warning' | 'error' | 'success';
+  type: "info" | "warning" | "error" | "success";
   title: string;
   message: string;
   action: string;
@@ -165,37 +162,80 @@ const DashboardSuperAdmin: React.FC = () => {
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [selectedReportTypes, setSelectedReportTypes] = useState<string[]>([]);
-  const [selectedExportFormats, setSelectedExportFormats] = useState<string[]>(['excel']);
+  const [selectedExportFormats, setSelectedExportFormats] = useState<string[]>([
+    "excel",
+  ]);
   const [isExporting, setIsExporting] = useState(false);
   const [isBacking, setIsBacking] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
 
+  // Mata kuliah states untuk export attendance
+  const [mataKuliahList, setMataKuliahList] = useState<any[]>([]);
+  const [selectedMataKuliah, setSelectedMataKuliah] = useState<string>("");
+  const [loadingMataKuliah, setLoadingMataKuliah] = useState(false);
+
+  // Mata kuliah states untuk export assessment
+  const [mataKuliahPenilaianList, setMataKuliahPenilaianList] = useState<any[]>(
+    []
+  );
+  const [selectedMataKuliahPenilaian, setSelectedMataKuliahPenilaian] =
+    useState<string>("");
+  const [loadingMataKuliahPenilaian, setLoadingMataKuliahPenilaian] =
+    useState(false);
+
   // Backup and Import states
-  const [selectedBackupFile, setSelectedBackupFile] = useState<File | null>(null);
-  const [backupType, setBackupType] = useState<string>('full');
+  const [selectedBackupFile, setSelectedBackupFile] = useState<File | null>(
+    null
+  );
+  const [backupType, setBackupType] = useState<string>("full");
   const [importProgress, setImportProgress] = useState(0);
   const [isDragOver, setIsDragOver] = useState(false);
-  const [importTypeWarning, setImportTypeWarning] = useState<string | null>(null);
+  const [importTypeWarning, setImportTypeWarning] = useState<string | null>(
+    null
+  );
   
   // Reset states
   const [showResetModal, setShowResetModal] = useState(false);
-  const [resetConfirmationText, setResetConfirmationText] = useState('');
+  const [resetConfirmationText, setResetConfirmationText] = useState("");
   const [isResetting, setIsResetting] = useState(false);
+
+  // Helper function untuk format semester
+  const formatSemester = (semester: string, periode: string) => {
+    if (semester === "Antara") {
+      return "Semester Antara";
+    }
+    return `Semester ${semester} (${periode})`;
+  };
+
+  // Helper function untuk format jenis mata kuliah
+  const formatJenisMataKuliah = (
+    jenis: string,
+    tipeNonBlock: string | null
+  ) => {
+    if (jenis === "Blok") {
+      return jenis;
+    }
+    if (jenis === "Non Blok" && tipeNonBlock) {
+      return `${jenis} - ${tipeNonBlock}`;
+    }
+    return jenis;
+  };
   
   // Super Admin Account Creation Modal States
   const [showCreateAdminModal, setShowCreateAdminModal] = useState(false);
   const [adminFormData, setAdminFormData] = useState({
-    name: '',
-    username: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    phone: '',
-    position: ''
+    name: "",
+    username: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+    phone: "",
+    position: "",
   });
-  const [adminFormErrors, setAdminFormErrors] = useState<Record<string, string>>({});
+  const [adminFormErrors, setAdminFormErrors] = useState<
+    Record<string, string>
+  >({});
   const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
-  
   
   // Attendance semester state
   // const [activeAttendanceSemester, setActiveAttendanceSemester] = useState<'regular' | 'antara'>('regular');
@@ -213,10 +253,10 @@ const DashboardSuperAdmin: React.FC = () => {
     totalJadwalAktif: 0,
     recentActivities: [],
     systemHealth: {
-      database: 'healthy',
-      storage: 'healthy',
-      server: 'healthy',
-      lastBackup: ''
+      database: "healthy",
+      storage: "healthy",
+      server: "healthy",
+      lastBackup: "",
     },
     attendanceStats: {
       regular: {
@@ -225,7 +265,7 @@ const DashboardSuperAdmin: React.FC = () => {
       journal_rate: 0,
       csr_rate: 0,
       total_students: 0,
-      low_attendance_students: 0
+        low_attendance_students: 0,
       },
       antara: {
         overall_rate: 0,
@@ -233,8 +273,8 @@ const DashboardSuperAdmin: React.FC = () => {
         journal_rate: 0,
         csr_rate: 0,
         total_students: 0,
-        low_attendance_students: 0
-      }
+        low_attendance_students: 0,
+      },
     },
     todaySchedule: [],
     assessmentStats: {
@@ -243,51 +283,54 @@ const DashboardSuperAdmin: React.FC = () => {
       pending_pbl: 0,
       pending_journal: 0,
       completion_rate: 0,
-      average_score: 0
+      average_score: 0,
     },
     systemNotifications: [],
     academicOverview: {
-      current_semester: '',
-      current_tahun_ajaran: '',
+      current_semester: "",
+      current_tahun_ajaran: "",
       semester_progress: 0,
       active_blocks: [],
-      upcoming_deadlines: []
+      upcoming_deadlines: [],
     },
     // Initialize growth percentages
     usersGrowth: 0,
     mahasiswaGrowth: 0,
     dosenGrowth: 0,
-    mataKuliahGrowth: 0
+    mataKuliahGrowth: 0,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   // Helper function to format growth percentage
-  const formatGrowthPercentage = (growth: number | undefined): { 
-    value: string, 
-    isPositive: boolean,
-    colorClass: string 
+  const formatGrowthPercentage = (
+    growth: number | undefined
+  ): {
+    value: string;
+    isPositive: boolean;
+    colorClass: string;
   } => {
     if (growth === undefined || growth === null || isNaN(growth)) {
       return {
-        value: '0%',
+        value: "0%",
         isPositive: true,
-        colorClass: 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-900/20 dark:text-gray-400 dark:border-gray-800'
+        colorClass:
+          "bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-900/20 dark:text-gray-400 dark:border-gray-800",
       };
     }
     
     const isPositive = growth >= 0;
-    const formattedValue = `${isPositive ? '+' : ''}${growth.toFixed(1)}%`;
+    const formattedValue = `${isPositive ? "+" : ""}${growth.toFixed(1)}%`;
     
     const colorClass = isPositive 
-      ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800'
-      : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800';
+      ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800"
+      : "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800";
     
     return {
       value: formattedValue,
       isPositive,
-      colorClass
+      colorClass,
     };
   };
 
@@ -300,42 +343,125 @@ const DashboardSuperAdmin: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-
   // Quick Action Handlers
   const handleImportMahasiswa = () => {
-    navigate('/mahasiswa');
+    navigate("/mahasiswa");
   };
 
   const handleGenerateKelompok = () => {
-    navigate('/generate/kelompok');
+    navigate("/generate/kelompok");
   };
 
   const handleExportReports = () => {
     setShowExportModal(true);
+    // Load mata kuliah ketika modal dibuka
+    fetchMataKuliah();
+    fetchMataKuliahPenilaian();
   };
 
+  // Fungsi untuk menutup modal export dan reset state
+  const closeExportModal = () => {
+    setShowExportModal(false);
+    setSelectedReportTypes([]);
+    setSelectedExportFormats(["excel"]);
+    setSelectedMataKuliah("");
+    setSelectedMataKuliahPenilaian("");
+  };
 
+  // Fungsi untuk mengambil data mata kuliah
+  const fetchMataKuliah = async () => {
+    setLoadingMataKuliah(true);
+    try {
+      const response = await api.get("/reports/mata-kuliah-with-absensi");
+      // Pastikan data adalah array
+      const data = response.data?.data || [];
+      setMataKuliahList(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Error fetching mata kuliah:", error);
+      setError("Gagal memuat data mata kuliah");
+      setMataKuliahList([]); // Set empty array jika error
+    } finally {
+      setLoadingMataKuliah(false);
+    }
+  };
+
+  // Fungsi untuk mengambil data mata kuliah penilaian
+  const fetchMataKuliahPenilaian = async () => {
+    setLoadingMataKuliahPenilaian(true);
+    try {
+      const response = await api.get("/reports/mata-kuliah-with-penilaian");
+      // Pastikan data adalah array
+      const data = response.data?.data || [];
+      setMataKuliahPenilaianList(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Error fetching mata kuliah penilaian:", error);
+      setError("Gagal memuat data mata kuliah penilaian");
+      setMataKuliahPenilaianList([]); // Set empty array jika error
+    } finally {
+      setLoadingMataKuliahPenilaian(false);
+    }
+  };
 
   const handleConfirmExport = async () => {
     if (selectedReportTypes.length === 0) return;
+
+    // Validasi untuk attendance report
+    if (selectedReportTypes.includes("attendance")) {
+      if (!selectedMataKuliah) {
+        setError("Pilih mata kuliah untuk export kehadiran");
+        setTimeout(() => setError(null), 3000);
+        return;
+      }
+      if (!Array.isArray(mataKuliahList) || mataKuliahList.length === 0) {
+        setError("Tidak ada mata kuliah dengan data kehadiran untuk di-export");
+        setTimeout(() => setError(null), 3000);
+        return;
+      }
+    }
+
+    // Validasi untuk assessment report
+    if (selectedReportTypes.includes("assessment")) {
+      if (!selectedMataKuliahPenilaian) {
+        setError("Pilih mata kuliah untuk export penilaian");
+        setTimeout(() => setError(null), 3000);
+        return;
+      }
+      if (
+        !Array.isArray(mataKuliahPenilaianList) ||
+        mataKuliahPenilaianList.length === 0
+      ) {
+        setError("Tidak ada mata kuliah dengan data penilaian untuk di-export");
+        setTimeout(() => setError(null), 3000);
+        return;
+      }
+    }
     
     setIsExporting(true);
     try {
-      const currentDate = new Date().toISOString().split('T')[0];
+      const currentDate = new Date().toISOString().split("T")[0];
       
       // Call API for each selected report type and format
       for (const reportType of selectedReportTypes) {
-        const response = await fetch(`${BASE_URL}/api/reports/export/${reportType}`, {
-          method: 'POST',
+        const response = await fetch(
+          `${BASE_URL}/api/reports/export/${reportType}`,
+          {
+            method: "POST",
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
           },
           body: JSON.stringify({
-            format: 'json', // Always get JSON data from backend
-            semester: '2023/2024' // Default semester
-          })
-        });
+              format: "json", // Always get JSON data from backend
+              semester: "2023/2024", // Default semester
+              mata_kuliah_kode:
+                reportType === "attendance"
+                  ? selectedMataKuliah
+                  : reportType === "assessment"
+                  ? selectedMataKuliahPenilaian
+                  : undefined,
+            }),
+          }
+        );
 
         if (!response.ok) {
           throw new Error(`Failed to export ${reportType} report`);
@@ -350,28 +476,40 @@ const DashboardSuperAdmin: React.FC = () => {
         // Transform data using export utilities
         let exportData;
         const config = {
-          filename: `${reportType}_report_${currentDate}`,
-          sheetName: `${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Report`,
-          orientation: 'landscape' as const,
-          includeSummary: true
+          filename: `${reportType}_report_${
+            reportType === "attendance" && selectedMataKuliah
+              ? selectedMataKuliah + "_"
+              : reportType === "assessment" && selectedMataKuliahPenilaian
+              ? selectedMataKuliahPenilaian + "_"
+              : ""
+          }${currentDate}`,
+          sheetName: `${
+            reportType.charAt(0).toUpperCase() + reportType.slice(1)
+          } Report`,
+          orientation: "landscape" as const,
+          includeSummary: true,
         };
 
-        if (reportType === 'attendance') {
-          exportData = generateAttendanceReport(result.data);
-        } else if (reportType === 'assessment') {
-          exportData = generateAssessmentReport(result.data);
-        } else if (reportType === 'academic') {
-          exportData = generateAcademicReport(result.data);
+        if (reportType === "attendance") {
+          exportData = generateAttendanceReport(
+            result.data,
+            result.mata_kuliah_kode
+          );
+        } else if (reportType === "assessment") {
+          exportData = generateAssessmentReport(
+            result.data,
+            result.mata_kuliah_kode
+          );
         }
 
         if (exportData) {
           // Export to selected format (only 1 format can be selected)
           const selectedFormat = selectedExportFormats[0];
-          if (selectedFormat === 'excel') {
+          if (selectedFormat === "excel") {
             await exportToExcel(exportData, config);
-          } else if (selectedFormat === 'pdf') {
+          } else if (selectedFormat === "pdf") {
             exportToPDF(exportData, config);
-          } else if (selectedFormat === 'both') {
+          } else if (selectedFormat === "both") {
             // Export both Excel and PDF
             await exportToExcel(exportData, config);
             exportToPDF(exportData, config);
@@ -379,14 +517,16 @@ const DashboardSuperAdmin: React.FC = () => {
         }
       }
       
-      setSuccess(`Successfully exported ${selectedReportTypes.join(', ')} reports in ${selectedExportFormats[0]} format!`);
+      setSuccess(
+        `Successfully exported ${selectedReportTypes.join(", ")} reports in ${
+          selectedExportFormats[0]
+        } format!`
+      );
       setTimeout(() => setSuccess(null), 3000);
       
-      setShowExportModal(false);
-      setSelectedReportTypes([]);
-      setSelectedExportFormats(['excel']);
-    } catch (error) {
-      setError('Export failed. Please try again.');
+      closeExportModal();
+    } catch {
+      setError("Export failed. Please try again.");
       setTimeout(() => setError(null), 3000);
     } finally {
       setIsExporting(false);
@@ -402,7 +542,7 @@ const DashboardSuperAdmin: React.FC = () => {
   };
 
   const handleConfirmReset = async () => {
-    if (resetConfirmationText.toLowerCase() !== 'reset') {
+    if (resetConfirmationText.toLowerCase() !== "reset") {
       setError('Konfirmasi tidak valid. Ketik "reset" untuk melanjutkan.');
       return;
     }
@@ -410,22 +550,24 @@ const DashboardSuperAdmin: React.FC = () => {
     setIsResetting(true);
     try {
       const response = await fetch(`${BASE_URL}/api/system/reset`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
       });
 
       if (response.ok) {
         setShowResetModal(false);
-        setResetConfirmationText('');
-        setSuccess('Sistem berhasil di-reset! Semua data telah dihapus kecuali akun Super Admin.');
+        setResetConfirmationText("");
+        setSuccess(
+          "Sistem berhasil di-reset! Semua data telah dihapus kecuali akun Super Admin."
+        );
         // Refresh dashboard data
         fetchDashboardData();
       } else {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Reset failed');
+        throw new Error(errorData.message || "Reset failed");
       }
     } catch (error: any) {
       setError(`Reset failed: ${error.message}`);
@@ -437,10 +579,10 @@ const DashboardSuperAdmin: React.FC = () => {
   // Helper functions for file type detection and warnings
   const detectFileBackupType = (filename: string): string | null => {
     const lowerName = filename.toLowerCase();
-    if (lowerName.includes('data_only') || lowerName.includes('dataonly')) {
-      return 'data_only';
-    } else if (lowerName.includes('full')) {
-      return 'full';
+    if (lowerName.includes("data_only") || lowerName.includes("dataonly")) {
+      return "data_only";
+    } else if (lowerName.includes("full")) {
+      return "full";
     }
     return null;
   };
@@ -451,15 +593,19 @@ const DashboardSuperAdmin: React.FC = () => {
     if (detectedType && detectedType !== selectedType) {
       const warnings = [];
       
-      if (detectedType === 'data_only' && selectedType === 'full') {
-        warnings.push(`🔄 File appears to be "Data Only" backup but "Full Restore" is selected`);
+      if (detectedType === "data_only" && selectedType === "full") {
+        warnings.push(
+          `🔄 File appears to be "Data Only" backup but "Full Restore" is selected`
+        );
         warnings.push(`✅ System will auto-correct to "Data Only" import`);
-      } else if (detectedType === 'full' && selectedType === 'data_only') {
-        warnings.push(`🔄 File appears to be "Full" backup but "Data Only" is selected`);
+      } else if (detectedType === "full" && selectedType === "data_only") {
+        warnings.push(
+          `🔄 File appears to be "Full" backup but "Data Only" is selected`
+        );
         warnings.push(`✅ System will import data portion only as requested`);
       }
       
-      setImportTypeWarning(warnings.join('\n'));
+      setImportTypeWarning(warnings.join("\n"));
     } else {
       setImportTypeWarning(null);
     }
@@ -468,7 +614,7 @@ const DashboardSuperAdmin: React.FC = () => {
   const handleFileSelection = (file: File | null) => {
     setSelectedBackupFile(file);
     if (file) {
-      checkImportTypeCompatibility(file, backupType || 'full');
+      checkImportTypeCompatibility(file, backupType || "full");
     } else {
       setImportTypeWarning(null);
     }
@@ -480,23 +626,25 @@ const DashboardSuperAdmin: React.FC = () => {
     setIsBacking(true);
     try {
       const response = await fetch(`${BASE_URL}/api/system/backup`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
         body: JSON.stringify({
           type: backupType,
-          include_files: backupType === 'full' // Only include files for full backup
-        })
+          include_files: backupType === "full", // Only include files for full backup
+        }),
       });
       
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
+        const link = document.createElement("a");
         link.href = url;
-        link.download = `backup_${backupType}_${new Date().toISOString().split('T')[0]}.sql`;
+        link.download = `backup_${backupType}_${
+          new Date().toISOString().split("T")[0]
+        }.sql`;
         document.body.appendChild(link);
         link.click();
         link.remove();
@@ -504,22 +652,22 @@ const DashboardSuperAdmin: React.FC = () => {
         
         setShowBackupModal(false);
         // Show success message
-        setSuccess(`Backup berhasil dibuat dan di-download! Backup ${backupType} telah dibuat.`);
+        setSuccess(
+          `Backup berhasil dibuat dan di-download! Backup ${backupType} telah dibuat.`
+        );
         // Refresh dashboard to update last backup time
         fetchDashboardData();
         // Reset selection
-        setBackupType('full');
+        setBackupType("full");
       } else {
         throw new Error(`Backup ${backupType} failed`);
       }
-    } catch (error) {
-      setError('Backup failed. Please try again.');
+    } catch {
+      setError("Backup failed. Please try again.");
     } finally {
       setIsBacking(false);
     }
   };
-
-
 
   const handleImportBackup = async () => {
     if (!selectedBackupFile) return;
@@ -528,16 +676,16 @@ const DashboardSuperAdmin: React.FC = () => {
     setImportProgress(0);
     
     const formData = new FormData();
-    formData.append('backup_file', selectedBackupFile);
-    formData.append('type', backupType || 'full'); // Use selected type or default to full
+    formData.append("backup_file", selectedBackupFile);
+    formData.append("type", backupType || "full"); // Use selected type or default to full
     
     try {
       const response = await fetch(`${BASE_URL}/api/system/import`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
-        body: formData
+        body: formData,
       });
       
       if (response.ok) {
@@ -547,10 +695,13 @@ const DashboardSuperAdmin: React.FC = () => {
         setImportProgress(100);
         
         // Build comprehensive success message
-        let successMessage = result.message || 'Database restored successfully';
+        let successMessage = result.message || "Database restored successfully";
         
         // Add type correction info if applicable
-        if (result.original_requested_type && result.backup_type !== result.original_requested_type) {
+        if (
+          result.original_requested_type &&
+          result.backup_type !== result.original_requested_type
+        ) {
           successMessage += `\n\n🔄 Auto-Correction Applied:\n`;
           successMessage += `• You selected: "${result.original_requested_type}" restore\n`;
           successMessage += `• File detected as: "${result.detected_file_type}" backup\n`;
@@ -566,10 +717,11 @@ const DashboardSuperAdmin: React.FC = () => {
         }
         
         // Add additional context info
-        if (result.backup_type === 'data_only') {
-          successMessage += '\n✅ Data has been restored to your database.';
-        } else if (result.backup_type === 'full') {
-          successMessage += '\n✅ Complete database structure and data have been restored.';
+        if (result.backup_type === "data_only") {
+          successMessage += "\n✅ Data has been restored to your database.";
+        } else if (result.backup_type === "full") {
+          successMessage +=
+            "\n✅ Complete database structure and data have been restored.";
         }
         
         if (result.pre_import_backup) {
@@ -582,13 +734,13 @@ const DashboardSuperAdmin: React.FC = () => {
         fetchDashboardData();
       } else {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Import failed');
+        throw new Error(errorData.message || "Import failed");
       }
     } catch (error: any) {
-      if (error.message && error.message !== 'Import failed') {
+      if (error.message && error.message !== "Import failed") {
         setError(`Import failed: ${error.message}`);
       } else {
-        setError('Import failed. Please check the backup file and try again.');
+        setError("Import failed. Please check the backup file and try again.");
       }
     } finally {
       setIsImporting(false);
@@ -596,64 +748,24 @@ const DashboardSuperAdmin: React.FC = () => {
     }
   };
 
-
-
   // Helper function to get user initials from name
   const getUserInitials = (userName: string): string => {
-    if (!userName) return '?';
-    const names = userName.split(' ');
+    if (!userName) return "?";
+    const names = userName.split(" ");
     if (names.length === 1) return names[0].charAt(0).toUpperCase();
-    return (names[0].charAt(0) + names[names.length - 1].charAt(0)).toUpperCase();
-  };
-
-  // Helper function to get user role (simulated based on name patterns)
-  const getUserRole = (userName: string): string => {
-    if (!userName) return 'Unknown';
-    
-    // Simulate role detection based on name patterns
-    const lowerName = userName.toLowerCase();
-    
-    if (lowerName.includes('dr.') || lowerName.includes('prof.') || lowerName.includes('dr ')) {
-      return 'Dosen';
-    } else if (lowerName.includes('tim') || lowerName.includes('akademik')) {
-      return 'Tim Akademik';
-    } else if (lowerName.includes('admin') || lowerName.includes('super')) {
-      return 'Super Admin';
-    } else {
-      return 'Mahasiswa';
-    }
-  };
-
-  // Helper functions for activity display (consistent with Histori.tsx)
-  const getActionColor = (action: string) => {
-    if (!action) return 'bg-gray-100 text-gray-700';
-    switch (action) {
-      case 'created': return 'bg-green-100 text-green-700';
-      case 'updated': return 'bg-blue-100 text-blue-700';
-      case 'deleted': return 'bg-red-100 text-red-700';
-      default: return 'bg-gray-100 text-gray-700';
-    }
-  };
-
-  const getModuleColor = (module: string) => {
-    if (!module) return 'bg-gray-100 text-gray-700';
-    const moduleName = module.split('\\').pop()?.toUpperCase() || 'UNKNOWN';
-    switch (moduleName) {
-      case 'USER': return 'bg-indigo-100 text-indigo-700';
-      case 'MATAKULIAH': return 'bg-pink-100 text-pink-700';
-      case 'RUANGAN': return 'bg-orange-100 text-orange-700';
-      case 'KEGIATAN': return 'bg-teal-100 text-teal-700';
-      case 'AUTH': return 'bg-cyan-100 text-cyan-700';
-      default: return 'bg-gray-100 text-gray-700';
-    }
+    return (
+      names[0].charAt(0) + names[names.length - 1].charAt(0)
+    ).toUpperCase();
   };
 
   const formatActivityTime = (createdAt: string): string => {
     const now = new Date();
     const activityTime = new Date(createdAt);
-    const diffInMinutes = Math.floor((now.getTime() - activityTime.getTime()) / (1000 * 60));
+    const diffInMinutes = Math.floor(
+      (now.getTime() - activityTime.getTime()) / (1000 * 60)
+    );
     
-    if (diffInMinutes < 1) return 'Baru saja';
+    if (diffInMinutes < 1) return "Baru saja";
     if (diffInMinutes < 60) return `${diffInMinutes} menit yang lalu`;
     
     const diffInHours = Math.floor(diffInMinutes / 60);
@@ -662,29 +774,29 @@ const DashboardSuperAdmin: React.FC = () => {
     const diffInDays = Math.floor(diffInHours / 24);
     if (diffInDays < 7) return `${diffInDays} hari yang lalu`;
     
-    return activityTime.toLocaleDateString('id-ID');
+    return activityTime.toLocaleDateString("id-ID");
   };
 
   // Super Admin Account Creation Functions
   const handleCreateAdmin = () => {
     setShowCreateAdminModal(true);
     setAdminFormData({
-      name: '',
-      username: '',
-      email: '',
-      password: '',
-      confirmPassword: '',
-      phone: '',
-      position: ''
+      name: "",
+      username: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+      phone: "",
+      position: "",
     });
     setAdminFormErrors({});
   };
 
   const handleAdminFormChange = (field: string, value: string) => {
-    setAdminFormData(prev => ({ ...prev, [field]: value }));
+    setAdminFormData((prev) => ({ ...prev, [field]: value }));
     // Clear error when user starts typing
     if (adminFormErrors[field]) {
-      setAdminFormErrors(prev => ({ ...prev, [field]: '' }));
+      setAdminFormErrors((prev) => ({ ...prev, [field]: "" }));
     }
   };
 
@@ -692,37 +804,37 @@ const DashboardSuperAdmin: React.FC = () => {
     const errors: Record<string, string> = {};
 
     if (!adminFormData.name.trim()) {
-      errors.name = 'Nama wajib diisi';
+      errors.name = "Nama wajib diisi";
     }
 
     if (!adminFormData.username.trim()) {
-      errors.username = 'Username wajib diisi';
+      errors.username = "Username wajib diisi";
     }
 
     if (!adminFormData.email.trim()) {
-      errors.email = 'Email wajib diisi';
+      errors.email = "Email wajib diisi";
     } else if (!/\S+@\S+\.\S+/.test(adminFormData.email)) {
-      errors.email = 'Format email tidak valid';
+      errors.email = "Format email tidak valid";
     }
 
     if (!adminFormData.password) {
-      errors.password = 'Password wajib diisi';
+      errors.password = "Password wajib diisi";
     } else if (adminFormData.password.length < 8) {
-      errors.password = 'Password minimal 8 karakter';
+      errors.password = "Password minimal 8 karakter";
     }
 
     if (!adminFormData.confirmPassword) {
-      errors.confirmPassword = 'Konfirmasi password wajib diisi';
+      errors.confirmPassword = "Konfirmasi password wajib diisi";
     } else if (adminFormData.password !== adminFormData.confirmPassword) {
-      errors.confirmPassword = 'Password tidak sama';
+      errors.confirmPassword = "Password tidak sama";
     }
 
     if (!adminFormData.phone.trim()) {
-      errors.phone = 'Nomor telepon wajib diisi';
+      errors.phone = "Nomor telepon wajib diisi";
     }
 
     if (!adminFormData.position.trim()) {
-      errors.position = 'Posisi wajib diisi';
+      errors.position = "Posisi wajib diisi";
     }
 
     setAdminFormErrors(errors);
@@ -737,38 +849,48 @@ const DashboardSuperAdmin: React.FC = () => {
     try {
       setIsCreatingAdmin(true);
       
-      const response = await api.post('/admin/create-super-admin', {
+      const response = await api.post("/admin/create-super-admin", {
         name: adminFormData.name.trim(),
         username: adminFormData.username.trim(),
         email: adminFormData.email.trim(),
         password: adminFormData.password,
         phone: adminFormData.phone.trim(),
         position: adminFormData.position.trim(),
-        role: 'super_admin'
+        role: "super_admin",
       });
 
       if (response.data.success) {
-        setSuccess('Akun Super Admin berhasil dibuat!');
+        setSuccess("Akun Super Admin berhasil dibuat!");
         setShowCreateAdminModal(false);
         setAdminFormData({
-          name: '',
-          username: '',
-          email: '',
-          password: '',
-          confirmPassword: '',
-          phone: '',
-          position: ''
+          name: "",
+          username: "",
+          email: "",
+          password: "",
+          confirmPassword: "",
+          phone: "",
+          position: "",
         });
         setAdminFormErrors({});
         // Refresh dashboard data
         fetchDashboardData();
       } else {
-        throw new Error(response.data.message || 'Gagal membuat akun Super Admin');
+        throw new Error(
+          response.data.message || "Gagal membuat akun Super Admin"
+        );
       }
     } catch (error: any) {
-      console.error('Error creating Super Admin:', error);
-      console.error('Error details:', handleApiError(error, 'Membuat akun Super Admin'));
-      setError(`Gagal membuat akun Super Admin: ${handleApiError(error, 'Membuat akun Super Admin')}`);
+      console.error("Error creating Super Admin:", error);
+      console.error(
+        "Error details:",
+        handleApiError(error, "Membuat akun Super Admin")
+      );
+      setError(
+        `Gagal membuat akun Super Admin: ${handleApiError(
+          error,
+          "Membuat akun Super Admin"
+        )}`
+      );
     } finally {
       setIsCreatingAdmin(false);
     }
@@ -777,23 +899,22 @@ const DashboardSuperAdmin: React.FC = () => {
   const handleCloseCreateAdminModal = () => {
     setShowCreateAdminModal(false);
     setAdminFormData({
-      name: '',
-      username: '',
-      email: '',
-      password: '',
-      confirmPassword: '',
-      phone: '',
-      position: ''
+      name: "",
+      username: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+      phone: "",
+      position: "",
     });
     setAdminFormErrors({});
   };
 
   // Helper function to get role color for avatar
-  const getRoleColor = (role: string): string => {
+  const getRoleColor = (): string => {
     // Semua avatar menggunakan warna abu-abu netral yang cocok untuk tema gelap dan terang
-    return 'bg-gray-400 dark:bg-gray-500';
+    return "bg-gray-400 dark:bg-gray-500";
   };
-
 
   useEffect(() => {
     fetchDashboardData();
@@ -809,77 +930,66 @@ const DashboardSuperAdmin: React.FC = () => {
     }
   }, [success]);
 
-
-
-
-  // Fetch recent activities using the same API as Histori.tsx
-  const fetchRecentActivities = async (): Promise<Activity[]> => {
-    try {
-      const params = new URLSearchParams({
-        per_page: '10', // Get only 10 recent activities for dashboard
-        page: '1'
-      });
-      
-      const response = await api.get(`/reporting?${params}`);
-      return response.data.data.data || [];
-    } catch (error) {
-      console.error('Error fetching recent activities:', error);
-      return [];
-    }
-  };
-
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
       
       // Check if we have a token
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem("token");
       if (!token) {
-        throw new Error('Authentication token not found. Please login again.');
+        throw new Error("Authentication token not found. Please login again.");
       }
 
       // Use centralized BASE_URL
       const baseURL = BASE_URL;
       
       // Try main endpoint first, fallback to test endpoint for debugging
-      let endpoint = `${baseURL}/api/dashboard/super-admin`;
+      const endpoint = `${baseURL}/api/dashboard/super-admin`;
       
       const response = await fetch(endpoint, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
         },
       });
 
       if (!response.ok) {
         if (response.status === 401) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          setError('Session expired. Please login again.');
-          window.location.href = '/signin';
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          setError("Session expired. Please login again.");
+          window.location.href = "/signin";
           return;
         }
         
         // For development, try test endpoint if main endpoint fails
-        if (process.env.NODE_ENV === 'development' && endpoint.includes('/dashboard/super-admin')) {
-          const testResponse = await fetch(`${baseURL}/api/test/dashboard-data`, {
+        if (
+          process.env.NODE_ENV === "development" &&
+          endpoint.includes("/dashboard/super-admin")
+        ) {
+          const testResponse = await fetch(
+            `${baseURL}/api/test/dashboard-data`,
+            {
             headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
+                "Content-Type": "application/json",
+                Accept: "application/json",
             },
-          });
+            }
+          );
           
           if (testResponse.ok) {
             const testData = await testResponse.json();
             setStats(testData);
-            setError('Using test data - authentication may not be working properly');
+            setError(
+              "Using test data - authentication may not be working properly"
+            );
             return;
           }
         }
         
         // Try to get error message from response
-        let errorMessage = 'Failed to fetch dashboard data';
+        let errorMessage = "Failed to fetch dashboard data";
         try {
           const errorData = await response.json();
           errorMessage = errorData.message || errorMessage;
@@ -893,16 +1003,17 @@ const DashboardSuperAdmin: React.FC = () => {
       }
 
       // Check if response is JSON
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
         await response.text();
-        throw new Error('Server returned non-JSON response. Check if Laravel server is running on port 8000.');
+        throw new Error(
+          "Server returned non-JSON response. Check if Laravel server is running on port 8000."
+        );
       }
 
       const data = await response.json();
       
       // Use recent activities from dashboard API (already includes role data)
-      // const recentActivities = await fetchRecentActivities();
       
             // Ensure data has the required structure with fallbacks
       const safeData: DashboardStats = {
@@ -915,7 +1026,8 @@ const DashboardSuperAdmin: React.FC = () => {
             journal_rate: data.attendanceStats?.journal_rate || 0,
             csr_rate: data.attendanceStats?.csr_rate || 0,
             total_students: data.attendanceStats?.total_students || 0,
-            low_attendance_students: data.attendanceStats?.low_attendance_students || 0
+            low_attendance_students:
+              data.attendanceStats?.low_attendance_students || 0,
           },
           antara: {
             overall_rate: data.attendanceStatsAntara?.overall_rate || 0,
@@ -923,20 +1035,25 @@ const DashboardSuperAdmin: React.FC = () => {
             journal_rate: data.attendanceStatsAntara?.journal_rate || 0,
             csr_rate: 0, // Semester antara tidak ada CSR
             total_students: data.attendanceStatsAntara?.total_students || 0,
-            low_attendance_students: data.attendanceStatsAntara?.low_attendance_students || 0
-          }
+            low_attendance_students:
+              data.attendanceStatsAntara?.low_attendance_students || 0,
+          },
         },
         assessmentStats: {
           ...data.assessmentStats,
           // Ensure completion rate doesn't exceed 100%
-          completion_rate: Math.min((data.assessmentStats && data.assessmentStats.completion_rate) || 0, 100)
-        }
+          completion_rate: Math.min(
+            (data.assessmentStats && data.assessmentStats.completion_rate) || 0,
+            100
+          ),
+        },
       };
       
       setStats(safeData);
       setError(null);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
+      const errorMessage =
+        err instanceof Error ? err.message : "An error occurred";
       setError(errorMessage);
       
       // Keep this section commented out - no more demo data
@@ -1075,21 +1192,37 @@ const DashboardSuperAdmin: React.FC = () => {
     }
   };
 
-
-
   // Skeleton Loading Components
-  const SkeletonCard = ({ className = "", children }: { className?: string; children?: React.ReactNode }) => (
-    <div className={`rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6 ${className}`}>
+  const SkeletonCard = ({
+    className = "",
+    children,
+  }: {
+    className?: string;
+    children?: React.ReactNode;
+  }) => (
+    <div
+      className={`rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6 ${className}`}
+    >
       {children}
     </div>
   );
 
-  const SkeletonLine = ({ width = "w-full", height = "h-4" }: { width?: string; height?: string }) => (
-    <div className={`${width} ${height} bg-gray-200 dark:bg-gray-700 rounded animate-pulse`}></div>
+  const SkeletonLine = ({
+    width = "w-full",
+    height = "h-4",
+  }: {
+    width?: string;
+    height?: string;
+  }) => (
+    <div
+      className={`${width} ${height} bg-gray-200 dark:bg-gray-700 rounded animate-pulse`}
+    ></div>
   );
 
   const SkeletonCircle = ({ size = "w-12 h-12" }: { size?: string }) => (
-    <div className={`${size} bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse`}></div>
+    <div
+      className={`${size} bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse`}
+    ></div>
   );
 
   if (loading) {
@@ -1189,7 +1322,10 @@ const DashboardSuperAdmin: React.FC = () => {
                 <SkeletonLine width="w-40" height="h-6" />
                 <div className="mt-4 space-y-3">
                   {[1, 2, 3].map((j) => (
-                    <div key={j} className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                      <div
+                        key={j}
+                        className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg"
+                      >
                       <SkeletonLine width="w-full" height="h-4" />
                       <div className="mt-2">
                         <SkeletonLine width="w-3/4" height="h-3" />
@@ -1215,8 +1351,18 @@ const DashboardSuperAdmin: React.FC = () => {
               <table className="min-w-full">
                 <thead className="border-gray-100 dark:border-gray-800 border-y">
                   <tr>
-                    {['User', 'Role', 'Action', 'Target', 'Time', 'Status'].map((_, idx) => (
-                      <th key={idx} className="py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                      {[
+                        "User",
+                        "Role",
+                        "Action",
+                        "Target",
+                        "Time",
+                        "Status",
+                      ].map((_, idx) => (
+                        <th
+                          key={idx}
+                          className="py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400"
+                        >
                         <SkeletonLine width="w-16" height="h-4" />
                       </th>
                     ))}
@@ -1263,11 +1409,23 @@ const DashboardSuperAdmin: React.FC = () => {
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            <svg
+              className="w-8 h-8 text-red-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+              />
             </svg>
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Error Loading Dashboard</h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+            Error Loading Dashboard
+          </h3>
           <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
           <button
             onClick={fetchDashboardData}
@@ -1308,8 +1466,18 @@ const DashboardSuperAdmin: React.FC = () => {
              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                <div className="flex items-center space-x-4">
                  <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
-                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    <svg
+                      className="w-6 h-6 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                      />
                    </svg>
                  </div>
                  <div>
@@ -1317,7 +1485,8 @@ const DashboardSuperAdmin: React.FC = () => {
           Dashboard Super Admin
         </h1>
                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                     Isme - Integrated System Medical Education Fakultas Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta
+                      Isme - Integrated System Medical Education Fakultas
+                      Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta
         </p>
                    {user && user.name && (
                      <p className="mt-1 text-sm text-blue-600 dark:text-blue-400 font-medium">
@@ -1333,7 +1502,9 @@ const DashboardSuperAdmin: React.FC = () => {
                      <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
                      <div className="flex flex-col">
                        <span className="font-semibold">System Online</span>
-                       <span className="text-xs opacity-90">All Services Running</span>
+                        <span className="text-xs opacity-90">
+                          All Services Running
+                        </span>
                      </div>
                    </span>
       </div>
@@ -1342,24 +1513,34 @@ const DashboardSuperAdmin: React.FC = () => {
                  <div className="flex items-center gap-3 flex-wrap">
                    {/* Real-time Clock with Date */}
                    <span className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800">
-                     <svg className="w-3 h-3 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <svg
+                        className="w-3 h-3 mr-2"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
                      </svg>
                      <div className="flex flex-col">
                        <span className="font-semibold">
-                         {currentTime.toLocaleTimeString('id-ID', { 
-                           hour: '2-digit', 
-                           minute: '2-digit', 
-                           second: '2-digit',
-                           hour12: false 
+                          {currentTime.toLocaleTimeString("id-ID", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                            hour12: false,
                          })}
                        </span>
                        <span className="text-xs opacity-90">
-                         {currentTime.toLocaleDateString('id-ID', {
-                           weekday: 'long',
-                           day: 'numeric',
-                           month: 'long',
-                           year: 'numeric'
+                          {currentTime.toLocaleDateString("id-ID", {
+                            weekday: "long",
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
                          })}
                        </span>
                      </div>
@@ -1383,8 +1564,18 @@ const DashboardSuperAdmin: React.FC = () => {
                <div className="p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
                  <div className="flex items-start space-x-3">
                    <div className="flex-shrink-0">
-                     <svg className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <svg
+                        className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
                      </svg>
                    </div>
                    <div className="flex-1">
@@ -1406,7 +1597,12 @@ const DashboardSuperAdmin: React.FC = () => {
              <div className="relative overflow-hidden bg-gradient-to-r from-red-500 to-red-600 rounded-2xl shadow-lg border border-red-200 dark:border-red-700 notification-enter">
                {/* Background Pattern */}
                <div className="absolute inset-0 bg-red-600 opacity-10">
-                 <div className="absolute inset-0" style={{backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Cpath d='M30 0l4 8h8l-6 6 2 8-8-4-8 4 2-8-6-6h8z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`}}></div>
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Cpath d='M30 0l4 8h8l-6 6 2 8-8-4-8 4 2-8-6-6h8z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+                    }}
+                  ></div>
                </div>
                
                {/* Content */}
@@ -1415,8 +1611,18 @@ const DashboardSuperAdmin: React.FC = () => {
                    {/* Error Icon with Animation */}
                    <div className="flex-shrink-0">
                      <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-lg">
-                       <svg className="w-7 h-7 text-white animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        <svg
+                          className="w-7 h-7 text-white animate-pulse"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={3}
+                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                          />
                        </svg>
                      </div>
                    </div>
@@ -1424,24 +1630,48 @@ const DashboardSuperAdmin: React.FC = () => {
                    {/* Content */}
                    <div className="flex-1 min-w-0">
                      <div className="flex items-center space-x-2 mb-2">
-                       <h3 className="text-lg font-bold text-white">⚠️ Operation Failed</h3>
+                        <h3 className="text-lg font-bold text-white">
+                          ⚠️ Operation Failed
+                        </h3>
                        <div className="flex space-x-1">
                          <div className="w-2 h-2 bg-white/60 rounded-full animate-ping"></div>
                        </div>
                      </div>
-                     <p className="text-red-50 text-sm leading-relaxed">{error}</p>
+                      <p className="text-red-50 text-sm leading-relaxed">
+                        {error}
+                      </p>
                      
                      {/* Additional Info Tags */}
                      <div className="flex flex-wrap gap-2 mt-3">
                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-white/20 text-white backdrop-blur-sm">
-                         <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          <svg
+                            className="w-3 h-3 mr-1"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
                          </svg>
                          Safe to Retry
                        </span>
                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-white/20 text-white backdrop-blur-sm">
-                         <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          <svg
+                            className="w-3 h-3 mr-1"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
                          </svg>
                          Check Logs
                        </span>
@@ -1453,8 +1683,18 @@ const DashboardSuperAdmin: React.FC = () => {
                      onClick={() => setError(null)}
                      className="flex-shrink-0 w-8 h-8 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center text-white hover:bg-white/30 transition-all duration-200 hover:scale-105"
                    >
-                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
                      </svg>
                    </button>
                  </div>
@@ -1477,21 +1717,55 @@ const DashboardSuperAdmin: React.FC = () => {
                <div className="relative">
                  <div className="flex items-center justify-between mb-4">
                    <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
-                     <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      <svg
+                        className="w-6 h-6 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                        />
                      </svg>
             </div>
-                   <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${formatGrowthPercentage(stats.usersGrowth).colorClass}`}>
-                     <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={formatGrowthPercentage(stats.usersGrowth).isPositive ? "M5 10l7-7m0 0l7 7m-7-7v18" : "M19 14l-7 7m0 0l-7-7m7 7V3"} />
+                    <span
+                      className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
+                        formatGrowthPercentage(stats.usersGrowth).colorClass
+                      }`}
+                    >
+                      <svg
+                        className="w-3 h-3 mr-1"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d={
+                            formatGrowthPercentage(stats.usersGrowth).isPositive
+                              ? "M5 10l7-7m0 0l7 7m-7-7v18"
+                              : "M19 14l-7 7m0 0l-7-7m7 7V3"
+                          }
+                        />
                      </svg>
                      {formatGrowthPercentage(stats.usersGrowth).value}
                    </span>
                  </div>
             <div>
-                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Users</p>
-                   <h4 className="text-3xl font-bold text-gray-900 dark:text-white">{stats.totalUsers.toLocaleString()}</h4>
-                   <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Active system users</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                      Total Users
+                    </p>
+                    <h4 className="text-3xl font-bold text-gray-900 dark:text-white">
+                      {stats.totalUsers.toLocaleString()}
+                    </h4>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      Active system users
+                    </p>
             </div>
           </div>
         </motion.div>
@@ -1507,21 +1781,56 @@ const DashboardSuperAdmin: React.FC = () => {
                <div className="relative">
                  <div className="flex items-center justify-between mb-4">
                    <div className="w-12 h-12 bg-green-500 rounded-2xl flex items-center justify-center shadow-lg">
-                     <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                      <svg
+                        className="w-6 h-6 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                        />
                      </svg>
                    </div>
-                   <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${formatGrowthPercentage(stats.mahasiswaGrowth).colorClass}`}>
-                     <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={formatGrowthPercentage(stats.mahasiswaGrowth).isPositive ? "M5 10l7-7m0 0l7 7m-7-7v18" : "M19 14l-7 7m0 0l-7-7m7 7V3"} />
+                    <span
+                      className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
+                        formatGrowthPercentage(stats.mahasiswaGrowth).colorClass
+                      }`}
+                    >
+                      <svg
+                        className="w-3 h-3 mr-1"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d={
+                            formatGrowthPercentage(stats.mahasiswaGrowth)
+                              .isPositive
+                              ? "M5 10l7-7m0 0l7 7m-7-7v18"
+                              : "M19 14l-7 7m0 0l-7-7m7 7V3"
+                          }
+                        />
                      </svg>
                      {formatGrowthPercentage(stats.mahasiswaGrowth).value}
                    </span>
                  </div>
             <div>
-                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Mahasiswa</p>
-                   <h4 className="text-3xl font-bold text-gray-900 dark:text-white">{stats.totalMahasiswa.toLocaleString()}</h4>
-                   <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Registered students</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                      Mahasiswa
+                    </p>
+                    <h4 className="text-3xl font-bold text-gray-900 dark:text-white">
+                      {stats.totalMahasiswa.toLocaleString()}
+                    </h4>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      Registered students
+                    </p>
             </div>
                </div>
              </motion.div>
@@ -1537,21 +1846,55 @@ const DashboardSuperAdmin: React.FC = () => {
                <div className="relative">
                  <div className="flex items-center justify-between mb-4">
                    <div className="w-12 h-12 bg-purple-500 rounded-2xl flex items-center justify-center shadow-lg">
-                     <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      <svg
+                        className="w-6 h-6 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                        />
                      </svg>
                    </div>
-                   <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${formatGrowthPercentage(stats.dosenGrowth).colorClass}`}>
-                     <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={formatGrowthPercentage(stats.dosenGrowth).isPositive ? "M5 10l7-7m0 0l7 7m-7-7v18" : "M19 14l-7 7m0 0l-7-7m7 7V3"} />
+                    <span
+                      className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
+                        formatGrowthPercentage(stats.dosenGrowth).colorClass
+                      }`}
+                    >
+                      <svg
+                        className="w-3 h-3 mr-1"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d={
+                            formatGrowthPercentage(stats.dosenGrowth).isPositive
+                              ? "M5 10l7-7m0 0l7 7m-7-7v18"
+                              : "M19 14l-7 7m0 0l-7-7m7 7V3"
+                          }
+                        />
                      </svg>
                      {formatGrowthPercentage(stats.dosenGrowth).value}
                    </span>
                  </div>
                  <div>
-                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Dosen</p>
-                   <h4 className="text-3xl font-bold text-gray-900 dark:text-white">{stats.totalDosen.toLocaleString()}</h4>
-                   <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Faculty members</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                      Dosen
+                    </p>
+                    <h4 className="text-3xl font-bold text-gray-900 dark:text-white">
+                      {stats.totalDosen.toLocaleString()}
+                    </h4>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      Faculty members
+                    </p>
             </div>
           </div>
         </motion.div>
@@ -1571,13 +1914,27 @@ const DashboardSuperAdmin: React.FC = () => {
                <div className="absolute top-0 right-0 w-16 h-16 bg-indigo-50 dark:bg-indigo-900/20 rounded-full -mr-8 -mt-8"></div>
                <div className="relative">
                  <div className="w-12 h-12 bg-indigo-500 rounded-2xl flex items-center justify-center shadow-lg mb-4">
-                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    <svg
+                      className="w-6 h-6 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                      />
                    </svg>
                  </div>
             <div>
-                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Mata Kuliah</p>
-                   <h4 className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalMataKuliah.toLocaleString()}</h4>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                      Mata Kuliah
+                    </p>
+                    <h4 className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {stats.totalMataKuliah.toLocaleString()}
+                    </h4>
             </div>
                </div>
              </motion.div>
@@ -1592,13 +1949,27 @@ const DashboardSuperAdmin: React.FC = () => {
                <div className="absolute top-0 right-0 w-16 h-16 bg-teal-50 dark:bg-teal-900/20 rounded-full -mr-8 -mt-8"></div>
                <div className="relative">
                  <div className="w-12 h-12 bg-teal-500 rounded-2xl flex items-center justify-center shadow-lg mb-4">
-                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    <svg
+                      className="w-6 h-6 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                      />
                    </svg>
                  </div>
                  <div>
-                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Kelas Aktif</p>
-                   <h4 className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalKelas.toLocaleString()}</h4>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                      Kelas Aktif
+                    </p>
+                    <h4 className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {stats.totalKelas.toLocaleString()}
+                    </h4>
             </div>
           </div>
         </motion.div>
@@ -1613,13 +1984,27 @@ const DashboardSuperAdmin: React.FC = () => {
                <div className="absolute top-0 right-0 w-16 h-16 bg-pink-50 dark:bg-pink-900/20 rounded-full -mr-8 -mt-8"></div>
                <div className="relative">
                  <div className="w-12 h-12 bg-pink-500 rounded-2xl flex items-center justify-center shadow-lg mb-4">
-                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2V5zM9 7h6M9 11h6" />
+                    <svg
+                      className="w-6 h-6 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2V5zM9 7h6M9 11h6"
+                      />
                    </svg>
                  </div>
             <div>
-                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Ruangan</p>
-                   <h4 className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalRuangan.toLocaleString()}</h4>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                      Ruangan
+                    </p>
+                    <h4 className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {stats.totalRuangan.toLocaleString()}
+                    </h4>
             </div>
                </div>
              </motion.div>
@@ -1634,21 +2019,32 @@ const DashboardSuperAdmin: React.FC = () => {
                <div className="absolute top-0 right-0 w-16 h-16 bg-cyan-50 dark:bg-cyan-900/20 rounded-full -mr-8 -mt-8"></div>
                <div className="relative">
                  <div className="w-12 h-12 bg-cyan-500 rounded-2xl flex items-center justify-center shadow-lg mb-4">
-                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    <svg
+                      className="w-6 h-6 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      />
                    </svg>
                  </div>
                  <div>
-                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Jadwal Aktif</p>
-                   <h4 className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalJadwalAktif.toLocaleString()}</h4>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
+                      Jadwal Aktif
+                    </p>
+                    <h4 className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {stats.totalJadwalAktif.toLocaleString()}
+                    </h4>
             </div>
           </div>
         </motion.div>
            </div>
       </div>
-
-
-
 
       {/* Second Row - Super Admin Management & Quick Actions */}
       <div className="col-span-12">
@@ -1661,7 +2057,9 @@ const DashboardSuperAdmin: React.FC = () => {
             className="md:col-span-2 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6 flex flex-col"
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Super Admin Management</h3>
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                    Super Admin Management
+                  </h3>
               <div className="flex items-center space-x-2">
               <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800">
                 <div className="w-2 h-2 bg-blue-500 rounded-full mr-1.5"></div>
@@ -1685,20 +2083,22 @@ const DashboardSuperAdmin: React.FC = () => {
                     <div className="flex items-center space-x-3">
                       <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
                         <span className="text-sm font-semibold text-white">
-                          {user?.name?.charAt(0) || 'A'}
+                              {user?.name?.charAt(0) || "A"}
                         </span>
               </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <div className="text-sm font-medium text-gray-900 dark:text-white">
-                            {user?.name || 'Current User'}
+                                {user?.name || "Current User"}
                           </div>
                           {user?.username && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300 border border-gray-200 dark:border-gray-700">@{user.username}</span>
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                                  @{user.username}
+                                </span>
                           )}
                         </div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {user?.email || 'current@example.com'}
+                              {user?.email || "current@example.com"}
                         </div>
                       </div>
                 </div>
@@ -1714,16 +2114,20 @@ const DashboardSuperAdmin: React.FC = () => {
 
                   {/* Other Super Admins */}
                   <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                    Other Super Admins ({stats.superAdmins ? stats.superAdmins.length - 1 : 0})
+                        Other Super Admins (
+                        {stats.superAdmins ? stats.superAdmins.length - 1 : 0})
                 </div>
                   
                   {/* List of other Super Admins */}
                   {stats.superAdmins && stats.superAdmins.length > 1 ? (
                     <div className="space-y-2">
                       {stats.superAdmins
-                        .filter(admin => admin.email !== user?.email) // Exclude current user
+                            .filter((admin) => admin.email !== user?.email) // Exclude current user
                         .map((admin) => (
-                          <div key={admin.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/30 rounded-lg">
+                              <div
+                                key={admin.id}
+                                className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800/30 rounded-lg"
+                              >
                             <div className="flex items-center space-x-3">
                               <div className="w-8 h-8 bg-gray-400 rounded-lg flex items-center justify-center">
                                 <span className="text-xs font-semibold text-white">
@@ -1736,7 +2140,9 @@ const DashboardSuperAdmin: React.FC = () => {
                                     {admin.name}
                                   </div>
                                   {admin.username && (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300 border border-gray-200 dark:border-gray-700">@{admin.username}</span>
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                                          @{admin.username}
+                                        </span>
                                   )}
                                 </div>
                                 <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -1745,15 +2151,19 @@ const DashboardSuperAdmin: React.FC = () => {
                               </div>
                 </div>
                             <div className="flex items-center space-x-2">
-                              <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                  <span
+                                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                                 admin.is_logged_in 
-                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                                  : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
-                              }`}>
-                                {admin.is_logged_in ? 'Online' : 'Offline'}
+                                        ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
+                                        : "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400"
+                                    }`}
+                                  >
+                                    {admin.is_logged_in ? "Online" : "Offline"}
                               </span>
                               <span className="text-xs text-gray-500 dark:text-gray-400">
-                                {new Date(admin.created_at).toLocaleDateString()}
+                                    {new Date(
+                                      admin.created_at
+                                    ).toLocaleDateString()}
                               </span>
                     </div>
                       </div>
@@ -1762,20 +2172,29 @@ const DashboardSuperAdmin: React.FC = () => {
                   ) : (
                     <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                       <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center mx-auto mb-3">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            <svg
+                              className="w-6 h-6"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                              />
                         </svg>
                     </div>
                       <p className="text-sm">No other Super Admins</p>
-                      <p className="text-xs">Create new Super Admin accounts to manage them here</p>
+                          <p className="text-xs">
+                            Create new Super Admin accounts to manage them here
+                          </p>
                     </div>
                   )}
                     </div>
                     </div>
                   </div>
-
-                
-                
         </motion.div>
           
           {/* Quick Actions - Takes 1 column */}
@@ -1785,20 +2204,36 @@ const DashboardSuperAdmin: React.FC = () => {
             transition={{ delay: 0.9 }}
             className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03] md:p-5 flex flex-col"
           >
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-3">Quick Actions</h3>
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-3">
+                  Quick Actions
+                </h3>
             <div className="space-y-3 flex-1">
               <button 
                 onClick={handleImportMahasiswa}
                 className="w-full flex items-center space-x-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition text-left"
               >
                 <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      <svg
+                        className="w-4 h-4 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                        />
                   </svg>
                 </div>
             <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">Import Mahasiswa</p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">Upload data mahasiswa baru</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        Import Mahasiswa
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        Upload data mahasiswa baru
+                      </p>
             </div>
               </button>
               
@@ -1807,13 +2242,27 @@ const DashboardSuperAdmin: React.FC = () => {
                 className="w-full flex items-center space-x-3 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 transition text-left"
               >
                 <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      <svg
+                        className="w-4 h-4 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                        />
                   </svg>
             </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">Generate Kelompok</p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">Buat kelompok mahasiswa baru</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        Generate Kelompok
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        Buat kelompok mahasiswa baru
+                      </p>
           </div>
               </button>
               
@@ -1822,13 +2271,27 @@ const DashboardSuperAdmin: React.FC = () => {
                 className="w-full flex items-center space-x-3 p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition text-left"
               >
                 <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      <svg
+                        className="w-4 h-4 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                        />
                   </svg>
       </div>
             <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">Export Reports</p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">Download laporan sistem</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        Export Reports
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        Download laporan sistem
+                      </p>
             </div>
               </button>
               
@@ -1837,13 +2300,27 @@ const DashboardSuperAdmin: React.FC = () => {
                 className="w-full flex items-center space-x-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-900/20 hover:bg-gray-100 dark:hover:bg-gray-900/30 transition text-left"
               >
                 <div className="w-8 h-8 bg-gray-500 rounded-lg flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      <svg
+                        className="w-4 h-4 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
                   </svg>
             </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">Backup System</p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">Download backup ke komputer Anda</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        Backup System
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        Download backup ke komputer Anda
+                      </p>
           </div>
               </button>
               
@@ -1852,29 +2329,56 @@ const DashboardSuperAdmin: React.FC = () => {
                 className="w-full flex items-center space-x-3 p-3 rounded-lg bg-teal-50 dark:bg-teal-900/20 hover:bg-teal-100 dark:hover:bg-teal-900/30 transition text-left"
               >
                 <div className="w-8 h-8 bg-teal-500 rounded-lg flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                      <svg
+                        className="w-4 h-4 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"
+                        />
                   </svg>
             </div>
             <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">Import System</p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">Restore dari backup file</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        Import System
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        Restore dari backup file
+                      </p>
             </div>
               </button>
-              
               
               <button 
                 onClick={handleResetSystem}
                 className="w-full flex items-center space-x-3 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 transition text-left"
               >
                 <div className="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      <svg
+                        className="w-4 h-4 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
                   </svg>
             </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">Reset System</p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">Hapus semua data kecuali Super Admin</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        Reset System
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        Hapus semua data kecuali Super Admin
+                      </p>
           </div>
               </button>
             </div>
@@ -1892,26 +2396,47 @@ const DashboardSuperAdmin: React.FC = () => {
             className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6"
         >
           <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Today's Schedule</h3>
-              <span className="text-sm text-gray-500 dark:text-gray-400">{new Date().toLocaleDateString('id-ID')}</span>
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                    Today's Schedule
+                  </h3>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    {new Date().toLocaleDateString("id-ID")}
+                  </span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {stats.todaySchedule.map((schedule, index) => (
-                <div key={index} className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                    <div
+                      key={index}
+                      className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg"
+                    >
                   <div className="flex items-center justify-between mb-2">
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      schedule.type === 'PBL' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400' :
-                      schedule.type === 'Journal Reading' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' :
-                      'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400'
-                    }`}>
+                        <span
+                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            schedule.type === "PBL"
+                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400"
+                              : schedule.type === "Journal Reading"
+                              ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
+                              : "bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400"
+                          }`}
+                        >
                       {schedule.type}
             </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">{schedule.waktu}</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {schedule.waktu}
+                        </span>
           </div>
-                  <h4 className="font-medium text-gray-900 dark:text-white text-sm mb-1">{schedule.mata_kuliah}</h4>
-                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Dosen: {schedule.dosen}</p>
-                  <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Ruangan: {schedule.ruangan}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-500">{schedule.topik}</p>
+                      <h4 className="font-medium text-gray-900 dark:text-white text-sm mb-1">
+                        {schedule.mata_kuliah}
+                      </h4>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
+                        Dosen: {schedule.dosen}
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
+                        Ruangan: {schedule.ruangan}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-500">
+                        {schedule.topik}
+                      </p>
               </div>
               ))}
                     </div>
@@ -1927,40 +2452,63 @@ const DashboardSuperAdmin: React.FC = () => {
           transition={{ delay: 1.1 }}
           className="col-span-12 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6"
         >
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">System Notifications</h3>
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">
+                System Notifications
+              </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {stats.systemNotifications.map((notification, index) => (
-              <div key={index} className={`p-4 rounded-lg border-l-4 ${
-                notification.type === 'warning' ? 'bg-yellow-50 border-yellow-400 dark:bg-yellow-900/20 dark:border-yellow-600' :
-                notification.type === 'error' ? 'bg-red-50 border-red-400 dark:bg-red-900/20 dark:border-red-600' :
-                notification.type === 'success' ? 'bg-green-50 border-green-400 dark:bg-green-900/20 dark:border-green-600' :
-                'bg-blue-50 border-blue-400 dark:bg-blue-900/20 dark:border-blue-600'
-              }`}>
+                  <div
+                    key={index}
+                    className={`p-4 rounded-lg border-l-4 ${
+                      notification.type === "warning"
+                        ? "bg-yellow-50 border-yellow-400 dark:bg-yellow-900/20 dark:border-yellow-600"
+                        : notification.type === "error"
+                        ? "bg-red-50 border-red-400 dark:bg-red-900/20 dark:border-red-600"
+                        : notification.type === "success"
+                        ? "bg-green-50 border-green-400 dark:bg-green-900/20 dark:border-green-600"
+                        : "bg-blue-50 border-blue-400 dark:bg-blue-900/20 dark:border-blue-600"
+                    }`}
+                  >
                 <div className="flex items-start justify-between">
                     <div className="flex-1">
-                    <p className={`text-sm font-medium ${
-                      notification.type === 'warning' ? 'text-yellow-800 dark:text-yellow-200' :
-                      notification.type === 'error' ? 'text-red-800 dark:text-red-200' :
-                      notification.type === 'success' ? 'text-green-800 dark:text-green-200' :
-                      'text-blue-800 dark:text-blue-200'
-                    }`}>
+                        <p
+                          className={`text-sm font-medium ${
+                            notification.type === "warning"
+                              ? "text-yellow-800 dark:text-yellow-200"
+                              : notification.type === "error"
+                              ? "text-red-800 dark:text-red-200"
+                              : notification.type === "success"
+                              ? "text-green-800 dark:text-green-200"
+                              : "text-blue-800 dark:text-blue-200"
+                          }`}
+                        >
                       {notification.title}
                     </p>
-                    <p className={`text-xs mt-1 ${
-                      notification.type === 'warning' ? 'text-yellow-700 dark:text-yellow-300' :
-                      notification.type === 'error' ? 'text-red-700 dark:text-red-300' :
-                      notification.type === 'success' ? 'text-green-700 dark:text-green-300' :
-                      'text-blue-700 dark:text-blue-300'
-                    }`}>
+                        <p
+                          className={`text-xs mt-1 ${
+                            notification.type === "warning"
+                              ? "text-yellow-700 dark:text-yellow-300"
+                              : notification.type === "error"
+                              ? "text-red-700 dark:text-red-300"
+                              : notification.type === "success"
+                              ? "text-green-700 dark:text-green-300"
+                              : "text-blue-700 dark:text-blue-300"
+                          }`}
+                        >
                       {notification.message}
                       </p>
               </div>
-                  <button className={`text-xs font-medium ml-3 ${
-                    notification.type === 'warning' ? 'text-yellow-800 hover:text-yellow-900 dark:text-yellow-200' :
-                    notification.type === 'error' ? 'text-red-800 hover:text-red-900 dark:text-red-200' :
-                    notification.type === 'success' ? 'text-green-800 hover:text-green-900 dark:text-green-200' :
-                    'text-blue-800 hover:text-blue-900 dark:text-blue-200'
-                  }`}>
+                      <button
+                        className={`text-xs font-medium ml-3 ${
+                          notification.type === "warning"
+                            ? "text-yellow-800 hover:text-yellow-900 dark:text-yellow-200"
+                            : notification.type === "error"
+                            ? "text-red-800 hover:text-red-900 dark:text-red-200"
+                            : notification.type === "success"
+                            ? "text-green-800 hover:text-green-900 dark:text-green-200"
+                            : "text-blue-800 hover:text-blue-900 dark:text-blue-200"
+                        }`}
+                      >
                     {notification.action}
                   </button>
                     </div>
@@ -1986,7 +2534,7 @@ const DashboardSuperAdmin: React.FC = () => {
                     </div>
             <div className="flex items-center gap-3">
                               <button 
-                 onClick={() => navigate('/reporting/histori')}
+                    onClick={() => navigate("/reporting/histori")}
                  className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200 transition-colors"
                >
                  View All
@@ -1997,19 +2545,36 @@ const DashboardSuperAdmin: React.FC = () => {
             <table className="min-w-full">
               <thead className="border-gray-100 dark:border-gray-800 border-y">
                 <tr>
-                  <th className="py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">User</th>
-                   <th className="py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Role</th>
-                  <th className="py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Action</th>
-                  <th className="py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Module</th>
-                  <th className="py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Description</th>
-                  <th className="py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Time</th>
-                  <th className="py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Status</th>
+                      <th className="py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                        User
+                      </th>
+                      <th className="py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                        Role
+                      </th>
+                      <th className="py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                        Action
+                      </th>
+                      <th className="py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                        Module
+                      </th>
+                      <th className="py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                        Description
+                      </th>
+                      <th className="py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                        Time
+                      </th>
+                      <th className="py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                        Status
+                      </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {stats.recentActivities.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-gray-500 dark:text-gray-400">
+                        <td
+                          colSpan={7}
+                          className="py-8 text-center text-gray-500 dark:text-gray-400"
+                        >
                       No recent activities
                     </td>
                   </tr>
@@ -2018,31 +2583,43 @@ const DashboardSuperAdmin: React.FC = () => {
                     <tr key={activity.id}>
                       <td className="py-3">
                         <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${getRoleColor(activity.role || 'System')}`}>
+                              <div
+                                className={`w-8 h-8 rounded-lg flex items-center justify-center ${getRoleColor()}`}
+                              >
                             <span className="text-sm font-semibold text-white">
-                              {getUserInitials(activity.user || 'System')}
+                                  {getUserInitials(activity.user || "System")}
                             </span>
                 </div>
                           <div>
                             <div className="text-sm font-medium text-gray-900 dark:text-white">
-                              {activity.user || 'System'}
+                                  {activity.user || "System"}
                             </div>
                           </div>
                     </div>
                       </td>
-                      <td className="py-3 text-sm text-gray-500 dark:text-gray-400">{activity.role || 'System'}</td>
+                          <td className="py-3 text-sm text-gray-500 dark:text-gray-400">
+                            {activity.role || "System"}
+                          </td>
                       <td className="py-3 text-sm text-gray-900 dark:text-white">
-                        {activity.event || 'custom'}
+                            {activity.event || "custom"}
                       </td>
                       <td className="py-3 text-sm text-gray-900 dark:text-white">
-                        {activity.subject_type ? activity.subject_type.split('\\').pop() : 'System'}
+                            {activity.subject_type
+                              ? activity.subject_type.split("\\").pop()
+                              : "System"}
                       </td>
-                      <td className="py-3 text-sm text-gray-900 dark:text-white/90 max-w-xs truncate" title={activity.description}>
+                          <td
+                            className="py-3 text-sm text-gray-900 dark:text-white/90 max-w-xs truncate"
+                            title={activity.description}
+                          >
                         {activity.description}
                       </td>
-                      <td className="py-3 text-sm text-gray-500 dark:text-gray-400">{activity.timestamp || formatActivityTime(activity.created_at)}</td>
+                          <td className="py-3 text-sm text-gray-500 dark:text-gray-400">
+                            {activity.timestamp ||
+                              formatActivityTime(activity.created_at)}
+                          </td>
                       <td className="py-3 text-sm text-gray-900 dark:text-white">
-                        {activity.event || 'custom'}
+                            {activity.event || "custom"}
                       </td>
                     </tr>
                   ))
@@ -2064,7 +2641,7 @@ const DashboardSuperAdmin: React.FC = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
-            onClick={() => setShowExportModal(false)}
+                onClick={() => closeExportModal()}
           ></motion.div>
           {/* Modal Content */}
           <motion.div 
@@ -2076,10 +2653,16 @@ const DashboardSuperAdmin: React.FC = () => {
           >
             {/* Close Button */}
             <button
-              onClick={() => setShowExportModal(false)}
+                  onClick={() => closeExportModal()}
               className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
             >
-              <svg width="20" height="20" fill="none" viewBox="0 0 24 24" className="w-6 h-6">
+                  <svg
+                    width="20"
+                    height="20"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    className="w-6 h-6"
+                  >
                 <path
                   fillRule="evenodd"
                   clipRule="evenodd"
@@ -2110,113 +2693,257 @@ const DashboardSuperAdmin: React.FC = () => {
           <div className="space-y-3">
                     <div
                       className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
-                        selectedReportTypes.includes('attendance') ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600' : ''
+                            selectedReportTypes.includes("attendance")
+                              ? "bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600"
+                              : ""
                       }`}
                       onClick={() => {
-                        if (selectedReportTypes.includes('attendance')) {
-                          setSelectedReportTypes(prev => prev.filter(type => type !== 'attendance'));
+                            if (selectedReportTypes.includes("attendance")) {
+                              setSelectedReportTypes((prev) =>
+                                prev.filter((type) => type !== "attendance")
+                              );
                         } else {
-                          setSelectedReportTypes(prev => [...prev, 'attendance']);
+                              setSelectedReportTypes((prev) => [
+                                ...prev,
+                                "attendance",
+                              ]);
                         }
                       }}
                     >
                       <div className="flex items-center space-x-3">
-                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                          selectedReportTypes.includes('attendance')
-                            ? 'bg-brand-500 border-brand-500' 
-                            : 'border-gray-300 dark:border-gray-600'
-                        }`}>
-                          {selectedReportTypes.includes('attendance') && (
-                            <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            <div
+                              className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                selectedReportTypes.includes("attendance")
+                                  ? "bg-brand-500 border-brand-500"
+                                  : "border-gray-300 dark:border-gray-600"
+                              }`}
+                            >
+                              {selectedReportTypes.includes("attendance") && (
+                                <svg
+                                  className="w-2.5 h-2.5 text-white"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                    clipRule="evenodd"
+                                  />
                             </svg>
                           )}
               </div>
                         <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
-                          <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              <svg
+                                className="w-5 h-5 text-blue-600 dark:text-blue-400"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                />
                           </svg>
                     </div>
                     <div>
-                          <p className="font-medium text-gray-900 dark:text-white">Attendance Report</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">Laporan kehadiran mahasiswa</p>
+                              <p className="font-medium text-gray-900 dark:text-white">
+                                Attendance Report
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                Laporan kehadiran mahasiswa
+                              </p>
                     </div>
                   </div>
             </div>
             
                     <div
                       className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
-                        selectedReportTypes.includes('assessment') ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600' : ''
+                            selectedReportTypes.includes("assessment")
+                              ? "bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600"
+                              : ""
                       }`}
                       onClick={() => {
-                        if (selectedReportTypes.includes('assessment')) {
-                          setSelectedReportTypes(prev => prev.filter(type => type !== 'assessment'));
+                            if (selectedReportTypes.includes("assessment")) {
+                              setSelectedReportTypes((prev) =>
+                                prev.filter((type) => type !== "assessment")
+                              );
                         } else {
-                          setSelectedReportTypes(prev => [...prev, 'assessment']);
+                              setSelectedReportTypes((prev) => [
+                                ...prev,
+                                "assessment",
+                              ]);
                         }
                       }}
                     >
                       <div className="flex items-center space-x-3">
-                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                          selectedReportTypes.includes('assessment')
-                            ? 'bg-brand-500 border-brand-500' 
-                            : 'border-gray-300 dark:border-gray-600'
-                        }`}>
-                          {selectedReportTypes.includes('assessment') && (
-                            <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            <div
+                              className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                selectedReportTypes.includes("assessment")
+                                  ? "bg-brand-500 border-brand-500"
+                                  : "border-gray-300 dark:border-gray-600"
+                              }`}
+                            >
+                              {selectedReportTypes.includes("assessment") && (
+                                <svg
+                                  className="w-2.5 h-2.5 text-white"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                    clipRule="evenodd"
+                                  />
                             </svg>
                           )}
                 </div>
                         <div className="w-10 h-10 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
-                          <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                              <svg
+                                className="w-5 h-5 text-green-600 dark:text-green-400"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                                />
                           </svg>
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900 dark:text-white">Assessment Report</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">Laporan penilaian mahasiswa</p>
+                              <p className="font-medium text-gray-900 dark:text-white">
+                                Assessment Report
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                Laporan penilaian mahasiswa
+                              </p>
+                            </div>
+                          </div>
                         </div>
                       </div>
             </div>
             
-                    <div
-                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
-                        selectedReportTypes.includes('academic') ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600' : ''
-                      }`}
-                      onClick={() => {
-                        if (selectedReportTypes.includes('academic')) {
-                          setSelectedReportTypes(prev => prev.filter(type => type !== 'academic'));
-                        } else {
-                          setSelectedReportTypes(prev => [...prev, 'academic']);
-                        }
-                      }}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                          selectedReportTypes.includes('academic')
-                            ? 'bg-brand-500 border-brand-500' 
-                            : 'border-gray-300 dark:border-gray-600'
-                        }`}>
-                          {selectedReportTypes.includes('academic') && (
-                            <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                            </svg>
+                    {/* Mata Kuliah Selection - hanya muncul jika attendance report dipilih */}
+                    {selectedReportTypes.includes("attendance") && (
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Pilih Mata Kuliah
+                          </label>
+                          {selectedMataKuliah && (
+                            <span className="text-xs text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/20 px-2 py-1 rounded-full">
+                              Mata Kuliah Dipilih
+                            </span>
                           )}
                         </div>
-                        <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
-                          <svg className="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                          </svg>
+                        <div className="relative">
+                          <select
+                            value={selectedMataKuliah}
+                            onChange={(e) =>
+                              setSelectedMataKuliah(e.target.value)
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                            disabled={loadingMataKuliah}
+                          >
+                            <option value="">
+                              {loadingMataKuliah
+                                ? "Memuat mata kuliah..."
+                                : !Array.isArray(mataKuliahList) ||
+                                  mataKuliahList.length === 0
+                                ? "Tidak ada mata kuliah dengan data kehadiran"
+                                : "Pilih mata kuliah"}
+                            </option>
+                            {Array.isArray(mataKuliahList) &&
+                              mataKuliahList.map((matkul) => (
+                                <option key={matkul.kode} value={matkul.kode}>
+                                  {matkul.kode} - {matkul.nama} (
+                                  {formatJenisMataKuliah(
+                                    matkul.jenis,
+                                    matkul.tipe_non_block
+                                  )}
+                                  ) -{" "}
+                                  {formatSemester(
+                                    matkul.semester,
+                                    matkul.periode
+                                  )}
+                                </option>
+                              ))}
+                          </select>
+                          {loadingMataKuliah && (
+                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-brand-500"></div>
                         </div>
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">Academic Report</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">Laporan akademik lengkap</p>
+                          )}
                         </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Hanya menampilkan mata kuliah yang memiliki data
+                          kehadiran
+                        </p>
+                        </div>
+                    )}
+
+                    {/* Mata Kuliah Selection untuk Assessment Report - hanya muncul jika assessment report dipilih */}
+                    {selectedReportTypes.includes("assessment") && (
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Pilih Mata Kuliah
+                          </label>
+                          {selectedMataKuliahPenilaian && (
+                            <span className="text-xs text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/20 px-2 py-1 rounded-full">
+                              Mata Kuliah Dipilih
+                            </span>
+                          )}
                       </div>
+                        <div className="relative">
+                          <select
+                            value={selectedMataKuliahPenilaian}
+                            onChange={(e) =>
+                              setSelectedMataKuliahPenilaian(e.target.value)
+                            }
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                            disabled={loadingMataKuliahPenilaian}
+                          >
+                            <option value="">
+                              {loadingMataKuliahPenilaian
+                                ? "Memuat mata kuliah..."
+                                : !Array.isArray(mataKuliahPenilaianList) ||
+                                  mataKuliahPenilaianList.length === 0
+                                ? "Tidak ada mata kuliah dengan data penilaian"
+                                : "Pilih mata kuliah"}
+                            </option>
+                            {Array.isArray(mataKuliahPenilaianList) &&
+                              mataKuliahPenilaianList.map((matkul) => (
+                                <option key={matkul.kode} value={matkul.kode}>
+                                  {matkul.kode} - {matkul.nama} (
+                                  {formatJenisMataKuliah(
+                                    matkul.jenis,
+                                    matkul.tipe_non_block
+                                  )}
+                                  ) -{" "}
+                                  {formatSemester(
+                                    matkul.semester,
+                                    matkul.periode
+                                  )}
+                                </option>
+                              ))}
+                          </select>
+                          {loadingMataKuliahPenilaian && (
+                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-brand-500"></div>
                     </div>
+                          )}
                   </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Hanya menampilkan mata kuliah yang memiliki data
+                          penilaian
+                        </p>
             </div>
+                    )}
             
                 {/* Format Selection */}
                 <div className="mb-4">
@@ -2232,16 +2959,20 @@ const DashboardSuperAdmin: React.FC = () => {
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     {[
-                      { value: 'excel', label: 'Excel', icon: '📊' },
-                      { value: 'pdf', label: 'PDF', icon: '📄' },
-                      { value: 'both', label: 'Both', icon: '📁' }
+                          { value: "excel", label: "Excel", icon: "📊" },
+                          { value: "pdf", label: "PDF", icon: "📄" },
+                          { value: "both", label: "Both", icon: "📁" },
                     ].map((format) => {
-                      const isSelected = selectedExportFormats.includes(format.value);
+                          const isSelected = selectedExportFormats.includes(
+                            format.value
+                          );
                       return (
                         <div
                           key={format.value}
                           className={`p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
-                            isSelected ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600' : ''
+                                isSelected
+                                  ? "bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600"
+                                  : ""
                           }`}
                           onClick={() => {
                             // Hanya bisa pilih 1 format
@@ -2249,20 +2980,34 @@ const DashboardSuperAdmin: React.FC = () => {
                           }}
                         >
                           <div className="flex items-center space-x-2">
-                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                <div
+                                  className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
                               isSelected 
-                                ? 'bg-brand-500 border-brand-500' 
-                                : 'border-gray-300 dark:border-gray-600'
-                            }`}>
+                                      ? "bg-brand-500 border-brand-500"
+                                      : "border-gray-300 dark:border-gray-600"
+                                  }`}
+                                >
                               {isSelected && (
-                                <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    <svg
+                                      className="w-2.5 h-2.5 text-white"
+                                      fill="currentColor"
+                                      viewBox="0 0 20 20"
+                                    >
+                                      <path
+                                        fillRule="evenodd"
+                                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                        clipRule="evenodd"
+                                      />
                                 </svg>
                               )}
                             </div>
                             <div className="text-center flex-1">
-                              <div className="text-2xl mb-1">{format.icon}</div>
-                              <div className="text-xs text-gray-600 dark:text-gray-400">{format.label}</div>
+                                  <div className="text-2xl mb-1">
+                                    {format.icon}
+                                  </div>
+                                  <div className="text-xs text-gray-600 dark:text-gray-400">
+                                    {format.label}
+                                  </div>
                             </div>
                           </div>
                         </div>
@@ -2271,11 +3016,9 @@ const DashboardSuperAdmin: React.FC = () => {
                   </div>
                 </div>
             
-                <div 
-                  className="flex justify-end gap-2 pt-2 relative z-20"
-                >
+                    <div className="flex justify-end gap-2 pt-2 relative z-20">
                   <button
-                    onClick={() => setShowExportModal(false)}
+                        onClick={() => closeExportModal()}
                     className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
                   >
                     Batal
@@ -2283,19 +3026,46 @@ const DashboardSuperAdmin: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleConfirmExport}
-                    disabled={selectedReportTypes.length === 0 || isExporting}
+                        disabled={
+                          selectedReportTypes.length === 0 ||
+                          isExporting ||
+                          (selectedReportTypes.includes("attendance") &&
+                            (!Array.isArray(mataKuliahList) ||
+                              mataKuliahList.length === 0 ||
+                              !selectedMataKuliah)) ||
+                          (selectedReportTypes.includes("assessment") &&
+                            (!Array.isArray(mataKuliahPenilaianList) ||
+                              mataKuliahPenilaianList.length === 0 ||
+                              !selectedMataKuliahPenilaian))
+                        }
                     className="px-3 sm:px-4 py-2 rounded-lg bg-brand-500 text-white text-xs sm:text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed relative z-10"
                   >
                     {isExporting ? (
                       <>
-                        <svg className="w-5 h-5 mr-2 animate-spin text-white inline-block align-middle" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            <svg
+                              className="w-5 h-5 mr-2 animate-spin text-white inline-block align-middle"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                              ></path>
                         </svg>
                         Downloading...
                       </>
                     ) : (
-                      'Download'
+                          "Download"
                     )}
                   </button>
                 </div>
@@ -2331,7 +3101,13 @@ const DashboardSuperAdmin: React.FC = () => {
               onClick={() => setShowBackupModal(false)}
               className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
             >
-              <svg width="20" height="20" fill="none" viewBox="0 0 24 24" className="w-6 h-6">
+                  <svg
+                    width="20"
+                    height="20"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    className="w-6 h-6"
+                  >
                 <path
                   fillRule="evenodd"
                   clipRule="evenodd"
@@ -2351,24 +3127,54 @@ const DashboardSuperAdmin: React.FC = () => {
                 <div className="mb-3 sm:mb-4">
                   <div className="flex items-center space-x-3 mb-4">
                     <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
-                      <svg className="w-6 h-6 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                          <svg
+                            className="w-6 h-6 text-orange-600 dark:text-orange-400"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+                            />
                       </svg>
                     </div>
                     <div>
-                      <h4 className="font-medium text-gray-900 dark:text-white">Konfirmasi Backup</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Proses ini akan memakan waktu beberapa menit</p>
+                          <h4 className="font-medium text-gray-900 dark:text-white">
+                            Konfirmasi Backup
+                          </h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Proses ini akan memakan waktu beberapa menit
+                          </p>
                     </div>
             </div>
             
                   <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                     <div className="flex items-start space-x-3">
-                      <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          <svg
+                            className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
                       </svg>
                       <div>
-                        <p className="text-sm font-medium text-blue-800 dark:text-blue-200">Info</p>
-                        <p className="text-sm text-blue-700 dark:text-blue-300">File backup akan langsung di-download ke komputer Anda. Anda bisa memilih lokasi penyimpanan sesuai keinginan.</p>
+                            <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                              Info
+                            </p>
+                            <p className="text-sm text-blue-700 dark:text-blue-300">
+                              File backup akan langsung di-download ke komputer
+                              Anda. Anda bisa memilih lokasi penyimpanan sesuai
+                              keinginan.
+                            </p>
                       </div>
                     </div>
             </div>
@@ -2387,37 +3193,42 @@ const DashboardSuperAdmin: React.FC = () => {
                   <div className="space-y-3 mb-6">
                     {[
                       {
-                        value: 'full',
-                        label: 'Full Backup',
-                        description: 'Database + struktur + files',
-                        badge: 'Rekomendasi',
-                        badgeColor: 'bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400',
-                        icon: '💾'
-                      },
-                      {
-                        value: 'data_only',
-                        label: 'Data Only',
-                        description: 'Hanya data (tanpa struktur tabel)',
-                        icon: '📊'
-                      }
+                            value: "full",
+                            label: "Full Backup",
+                            description: "Database + struktur + files",
+                            badge: "Rekomendasi",
+                            badgeColor:
+                              "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400",
+                            icon: "💾",
+                          },
+                          {
+                            value: "data_only",
+                            label: "Data Only",
+                            description: "Hanya data (tanpa struktur tabel)",
+                            icon: "📊",
+                          },
                     ].map((backup) => {
                       const isSelected = backupType === backup.value;
                       return (
                         <div
                           key={backup.value}
                           className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
-                            isSelected ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-600' : ''
+                                isSelected
+                                  ? "bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-600"
+                                  : ""
                           }`}
                           onClick={() => {
                             setBackupType(backup.value);
                           }}
                         >
                           <div className="flex items-center space-x-3">
-                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                <div
+                                  className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
                               isSelected 
-                                ? 'bg-orange-500 border-orange-500' 
-                                : 'border-gray-300 dark:border-gray-600'
-                            }`}>
+                                      ? "bg-orange-500 border-orange-500"
+                                      : "border-gray-300 dark:border-gray-600"
+                                  }`}
+                                >
                               {isSelected && (
                                 <div className="w-2 h-2 bg-white rounded-full"></div>
                               )}
@@ -2425,14 +3236,20 @@ const DashboardSuperAdmin: React.FC = () => {
                             <div className="text-2xl">{backup.icon}</div>
                             <div className="flex-1">
                               <div className="flex items-center space-x-2">
-                                <span className="font-medium text-gray-900 dark:text-white">{backup.label}</span>
+                                    <span className="font-medium text-gray-900 dark:text-white">
+                                      {backup.label}
+                                    </span>
                                 {backup.badge && (
-                                  <span className={`text-xs px-2 py-1 rounded ${backup.badgeColor}`}>
+                                      <span
+                                        className={`text-xs px-2 py-1 rounded ${backup.badgeColor}`}
+                                      >
                                     {backup.badge}
                                   </span>
                                 )}
                               </div>
-                              <p className="text-sm text-gray-600 dark:text-gray-400">{backup.description}</p>
+                                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    {backup.description}
+                                  </p>
                             </div>
                           </div>
                         </div>
@@ -2441,9 +3258,7 @@ const DashboardSuperAdmin: React.FC = () => {
                   </div>
                 </div>
             
-                <div 
-                  className="flex justify-end gap-2 pt-2 relative z-20"
-                >
+                    <div className="flex justify-end gap-2 pt-2 relative z-20">
                   <button
                     onClick={() => setShowBackupModal(false)}
                     className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
@@ -2458,14 +3273,30 @@ const DashboardSuperAdmin: React.FC = () => {
                   >
                     {isBacking ? (
                       <>
-                        <svg className="w-5 h-5 mr-2 animate-spin text-white inline-block align-middle" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            <svg
+                              className="w-5 h-5 mr-2 animate-spin text-white inline-block align-middle"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                              ></path>
                         </svg>
                         Creating & Downloading...
                       </>
                     ) : (
-                      'Create & Download Backup'
+                          "Create & Download Backup"
                     )}
             </button>
                 </div>
@@ -2501,7 +3332,13 @@ const DashboardSuperAdmin: React.FC = () => {
               onClick={() => setShowImportModal(false)}
               className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
             >
-              <svg width="20" height="20" fill="none" viewBox="0 0 24 24" className="w-6 h-6">
+                  <svg
+                    width="20"
+                    height="20"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    className="w-6 h-6"
+                  >
                 <path
                   fillRule="evenodd"
                   clipRule="evenodd"
@@ -2521,24 +3358,54 @@ const DashboardSuperAdmin: React.FC = () => {
                 <div className="mb-3 sm:mb-4">
                   <div className="flex items-center space-x-3 mb-4">
                     <div className="w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-lg flex items-center justify-center">
-                      <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                          <svg
+                            className="w-6 h-6 text-red-600 dark:text-red-400"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+                            />
                       </svg>
             </div>
                     <div>
-                      <h4 className="font-medium text-gray-900 dark:text-white">Restore Database</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Hati-hati! Ini akan mengganti data yang ada</p>
+                          <h4 className="font-medium text-gray-900 dark:text-white">
+                            Restore Database
+                          </h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Hati-hati! Ini akan mengganti data yang ada
+                          </p>
                     </div>
           </div>
           
                   <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                     <div className="flex items-start space-x-3">
-                      <svg className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                          <svg
+                            className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+                            />
                       </svg>
                       <div>
-                        <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Peringatan!</p>
-                        <p className="text-sm text-yellow-700 dark:text-yellow-300">Proses import akan mengganti semua data yang ada. Pastikan Anda telah membuat backup terlebih dahulu.</p>
+                            <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                              Peringatan!
+                            </p>
+                            <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                              Proses import akan mengganti semua data yang ada.
+                              Pastikan Anda telah membuat backup terlebih
+                              dahulu.
+                            </p>
             </div>
                     </div>
           </div>
@@ -2553,13 +3420,16 @@ const DashboardSuperAdmin: React.FC = () => {
                           type="file" 
                           accept=".sql,.zip" 
                           onChange={(e) => {
-                            const file = e.target.files && e.target.files[0];
+                                const file =
+                                  e.target.files && e.target.files[0];
                             if (file) {
                               // Validasi ukuran file (100MB)
                               if (file.size <= 100 * 1024 * 1024) {
                                 handleFileSelection(file);
                               } else {
-                                setError('Ukuran file terlalu besar. Maksimal 100MB.');
+                                    setError(
+                                      "Ukuran file terlalu besar. Maksimal 100MB."
+                                    );
                                 handleFileSelection(null);
                               }
                             } else {
@@ -2572,8 +3442,8 @@ const DashboardSuperAdmin: React.FC = () => {
                         <div 
                           className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-all duration-300 ease-in-out transform ${
                             isDragOver 
-                              ? 'border-red-500 dark:border-red-400 bg-red-50 dark:bg-red-900/20 scale-105 shadow-lg' 
-                              : 'border-gray-300 dark:border-gray-600 hover:border-red-500 dark:hover:border-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 bg-gray-50 dark:bg-gray-800 hover:scale-102'
+                                  ? "border-red-500 dark:border-red-400 bg-red-50 dark:bg-red-900/20 scale-105 shadow-lg"
+                                  : "border-gray-300 dark:border-gray-600 hover:border-red-500 dark:hover:border-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 bg-gray-50 dark:bg-gray-800 hover:scale-102"
                           }`}
                           onDragOver={(e) => {
                             e.preventDefault();
@@ -2590,18 +3460,24 @@ const DashboardSuperAdmin: React.FC = () => {
                             if (files.length > 0) {
                               const file = files[0];
                               // Validasi tipe file
-                              const allowedTypes = ['.sql', '.zip'];
-                              const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+                                  const allowedTypes = [".sql", ".zip"];
+                                  const fileExtension =
+                                    "." +
+                                    file.name.split(".").pop()?.toLowerCase();
                               if (allowedTypes.includes(fileExtension)) {
                                 // Validasi ukuran file (100MB)
                                 if (file.size <= 100 * 1024 * 1024) {
                                   handleFileSelection(file);
                                 } else {
-                                  setError('Ukuran file terlalu besar. Maksimal 100MB.');
+                                      setError(
+                                        "Ukuran file terlalu besar. Maksimal 100MB."
+                                      );
                                   handleFileSelection(null);
                                 }
                               } else {
-                                setError('Tipe file tidak didukung. Gunakan SQL atau ZIP.');
+                                    setError(
+                                      "Tipe file tidak didukung. Gunakan SQL atau ZIP."
+                                    );
                                 handleFileSelection(null);
                               }
                             }
@@ -2614,17 +3490,37 @@ const DashboardSuperAdmin: React.FC = () => {
                                   <div className="flex items-center space-x-3">
                                     <div className="flex-shrink-0">
                                       <div className="w-10 h-10 bg-green-100 dark:bg-green-800 rounded-full flex items-center justify-center">
-                                        <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            <svg
+                                              className="w-5 h-5 text-green-600 dark:text-green-400"
+                                              fill="none"
+                                              stroke="currentColor"
+                                              viewBox="0 0 24 24"
+                                            >
+                                              <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                              />
                                         </svg>
             </div>
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <p className="text-sm font-medium text-green-800 dark:text-green-200 truncate">
-                                        {selectedBackupFile.name.length > 28 ? selectedBackupFile.name.substring(0, 28) + '...' : selectedBackupFile.name}
+                                            {selectedBackupFile.name.length > 28
+                                              ? selectedBackupFile.name.substring(
+                                                  0,
+                                                  28
+                                                ) + "..."
+                                              : selectedBackupFile.name}
                                       </p>
                                       <p className="text-xs text-green-600 dark:text-green-400 text-left w-full">
-                                        {(selectedBackupFile.size / 1024 / 1024).toFixed(2)} MB
+                                            {(
+                                              selectedBackupFile.size /
+                                              1024 /
+                                              1024
+                                            ).toFixed(2)}{" "}
+                                            MB
                                       </p>
                                     </div>
                                   </div>
@@ -2636,16 +3532,36 @@ const DashboardSuperAdmin: React.FC = () => {
                                     }}
                                     className="flex-shrink-0 p-1 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors duration-200"
                                   >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                        <svg
+                                          className="w-4 h-4"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M6 18L18 6M6 6l12 12"
+                                          />
                                     </svg>
             </button>
           </div>
                               </div>
                             ) : (
                               <>
-                                <svg className="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                    <svg
+                                      className="w-8 h-8 text-gray-400 dark:text-gray-500"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                                      />
                                 </svg>
                                 <div>
                                   <p className="mb-2 text-sm text-gray-500 dark:text-gray-400 font-medium">
@@ -2676,56 +3592,75 @@ const DashboardSuperAdmin: React.FC = () => {
         
                       {[
                         {
-                          value: 'full',
-                          label: 'Full Restore',
-                          description: 'Restore struktur + data lengkap',
-                          badge: 'Hati-hati',
-                          badgeColor: 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400',
-                          icon: '⚠️'
-                        },
-                        {
-                          value: 'data_only',
-                          label: 'Data Only',
-                          description: 'Hanya import data (tabel harus sudah ada)',
-                          icon: '📊'
-                        }
+                              value: "full",
+                              label: "Full Restore",
+                              description: "Restore struktur + data lengkap",
+                              badge: "Hati-hati",
+                              badgeColor:
+                                "bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400",
+                              icon: "⚠️",
+                            },
+                            {
+                              value: "data_only",
+                              label: "Data Only",
+                              description:
+                                "Hanya import data (tabel harus sudah ada)",
+                              icon: "📊",
+                            },
                                             ].map((importType) => {
                         const isSelected = backupType === importType.value;
                         return (
                           <div
                             key={importType.value}
                             className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
-                              isSelected ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-600' : ''
+                                  isSelected
+                                    ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-600"
+                                    : ""
                             }`}
                             onClick={() => {
-                              const newType = importType.value as 'full' | 'data_only';
+                                  const newType = importType.value as
+                                    | "full"
+                                    | "data_only";
                               setBackupType(newType);
                               if (selectedBackupFile) {
-                                checkImportTypeCompatibility(selectedBackupFile, newType);
+                                    checkImportTypeCompatibility(
+                                      selectedBackupFile,
+                                      newType
+                                    );
                               }
                             }}
                           >
                             <div className="flex items-center space-x-3">
-                              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                  <div
+                                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
                                 isSelected 
-                                  ? 'bg-red-500 border-red-500' 
-                                  : 'border-gray-300 dark:border-gray-600'
-                              }`}>
+                                        ? "bg-red-500 border-red-500"
+                                        : "border-gray-300 dark:border-gray-600"
+                                    }`}
+                                  >
                                 {isSelected && (
                                   <div className="w-2 h-2 bg-white rounded-full"></div>
                                 )}
                               </div>
-                              <div className="text-2xl">{importType.icon}</div>
+                                  <div className="text-2xl">
+                                    {importType.icon}
+                                  </div>
                               <div className="flex-1">
                                 <div className="flex items-center space-x-2">
-                                  <span className="font-medium text-gray-900 dark:text-white">{importType.label}</span>
+                                      <span className="font-medium text-gray-900 dark:text-white">
+                                        {importType.label}
+                                      </span>
                                   {importType.badge && (
-                                    <span className={`text-xs px-2 py-1 rounded ${importType.badgeColor}`}>
+                                        <span
+                                          className={`text-xs px-2 py-1 rounded ${importType.badgeColor}`}
+                                        >
                                       {importType.badge}
                                     </span>
                                   )}
                                 </div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">{importType.description}</p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                      {importType.description}
+                                    </p>
                               </div>
                             </div>
                           </div>
@@ -2748,16 +3683,31 @@ const DashboardSuperAdmin: React.FC = () => {
                 {importTypeWarning && (
                   <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-4">
                     <div className="flex items-start space-x-3">
-                      <svg className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          <svg
+                            className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                            />
                       </svg>
                       <div className="flex-1">
                         <h4 className="text-sm font-medium text-amber-800 dark:text-amber-200">
                           Type Mismatch Detected
                         </h4>
                         <div className="mt-1">
-                          {importTypeWarning.split('\n').map((line, index) => (
-                            <p key={index} className="text-sm text-amber-700 dark:text-amber-300">
+                              {importTypeWarning
+                                .split("\n")
+                                .map((line, index) => (
+                                  <p
+                                    key={index}
+                                    className="text-sm text-amber-700 dark:text-amber-300"
+                                  >
                               {line}
                             </p>
                           ))}
@@ -2767,9 +3717,7 @@ const DashboardSuperAdmin: React.FC = () => {
                   </div>
                 )}
             
-                <div 
-                  className="flex justify-end gap-2 pt-2 relative z-20"
-                >
+                    <div className="flex justify-end gap-2 pt-2 relative z-20">
                   <button
                     onClick={() => setShowImportModal(false)}
                     className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
@@ -2784,14 +3732,30 @@ const DashboardSuperAdmin: React.FC = () => {
                   >
                     {isImporting ? (
                       <>
-                        <svg className="w-5 h-5 mr-2 animate-spin text-white inline-block align-middle" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            <svg
+                              className="w-5 h-5 mr-2 animate-spin text-white inline-block align-middle"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                              ></path>
                         </svg>
                         Importing...
                       </>
                     ) : (
-                      'Start Import'
+                          "Start Import"
                     )}
                   </button>
             </div>
@@ -2825,7 +3789,13 @@ const DashboardSuperAdmin: React.FC = () => {
               onClick={() => setShowResetModal(false)}
               className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
             >
-              <svg width="20" height="20" fill="none" viewBox="0 0 24 24" className="w-6 h-6">
+                  <svg
+                    width="20"
+                    height="20"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    className="w-6 h-6"
+                  >
                 <path
                   fillRule="evenodd"
                   clipRule="evenodd"
@@ -2845,24 +3815,54 @@ const DashboardSuperAdmin: React.FC = () => {
               <div className="mb-6">
                 <div className="flex items-center space-x-3 mb-4">
                   <div className="w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-lg flex items-center justify-center">
-                    <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        <svg
+                          className="w-6 h-6 text-red-600 dark:text-red-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
                     </svg>
                   </div>
                   <div>
-                    <h4 className="font-medium text-gray-900 dark:text-white">Konfirmasi Reset</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Tindakan ini tidak dapat dibatalkan!</p>
+                        <h4 className="font-medium text-gray-900 dark:text-white">
+                          Konfirmasi Reset
+                        </h4>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          Tindakan ini tidak dapat dibatalkan!
+                        </p>
                   </div>
                 </div>
                 
                 <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                   <div className="flex items-start space-x-3">
-                    <svg className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                        <svg
+                          className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+                          />
                     </svg>
                     <div>
-                      <p className="text-sm font-medium text-red-800 dark:text-red-200">Peringatan Kritis!</p>
-                      <p className="text-sm text-red-700 dark:text-red-300">Reset akan menghapus SEMUA data kecuali akun Super Admin yang sedang login. Pastikan Anda telah membuat backup terlebih dahulu.</p>
+                          <p className="text-sm font-medium text-red-800 dark:text-red-200">
+                            Peringatan Kritis!
+                          </p>
+                          <p className="text-sm text-red-700 dark:text-red-300">
+                            Reset akan menghapus SEMUA data kecuali akun Super
+                            Admin yang sedang login. Pastikan Anda telah membuat
+                            backup terlebih dahulu.
+                          </p>
                     </div>
                   </div>
                 </div>
@@ -2875,7 +3875,9 @@ const DashboardSuperAdmin: React.FC = () => {
                     <input
                       type="text"
                       value={resetConfirmationText}
-                      onChange={(e) => setResetConfirmationText(e.target.value)}
+                          onChange={(e) =>
+                            setResetConfirmationText(e.target.value)
+                          }
                       placeholder="Ketik 'reset' di sini..."
                       className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 dark:bg-gray-800 dark:text-white transition-colors"
                     />
@@ -2893,19 +3895,38 @@ const DashboardSuperAdmin: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleConfirmReset}
-                  disabled={isResetting || resetConfirmationText.toLowerCase() !== 'reset'}
+                      disabled={
+                        isResetting ||
+                        resetConfirmationText.toLowerCase() !== "reset"
+                      }
                   className="px-3 sm:px-4 py-2 rounded-lg bg-red-600 text-white text-xs sm:text-sm font-medium shadow-theme-xs hover:bg-red-700 transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed relative z-10"
                 >
                   {isResetting ? (
                     <>
-                      <svg className="w-5 h-5 mr-2 animate-spin text-white inline-block align-middle" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                          <svg
+                            className="w-5 h-5 mr-2 animate-spin text-white inline-block align-middle"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                            ></path>
                       </svg>
                       Resetting...
                     </>
                   ) : (
-                    'Konfirmasi Reset'
+                        "Konfirmasi Reset"
                   )}
                 </button>
               </div>
@@ -2914,8 +3935,6 @@ const DashboardSuperAdmin: React.FC = () => {
         </div>
       )}
       </AnimatePresence>
-
-
        </div>
 
       {/* Create Super Admin Modal */}
@@ -2943,7 +3962,13 @@ const DashboardSuperAdmin: React.FC = () => {
               onClick={handleCloseCreateAdminModal}
               className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
             >
-              <svg width="20" height="20" fill="none" viewBox="0 0 24 24" className="w-6 h-6">
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
                 <path
                   fillRule="evenodd"
                   clipRule="evenodd"
@@ -2963,18 +3988,39 @@ const DashboardSuperAdmin: React.FC = () => {
                 <div className="mb-3 sm:mb-4">
                   <div className="flex items-center space-x-3 mb-4">
                     <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
-                      <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        <svg
+                          className="w-6 h-6 text-blue-600 dark:text-blue-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                          />
                       </svg>
                     </div>
                     <div>
-                      <h3 className="text-sm font-medium text-gray-900 dark:text-white">Buat Akun Super Admin Baru</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Isi form di bawah ini untuk membuat akun Super Admin baru</p>
+                        <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                          Buat Akun Super Admin Baru
+                        </h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Isi form di bawah ini untuk membuat akun Super Admin
+                          baru
+                        </p>
                     </div>
                   </div>
                 </div>
 
-                <form onSubmit={(e) => { e.preventDefault(); handleSubmitCreateAdmin(); }} className="space-y-4">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSubmitCreateAdmin();
+                    }}
+                    className="space-y-4"
+                  >
                   {/* Nama */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -2983,14 +4029,20 @@ const DashboardSuperAdmin: React.FC = () => {
                     <input
                       type="text"
                       value={adminFormData.name}
-                      onChange={(e) => handleAdminFormChange('name', e.target.value)}
+                        onChange={(e) =>
+                          handleAdminFormChange("name", e.target.value)
+                        }
                       className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white ${
-                        adminFormErrors.name ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                          adminFormErrors.name
+                            ? "border-red-500"
+                            : "border-gray-300 dark:border-gray-600"
                       }`}
                       placeholder="Masukkan nama lengkap"
                     />
                     {adminFormErrors.name && (
-                      <p className="mt-1 text-sm text-red-600 dark:text-red-400">{adminFormErrors.name}</p>
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                          {adminFormErrors.name}
+                        </p>
                     )}
                   </div>
 
@@ -3002,14 +4054,20 @@ const DashboardSuperAdmin: React.FC = () => {
                     <input
                       type="text"
                       value={adminFormData.username}
-                      onChange={(e) => handleAdminFormChange('username', e.target.value)}
+                        onChange={(e) =>
+                          handleAdminFormChange("username", e.target.value)
+                        }
                       className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white ${
-                        adminFormErrors.username ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                          adminFormErrors.username
+                            ? "border-red-500"
+                            : "border-gray-300 dark:border-gray-600"
                       }`}
                       placeholder="Masukkan username"
                     />
                     {adminFormErrors.username && (
-                      <p className="mt-1 text-sm text-red-600 dark:text-red-400">{adminFormErrors.username}</p>
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                          {adminFormErrors.username}
+                        </p>
                     )}
                   </div>
 
@@ -3021,14 +4079,20 @@ const DashboardSuperAdmin: React.FC = () => {
                     <input
                       type="email"
                       value={adminFormData.email}
-                      onChange={(e) => handleAdminFormChange('email', e.target.value)}
+                        onChange={(e) =>
+                          handleAdminFormChange("email", e.target.value)
+                        }
                       className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white ${
-                        adminFormErrors.email ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                          adminFormErrors.email
+                            ? "border-red-500"
+                            : "border-gray-300 dark:border-gray-600"
                       }`}
                       placeholder="Masukkan email"
                     />
                     {adminFormErrors.email && (
-                      <p className="mt-1 text-sm text-red-600 dark:text-red-400">{adminFormErrors.email}</p>
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                          {adminFormErrors.email}
+                        </p>
                     )}
                   </div>
 
@@ -3040,14 +4104,20 @@ const DashboardSuperAdmin: React.FC = () => {
                     <input
                       type="password"
                       value={adminFormData.password}
-                      onChange={(e) => handleAdminFormChange('password', e.target.value)}
+                        onChange={(e) =>
+                          handleAdminFormChange("password", e.target.value)
+                        }
                       className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white ${
-                        adminFormErrors.password ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                          adminFormErrors.password
+                            ? "border-red-500"
+                            : "border-gray-300 dark:border-gray-600"
                       }`}
                       placeholder="Masukkan password (min 8 karakter)"
                     />
                     {adminFormErrors.password && (
-                      <p className="mt-1 text-sm text-red-600 dark:text-red-400">{adminFormErrors.password}</p>
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                          {adminFormErrors.password}
+                        </p>
                     )}
                   </div>
 
@@ -3059,14 +4129,23 @@ const DashboardSuperAdmin: React.FC = () => {
                     <input
                       type="password"
                       value={adminFormData.confirmPassword}
-                      onChange={(e) => handleAdminFormChange('confirmPassword', e.target.value)}
+                        onChange={(e) =>
+                          handleAdminFormChange(
+                            "confirmPassword",
+                            e.target.value
+                          )
+                        }
                       className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white ${
-                        adminFormErrors.confirmPassword ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                          adminFormErrors.confirmPassword
+                            ? "border-red-500"
+                            : "border-gray-300 dark:border-gray-600"
                       }`}
                       placeholder="Konfirmasi password"
                     />
                     {adminFormErrors.confirmPassword && (
-                      <p className="mt-1 text-sm text-red-600 dark:text-red-400">{adminFormErrors.confirmPassword}</p>
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                          {adminFormErrors.confirmPassword}
+                        </p>
                     )}
                   </div>
 
@@ -3078,14 +4157,20 @@ const DashboardSuperAdmin: React.FC = () => {
                     <input
                       type="tel"
                       value={adminFormData.phone}
-                      onChange={(e) => handleAdminFormChange('phone', e.target.value)}
+                        onChange={(e) =>
+                          handleAdminFormChange("phone", e.target.value)
+                        }
                       className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white ${
-                        adminFormErrors.phone ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                          adminFormErrors.phone
+                            ? "border-red-500"
+                            : "border-gray-300 dark:border-gray-600"
                       }`}
                       placeholder="Masukkan nomor telepon"
                     />
                     {adminFormErrors.phone && (
-                      <p className="mt-1 text-sm text-red-600 dark:text-red-400">{adminFormErrors.phone}</p>
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                          {adminFormErrors.phone}
+                        </p>
                     )}
                   </div>
 
@@ -3097,14 +4182,20 @@ const DashboardSuperAdmin: React.FC = () => {
                     <input
                       type="text"
                       value={adminFormData.position}
-                      onChange={(e) => handleAdminFormChange('position', e.target.value)}
+                        onChange={(e) =>
+                          handleAdminFormChange("position", e.target.value)
+                        }
                       className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white ${
-                        adminFormErrors.position ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                          adminFormErrors.position
+                            ? "border-red-500"
+                            : "border-gray-300 dark:border-gray-600"
                       }`}
                       placeholder="Masukkan posisi/jabatan"
                     />
                     {adminFormErrors.position && (
-                      <p className="mt-1 text-sm text-red-600 dark:text-red-400">{adminFormErrors.position}</p>
+                        <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                          {adminFormErrors.position}
+                        </p>
                     )}
                   </div>
 
@@ -3125,14 +4216,29 @@ const DashboardSuperAdmin: React.FC = () => {
                     >
                       {isCreatingAdmin ? (
                         <>
-                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            <svg
+                              className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              ></path>
                           </svg>
                           Membuat...
                         </>
                       ) : (
-                        'Buat Akun'
+                          "Buat Akun"
                       )}
                     </button>
                   </div>

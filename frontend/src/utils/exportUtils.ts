@@ -1,7 +1,7 @@
-import ExcelJS from 'exceljs';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import { saveAs } from 'file-saver';
+import ExcelJS from "exceljs";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { saveAs } from "file-saver";
 
 // Types for export data
 export interface ExportData {
@@ -18,7 +18,7 @@ export interface ExportData {
 export interface ReportConfig {
   filename: string;
   sheetName?: string;
-  orientation?: 'portrait' | 'landscape';
+  orientation?: "portrait" | "landscape";
   includeCharts?: boolean;
   includeSummary?: boolean;
 }
@@ -30,36 +30,36 @@ export const exportToExcel = async (
 ): Promise<void> => {
   try {
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet(config.sheetName || 'Report');
+    const worksheet = workbook.addWorksheet(config.sheetName || "Report");
 
     // Add title
     const titleRow = worksheet.addRow([exportData.title]);
-    titleRow.font = { bold: true, size: 16, color: { argb: 'FF2E75B6' } };
-    titleRow.alignment = { horizontal: 'center' };
-    worksheet.mergeCells(`A1:${String.fromCharCode(65 + exportData.headers.length - 1)}1`);
+    titleRow.font = { bold: true, size: 16, color: { argb: "FF2E75B6" } };
+    titleRow.alignment = { horizontal: "center" };
+    worksheet.mergeCells(
+      `A1:${String.fromCharCode(65 + exportData.headers.length - 1)}1`
+    );
 
     // Add headers
     const headerRow = worksheet.addRow(exportData.headers);
-    headerRow.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+    headerRow.font = { bold: true, size: 12, color: { argb: "FFFFFFFF" } };
     headerRow.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FF4472C4' }
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FF4472C4" },
     };
-    headerRow.alignment = { horizontal: 'center' };
+    headerRow.alignment = { horizontal: "center" };
 
     // Add data
-    exportData.data.forEach(row => {
+    exportData.data.forEach((row) => {
       worksheet.addRow(row);
     });
 
     // Auto-fit columns
-    worksheet.columns.forEach(column => {
+    worksheet.columns.forEach((column) => {
       if (column.values) {
         const maxLength = Math.max(
-          ...column.values.map(cell => 
-            cell ? cell.toString().length : 0
-          )
+          ...column.values.map((cell) => (cell ? cell.toString().length : 0))
         );
         column.width = Math.min(Math.max(maxLength + 2, 10), 50);
       }
@@ -68,40 +68,44 @@ export const exportToExcel = async (
     // Add summary if provided
     if (exportData.summary && config.includeSummary) {
       worksheet.addRow([]); // Empty row
-      const summaryRow = worksheet.addRow(['Summary']);
-      summaryRow.font = { bold: true, size: 14, color: { argb: 'FF2E75B6' } };
-      
+      const summaryRow = worksheet.addRow(["Summary"]);
+      summaryRow.font = { bold: true, size: 14, color: { argb: "FF2E75B6" } };
+
       if (exportData.summary.total !== undefined) {
-        worksheet.addRow(['Total Records:', exportData.summary.total]);
+        worksheet.addRow(["Total Records:", exportData.summary.total]);
       }
       if (exportData.summary.average !== undefined) {
-        worksheet.addRow(['Average:', exportData.summary.average.toFixed(2)]);
+        worksheet.addRow(["Average:", exportData.summary.average.toFixed(2)]);
       }
       if (exportData.summary.percentage !== undefined) {
-        worksheet.addRow(['Percentage:', `${exportData.summary.percentage.toFixed(2)}%`]);
+        worksheet.addRow([
+          "Percentage:",
+          `${exportData.summary.percentage.toFixed(2)}%`,
+        ]);
       }
     }
 
-     // Add borders
-     worksheet.eachRow((row) => {
-       row.eachCell((cell) => {
-         cell.border = {
-           top: { style: 'thin' },
-           left: { style: 'thin' },
-           bottom: { style: 'thin' },
-           right: { style: 'thin' }
-         };
-       });
-     });
+    // Add borders
+    worksheet.eachRow((row) => {
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" },
+        };
+      });
+    });
 
     // Generate and download
     const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
     saveAs(blob, `${config.filename}.xlsx`);
-
   } catch (error) {
-    console.error('Error exporting to Excel:', error);
-    throw new Error('Failed to export Excel file');
+    console.error("Error exporting to Excel:", error);
+    throw new Error("Failed to export Excel file");
   }
 };
 
@@ -111,54 +115,54 @@ export const exportToPDF = (
   config: ReportConfig
 ): void => {
   try {
-    const doc = new jsPDF(config.orientation || 'portrait');
-    
+    const doc = new jsPDF(config.orientation || "portrait");
+
     // Set document properties
     doc.setProperties({
       title: exportData.title,
-      subject: 'Academic Report',
-      author: 'UMJ Academic System',
-      creator: 'UMJ Academic System'
+      subject: "Academic Report",
+      author: "UMJ Academic System",
+      creator: "UMJ Academic System",
     });
 
     // Add header
     doc.setFontSize(20);
     doc.setTextColor(44, 62, 80);
-    doc.text('UNIVERSITAS MUHAMMADIYAH JAKARTA', 105, 20, { align: 'center' });
-    
+    doc.text("UNIVERSITAS MUHAMMADIYAH JAKARTA", 105, 20, { align: "center" });
+
     doc.setFontSize(16);
     doc.setTextColor(52, 73, 94);
-    doc.text(exportData.title, 105, 35, { align: 'center' });
+    doc.text(exportData.title, 105, 35, { align: "center" });
 
     // Add timestamp
     doc.setFontSize(10);
     doc.setTextColor(127, 140, 141);
-    doc.text(`Generated on: ${new Date().toLocaleString('id-ID')}`, 20, 50);
+    doc.text(`Generated on: ${new Date().toLocaleString("id-ID")}`, 20, 50);
 
-         // Add table
-     autoTable(doc, {
-       head: [exportData.headers],
-       body: exportData.data,
-       startY: 60,
-       styles: {
-         fontSize: 10,
-         cellPadding: 3
-       },
-       headStyles: {
-         fillColor: [68, 114, 196],
-         textColor: [255, 255, 255],
-         fontStyle: 'bold'
-       },
-       margin: { top: 60 }
-     });
+    // Add table
+    autoTable(doc, {
+      head: [exportData.headers],
+      body: exportData.data,
+      startY: 60,
+      styles: {
+        fontSize: 10,
+        cellPadding: 3,
+      },
+      headStyles: {
+        fillColor: [68, 114, 196],
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+      },
+      margin: { top: 60 },
+    });
 
     // Add summary if provided
     if (exportData.summary && config.includeSummary) {
       const finalY = (doc as any).lastAutoTable.finalY || 60;
       doc.setFontSize(12);
       doc.setTextColor(52, 73, 94);
-      doc.text('Summary', 20, finalY + 20);
-      
+      doc.text("Summary", 20, finalY + 20);
+
       let yPos = finalY + 30;
       if (exportData.summary.total !== undefined) {
         doc.text(`Total Records: ${exportData.summary.total}`, 20, yPos);
@@ -169,7 +173,11 @@ export const exportToPDF = (
         yPos += 10;
       }
       if (exportData.summary.percentage !== undefined) {
-        doc.text(`Percentage: ${exportData.summary.percentage.toFixed(2)}%`, 20, yPos);
+        doc.text(
+          `Percentage: ${exportData.summary.percentage.toFixed(2)}%`,
+          20,
+          yPos
+        );
       }
     }
 
@@ -179,128 +187,163 @@ export const exportToPDF = (
       doc.setPage(i);
       doc.setFontSize(8);
       doc.setTextColor(127, 140, 141);
-      doc.text(`Page ${i} of ${pageCount}`, 105, (doc as any).internal.pageSize.height - 10, { align: 'center' });
+      doc.text(
+        `Page ${i} of ${pageCount}`,
+        105,
+        (doc as any).internal.pageSize.height - 10,
+        { align: "center" }
+      );
     }
 
     // Save PDF
     doc.save(`${config.filename}.pdf`);
-
   } catch (error) {
-    console.error('Error exporting to PDF:', error);
-    throw new Error('Failed to export PDF file');
+    console.error("Error exporting to PDF:", error);
+    throw new Error("Failed to export PDF file");
   }
 };
 
 // Specific Report Generators
-export const generateAttendanceReport = (data: any[]): ExportData => {
-  const headers = ['NIM', 'Nama', 'Angkatan', 'Semester', 'Total Hadir', 'Total Pertemuan', 'Persentase'];
-  
-  const reportData = data.map(item => [
-    item.nim || '',
-    item.nama || '',
-    item.angkatan || '',
-    item.semester || '',
+export const generateAttendanceReport = (
+  data: any[],
+  mataKuliahKode?: string
+): ExportData => {
+  const headers = [
+    "NIM",
+    "Nama",
+    "Angkatan",
+    "Semester",
+    "Total Hadir",
+    "Total Pertemuan",
+    "Persentase",
+  ];
+
+  const reportData = data.map((item) => [
+    item.nim || "",
+    item.nama || "",
+    item.angkatan || "",
+    item.semester || "",
     item.total_hadir || 0,
     item.total_pertemuan || 0,
-    `${((item.total_hadir / (item.total_pertemuan || 1)) * 100).toFixed(1)}%`
+    `${((item.total_hadir / (item.total_pertemuan || 1)) * 100).toFixed(1)}%`,
   ]);
 
-  const totalHadir = data.reduce((sum, item) => sum + (item.total_hadir || 0), 0);
-  const totalPertemuan = data.reduce((sum, item) => sum + (item.total_pertemuan || 0), 0);
+  const totalHadir = data.reduce(
+    (sum, item) => sum + (item.total_hadir || 0),
+    0
+  );
+  const totalPertemuan = data.reduce(
+    (sum, item) => sum + (item.total_pertemuan || 0),
+    0
+  );
 
   return {
-    title: 'Laporan Kehadiran Mahasiswa',
+    title: mataKuliahKode
+      ? `Laporan Kehadiran Mahasiswa - ${mataKuliahKode}`
+      : "Laporan Kehadiran Mahasiswa",
     headers,
     data: reportData,
     summary: {
       total: data.length,
       average: totalHadir / data.length,
-      percentage: (totalPertemuan > 0 ? (totalHadir / totalPertemuan) * 100 : 0)
-    }
+      percentage: totalPertemuan > 0 ? (totalHadir / totalPertemuan) * 100 : 0,
+    },
   };
 };
 
-export const generateAssessmentReport = (data: any[]): ExportData => {
-  const headers = ['NIM', 'Nama', 'Angkatan', 'Semester', 'IPK'];
-  
-  const reportData = data.map(item => [
-    item.nim || '',
-    item.nama || '',
-    item.angkatan || '',
-    item.semester || '',
-    item.ipk || 0
-  ]);
+export const generateAssessmentReport = (
+  data: any[],
+  mataKuliahKode?: string
+): ExportData => {
+  // Jika ada filter mata kuliah, tampilkan data penilaian detail
+  if (mataKuliahKode) {
+    const headers = [
+      "NIM",
+      "Nama",
+      "Angkatan",
+      "Semester",
+      "IPK",
+      "Nilai Jurnal Keaktifan",
+      "Nilai Jurnal Laporan",
+      "Nilai PBL A",
+      "Nilai PBL B",
+      "Nilai PBL C",
+      "Nilai PBL D",
+      "Nilai PBL E",
+      "Nilai PBL F",
+      "Nilai PBL G",
+    ];
 
-  const totalIPK = data.reduce((sum, item) => sum + (item.ipk || 0), 0);
+    const reportData = data.map((item) => [
+      item.nim || "",
+      item.nama || "",
+      item.angkatan || "",
+      item.semester || "",
+      item.ipk || 0,
+      item.nilai_jurnal_keaktifan || 0,
+      item.nilai_jurnal_laporan || 0,
+      item.nilai_pbl_a || 0,
+      item.nilai_pbl_b || 0,
+      item.nilai_pbl_c || 0,
+      item.nilai_pbl_d || 0,
+      item.nilai_pbl_e || 0,
+      item.nilai_pbl_f || 0,
+      item.nilai_pbl_g || 0,
+    ]);
 
-  return {
-    title: 'Laporan Penilaian Mahasiswa',
-    headers,
-    data: reportData,
-    summary: {
-      total: data.length,
-      average: totalIPK / data.length
-    }
-  };
-};
+    const totalIPK = data.reduce((sum, item) => sum + (item.ipk || 0), 0);
 
-export const generateAcademicReport = (data: any[]): ExportData => {
-  const headers = ['NIM', 'Nama', 'Angkatan', 'Semester', 'IPK', 'Status', 'Semester Masuk', 'Tahun Ajaran Masuk ID'];
-  
-  const reportData = data.map(item => [
-    item.nim || '',
-    item.nama || '',
-    item.angkatan || '',
-    item.semester || '',
-    item.ipk || 0,
-    item.status || 'Aktif',
-    item.semester_masuk || '',
-    item.tahun_ajaran_masuk_id || ''
-  ]);
+    return {
+      title: `Laporan Penilaian Mahasiswa - ${mataKuliahKode}`,
+      headers,
+      data: reportData,
+      summary: {
+        total: data.length,
+        average: totalIPK / data.length,
+      },
+    };
+  } else {
+    // Jika tidak ada filter mata kuliah, tampilkan data umum
+    const headers = ["NIM", "Nama", "Angkatan", "Semester", "IPK"];
 
-  const totalIPK = data.reduce((sum, item) => sum + (item.ipk || 0), 0);
+    const reportData = data.map((item) => [
+      item.nim || "",
+      item.nama || "",
+      item.angkatan || "",
+      item.semester || "",
+      item.ipk || 0,
+    ]);
 
-  return {
-    title: 'Laporan Akademik Lengkap',
-    headers,
-    data: reportData,
-    summary: {
-      total: data.length,
-      average: totalIPK / data.length
-    }
-  };
-};
+    const totalIPK = data.reduce((sum, item) => sum + (item.ipk || 0), 0);
 
-// Helper functions
-const getGrade = (nilai: number): string => {
-  if (nilai >= 85) return 'A';
-  if (nilai >= 75) return 'B';
-  if (nilai >= 65) return 'C';
-  if (nilai >= 50) return 'D';
-  return 'E';
-};
-
-const getStatus = (nilai: number): string => {
-  if (nilai >= 65) return 'Lulus';
-  return 'Tidak Lulus';
+    return {
+      title: "Laporan Penilaian Mahasiswa",
+      headers,
+      data: reportData,
+      summary: {
+        total: data.length,
+        average: totalIPK / data.length,
+      },
+    };
+  }
 };
 
 // Export multiple formats
 export const exportMultipleFormats = async (
   exportData: ExportData,
   config: ReportConfig,
-  formats: ('excel' | 'pdf')[]
+  formats: ("excel" | "pdf")[]
 ): Promise<void> => {
   try {
     for (const format of formats) {
-      if (format === 'excel') {
+      if (format === "excel") {
         await exportToExcel(exportData, config);
-      } else if (format === 'pdf') {
+      } else if (format === "pdf") {
         exportToPDF(exportData, config);
       }
     }
   } catch (error) {
-    console.error('Error exporting multiple formats:', error);
-    throw new Error('Failed to export files');
+    console.error("Error exporting multiple formats:", error);
+    throw new Error("Failed to export files");
   }
 };

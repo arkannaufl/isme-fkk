@@ -233,6 +233,24 @@ class UserController extends Controller
         }
         $user->update($validated);
 
+        // Handle dosen_peran jika ada
+        if ($request->has('dosen_peran') && is_array($request->dosen_peran)) {
+            // Hapus semua dosen_peran yang ada untuk user ini
+            DosenPeran::where('user_id', $user->id)->delete();
+            
+            // Tambahkan dosen_peran yang baru
+            foreach ($request->dosen_peran as $peran) {
+                DosenPeran::create([
+                    'user_id' => $user->id,
+                    'mata_kuliah_kode' => $peran['mata_kuliah_kode'],
+                    'peran_kurikulum' => $peran['peran_kurikulum'],
+                    'blok' => $peran['blok'] ?? null,
+                    'semester' => $peran['semester'] ?? null,
+                    'tipe_peran' => $peran['tipe_peran'],
+                ]);
+            }
+        }
+
         return response()->json($user);
     }
 

@@ -172,6 +172,12 @@ interface PBLAssignment {
   pertemuan_ke: number;
   durasi: string;
   jadwal?: JadwalPBL;
+  // Additional properties from backend
+  modul_ke?: number;
+  nama_modul?: string;
+  durasi_modul?: string;
+  peran_display?: string;
+  tipe_peran?: string;
 }
 
 interface BlokAssignment {
@@ -179,6 +185,13 @@ interface BlokAssignment {
   semester_type: string;
   pbl_assignments: PBLAssignment[];
   total_pbl: number;
+  // Additional properties from backend
+  semester?: number;
+  mata_kuliah?: {
+    kode: string;
+    nama: string;
+    periode: string;
+  };
 }
 
 // Skeleton Components
@@ -296,7 +309,7 @@ export default function DashboardDosen() {
   const [customAlasan, setCustomAlasan] = useState<string>("");
   const [blokAssignments, setBlokAssignments] = useState<BlokAssignment[]>([]);
   const [loadingBlok, setLoadingBlok] = useState(true);
-  const [isBlokMinimized] = useState(true);
+  const [isBlokMinimized] = useState(false);
   
   // Real-time clock state
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -1162,31 +1175,46 @@ export default function DashboardDosen() {
                               </button>
                         </div>
 
-                            <div className="space-y-3">
-                              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-                                <div className="flex justify-between items-center">
-                                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    Progress Assignment
-                                  </span>
-                                  <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                                    {blok.pbl_assignments.filter(p => p.jadwal).length}/{blok.total_pbl}
-                                  </span>
-                          </div>
-                                <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2 mt-2">
-                                  <div 
-                                    className={`h-2 rounded-full ${getBlokColor(blok.blok)} transition-all duration-300`}
-                                    style={{ 
-                                      width: `${(blok.pbl_assignments.filter(p => p.jadwal).length / blok.total_pbl) * 100}%` 
-                                    }}
-                                  ></div>
-                                </div>
-                              </div>
+                             <div className="space-y-3">
+                               <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                                 <div className="flex justify-between items-center mb-2">
+                                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                     Peran Dosen
+                                   </span>
+                                   <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                                     {(() => {
+                                       const peranCounts: { [key: string]: number } = {};
+                                       blok.pbl_assignments.forEach(assignment => {
+                                         const peran = assignment.peran_display || assignment.tipe_peran || 'Dosen Mengajar';
+                                         peranCounts[peran] = (peranCounts[peran] || 0) + 1;
+                                       });
+                                       return Object.entries(peranCounts)
+                                         .map(([peran, count]) => `${peran} (${count})`)
+                                         .join(', ');
+                                     })()}
+                                   </span>
+                                 </div>
+                               </div>
 
-                              <div className="flex justify-between text-sm">
-                                <span className="text-gray-600 dark:text-gray-400">Total Assignment:</span>
-                                <span className="font-medium text-gray-900 dark:text-white">{blok.total_pbl}</span>
-                              </div>
-                        </div>
+                               <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                                 <div className="flex justify-between items-center">
+                                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                     Durasi Total
+                                   </span>
+                                   <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                                     {(() => {
+                                       // Hitung durasi total dari semua modul
+                                       const totalDurasi = blok.pbl_assignments.reduce((total, assignment) => {
+                                         const durasi = assignment.durasi_modul || assignment.durasi || '2 Minggu';
+                                         const durasiNumber = parseInt(durasi.replace(/\D/g, '')) || 2;
+                                         return total + durasiNumber;
+                                       }, 0);
+                                       return `${totalDurasi} Minggu`;
+                                     })()}
+                                   </span>
+                                 </div>
+                               </div>
+                         </div>
                       </div>
                     </div>
                   ))}
@@ -1219,9 +1247,12 @@ export default function DashboardDosen() {
         )}
           </motion.div>
         </div>
+        
 
         {/* Expandable PBL Detail Section */}
-        {expandedBlok && (
+        
+        
+        <div className="col-span-12 mb-6">
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1249,9 +1280,24 @@ export default function DashboardDosen() {
             <div className="p-6">
               {(() => {
                 // Find the blok assignment data for the expanded blok from grouped data
-                const blokData = Object.values(groupedBlokAssignments)
+                
+                // Cari dari groupedBlokAssignments terlebih dahulu
+                let blokData = Object.values(groupedBlokAssignments)
                   .flat()
                   .find(blok => blok.blok === expandedBlok);
+                
+                // Fallback: cari dari blokAssignments asli jika tidak ditemukan
+                if (!blokData) {
+                  blokData = blokAssignments.find(blok => blok.blok === expandedBlok);
+                }
+                
+                // Jika masih tidak ditemukan, coba cari dengan struktur data yang berbeda
+                if (!blokData) {
+                  blokData = blokAssignments.find(blok => 
+                    blok.blok === expandedBlok || 
+                    (typeof blok.blok === 'string' && parseInt(blok.blok) === expandedBlok)
+                  );
+                }
                 
                 if (blokData) {
                   return (
@@ -1266,44 +1312,38 @@ export default function DashboardDosen() {
                         </h4>
                         
                         <div className="grid gap-4">
-                          {blokData.pbl_assignments.length > 0 ? (
-                            blokData.pbl_assignments.map((assignment) => (
-                              <div key={assignment.pbl_id} className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-blue-100 dark:border-blue-800">
+                          {blokData.pbl_assignments && blokData.pbl_assignments.length > 0 ? (
+                            blokData.pbl_assignments.map((assignment, index) => (
+                              <div key={assignment.pbl_id || index} className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-blue-100 dark:border-blue-800">
                                 <div className="flex items-start justify-between">
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-2">
                                       <span className="text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded">
-                                        Pertemuan {assignment.pertemuan_ke}
+                                        Modul {assignment.modul_ke || assignment.pertemuan_ke || (index + 1)}
                                       </span>
                                       <span className="text-sm text-gray-600 dark:text-gray-400">
-                                        {assignment.mata_kuliah_kode}
+                                        {assignment.mata_kuliah_kode || blokData.mata_kuliah?.kode || 'N/A'}
                             </span>
                           </div>
                                     <h5 className="font-medium text-gray-900 dark:text-white mb-1">
-                                      {assignment.modul}
+                                      {assignment.nama_modul || assignment.modul || 'N/A'}
                                     </h5>
                                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                                      {assignment.nama_mata_kuliah}
+                                      {assignment.nama_mata_kuliah || blokData.mata_kuliah?.nama || 'N/A'}
                                     </p>
                                     <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-                                      <span>Durasi: {assignment.durasi}</span>
-                                      <span>Semester: {assignment.mata_kuliah_semester}</span>
-                                      <span>Periode: {assignment.mata_kuliah_periode}</span>
+                                      <span>Durasi: {assignment.durasi_modul || assignment.durasi || 'N/A'}</span>
+                                      <span>Semester: {blokData.semester || 'N/A'}</span>
+                                      <span>Periode: {blokData.mata_kuliah?.periode || 'N/A'}</span>
+                                      <span>Peran: {assignment.peran_display || assignment.tipe_peran || 'Dosen Mengajar'}</span>
                         </div>
                       </div>
 
                                 <div className="flex items-center gap-2">
-                                    {assignment.jadwal ? (
-                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                                        <FontAwesomeIcon icon={faCheckCircle} className="w-3 h-3 mr-1" />
-                                        Terjadwal
-                                  </span>
-                                    ) : (
-                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                                        <FontAwesomeIcon icon={faClock} className="w-3 h-3 mr-1" />
-                                        Belum Terjadwal
-                                      </span>
-                                    )}
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                      <FontAwesomeIcon icon={faBookOpen} className="w-3 h-3 mr-1" />
+                                      {assignment.peran_display || assignment.tipe_peran || 'Dosen Mengajar'}
+                                    </span>
                                 </div>
                                 </div>
                                 </div>
@@ -1338,7 +1378,8 @@ export default function DashboardDosen() {
               })()}
             </div>
           </motion.div>
-        )}
+        
+        </div>
         </div>
 
       {/* Jadwal Tables */}

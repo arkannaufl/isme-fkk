@@ -67,7 +67,7 @@ const CSRDetail: React.FC = () => {
   const [searchDosenPBL, setSearchDosenPBL] = useState("");
 
   // Mapping and drag states
-  const [mapping, setMapping] = useState<{[keahlian: string]: User[]}>({});
+  const [mapping, setMapping] = useState<{ [keahlian: string]: User[] }>({});
   const [draggedDosenId, setDraggedDosenId] = useState<number | null>(null);
 
   // Keahlian edit states
@@ -83,7 +83,9 @@ const CSRDetail: React.FC = () => {
   const [isAddingKeahlian, setIsAddingKeahlian] = useState(false);
 
   // PBL states
-  const [dosenPBLBySemester, setDosenPBLBySemester] = useState<{ [semester: number]: User[] }>({});
+  const [dosenPBLBySemester, setDosenPBLBySemester] = useState<{
+    [semester: number]: User[];
+  }>({});
   const [loadingDosenPBL, setLoadingDosenPBL] = useState(false);
 
   const fetchBatchData = async () => {
@@ -91,7 +93,7 @@ const CSRDetail: React.FC = () => {
     setLoadingDosenPBL(true);
     try {
       setError(null);
-      
+
       const response = await api.get(`/csr-detail/${csrId}/batch-data`);
       const batchData = response.data;
 
@@ -102,7 +104,6 @@ const CSRDetail: React.FC = () => {
       setStandbyDosen(batchData.standby_dosen || []);
       setMapping(batchData.mapping || {});
       setDosenPBLBySemester(batchData.dosen_pbl_by_semester || {});
-
     } catch (err: any) {
       setError(err?.response?.data?.message || "Gagal memuat data");
       // Set empty data as fallback
@@ -151,12 +152,14 @@ const CSRDetail: React.FC = () => {
   // Tambah keahlian
   const handleAddKeahlian = async () => {
     if (!newKeahlian.trim() || !csr || isAddingKeahlian) return;
-    
+
     setIsAddingKeahlian(true);
     try {
       // Validasi duplikat (case-insensitive, trim)
       const newK = newKeahlian.trim().toLowerCase();
-      const exists = csr.keahlian_required.some(k => k.trim().toLowerCase() === newK);
+      const exists = csr.keahlian_required.some(
+        (k) => k.trim().toLowerCase() === newK
+      );
       if (exists) {
         setError("Keahlian sudah ada, tidak boleh terduplikat.");
         return;
@@ -168,7 +171,11 @@ const CSRDetail: React.FC = () => {
         return;
       }
       const updated = [...csr.keahlian_required, newKeahlian.trim()];
-      await api.put(`/csr/${csr.id}`, { ...csr, nama, keahlian_required: updated });
+      await api.put(`/csr/${csr.id}`, {
+        ...csr,
+        nama,
+        keahlian_required: updated,
+      });
       setNewKeahlian("");
       setSuccess("Keahlian berhasil ditambahkan");
       await fetchBatchData();
@@ -190,7 +197,11 @@ const CSRDetail: React.FC = () => {
     }
     const updated = csr.keahlian_required.filter((x) => x !== k);
     try {
-      await api.put(`/csr/${csr.id}`, { ...csr, nama, keahlian_required: updated });
+      await api.put(`/csr/${csr.id}`, {
+        ...csr,
+        nama,
+        keahlian_required: updated,
+      });
       setSuccess("Keahlian berhasil dihapus");
       await fetchBatchData();
     } catch (err) {
@@ -202,7 +213,10 @@ const CSRDetail: React.FC = () => {
   const handleAssignDosen = async (dosenId: number, keahlian: string) => {
     if (!csr) return;
     try {
-      await api.post(`/csr/${csr.id}/mappings`, { dosen_id: dosenId, keahlian });
+      await api.post(`/csr/${csr.id}/mappings`, {
+        dosen_id: dosenId,
+        keahlian,
+      });
       setSuccess("Dosen berhasil ditugaskan");
       await fetchBatchData(); // Refresh all data
     } catch (err: any) {
@@ -213,11 +227,19 @@ const CSRDetail: React.FC = () => {
   };
 
   // Unassign dosen dari CSR
-  type HandleRemoveAssigned = (dosenId: number, keahlian: string) => Promise<void>;
-  const handleRemoveAssigned: HandleRemoveAssigned = async (dosenId, keahlian) => {
+  type HandleRemoveAssigned = (
+    dosenId: number,
+    keahlian: string
+  ) => Promise<void>;
+  const handleRemoveAssigned: HandleRemoveAssigned = async (
+    dosenId,
+    keahlian
+  ) => {
     if (!csr) return;
     try {
-      await api.delete(`/csr/${csr.id}/mappings/${dosenId}/${encodeURIComponent(keahlian)}`);
+      await api.delete(
+        `/csr/${csr.id}/mappings/${dosenId}/${encodeURIComponent(keahlian)}`
+      );
       setSuccess("Penugasan dosen dihapus");
       await fetchBatchData(); // Refresh all data
     } catch (err) {
@@ -272,8 +294,8 @@ const CSRDetail: React.FC = () => {
       <div className="mx-auto py-8 px-2 md:px-0">
         {/* Skeleton Header */}
         <div className="mb-6">
-          <div className="h-8 w-64 bg-gray-700 dark:bg-gray-800 rounded mb-2 animate-pulse" />
-          <div className="h-5 w-32 bg-gray-700 dark:bg-gray-800 rounded animate-pulse" />
+          <div className="h-8 w-64 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
+          <div className="h-5 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
         </div>
         {/* Skeleton Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -283,10 +305,10 @@ const CSRDetail: React.FC = () => {
               className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6 animate-pulse"
             >
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-gray-700 dark:bg-gray-800" />
+                <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-gray-700" />
                 <div className="flex-1">
-                  <div className="h-6 w-16 bg-gray-700 dark:bg-gray-800 rounded mb-2" />
-                  <div className="h-4 w-24 bg-gray-700 dark:bg-gray-800 rounded" />
+                  <div className="h-6 w-16 bg-gray-200 dark:bg-gray-700 rounded mb-2" />
+                  <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded" />
                 </div>
               </div>
             </div>
@@ -297,28 +319,31 @@ const CSRDetail: React.FC = () => {
           {/* Kiri: Keahlian yang Dibutuhkan */}
           <div className="md:col-span-6">
             <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-xl p-8 animate-pulse">
-              <div className="h-7 w-64 bg-gray-700 dark:bg-gray-800 rounded mb-2" />
-              <div className="h-4 w-64 bg-gray-700 dark:bg-gray-800 rounded mb-6 mt-2" />
+              <div className="h-7 w-64 bg-gray-200 dark:bg-gray-700 rounded mb-2" />
+              <div className="h-4 w-64 bg-gray-200 dark:bg-gray-700 rounded mb-6 mt-2" />
               <div className="flex flex-col md:flex-row gap-3 md:gap-4 items-stretch mb-6">
-                <div className="h-[52px] bg-gray-800 dark:bg-gray-700 rounded-xl flex-1" />
-                <div className="h-[52px] w-[130px] bg-gray-700 dark:bg-gray-800 rounded-lg" />
+                <div className="h-[52px] bg-gray-200 dark:bg-gray-700 rounded-xl flex-1" />
+                <div className="h-[52px] w-[130px] bg-gray-200 dark:bg-gray-700 rounded-lg" />
               </div>
               <ul className="space-y-5">
                 {Array.from({ length: 2 }).map((_, i) => (
                   <li
                     key={i}
-                    className="flex flex-col gap-2 border border-gray-200 dark:border-gray-700 bg-gray-800/30 rounded-xl p-4"
+                    className="flex flex-col gap-2 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800/30 rounded-xl p-4"
                   >
                     <div className="flex items-center gap-2 mb-1">
-                      <div className="h-5 w-32 bg-gray-700 dark:bg-gray-800 rounded" />
-                      <div className="h-4 w-10 bg-gray-700 dark:bg-gray-800 rounded ml-auto" />
-                      <div className="h-4 w-16 bg-gray-700 dark:bg-gray-800 rounded" />
+                      <div className="h-5 w-32 bg-gray-200 dark:bg-gray-700 rounded" />
+                      <div className="h-4 w-10 bg-gray-200 dark:bg-gray-700 rounded ml-auto" />
+                      <div className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded" />
                     </div>
                     <div className="border-2 border-dashed rounded-lg p-3 min-h-[60px] bg-white dark:bg-gray-900 flex gap-2">
                       {Array.from({ length: 3 }).map((_, j) => (
-                        <div key={j} className="flex items-center gap-2 px-3 py-1 rounded-full bg-gray-700 dark:bg-gray-800">
-                          <div className="w-6 h-6 rounded-full bg-gray-400 dark:bg-gray-700" />
-                          <div className="h-4 w-20 bg-gray-700 dark:bg-gray-800 rounded" />
+                        <div
+                          key={j}
+                          className="flex items-center gap-2 px-3 py-1 rounded-full bg-gray-200 dark:bg-gray-700"
+                        >
+                          <div className="w-6 h-6 rounded-full bg-gray-300 dark:bg-gray-600" />
+                          <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded" />
                         </div>
                       ))}
                     </div>
@@ -330,29 +355,35 @@ const CSRDetail: React.FC = () => {
           {/* Tengah: Dosen Sudah Dikelompokkan (PBL) */}
           <div className="md:col-span-3">
             <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg p-8 animate-pulse">
-              <div className="h-6 w-40 bg-gray-700 dark:bg-gray-800 rounded mb-4" />
-              <div className="h-10 w-full bg-gray-700 dark:bg-gray-800 rounded mb-6" />
+              <div className="h-6 w-40 bg-gray-200 dark:bg-gray-700 rounded mb-4" />
+              <div className="h-10 w-full bg-gray-200 dark:bg-gray-700 rounded mb-6" />
               {/* Dosen Reguler/Standby Skeleton */}
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="w-3 h-3 rounded-full bg-gray-700" />
-                  <div className="h-4 w-32 bg-gray-700 dark:bg-gray-800 rounded" />
+                  <div className="w-3 h-3 rounded-full bg-gray-200 dark:bg-gray-700" />
+                  <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded" />
                 </div>
                 <div className="space-y-3 max-h-[500px] overflow-y-auto hide-scroll">
                   {Array.from({ length: 2 }).map((_, i) => (
-                    <div key={i} className="p-4 bg-gray-700 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
+                    <div
+                      key={i}
+                      className="p-4 bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl"
+                    >
                       <div className="flex items-start gap-3 mb-3">
-                        <div className="w-10 h-10 rounded-full bg-gray-700" />
+                        <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700" />
                         <div className="flex-1 min-w-0">
-                          <div className="h-4 w-24 bg-gray-700 dark:bg-gray-800 rounded mb-1" />
-                          <div className="h-3 w-16 bg-gray-700 dark:bg-gray-800 rounded" />
+                          <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded mb-1" />
+                          <div className="h-3 w-16 bg-gray-200 dark:bg-gray-700 rounded" />
                         </div>
                       </div>
-                      <div className="bg-gray-700 dark:bg-gray-800 rounded-lg p-3">
-                        <div className="h-3 w-16 bg-gray-700 dark:bg-gray-800 rounded mb-2" />
+                      <div className="bg-gray-200 dark:bg-gray-700 rounded-lg p-3">
+                        <div className="h-3 w-16 bg-gray-200 dark:bg-gray-700 rounded mb-2" />
                         <div className="flex gap-1">
                           {Array.from({ length: 2 }).map((_, j) => (
-                            <div key={j} className="h-4 w-12 bg-gray-700 dark:bg-gray-800 rounded-full" />
+                            <div
+                              key={j}
+                              className="h-4 w-12 bg-gray-200 dark:bg-gray-700 rounded-full"
+                            />
                           ))}
                         </div>
                       </div>
@@ -363,19 +394,22 @@ const CSRDetail: React.FC = () => {
               {/* Dosen Standby Skeleton */}
               <div className="mb-4">
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="w-3 h-3 rounded-full bg-gray-700" />
-                  <div className="h-4 w-32 bg-gray-700 dark:bg-gray-800 rounded" />
+                  <div className="w-3 h-3 rounded-full bg-gray-200 dark:bg-gray-700" />
+                  <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded" />
                 </div>
                 <div className="space-y-3 max-h-[500px] overflow-y-auto hide-scroll">
                   {Array.from({ length: 1 }).map((_, i) => (
-                    <div key={i} className="p-4 bg-gray-700 dark:bg-gray-800/20 border border-gray-200 dark:border-gray-700 rounded-xl">
+                    <div
+                      key={i}
+                      className="p-4 bg-gray-100 dark:bg-gray-800/20 border border-gray-200 dark:border-gray-700 rounded-xl"
+                    >
                       <div className="flex items-start gap-3 mb-3">
-                        <div className="w-10 h-10 rounded-full bg-gray-700" />
+                        <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700" />
                         <div className="flex-1 min-w-0">
-                          <div className="h-4 w-24 bg-gray-700 dark:bg-gray-800 rounded mb-1" />
-                          <div className="h-3 w-16 bg-gray-700 dark:bg-gray-800 rounded" />
+                          <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded mb-1" />
+                          <div className="h-3 w-16 bg-gray-200 dark:bg-gray-700 rounded" />
                         </div>
-                        <div className="h-5 w-16 bg-gray-700 dark:bg-gray-800 rounded-full" />
+                        <div className="h-5 w-16 bg-gray-200 dark:bg-gray-700 rounded-full" />
                       </div>
                     </div>
                   ))}
@@ -386,29 +420,35 @@ const CSRDetail: React.FC = () => {
           {/* Kanan: Dosen Tersedia */}
           <div className="md:col-span-3">
             <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg p-8 animate-pulse">
-              <div className="h-6 w-40 bg-gray-700 dark:bg-gray-800 rounded mb-4" />
-              <div className="h-10 w-full bg-gray-700 dark:bg-gray-800 rounded mb-6" />
+              <div className="h-6 w-40 bg-gray-200 dark:bg-gray-700 rounded mb-4" />
+              <div className="h-10 w-full bg-gray-200 dark:bg-gray-700 rounded mb-6" />
               {/* Dosen Reguler Skeleton */}
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="w-3 h-3 rounded-full bg-gray-700" />
-                  <div className="h-4 w-32 bg-gray-700 dark:bg-gray-800 rounded" />
+                  <div className="w-3 h-3 rounded-full bg-gray-200 dark:bg-gray-700" />
+                  <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded" />
                 </div>
                 <div className="space-y-3 max-h-[500px] overflow-y-auto hide-scroll">
                   {Array.from({ length: 2 }).map((_, i) => (
-                    <div key={i} className="p-4 bg-gray-700 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
+                    <div
+                      key={i}
+                      className="p-4 bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl"
+                    >
                       <div className="flex items-start gap-3 mb-3">
-                        <div className="w-10 h-10 rounded-full bg-gray-700" />
+                        <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700" />
                         <div className="flex-1 min-w-0">
-                          <div className="h-4 w-24 bg-gray-700 dark:bg-gray-800 rounded mb-1" />
-                          <div className="h-3 w-16 bg-gray-700 dark:bg-gray-800 rounded" />
+                          <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded mb-1" />
+                          <div className="h-3 w-16 bg-gray-200 dark:bg-gray-700 rounded" />
                         </div>
                       </div>
-                      <div className="bg-gray-700 dark:bg-gray-800 rounded-lg p-3">
-                        <div className="h-3 w-16 bg-gray-700 dark:bg-gray-800 rounded mb-2" />
+                      <div className="bg-gray-200 dark:bg-gray-700 rounded-lg p-3">
+                        <div className="h-3 w-16 bg-gray-200 dark:bg-gray-700 rounded mb-2" />
                         <div className="flex gap-1">
                           {Array.from({ length: 2 }).map((_, j) => (
-                            <div key={j} className="h-4 w-12 bg-gray-700 dark:bg-gray-800 rounded-full" />
+                            <div
+                              key={j}
+                              className="h-4 w-12 bg-gray-200 dark:bg-gray-700 rounded-full"
+                            />
                           ))}
                         </div>
                       </div>
@@ -419,19 +459,22 @@ const CSRDetail: React.FC = () => {
               {/* Dosen Standby Skeleton */}
               <div className="mb-4">
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="w-3 h-3 rounded-full bg-gray-700" />
-                  <div className="h-4 w-32 bg-gray-700 dark:bg-gray-800 rounded" />
+                  <div className="w-3 h-3 rounded-full bg-gray-200 dark:bg-gray-700" />
+                  <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded" />
                 </div>
                 <div className="space-y-3 max-h-[500px] overflow-y-auto hide-scroll">
                   {Array.from({ length: 1 }).map((_, i) => (
-                    <div key={i} className="p-4 bg-gray-700 dark:bg-gray-800/20 border border-gray-200 dark:border-gray-700 rounded-xl">
+                    <div
+                      key={i}
+                      className="p-4 bg-gray-100 dark:bg-gray-800/20 border border-gray-200 dark:border-gray-700 rounded-xl"
+                    >
                       <div className="flex items-start gap-3 mb-3">
-                        <div className="w-10 h-10 rounded-full bg-gray-700" />
+                        <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700" />
                         <div className="flex-1 min-w-0">
-                          <div className="h-4 w-24 bg-gray-700 dark:bg-gray-800 rounded mb-1" />
-                          <div className="h-3 w-16 bg-gray-700 dark:bg-gray-800 rounded" />
+                          <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded mb-1" />
+                          <div className="h-3 w-16 bg-gray-200 dark:bg-gray-700 rounded" />
                         </div>
-                        <div className="h-5 w-16 bg-gray-700 dark:bg-gray-800 rounded-full" />
+                        <div className="h-5 w-16 bg-gray-200 dark:bg-gray-700 rounded-full" />
                       </div>
                     </div>
                   ))}
@@ -461,15 +504,7 @@ const CSRDetail: React.FC = () => {
   const totalDosenTersedia = dosenTersedia.length;
 
   return (
-    <div
-      className="if (is_array($matkul->peran_dalam_kurikulum)) {
-    $peranKurikulumList = $matkul->peran_dalam_kurikulum;
-} elseif (is_string($matkul->peran_dalam_kurikulum)) {
-    $peranKurikulumList = json_decode($matkul->peran_dalam_kurikulum, true) ?? [];
-} else {
-    $peranKurikulumList = [];
-} mx-auto py-8 px-2 md:px-0"
-    >
+    <div className="container mx-auto py-8 px-2 md:px-0">
       {/* Back Button at the very top */}
       <button
         onClick={() => navigate(-1)}
@@ -597,10 +632,14 @@ const CSRDetail: React.FC = () => {
             <h2 className="text-xl font-semibold mb-1 text-gray-800 dark:text-white flex items-center gap-2">
               Keahlian yang dibutuhkan CSR
               {csr?.nama && (
-                <span className="font-semibold text-brand-600 dark:text-brand-400">{csr.nama}</span>
+                <span className="font-semibold text-brand-600 dark:text-brand-400">
+                  {csr.nama}
+                </span>
               )}
               {csr?.mata_kuliah_kode && (
-                <span className="ml-2 text-xl font-semibold text-gray-800 dark:text-white">({csr.nomor_csr})</span>
+                <span className="ml-2 text-xl font-semibold text-gray-800 dark:text-white">
+                  ({csr.nomor_csr})
+                </span>
               )}
             </h2>
             <p className="text-gray-500 dark:text-gray-300 text-sm mb-6">
@@ -626,9 +665,25 @@ const CSRDetail: React.FC = () => {
               >
                 {isAddingKeahlian ? (
                   <>
-                    <svg className="w-4 h-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    <svg
+                      className="w-4 h-4 animate-spin text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      ></path>
                     </svg>
                     Menambah...
                   </>
@@ -665,16 +720,23 @@ const CSRDetail: React.FC = () => {
                         <button
                           onClick={async () => {
                             if (!csr) return;
-                            if (!editKeahlianValue.trim() || editKeahlianValue === k) {
+                            if (
+                              !editKeahlianValue.trim() ||
+                              editKeahlianValue === k
+                            ) {
                               setEditKeahlian(null);
                               setEditKeahlianValue("");
                               return;
                             }
                             // Validasi duplikat (case-insensitive, trim), kecuali dirinya sendiri
                             const newK = editKeahlianValue.trim().toLowerCase();
-                            const exists = csr.keahlian_required.some(x => x !== k && x.trim().toLowerCase() === newK);
+                            const exists = csr.keahlian_required.some(
+                              (x) => x !== k && x.trim().toLowerCase() === newK
+                            );
                             if (exists) {
-                              setError("Keahlian sudah ada, tidak boleh duplikat.");
+                              setError(
+                                "Keahlian sudah ada, tidak boleh duplikat."
+                              );
                               return;
                             }
                             // Update array keahlian_required
@@ -682,13 +744,22 @@ const CSRDetail: React.FC = () => {
                               x === k ? editKeahlianValue.trim() : x
                             );
                             // Pastikan nama tidak null
-                            const nama = csr.nama || (csr.mata_kuliah && csr.mata_kuliah.nama) || "";
+                            const nama =
+                              csr.nama ||
+                              (csr.mata_kuliah && csr.mata_kuliah.nama) ||
+                              "";
                             if (!nama) {
-                              setError("Nama CSR belum diisi. Silakan isi nama CSR terlebih dahulu.");
+                              setError(
+                                "Nama CSR belum diisi. Silakan isi nama CSR terlebih dahulu."
+                              );
                               return;
                             }
                             try {
-                              await api.put(`/csr/${csr.id}`, { ...csr, nama, keahlian_required: updated });
+                              await api.put(`/csr/${csr.id}`, {
+                                ...csr,
+                                nama,
+                                keahlian_required: updated,
+                              });
                               setSuccess("Keahlian berhasil diubah");
                               setEditKeahlian(null);
                               setEditKeahlianValue("");
@@ -755,13 +826,23 @@ const CSRDetail: React.FC = () => {
                         const keahlianArr = Array.isArray(d.keahlian)
                           ? d.keahlian
                           : typeof d.keahlian === "string"
-                            ? (d.keahlian as string).split(",").map((k: string) => k.trim())
+                          ? (d.keahlian as string)
+                              .split(",")
+                              .map((k: string) => k.trim())
                           : [];
-                        const isStandby = keahlianArr.some((k: string) => k.toLowerCase().includes("standby"));
+                        const isStandby = keahlianArr.some((k: string) =>
+                          k.toLowerCase().includes("standby")
+                        );
                         // Badge style
-                        const badgeBg = isStandby ? "bg-yellow-100 dark:bg-yellow-900/40" : "bg-green-100 dark:bg-green-900/40";
-                        const circleBg = isStandby ? "bg-yellow-400" : "bg-green-500";
-                        const textColor = isStandby ? "text-yellow-800 dark:text-yellow-200" : "text-green-700 dark:text-green-200";
+                        const badgeBg = isStandby
+                          ? "bg-yellow-100 dark:bg-yellow-900/40"
+                          : "bg-green-100 dark:bg-green-900/40";
+                        const circleBg = isStandby
+                          ? "bg-yellow-400"
+                          : "bg-green-500";
+                        const textColor = isStandby
+                          ? "text-yellow-800 dark:text-yellow-200"
+                          : "text-green-700 dark:text-green-200";
                         const initial = "D";
                         return (
                           <div
@@ -774,8 +855,14 @@ const CSRDetail: React.FC = () => {
                               <span className="text-white text-xs font-bold">
                                 {initial}
                               </span>
-                              <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[8px] font-semibold rounded-full flex justify-center items-center w-4 h-4 border border-white dark:border-green-800" title="Jumlah penugasan">
-                                {typeof d.csr_assignment_count === 'number' ? d.csr_assignment_count : 0}x
+                              <span
+                                className="absolute -top-1 -right-1 bg-blue-500 text-white text-[8px] font-semibold rounded-full flex justify-center items-center w-4 h-4 border border-white dark:border-green-800"
+                                title="Jumlah penugasan"
+                              >
+                                {typeof d.csr_assignment_count === "number"
+                                  ? d.csr_assignment_count
+                                  : 0}
+                                x
                               </span>
                             </div>
                             <span
@@ -812,95 +899,132 @@ const CSRDetail: React.FC = () => {
         {/* Tengah: Dosen Sudah Dikelompokkan (PBL) */}
         <div className="md:col-span-3">
           <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-lg p-8 mb-8">
-            <h2 className="text-lg font-bold mb-4 text-brand-700 dark:text-brand-300">Dosen Sudah Dikelompokkan (PBL)</h2>
+            <h2 className="text-lg font-bold mb-4 text-brand-700 dark:text-brand-300">
+              Dosen Sudah Dikelompokkan (PBL)
+            </h2>
             <input
               type="text"
               className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-brand-500 focus:border-brand-500 mb-6 bg-white dark:bg-gray-800 text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
               placeholder="Cari dosen atau keahlian..."
               value={searchDosenPBL}
-              onChange={e => setSearchDosenPBL(e.target.value)}
+              onChange={(e) => setSearchDosenPBL(e.target.value)}
             />
-            <div className="space-y-6 overflow-y-auto overflow-x-hidden hide-scroll" style={{ maxHeight: '862px' }}>
+            <div
+              className="space-y-6 overflow-y-auto overflow-x-hidden hide-scroll"
+              style={{ maxHeight: "862px" }}
+            >
               {loadingDosenPBL ? (
-                  <p className="text-sm text-gray-500">Memuat data dosen PBL...</p>
+                <p className="text-sm text-gray-500">
+                  Memuat data dosen PBL...
+                </p>
               ) : (
-                Object.entries(filteredDosenPBLBySemester).map(([semester, dosenList]) => (
-                  <div key={semester} className="mb-4">
-                    {/* Label Semester, samakan dengan Dosen Reguler */}
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="inline-block w-3 h-3 rounded-full bg-brand-500"></span>
-                      <span className="text-gray-700 dark:text-gray-300 font-semibold text-sm">Semester {semester}</span>
-                    </div>
-                    <div className="space-y-3">
-                      {dosenList.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-6">
-                    <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-gray-700 dark:bg-gray-800 flex items-center justify-center">
-                    <FontAwesomeIcon
-                      icon={faUsers}
-                      className="w-6 h-6 text-gray-400"
-                    />
-                  </div>
-                  <div className="text-sm text-gray-400">Belum ada dosen dikelompokan</div>
-                  </div>
-                  ) : (
-                        dosenList.map((dosen) => {
-                          const keahlianArr = Array.isArray(dosen.keahlian)
-                            ? dosen.keahlian
-                            : typeof dosen.keahlian === "string" && dosen.keahlian
-                            ? [dosen.keahlian]
-                            : [];
-                          const isStandby = keahlianArr.some((k) => k.toLowerCase().includes("standby"));
-                          return (
-                            <div
-                              key={dosen.id}
-                              className={`p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-move`}
-                              draggable
-                              onDragStart={() => setDraggedDosenId(dosen.id)}
-                              onDragEnd={() => setDraggedDosenId(null)}
-                            >
-                              <div className="flex items-start gap-3 mb-3">
-                                <div className={`w-10 h-10 rounded-full ${isStandby ? "bg-yellow-400" : "bg-brand-500"} flex items-center justify-center relative`}>
-                                  <span className="text-white text-sm font-bold">{dosen.name.charAt(0)}</span>
-                                  <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[10px] font-semibold rounded-full flex justify-center items-center w-6 h-6 border-2 border-white dark:border-gray-800" title="Jumlah penugasan">
-                                    {typeof dosen.csr_assignment_count === 'number' ? dosen.csr_assignment_count : 0}x
-                                  </span>
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="font-semibold text-gray-800 dark:text-white/90 text-sm mb-1">{dosen.name}</div>
-                                  <div className="text-xs text-gray-500 dark:text-gray-400">NID: {dosen.nid}</div>
-                                </div>
-                                {isStandby && (
-                                  <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-gray-200 text-gray-700 text-xs">Standby</span>
-                                )}
-                              </div>
-                              {/* Keahlian Section */}
-                              <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3">
-                                <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 flex items-center gap-1">
-                                  <div className="w-1 h-1 rounded-full bg-orange-500"></div>
-                                  Keahlian
-                                </div>
-                                <div className="flex flex-wrap gap-1">
-                                  {keahlianArr.map((k, idx) => (
-                                    <span
-                                      key={idx}
-                                      className={`text-xs px-2 py-1 rounded-full font-medium ${
-                                        k.toLowerCase() === "standby"
-                                          ? "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-200 font-semibold"
-                                          : "bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300"
-                                      }`}
-                                    >
-                                      {k}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
+                Object.entries(filteredDosenPBLBySemester).map(
+                  ([semester, dosenList]) => (
+                    <div key={semester} className="mb-4">
+                      {/* Label Semester, samakan dengan Dosen Reguler */}
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="inline-block w-3 h-3 rounded-full bg-brand-500"></span>
+                        <span className="text-gray-700 dark:text-gray-300 font-semibold text-sm">
+                          Semester {semester}
+                        </span>
+                      </div>
+                      <div className="space-y-3">
+                        {dosenList.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center py-6">
+                            <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-gray-700 dark:bg-gray-800 flex items-center justify-center">
+                              <FontAwesomeIcon
+                                icon={faUsers}
+                                className="w-6 h-6 text-gray-400"
+                              />
                             </div>
-                          );
-                        })
-                      )}
+                            <div className="text-sm text-gray-400">
+                              Belum ada dosen dikelompokan
+                            </div>
+                          </div>
+                        ) : (
+                          dosenList.map((dosen) => {
+                            const keahlianArr = Array.isArray(dosen.keahlian)
+                              ? dosen.keahlian
+                              : typeof dosen.keahlian === "string" &&
+                                dosen.keahlian
+                              ? [dosen.keahlian]
+                              : [];
+                            const isStandby = keahlianArr.some((k) =>
+                              k.toLowerCase().includes("standby")
+                            );
+                            return (
+                              <div
+                                key={dosen.id}
+                                className={`p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-move`}
+                                draggable
+                                onDragStart={() => setDraggedDosenId(dosen.id)}
+                                onDragEnd={() => setDraggedDosenId(null)}
+                              >
+                                <div className="flex items-start gap-3 mb-3">
+                                  <div
+                                    className={`w-10 h-10 rounded-full ${
+                                      isStandby
+                                        ? "bg-yellow-400"
+                                        : "bg-brand-500"
+                                    } flex items-center justify-center relative`}
+                                  >
+                                    <span className="text-white text-sm font-bold">
+                                      {dosen.name.charAt(0)}
+                                    </span>
+                                    <span
+                                      className="absolute -top-1 -right-1 bg-blue-500 text-white text-[10px] font-semibold rounded-full flex justify-center items-center w-6 h-6 border-2 border-white dark:border-gray-800"
+                                      title="Jumlah penugasan"
+                                    >
+                                      {typeof dosen.csr_assignment_count ===
+                                      "number"
+                                        ? dosen.csr_assignment_count
+                                        : 0}
+                                      x
+                                    </span>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-semibold text-gray-800 dark:text-white/90 text-sm mb-1">
+                                      {dosen.name}
+                                    </div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                                      NID: {dosen.nid}
+                                    </div>
+                                  </div>
+                                  {isStandby && (
+                                    <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-gray-200 text-gray-700 text-xs">
+                                      Standby
+                                    </span>
+                                  )}
+                                </div>
+                                {/* Keahlian Section */}
+                                <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3">
+                                  <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 flex items-center gap-1">
+                                    <div className="w-1 h-1 rounded-full bg-orange-500"></div>
+                                    Keahlian
+                                  </div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {keahlianArr.map((k, idx) => (
+                                      <span
+                                        key={idx}
+                                        className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                          k.toLowerCase() === "standby"
+                                            ? "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-200 font-semibold"
+                                            : "bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300"
+                                        }`}
+                                      >
+                                        {k}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))
+                  )
+                )
               )}
             </div>
           </div>
@@ -936,7 +1060,9 @@ const CSRDetail: React.FC = () => {
                       : typeof dosen.keahlian === "string" && dosen.keahlian
                       ? [dosen.keahlian]
                       : [];
-                    const isStandby = keahlianArr.some((k) => k.toLowerCase().includes("standby"));
+                    const isStandby = keahlianArr.some((k) =>
+                      k.toLowerCase().includes("standby")
+                    );
                     return (
                       <div
                         key={dosen.id}
@@ -947,10 +1073,22 @@ const CSRDetail: React.FC = () => {
                       >
                         {/* Header dengan Avatar dan Info Dasar */}
                         <div className="flex items-start gap-3 mb-3">
-                          <div className={`w-10 h-10 rounded-full ${isStandby ? "bg-yellow-400" : "bg-brand-500"} flex items-center justify-center relative`}>
-                            <span className="text-white text-sm font-bold">{dosen.name.charAt(0)}</span>
-                            <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[10px] font-semibold rounded-full flex justify-center items-center w-6 h-6 border-2 border-white dark:border-gray-800" title="Jumlah penugasan">
-                              {typeof dosen.csr_assignment_count === 'number' ? dosen.csr_assignment_count : 0}x
+                          <div
+                            className={`w-10 h-10 rounded-full ${
+                              isStandby ? "bg-yellow-400" : "bg-brand-500"
+                            } flex items-center justify-center relative`}
+                          >
+                            <span className="text-white text-sm font-bold">
+                              {dosen.name.charAt(0)}
+                            </span>
+                            <span
+                              className="absolute -top-1 -right-1 bg-blue-500 text-white text-[10px] font-semibold rounded-full flex justify-center items-center w-6 h-6 border-2 border-white dark:border-gray-800"
+                              title="Jumlah penugasan"
+                            >
+                              {typeof dosen.csr_assignment_count === "number"
+                                ? dosen.csr_assignment_count
+                                : 0}
+                              x
                             </span>
                           </div>
                           <div className="flex-1 min-w-0">
@@ -994,7 +1132,9 @@ const CSRDetail: React.FC = () => {
                         className="w-6 h-6 text-gray-400"
                       />
                     </div>
-                    <div className="text-sm text-gray-400">Tidak ada dosen reguler</div>
+                    <div className="text-sm text-gray-400">
+                      Tidak ada dosen reguler
+                    </div>
                   </div>
                 )}
               </div>
@@ -1015,7 +1155,9 @@ const CSRDetail: React.FC = () => {
                       : typeof dosen.keahlian === "string" && dosen.keahlian
                       ? [dosen.keahlian]
                       : [];
-                    const isStandby = keahlianArr.some((k) => k.toLowerCase().includes("standby"));
+                    const isStandby = keahlianArr.some((k) =>
+                      k.toLowerCase().includes("standby")
+                    );
                     return (
                       <div
                         key={dosen.id}
@@ -1026,10 +1168,22 @@ const CSRDetail: React.FC = () => {
                       >
                         {/* Header dengan Avatar dan Info Dasar */}
                         <div className="flex items-start gap-3 mb-3">
-                          <div className={`w-10 h-10 rounded-full ${isStandby ? "bg-yellow-400" : "bg-brand-500"} flex items-center justify-center relative`}>
-                            <span className="text-white text-sm font-bold">{dosen.name.charAt(0)}</span>
-                            <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[10px] font-semibold rounded-full flex justify-center items-center w-6 h-6 border-2 border-white dark:border-gray-800" title="Jumlah penugasan">
-                              {typeof dosen.csr_assignment_count === 'number' ? dosen.csr_assignment_count : 0}x
+                          <div
+                            className={`w-10 h-10 rounded-full ${
+                              isStandby ? "bg-yellow-400" : "bg-brand-500"
+                            } flex items-center justify-center relative`}
+                          >
+                            <span className="text-white text-sm font-bold">
+                              {dosen.name.charAt(0)}
+                            </span>
+                            <span
+                              className="absolute -top-1 -right-1 bg-blue-500 text-white text-[10px] font-semibold rounded-full flex justify-center items-center w-6 h-6 border-2 border-white dark:border-gray-800"
+                              title="Jumlah penugasan"
+                            >
+                              {typeof dosen.csr_assignment_count === "number"
+                                ? dosen.csr_assignment_count
+                                : 0}
+                              x
                             </span>
                           </div>
                           <div className="flex-1 min-w-0">
@@ -1106,11 +1260,17 @@ const CSRDetail: React.FC = () => {
               </button>
               <div>
                 <div className="flex items-center justify-between pb-6">
-                  <h2 className="text-xl font-bold text-gray-800 dark:text-white">Hapus Kategori Keahlian</h2>
+                  <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                    Hapus Kategori Keahlian
+                  </h2>
                 </div>
                 <div>
                   <p className="mb-6 text-gray-500 dark:text-gray-400">
-                    Apakah Anda yakin ingin menghapus kategori keahlian <span className="font-semibold text-gray-800 dark:text-white">{keahlianToDelete}</span>? Data yang dihapus tidak dapat dikembalikan.
+                    Apakah Anda yakin ingin menghapus kategori keahlian{" "}
+                    <span className="font-semibold text-gray-800 dark:text-white">
+                      {keahlianToDelete}
+                    </span>
+                    ? Data yang dihapus tidak dapat dikembalikan.
                   </p>
                   <div className="flex justify-end gap-2 pt-2">
                     <button
@@ -1136,14 +1296,30 @@ const CSRDetail: React.FC = () => {
                     >
                       {isDeletingKeahlian ? (
                         <>
-                          <svg className="w-5 h-5 mr-2 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                          <svg
+                            className="w-5 h-5 mr-2 animate-spin text-white"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                            ></path>
                           </svg>
                           Menghapus...
                         </>
                       ) : (
-                        'Hapus'
+                        "Hapus"
                       )}
                     </button>
                   </div>

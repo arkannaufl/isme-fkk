@@ -159,6 +159,7 @@ export default function Dosen() {
   const [showAllPeran, setShowAllPeran] = useState<{ [key: string]: boolean }>(
     {}
   );
+  const [refreshingAssignment, setRefreshingAssignment] = useState(false);
   const toggleGroup = (rowKey: string) => {
     setExpandedGroups((prev) => ({ ...prev, [rowKey]: !prev[rowKey] }));
   };
@@ -684,6 +685,11 @@ export default function Dosen() {
       });
       setShowPassword(false);
       setNewKompetensi("");
+      setNewKeahlian("");
+      setPeranUtama("aktif");
+      setMatkulKetua("");
+      setMatkulAnggota("");
+      setPeranKurikulumMengajar("");
       setSelectedPeranType("none");
       setSelectedMataKuliah("");
       setSelectedPeranKurikulum("");
@@ -757,6 +763,7 @@ export default function Dosen() {
     // Tentukan status berdasarkan keahlian
     const isStandby = keahlianArr.some((k) => k.toLowerCase() === "standby");
     setPeranUtama(isStandby ? "standby" : "aktif");
+    
     setMatkulKetua(
       d.matkul_ketua_nama
         ? matkulList.find((mk) => mk.nama === d.matkul_ketua_nama)?.kode || ""
@@ -768,6 +775,7 @@ export default function Dosen() {
         : ""
     );
     setPeranKurikulumMengajar(d.peran_kurikulum_mengajar || "");
+    
     // Set peran dari backend - ambil peran pertama saja
     if (Array.isArray(d.dosen_peran) && d.dosen_peran.length > 0) {
       const firstPeran = d.dosen_peran[0];
@@ -786,9 +794,16 @@ export default function Dosen() {
         peranKurikulumDisplay = String(firstPeran.peran_kurikulum || "");
       }
 
+      // Set peran khusus jika ada
+      if (firstPeran.tipe_peran && firstPeran.tipe_peran !== "mengajar") {
       setSelectedPeranType(firstPeran.tipe_peran);
       setSelectedMataKuliah(firstPeran.mata_kuliah_kode);
       setSelectedPeranKurikulum(peranKurikulumDisplay);
+      } else {
+        setSelectedPeranType("none");
+        setSelectedMataKuliah("");
+        setSelectedPeranKurikulum("");
+      }
     } else {
       setSelectedPeranType("none");
       setSelectedMataKuliah("");
@@ -1753,87 +1768,127 @@ export default function Dosen() {
   // Function untuk fetch assignment data
   const fetchAssignmentData = async () => {
     try {
-      // PERBAIKAN: Gunakan endpoint yang sama dengan PBL-detail.tsx untuk konsistensi
-      // PERBAIKAN: Gunakan POST method dengan pbl_ids seperti di PBL-detail.tsx
+      setRefreshingAssignment(true);
+      
+      // Ambil semua PBL IDs secara dinamis dari API
+      const pblRes = await api.get("/pbls/all");
+      const pblData = pblRes.data || {};
+      
+      // Extract semua PBL IDs dari data
+      const allPblIds: number[] = [];
+      Object.values(pblData).forEach((item: any) => {
+        if (item.pbls && Array.isArray(item.pbls)) {
+          item.pbls.forEach((pbl: any) => {
+            if (pbl.id) {
+              allPblIds.push(pbl.id);
+            }
+          });
+        }
+      });
+      
+      console.log("🔍 PBL Data from /pbls/all:", pblData);
+      console.log("🔍 Extracted PBL IDs:", allPblIds);
+
+      if (allPblIds.length > 0) {
+        // Gunakan endpoint yang sama dengan PBL-detail.tsx untuk konsistensi
       const assignedRes = await api.post("/pbl-generate/get-assignments", {
-        pbl_ids: [
-          1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
-          21, 22, 23, 24, 25, 26, 27, 28,
-        ], // Hardcode PBL IDs yang ada
+          pbl_ids: allPblIds,
       });
 
-      // PERBAIKAN: Sesuaikan dengan format data dari PBL-detail.tsx
+        // Sesuaikan dengan format data dari PBL-detail.tsx
       const assignmentData = assignedRes.data.data || {};
       setAssignmentData(assignmentData);
+        console.log("Assignment data updated:", assignmentData);
+      } else {
+        setAssignmentData({});
+      }
     } catch (error: any) {
+      console.error("Error fetching assignment data:", error);
       setAssignmentData({});
+    } finally {
+      setRefreshingAssignment(false);
     }
   };
 
   // Function untuk menghitung assignment count per dosen
   const getAssignmentCount = (dosenId: number): number => {
-    const uniqueMataKuliah = new Set<string>();
-
-    // Dapatkan mata kuliah yang sudah di-assign sebagai Tim Blok atau Koordinator
-    const excludedMataKuliah = new Set<string>();
     const dosen = data.find((d) => d.id === dosenId);
-    if (dosen?.dosen_peran) {
-      dosen.dosen_peran.forEach((peran) => {
-        if (
-          peran.tipe_peran === "tim_blok" ||
-          peran.tipe_peran === "koordinator"
-        ) {
-          excludedMataKuliah.add(peran.mata_kuliah_kode);
-        }
-      });
+    if (!dosen) return 0;
+
+    // Gunakan data dosen_peran langsung dari data dosen (sama seperti ReportingDosen.tsx)
+    if (dosen.dosen_peran && Array.isArray(dosen.dosen_peran)) {
+      const dosenMengajarCount = dosen.dosen_peran.filter((peran: any) => 
+        peran.tipe_peran === 'dosen_mengajar' || peran.tipe_peran === 'mengajar'
+      ).length;
+      
+      return dosenMengajarCount;
     }
 
-    // GUNAKAN PBL MAPPING - Dosen Mengajar di-generate dari PBL assignment
-    Object.entries(assignmentData).forEach(([pblId, dosenList]) => {
-      dosenList.forEach((dosen: { id: number }) => {
-        if (dosen.id === dosenId) {
-          // Ambil data PBL untuk mendapatkan mata kuliah
-          const pblIdNum = parseInt(pblId);
-          let mataKuliahKode = "";
+    // Fallback: cek peran_utama
+    if (dosen.peran_utama === 'dosen_mengajar') {
+      return 1;
+    }
 
-          // Cari di data PBL yang sudah di-fetch (sama seperti PBL-detail.tsx)
-          if (pblData && Object.keys(pblData).length > 0) {
-            // Loop melalui semua mata kuliah untuk mencari PBL yang sesuai
-            Object.entries(pblData).forEach(([mkKode, pblList]) => {
-              // PERBAIKAN: Tambah null check dan type safety
-              if (!pblList || !Array.isArray(pblList)) {
-                return; // Skip jika bukan array
-              }
-
-              const pbls = pblList as any[];
-
-              const foundPBL = pbls.find((pbl) => pbl && pbl.id === pblIdNum);
-
-              if (foundPBL) {
-                mataKuliahKode = mkKode;
-              }
-            });
-          } else {
-          }
-
-          // Jika tidak ditemukan di pblData, gunakan fallback yang sudah diperbaiki
-          if (!mataKuliahKode) {
-          }
-
-          // Hanya tambahkan jika mata kuliah tidak di-exclude (bukan Tim Blok/Koordinator)
-          if (mataKuliahKode && !excludedMataKuliah.has(mataKuliahKode)) {
-            uniqueMataKuliah.add(mataKuliahKode);
-          } else {
-          }
-        }
-      });
-    });
-
-    return uniqueMataKuliah.size;
+    return 0;
   };
 
   // Function untuk mendapatkan detail assignment per dosen
   const getAssignmentDetails = (dosenId: number) => {
+    const details: string[] = [];
+    const dosen = data.find((d) => d.id === dosenId);
+    
+    if (!dosen) return details;
+
+    // Gunakan data dosen_peran langsung dari data dosen (sama seperti ReportingDosen.tsx)
+    if (dosen.dosen_peran && Array.isArray(dosen.dosen_peran)) {
+      dosen.dosen_peran.forEach((peran: any) => {
+        if (peran.tipe_peran === 'dosen_mengajar' || peran.tipe_peran === 'mengajar') {
+          let detailText = '';
+          
+          if (peran.mata_kuliah_nama) {
+            detailText = peran.mata_kuliah_nama;
+          } else if (peran.peran_kurikulum) {
+            detailText = peran.peran_kurikulum;
+          } else {
+            detailText = 'Dosen Mengajar';
+          }
+          
+          // Tambahkan informasi semester dan blok jika ada
+          if (peran.semester && peran.blok) {
+            detailText += ` | Semester ${peran.semester} | Blok ${peran.blok}`;
+          }
+          
+          details.push(detailText);
+        }
+      });
+    }
+
+    // Fallback: cek peran_utama
+    if (dosen.peran_utama === 'dosen_mengajar') {
+      let detailText = '';
+      
+      if (dosen.peran_kurikulum_mengajar) {
+        detailText = dosen.peran_kurikulum_mengajar;
+          } else {
+        detailText = 'Dosen Mengajar';
+          }
+      
+      // Coba ambil semester dan blok dari dosen_peran jika ada
+      if (dosen.dosen_peran && dosen.dosen_peran.length > 0) {
+        const peranMengajar = dosen.dosen_peran.find(p => p.tipe_peran === 'mengajar');
+        if (peranMengajar) {
+          detailText += ` | Semester ${peranMengajar.semester} | Blok ${peranMengajar.blok}`;
+        }
+      }
+
+      details.push(detailText);
+    }
+
+    return details;
+  };
+
+  // Function untuk mendapatkan detail assignment per dosen (OLD - DEPRECATED)
+  const getAssignmentDetailsOLD = (dosenId: number) => {
     const details: string[] = [];
     const uniqueMataKuliah = new Set<string>();
 
@@ -2003,6 +2058,9 @@ export default function Dosen() {
         setLoading(true);
         const res = await api.get("/users?role=dosen");
         setData(res.data);
+        
+        // Fetch assignment data juga saat load pertama
+        await fetchAssignmentData();
       } catch (error) {
         setError("Gagal memuat data dosen");
       } finally {
@@ -2078,10 +2136,18 @@ export default function Dosen() {
             onClick={() => {
               fetchAssignmentData();
             }}
-            className="px-4 py-2 rounded-lg bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 text-sm font-medium shadow-theme-xs hover:bg-purple-200 dark:hover:bg-purple-800 transition flex items-center gap-2"
+            disabled={refreshingAssignment}
+            className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
+              refreshingAssignment
+                ? "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed"
+                : "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
+            }`}
           >
-            <FontAwesomeIcon icon={faRefresh} className="w-4 h-4" />
-            Refresh Assignment
+            <FontAwesomeIcon 
+              icon={faRefresh} 
+              className={`w-4 h-4 ${refreshingAssignment ? "animate-spin" : ""}`} 
+            />
+            {refreshingAssignment ? "Refreshing..." : "Refresh Assignment"}
           </button>
         </div>
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-0">
@@ -3246,13 +3312,10 @@ export default function Dosen() {
                                       />
                                       <div>
                                         <div className="font-medium text-brand-400 text-sm">
-                                          {detail.split(" - ")[0]}
+                                          {detail.split(" | ")[0]}
                                         </div>
                                         <div className="text-xs text-gray-400">
-                                          {detail.split(" - ")[1]}
-                                        </div>
-                                        <div className="text-xs text-gray-400">
-                                          Dosen Mengajar PBL
+                                          {detail.includes(" | ") ? detail.split(" | ").slice(1).join(" | ") : "Dosen Mengajar PBL"}
                                         </div>
                                       </div>
                                     </li>

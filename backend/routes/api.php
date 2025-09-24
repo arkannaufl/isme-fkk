@@ -432,7 +432,11 @@ Route::middleware(['auth:sanctum', 'role:super_admin'])->prefix('system')->group
 Route::middleware(['auth:sanctum', 'role:super_admin'])->prefix('reports')->group(function () {
     Route::post('/export/attendance', [App\Http\Controllers\ReportController::class, 'exportAttendance']);
     Route::post('/export/assessment', [App\Http\Controllers\ReportController::class, 'exportAssessment']);
-    Route::post('/export/academic', [App\Http\Controllers\ReportController::class, 'exportAcademic']);
+    Route::get('/mata-kuliah-absensi', [App\Http\Controllers\ReportController::class, 'getMataKuliahWithAbsensi']);
+    Route::get('/mata-kuliah-penilaian', [App\Http\Controllers\ReportController::class, 'getMataKuliahWithPenilaian']);
+    // Alias routes untuk kompatibilitas
+    Route::get('/mata-kuliah-with-absensi', [App\Http\Controllers\ReportController::class, 'getMataKuliahWithAbsensi']);
+    Route::get('/mata-kuliah-with-penilaian', [App\Http\Controllers\ReportController::class, 'getMataKuliahWithPenilaian']);
 });
 
 

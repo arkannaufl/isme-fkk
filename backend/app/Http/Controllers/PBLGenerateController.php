@@ -129,6 +129,17 @@ class PBLGenerateController extends Controller
             ])->first();
 
             if (!$existingDosenPeran) {
+                // Ambil peran kurikulum yang tersedia untuk mata kuliah ini
+                $peranKurikulum = $mataKuliah->peran_dalam_kurikulum ?? [];
+                $peranKurikulumArray = is_string($peranKurikulum) 
+                    ? json_decode($peranKurikulum, true) 
+                    : $peranKurikulum;
+                
+                // Pilih peran kurikulum pertama yang tersedia (biasanya "Dosen Mengajar")
+                $selectedPeranKurikulum = is_array($peranKurikulumArray) && count($peranKurikulumArray) > 0 
+                    ? $peranKurikulumArray[0] 
+                    : 'Dosen Mengajar';
+                
                 // Buat DosenPeran record baru
                 DosenPeran::create([
                     'user_id' => $assignment['dosen_id'],
@@ -136,7 +147,7 @@ class PBLGenerateController extends Controller
                     'blok' => $mataKuliah->blok ?? 0,
                     'semester' => $mataKuliah->semester,
                     'tipe_peran' => 'dosen_mengajar',
-                    'peran_kurikulum' => null,
+                    'peran_kurikulum' => $selectedPeranKurikulum,
                 ]);
             }
         } catch (\Exception $e) {
@@ -259,12 +270,12 @@ class PBLGenerateController extends Controller
                 ], 400);
             }
 
-            // Cari mata kuliah dengan blok yang diminta
-            $mataKuliah = MataKuliah::where('blok', $blok)
+            // Cari semua mata kuliah dengan blok yang diminta
+            $mataKuliahList = MataKuliah::where('blok', $blok)
                 ->where('jenis', 'Blok')
-                ->first();
+                ->get();
 
-            if (!$mataKuliah) {
+            if ($mataKuliahList->isEmpty()) {
                 return response()->json([
                     'success' => true,
                     'data' => [
@@ -275,8 +286,9 @@ class PBLGenerateController extends Controller
                 ]);
             }
 
-            // Cari PBL untuk mata kuliah ini
-            $pbls = PBL::where('mata_kuliah_kode', $mataKuliah->kode)->get();
+            // Cari PBL untuk semua mata kuliah di blok ini
+            $mataKuliahKodes = $mataKuliahList->pluck('kode');
+            $pbls = PBL::whereIn('mata_kuliah_kode', $mataKuliahKodes)->get();
 
             if ($pbls->isEmpty()) {
                 return response()->json([

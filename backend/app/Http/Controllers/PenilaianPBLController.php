@@ -19,25 +19,31 @@ class PenilaianPBLController extends Controller
             $kelompokId = $kelompokObj ? $kelompokObj->id : null;
         }
 
-        // Ambil jadwal PBL yang sesuai
+        // Ambil jadwal PBL yang sesuai - coba dengan kelompok_kecil_id dulu
         $jadwal = \App\Models\JadwalPBL::where('mata_kuliah_kode', $kode)
             ->where('kelompok_kecil_id', $kelompokId)
             ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
             ->first();
+
+        // Jika tidak ditemukan, coba dengan nama_kelompok melalui relasi
+        if (!$jadwal) {
+            $jadwal = \App\Models\JadwalPBL::where('mata_kuliah_kode', $kode)
+                ->whereHas('kelompokKecil', function($query) use ($kelompok) {
+                    $query->where('nama_kelompok', $kelompok);
+                })
+                ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
+                ->first();
+        }
 
         // Validasi: Cek apakah jadwal ada
         if (!$jadwal) {
             return response()->json(['error' => 'Jadwal tidak ditemukan'], 404);
         }
 
-        // Validasi: Cek apakah user yang akses adalah dosen yang "bisa ngajar"
+        // Validasi: Cek apakah user yang akses adalah dosen atau super admin
         $user = auth()->user();
         if ($user->role === 'dosen') {
-            // Cek apakah dosen ini ada di daftar dosen_ids dan status_konfirmasi = 'bisa'
-            $dosenIds = is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true);
-            if (!in_array($user->id, $dosenIds) || $jadwal->status_konfirmasi !== 'bisa') {
-                return response()->json(['error' => 'Anda tidak memiliki akses untuk menilai jadwal ini'], 403);
-            }
+            // Dosen bisa menilai jadwal apapun
         }
 
         $data = PenilaianPBL::where('mata_kuliah_kode', $kode)
@@ -211,14 +217,10 @@ class PenilaianPBLController extends Controller
             return response()->json(['error' => 'Jadwal tidak ditemukan'], 404);
         }
 
-        // Validasi: Cek apakah user yang akses adalah dosen yang "bisa ngajar"
+        // Validasi: Cek apakah user yang akses adalah dosen atau super admin
         $user = auth()->user();
         if ($user->role === 'dosen') {
-            // Cek apakah dosen ini ada di daftar dosen_ids dan status_konfirmasi = 'bisa'
-            $dosenIds = is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true);
-            if (!in_array($user->id, $dosenIds) || $jadwal->status_konfirmasi !== 'bisa') {
-                return response()->json(['error' => 'Anda tidak memiliki akses untuk menilai jadwal ini'], 403);
-            }
+            // Dosen bisa menilai jadwal apapun
         }
 
         $data = PenilaianPBL::where('mata_kuliah_kode', $kode)
@@ -478,23 +480,33 @@ class PenilaianPBLController extends Controller
             $kelompokId = $kelompokObj ? $kelompokObj->id : null;
         }
 
-        // Ambil jadwal PBL yang sesuai
+        // Ambil jadwal PBL yang sesuai - coba dengan kelompok_kecil_id dulu
         $jadwal = \App\Models\JadwalPBL::where('mata_kuliah_kode', $kode)
             ->where('kelompok_kecil_id', $kelompokId)
             ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
             ->first();
+
+        // Jika tidak ditemukan, coba dengan nama_kelompok melalui relasi
+        if (!$jadwal) {
+            $jadwal = \App\Models\JadwalPBL::where('mata_kuliah_kode', $kode)
+                ->whereHas('kelompokKecil', function($query) use ($kelompok) {
+                    $query->where('nama_kelompok', $kelompok);
+                })
+                ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
+                ->first();
+        }
 
         // Validasi: Cek apakah jadwal ada
         if (!$jadwal) {
             abort(404, 'Jadwal tidak ditemukan');
         }
 
-        // Validasi: Cek apakah user yang akses adalah dosen yang "bisa ngajar"
+        // Validasi: Cek apakah user yang akses adalah dosen yang terdaftar
         $user = auth()->user();
         if ($user->role === 'dosen') {
-            // Cek apakah dosen ini ada di daftar dosen_ids dan status_konfirmasi = 'bisa'
+            // Cek apakah dosen ini ada di daftar dosen_ids
             $dosenIds = is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true);
-            if (!in_array($user->id, $dosenIds) || $jadwal->status_konfirmasi !== 'bisa') {
+            if (!in_array($user->id, $dosenIds)) {
                 abort(403, 'Anda tidak memiliki akses untuk menilai jadwal ini');
             }
         }
@@ -521,12 +533,12 @@ class PenilaianPBLController extends Controller
             abort(404, 'Jadwal tidak ditemukan');
         }
 
-        // Validasi: Cek apakah user yang akses adalah dosen yang "bisa ngajar"
+        // Validasi: Cek apakah user yang akses adalah dosen yang terdaftar
         $user = auth()->user();
         if ($user->role === 'dosen') {
-            // Cek apakah dosen ini ada di daftar dosen_ids dan status_konfirmasi = 'bisa'
+            // Cek apakah dosen ini ada di daftar dosen_ids
             $dosenIds = is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true);
-            if (!in_array($user->id, $dosenIds) || $jadwal->status_konfirmasi !== 'bisa') {
+            if (!in_array($user->id, $dosenIds)) {
                 abort(403, 'Anda tidak memiliki akses untuk menilai jadwal ini');
             }
         }
