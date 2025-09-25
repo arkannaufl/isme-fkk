@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCog, faEdit, faCheckCircle } from "@fortawesome/free-solid-svg-icons";
+import { AnimatePresence, motion } from "framer-motion";
 import PageBreadCrumb from '../components/common/PageBreadCrumb';
 import BoxCubeIcon from '../icons/box-cube.svg';
 import { pblGenerateApi } from '../api/generateApi';
@@ -32,40 +33,18 @@ export default function PBL() {
   // Fungsi untuk refresh status blok
   const refreshBlokStatus = async () => {
     setLoading(true);
-    console.log('🔄 Starting refresh blok status...');
     
     try {
       const statusPromises = blokList.map(async (blok) => {
-        console.log(`🔍 Checking status for blok ${blok.blokId}...`);
-        
         try {
           const response = await pblGenerateApi.checkGenerateStatus(blok.blokId);
-          console.log(`✅ Response for blok ${blok.blokId}:`, response);
-          console.log(`✅ Response data:`, response.data);
-          
-          // Debug: lihat struktur data yang sebenarnya
-          const responseData = response.data;
-          console.log(`🔍 Response structure:`, {
-            success: responseData.success,
-            data: responseData.data,
-            hasData: !!responseData.data,
-            isGenerated: responseData.data?.is_generated,
-            assignmentCount: responseData.data?.assignment_count,
-            message: responseData.data?.message
-          });
           
           // Hanya gunakan data dari API (database)
+          const responseData = response.data;
           const isGenerated = responseData.success && responseData.data?.is_generated === true;
           const assignmentCount = responseData.data?.assignment_count || 0;
           const pblCount = responseData.data?.pbl_count || 0;
           const message = responseData.data?.message || 'Status unknown';
-          
-          console.log(`🎯 Processed data for blok ${blok.blokId}:`, {
-            isGenerated,
-            assignmentCount,
-            pblCount,
-            message
-          });
           
           return {
             blokId: blok.blokId,
@@ -84,12 +63,10 @@ export default function PBL() {
           });
           
           // Retry dengan delay
-          console.log(`🔄 Retrying for blok ${blok.blokId} in 2 seconds...`);
           await new Promise(resolve => setTimeout(resolve, 2000));
           
           try {
             const retryResponse = await pblGenerateApi.checkGenerateStatus(blok.blokId);
-            console.log(`✅ Retry successful for blok ${blok.blokId}:`, retryResponse.data);
             
             return {
               blokId: blok.blokId,
@@ -116,7 +93,6 @@ export default function PBL() {
       });
 
       const statuses = await Promise.all(statusPromises);
-      console.log('📊 Final statuses:', statuses);
       setBlokStatuses(statuses);
     } catch (error) {
       console.error('❌ Error refreshing blok statuses:', error);
@@ -200,8 +176,25 @@ export default function PBL() {
         </div>
         <div className="p-6">
           {loading ? (
-            <div className="flex justify-center items-center py-12">
-              <div className="w-8 h-8 border-4 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {[...Array(4)].map((_, index) => (
+                <div
+                  key={index}
+                  className="group block rounded-xl border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/50 px-6 py-8 animate-pulse"
+                >
+                  <div className="flex flex-col items-center text-center gap-4">
+                    <div className="w-16 h-16 rounded-full bg-gray-300 dark:bg-gray-700"></div>
+                    <div className="space-y-2">
+                      <div className="h-6 w-16 bg-gray-300 dark:bg-gray-700 rounded"></div>
+                      <div className="h-4 w-20 bg-gray-300 dark:bg-gray-700 rounded"></div>
+                    </div>
+                    <div className="flex flex-row gap-2 mt-2 w-full">
+                      <div className="flex-1 h-10 bg-gray-300 dark:bg-gray-700 rounded-lg"></div>
+                      <div className="flex-1 h-10 bg-gray-300 dark:bg-gray-700 rounded-lg"></div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -297,72 +290,136 @@ export default function PBL() {
       </div>
 
       {/* Clear Cache Modal */}
-      {showClearCacheModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full mx-4">
-            <div className="p-6">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    Clear Cache
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Tindakan Darurat
-                  </p>
-                </div>
-              </div>
+      <AnimatePresence>
+        {showClearCacheModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={handleCancelClearCache}
+            ></motion.div>
+            {/* Modal Content */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={handleCancelClearCache}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
               
-              <div className="mb-6">
-                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4">
-                  <div className="flex items-start gap-3">
-                    <svg className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                    </svg>
+              <div>
+                <div className="flex items-center justify-between pb-4 sm:pb-6">
+                  <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
+                    Clear Cache
+                  </h2>
+                </div>
+                
+                <div className="mb-6">
+                  <div className="flex items-center space-x-3 mb-4">
+                    <div className="w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-lg flex items-center justify-center">
+                      <svg
+                        className="w-6 h-6 text-red-600 dark:text-red-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
+                      </svg>
+                    </div>
                     <div>
-                      <h4 className="text-sm font-semibold text-red-800 dark:text-red-200 mb-1">
-                        ⚠️ Peringatan Keadaan Darurat
+                      <h4 className="font-medium text-gray-900 dark:text-white">
+                        Konfirmasi Clear Cache
                       </h4>
-                      <p className="text-sm text-red-700 dark:text-red-300">
-                        Tindakan ini akan menghapus semua cache status generate PBL. 
-                        <strong> Sebelum melanjutkan, hubungi developer atau administrator sistem.</strong>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        Tindakan darurat untuk reset cache
                       </p>
                     </div>
                   </div>
+                  
+                  <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <div className="flex items-start space-x-3">
+                      <svg
+                        className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+                        />
+                      </svg>
+                      <div>
+                        <p className="text-sm font-medium text-red-800 dark:text-red-200">
+                          Peringatan Keadaan Darurat!
+                        </p>
+                        <p className="text-sm text-red-700 dark:text-red-300">
+                          Tindakan ini akan menghapus semua cache status generate PBL. 
+                          <strong> Sebelum melanjutkan, hubungi developer atau administrator sistem.</strong>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    <p className="mb-2">Tindakan ini akan:</p>
+                    <ul className="list-disc list-inside space-y-1 ml-2">
+                      <li>Menghapus semua cache status generate PBL</li>
+                      <li>Memaksa sistem untuk mengambil data fresh dari database</li>
+                      <li>Mengembalikan semua blok ke status "Belum di-generate"</li>
+                    </ul>
+                  </div>
                 </div>
                 
-                <div className="text-sm text-gray-600 dark:text-gray-400">
-                  <p className="mb-2">Tindakan ini akan:</p>
-                  <ul className="list-disc list-inside space-y-1 ml-2">
-                    <li>Menghapus semua cache status generate PBL</li>
-                    <li>Memaksa sistem untuk mengambil data fresh dari database</li>
-                    <li>Mengembalikan semua blok ke status "Belum di-generate"</li>
-                  </ul>
+                <div className="flex justify-end gap-2 pt-2 relative z-20">
+                  <button
+                    onClick={handleCancelClearCache}
+                    className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={handleConfirmClearCache}
+                    className="px-3 sm:px-4 py-2 rounded-lg bg-red-600 text-white text-xs sm:text-sm font-medium shadow-theme-xs hover:bg-red-700 transition-all duration-300 ease-in-out relative z-10"
+                  >
+                    Ya, Clear Cache
+                  </button>
                 </div>
               </div>
-              
-              <div className="flex gap-3">
-                <button
-                  onClick={handleCancelClearCache}
-                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors duration-200"
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={handleConfirmClearCache}
-                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors duration-200"
-                >
-                  Ya, Clear Cache
-                </button>
-              </div>
-            </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -41,40 +41,52 @@ const KelompokBesar: React.FC = () => {
   const [isResetting, setIsResetting] = useState(false);
 
   // Load data from API
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        // Fetch data mahasiswa dan kelompok besar secara paralel
-        if (semester) {
-          const [mahasiswaResponse, kelompokResponse] = await Promise.all([
-            mahasiswaApi.getBySemester(semester),
-            kelompokBesarApi.batchBySemester({ semesters: [String(mapSemesterToNumber(semester))] })
-          ]);
-          setMahasiswaList(mahasiswaResponse.data);
-          setKelompokBesarData(kelompokResponse.data[String(mapSemesterToNumber(semester))]);
-          const selectedIds = (kelompokResponse.data[String(mapSemesterToNumber(semester))] || []).map((kb: any) => kb.mahasiswa_id.toString());
-          setSelectedMahasiswa(selectedIds);
-          setHasSaved(selectedIds.length > 0);
-        }
-      } catch (err: any) {
-        console.error("Error loading data:", err);
-        console.error("Error details:", handleApiError(err, "Memuat data kelompok besar"));
-        setError(handleApiError(err, "Memuat data kelompok besar"));
-      } finally {
-        setLoading(false);
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Fetch data mahasiswa dan kelompok besar secara paralel
+      if (semester) {
+        const [mahasiswaResponse, kelompokResponse] = await Promise.all([
+          mahasiswaApi.getAll(), // Ambil semua mahasiswa, bukan hanya semester tertentu
+          kelompokBesarApi.batchBySemester({ semesters: [String(mapSemesterToNumber(semester))] })
+        ]);
+        setMahasiswaList(mahasiswaResponse.data);
+        setKelompokBesarData(kelompokResponse.data[String(mapSemesterToNumber(semester))]);
+        const selectedIds = (kelompokResponse.data[String(mapSemesterToNumber(semester))] || []).map((kb: any) => kb.mahasiswa_id.toString());
+        setSelectedMahasiswa(selectedIds);
+        setHasSaved(selectedIds.length > 0);
       }
-    };
+    } catch (err: any) {
+      console.error("Error loading data:", err);
+      console.error("Error details:", handleApiError(err, "Memuat data kelompok besar"));
+      setError(handleApiError(err, "Memuat data kelompok besar"));
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     loadData();
   }, [semester]);
+
+  // Removed auto-refresh on tab/app switch to prevent unwanted data reloading
 
   // Filter mahasiswa berdasarkan semester yang dipilih
   const semesterNumber = semester ? Number(semester) : null;
   const mahasiswaBySemester = semesterNumber
-    ? mahasiswaList.filter(m => m.semester === semesterNumber)
+    ? mahasiswaList.filter(m => {
+        // Untuk mahasiswa biasa: hanya yang semester sama
+        if (!m.is_veteran) {
+          return m.semester === semesterNumber;
+        }
+        // Untuk veteran: hanya yang sudah dipilih untuk semester ini (ada di kelompok besar)
+        if (m.is_veteran) {
+          return kelompokBesarData.some(kb => kb.mahasiswa_id === m.id);
+        }
+        return false;
+      })
     : mahasiswaList;
 
   // Dapatkan daftar angkatan unik
@@ -390,10 +402,28 @@ const allSelected = allIds.every(id => selectedMahasiswa.includes(id)) && allIds
               return (
                 <div
                   key={id}
-                  className={`flex items-center gap-3 p-3 rounded-lg border border-brand-300 bg-brand-50 dark:bg-brand-900/20 transition-all duration-300 ${unselectingId === id ? 'opacity-0 scale-95' : 'opacity-100'} group`}
+                  className={`flex items-center gap-3 p-3 rounded-lg border transition-all duration-300 ${unselectingId === id ? 'opacity-0 scale-95' : 'opacity-100'} group ${
+                    mhs.is_veteran
+                      ? "bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/30 dark:to-purple-800/30 border-purple-300 dark:border-purple-600 shadow-md"
+                      : "border-brand-300 bg-brand-50 dark:bg-brand-900/20"
+                  }`}
                 >
-                  <div className="w-8 h-8 rounded-full bg-brand-200 dark:bg-brand-700 flex items-center justify-center">
-                    <UserIcon className="w-4 h-4 text-brand-700 dark:text-brand-200" />
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center relative ${
+                    mhs.is_veteran
+                      ? "bg-gradient-to-br from-purple-200 to-purple-300 dark:from-purple-700 dark:to-purple-800"
+                      : "bg-brand-200 dark:bg-brand-700"
+                  }`}>
+                    <UserIcon className={`w-4 h-4 ${
+                      mhs.is_veteran
+                        ? "text-purple-700 dark:text-purple-200"
+                        : "text-brand-700 dark:text-brand-200"
+                    }`} />
+                    {/* Veteran Crown Icon */}
+                    {mhs.is_veteran && (
+                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center">
+                        <span className="text-xs font-bold text-yellow-800">👑</span>
+                      </div>
+                    )}
                   </div>
                   <div className="flex-1">
                     <p className="font-medium text-brand-900 dark:text-brand-100 text-sm">{mhs.name}</p>
@@ -408,6 +438,18 @@ const allSelected = allIds.every(id => selectedMahasiswa.includes(id)) && allIds
                       }`}>
                         IPK {mhs.ipk.toFixed(2)}
                       </span>
+                      {/* Veteran Badge */}
+                      {mhs.is_veteran && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-500 to-purple-600 text-white font-bold shadow-sm">
+                          Veteran
+                        </span>
+                      )}
+                      {/* Original Semester Badge for Veterans */}
+                      {mhs.is_veteran && mhs.semester_asli && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-300">
+                          Sem {mhs.semester_asli}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <button
@@ -538,8 +580,12 @@ const allSelected = allIds.every(id => selectedMahasiswa.includes(id)) && allIds
                   transition={{ duration: 0.2 }}
                   className={`flex items-center gap-3 p-3 rounded-lg border transition-colors duration-200
                   ${selectedMahasiswa.includes(mhs.id.toString()) || pendingSelectedId === mhs.id.toString()
-                        ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-200 dark:border-brand-700 cursor-pointer hover:bg-brand-50 hover:border-brand-400'
-                    : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-brand-50 hover:border-brand-400'}
+                        ? mhs.is_veteran
+                          ? 'bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/30 dark:to-purple-800/30 border-purple-300 dark:border-purple-600 shadow-md cursor-pointer hover:from-purple-100 hover:to-purple-200 hover:border-purple-400 dark:hover:from-purple-900/40 dark:hover:to-purple-800/40'
+                          : 'bg-brand-50 dark:bg-brand-900/20 border-brand-200 dark:border-brand-700 cursor-pointer hover:bg-brand-50 hover:border-brand-400'
+                        : mhs.is_veteran
+                          ? 'bg-gradient-to-r from-purple-50/50 to-purple-100/50 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-700 cursor-pointer hover:from-purple-100 hover:to-purple-200 hover:border-purple-400 dark:hover:from-purple-900/40 dark:hover:to-purple-800/40'
+                          : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-brand-50 hover:border-brand-400'}
                   `}
                   onClick={() => {
                   if (!selectedMahasiswa.includes(mhs.id.toString())) {
@@ -575,8 +621,22 @@ const allSelected = allIds.every(id => selectedMahasiswa.includes(id)) && allIds
                       </svg>
                     )}
                   </div>
-                  <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                    <UserIcon className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center relative ${
+                    mhs.is_veteran
+                      ? "bg-gradient-to-br from-purple-200 to-purple-300 dark:from-purple-700 dark:to-purple-800"
+                      : "bg-gray-200 dark:bg-gray-700"
+                  }`}>
+                    <UserIcon className={`w-4 h-4 ${
+                      mhs.is_veteran
+                        ? "text-purple-700 dark:text-purple-200"
+                        : "text-gray-600 dark:text-gray-400"
+                    }`} />
+                    {/* Veteran Crown Icon */}
+                    {mhs.is_veteran && (
+                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center">
+                        <span className="text-xs font-bold text-yellow-800">👑</span>
+                      </div>
+                    )}
                   </div>
                   <div className="flex-1">
                     <p className="font-medium text-gray-800 dark:text-white/90 text-sm">{mhs.name}</p>
@@ -591,6 +651,18 @@ const allSelected = allIds.every(id => selectedMahasiswa.includes(id)) && allIds
                       }`}>
                         IPK {mhs.ipk.toFixed(2)}
                       </span>
+                      {/* Veteran Badge */}
+                      {mhs.is_veteran && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-500 to-purple-600 text-white font-bold shadow-sm">
+                          Veteran
+                        </span>
+                      )}
+                      {/* Original Semester Badge for Veterans */}
+                      {mhs.is_veteran && mhs.semester_asli && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-300">
+                          Sem {mhs.semester_asli}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </motion.div>

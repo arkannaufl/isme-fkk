@@ -417,6 +417,23 @@ export default function DashboardDosen() {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
+  // Auto refresh when notifications change (when superadmin asks dosen to teach again)
+  useEffect(() => {
+    if (notifications.length > 0) {
+      // Check if there's a new notification about asking dosen to teach again
+      const hasReassignmentNotification = notifications.some(notif => 
+        notif.title.includes('Konfirmasi Ulang Ketersediaan') || 
+        notif.message.includes('mengkonfirmasi ulang ketersediaan mengajar')
+      );
+      
+      if (hasReassignmentNotification) {
+        // Refresh dashboard data to get updated status
+        console.log('🔄 Reassignment notification detected, refreshing dashboard data...');
+        fetchDashboardData();
+      }
+    }
+  }, [notifications, fetchDashboardData]);
+
   const openKonfirmasiModal = (jadwal: any) => {
     setSelectedJadwal(jadwal);
     setShowKonfirmasiModal(true);
@@ -444,7 +461,7 @@ export default function DashboardDosen() {
       }
     } else if (jadwalType === 'jurnal') {
       // For Jurnal Reading
-      const kelompok = jadwal.kelompok_kecil?.nama_kelompok || jadwal.kelompok_kecil_antara?.nama_kelompok;
+      const kelompok = jadwal.kelompok_kecil?.nama || jadwal.kelompok_kecil_antara?.nama_kelompok;
       const isAntara = jadwal.semester_type === 'antara';
       
       if (isAntara) {
@@ -689,7 +706,7 @@ export default function DashboardDosen() {
                       {jadwalType === 'kuliah_besar' 
                         ? (item.kelompok_besar_id ? `Semester ${item.kelompok_besar_id}` : item.kelompok_besar_antara?.nama_kelompok || 'N/A')
                         : jadwalType === 'jurnal'
-                        ? (item.kelompok_kecil?.nama || item.kelompok_kecil_antara?.nama || 'N/A')
+                        ? (item.kelompok_kecil?.nama || item.kelompok_kecil_antara?.nama_kelompok || 'N/A')
                         : jadwalType === 'non_blok_non_csr'
                         ? (item.kelompok_besar?.semester || item.kelompok_besar_antara?.nama_kelompok || 'N/A')
                         : 'N/A'}

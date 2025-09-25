@@ -81,10 +81,20 @@ export default function PenilaianPBLPage() {
   // Check user permission and penilaian status
   useEffect(() => {
     const user = getUser();
-    if (user) {
-      setUserRole(user.role || '');
+    if (!user) {
+      navigate('/');
+      return;
     }
-  }, []);
+    
+    // Only allow dosen, super_admin, and tim_akademik to access this page
+    if (!['dosen', 'super_admin', 'tim_akademik'].includes(user.role)) {
+      setError('Anda tidak memiliki akses untuk mengakses halaman ini.');
+      setLoading(false);
+      return;
+    }
+    
+    setUserRole(user.role || '');
+  }, [navigate]);
 
   // Check penilaian status from URL params or API
   useEffect(() => {
@@ -110,18 +120,23 @@ export default function PenilaianPBLPage() {
   // Fetch mahasiswa kelompok kecil dari backend (pakai semester dari data blok)
   useEffect(() => {
     if (!kelompok || !semester) return;
-    setLoading(true);
-    setError(null);
+    console.log('Fetching mahasiswa for kelompok:', kelompok, 'semester:', semester);
     api.get(`/kelompok-kecil/by-nama?nama_kelompok=${encodeURIComponent(kelompok)}&semester=${semester}`)
       .then(res => {
+        console.log('Mahasiswa response:', res.data);
         const mhs = (res.data || [])
           .map((item: any) => item.mahasiswa)
           .filter((m: any) => m)
           .map((m: any) => ({ npm: m.nim, nama: m.name ?? m.nama ?? '' }));
+        console.log('Processed mahasiswa:', mhs);
         setMahasiswa(mhs);
       })
-      .catch(() => setError('Gagal memuat data mahasiswa'))
-      .finally(() => setLoading(false));
+      .catch((error: any) => {
+        console.error('Error fetching mahasiswa:', error);
+        console.error('Error response:', error.response);
+        // Jangan set error global, hanya log saja karena ini tidak critical
+        console.warn('Mahasiswa fetch failed, but continuing...');
+      });
   }, [kelompok, semester]);
 
   // Fetch penilaian dari backend
@@ -129,85 +144,102 @@ export default function PenilaianPBLPage() {
     if (!kode_blok || !kelompok || !pertemuan) return;
     setLoading(true);
     setError(null);
-    api.get(`/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/penilaian-pbl`)
-      .then(res => {
-        // Mapping ke state penilaian
-        const data = res.data.penilaian || [];
-        const pen: Penilaian = {};
-        data.forEach((row: any) => {
-          pen[row.mahasiswa_npm] = {
-            A: row.nilai_a,
-            B: row.nilai_b,
-            C: row.nilai_c,
-            D: row.nilai_d,
-            E: row.nilai_e,
-            F: row.nilai_f,
-            G: row.nilai_g,
-            petaKonsep: row.peta_konsep || 0,
-          };
-          if (row.tanggal_paraf) setTanggalParaf(row.tanggal_paraf);
-          if (row.signature_paraf) setSignatureParaf(row.signature_paraf);
-          if (row.nama_tutor) setNamaTutor(row.nama_tutor);
+    
+    // Fetch penilaian dan absensi secara bersamaan
+    Promise.all([
+      api.get(`/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/penilaian-pbl`),
+      api.get(`/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/absensi-pbl`).catch(err => {
+        // Jika absensi gagal, return empty data
+        console.warn('Absensi fetch failed, using empty data:', err);
+        return { data: { absensi: [] } };
+      })
+    ])
+    .then(([penilaianRes, absensiRes]) => {
+      // Process penilaian data
+      const data = penilaianRes.data.penilaian || [];
+      const pen: Penilaian = {};
+      data.forEach((row: any) => {
+        pen[row.mahasiswa_npm] = {
+          A: row.nilai_a,
+          B: row.nilai_b,
+          C: row.nilai_c,
+          D: row.nilai_d,
+          E: row.nilai_e,
+          F: row.nilai_f,
+          G: row.nilai_g,
+          petaKonsep: row.peta_konsep || 0,
+        };
+        if (row.tanggal_paraf) setTanggalParaf(row.tanggal_paraf);
+        if (row.signature_paraf) setSignatureParaf(row.signature_paraf);
+        if (row.nama_tutor) setNamaTutor(row.nama_tutor);
+      });
+      setPenilaian(pen);
+      setNamaModul(penilaianRes.data.nama_modul || ''); // Ambil nama modul dari response API
+      setIsPBL2(penilaianRes.data.is_pbl_2 || false); // Set status PBL 2 dari backend
+      
+      // Cek status penilaian_submitted dari backend
+      // Selalu update berdasarkan response dari backend
+      setPenilaianSubmitted(penilaianRes.data.penilaian_submitted || false);
+      
+      // Update canEdit berdasarkan role dan status
+      const user = getUser();
+      if (user) {
+        const isAdmin = user.role === 'super_admin' || user.role === 'tim_akademik';
+        setCanEdit(isAdmin || !(penilaianRes.data.penilaian_submitted || false));
+      }
+      
+      // Jika PBL type berubah, reset petaKonsep untuk semua mahasiswa
+      if (penilaianRes.data.is_pbl_2 && !isPBL2) {
+        // PBL 1 → PBL 2: tambah petaKonsep dengan nilai 0
+        const updatedPenilaian = { ...penilaian };
+        Object.keys(updatedPenilaian).forEach(npm => {
+          if (updatedPenilaian[npm].petaKonsep === undefined) {
+            updatedPenilaian[npm].petaKonsep = 0;
+          }
         });
-        setPenilaian(pen);
-        setNamaModul(res.data.nama_modul || ''); // Ambil nama modul dari response API
-        setIsPBL2(res.data.is_pbl_2 || false); // Set status PBL 2 dari backend
-        
-        // Cek status penilaian_submitted dari backend
-        // Selalu update berdasarkan response dari backend
-        setPenilaianSubmitted(res.data.penilaian_submitted || false);
-        
-        // Update canEdit berdasarkan role dan status
-        const user = getUser();
-        if (user) {
-          const isAdmin = user.role === 'super_admin' || user.role === 'tim_akademik';
-          setCanEdit(isAdmin || !(res.data.penilaian_submitted || false));
-        }
-        
-        // Jika PBL type berubah, reset petaKonsep untuk semua mahasiswa
-        if (res.data.is_pbl_2 && !isPBL2) {
-          // PBL 1 → PBL 2: tambah petaKonsep dengan nilai 0
-          const updatedPenilaian = { ...penilaian };
-          Object.keys(updatedPenilaian).forEach(npm => {
-            if (updatedPenilaian[npm].petaKonsep === undefined) {
-              updatedPenilaian[npm].petaKonsep = 0;
-            }
-          });
-          setPenilaian(updatedPenilaian);
-        } else if (!res.data.is_pbl_2 && isPBL2) {
-          // PBL 2 → PBL 1: hapus petaKonsep
-          const updatedPenilaian = { ...penilaian };
-          Object.keys(updatedPenilaian).forEach(npm => {
-            delete updatedPenilaian[npm].petaKonsep;
-          });
-          setPenilaian(updatedPenilaian);
-        }
-      })
-      .catch((error: any) => {
-        console.error('Error fetching data:', error);
-        if (error.response?.status === 403) {
-          setError('Anda tidak memiliki akses untuk menilai jadwal ini. Hanya dosen yang ditugaskan dan telah mengkonfirmasi ketersediaan yang dapat mengakses halaman ini.');
-        } else if (error.response?.status === 404) {
-          setError('Jadwal tidak ditemukan. Pastikan jadwal yang Anda akses sudah benar.');
-        } else {
-          setError('Gagal memuat data penilaian. Silakan coba lagi.');
-        }
-      })
-      .finally(() => setLoading(false));
+        setPenilaian(updatedPenilaian);
+      } else if (!penilaianRes.data.is_pbl_2 && isPBL2) {
+        // PBL 2 → PBL 1: hapus petaKonsep
+        const updatedPenilaian = { ...penilaian };
+        Object.keys(updatedPenilaian).forEach(npm => {
+          delete updatedPenilaian[npm].petaKonsep;
+        });
+        setPenilaian(updatedPenilaian);
+      }
 
-    // Fetch data absensi
-    api.get(`/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/absensi-pbl`)
-      .then(res => {
-        const data = res.data.absensi || [];
-        const abs: AbsensiPBL = {};
-        data.forEach((row: any) => {
+      // Process absensi data
+      const absensiData = absensiRes.data.absensi || [];
+      console.log('Absensi response:', absensiRes.data);
+      console.log('Absensi data:', absensiData);
+      console.log('Is array?', Array.isArray(absensiData));
+      
+      const abs: AbsensiPBL = {};
+      if (Array.isArray(absensiData)) {
+        absensiData.forEach((row: any) => {
           abs[row.mahasiswa_npm] = {
             hadir: row.hadir || false,
           };
         });
-        setAbsensi(abs);
-      })
-      .catch(() => setError('Gagal memuat data absensi'));
+      } else {
+        console.warn('Absensi data is not an array:', absensiData);
+      }
+      setAbsensi(abs);
+    })
+    .catch((error: any) => {
+      console.error('Error fetching data:', error);
+      console.error('Error response:', error.response);
+      console.error('Error status:', error.response?.status);
+      console.error('Error data:', error.response?.data);
+      
+      if (error.response?.status === 403) {
+        setError('Anda tidak memiliki akses untuk menilai jadwal ini. Hanya dosen yang ditugaskan dan telah mengkonfirmasi ketersediaan yang dapat mengakses halaman ini.');
+      } else if (error.response?.status === 404) {
+        setError('Jadwal tidak ditemukan. Pastikan jadwal yang Anda akses sudah benar.');
+      } else {
+        setError('Gagal memuat data penilaian. Silakan coba lagi.');
+      }
+    })
+    .finally(() => setLoading(false));
   }, [kode_blok, kelompok, pertemuan]);
 
   // Fetch modul PBL list

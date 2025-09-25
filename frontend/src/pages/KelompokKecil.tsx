@@ -162,6 +162,8 @@ const KelompokKecil: React.FC = () => {
         ipk: kb.mahasiswa.ipk,
         gender: kb.mahasiswa.gender,
         is_veteran: kb.mahasiswa.is_veteran || false, // Tambahkan field is_veteran
+        veteran_semester: kb.mahasiswa.veteran_semester, // Tambahkan veteran_semester
+        semester_asli: kb.mahasiswa.semester, // Tambahkan semester asli
       }));
       // Ambil kelompok kecil
       let kelompokKecilData: any[] = [];
@@ -584,7 +586,8 @@ const KelompokKecil: React.FC = () => {
           console.log('Adding veterans to Kelompok Besar...');
           await kelompokBesarApi.create({
             semester: String(mapSemesterToNumber(semester)),
-            mahasiswa_ids: veteranIds
+            mahasiswa_ids: veteranIds,
+            is_veteran_addition: true // Flag untuk menandai ini adalah penambahan veteran
           });
           console.log('Successfully added veterans to Kelompok Besar');
         } catch (error) {
@@ -594,7 +597,8 @@ const KelompokKecil: React.FC = () => {
             try {
               await kelompokBesarApi.create({
                 semester: String(mapSemesterToNumber(semester)),
-                mahasiswa_ids: [veteranId]
+                mahasiswa_ids: [veteranId],
+                is_veteran_addition: true // Flag untuk menandai ini adalah penambahan veteran
               });
               console.log(`Successfully added veteran ${veteranId} to Kelompok Besar`);
             } catch (singleError) {
@@ -660,9 +664,42 @@ const KelompokKecil: React.FC = () => {
         await kelompokKecilApi.delete(kk.id);
       }
       
+      // Reset veteran status untuk semester ini
+      // Cari veteran yang terdaftar di semester ini
+      const veteransInThisSemester = mahasiswa.filter(m => m.is_veteran && m.veteran_semester === semester);
+      
+      if (veteransInThisSemester.length > 0) {
+        console.log(`Releasing ${veteransInThisSemester.length} veterans from semester ${semester}`);
+        
+        // Release veteran dari semester ini dan hapus dari Kelompok Besar
+        for (const veteran of veteransInThisSemester) {
+          try {
+            // Release veteran dari semester ini
+            await mahasiswaVeteranApi.releaseFromSemester({
+              user_id: parseInt(veteran.id),
+              semester: semester
+            });
+            console.log(`Successfully released veteran ${veteran.id} (${veteran.nama}) from semester ${semester}`);
+            
+            // Hapus veteran dari Kelompok Besar juga
+            try {
+              await kelompokBesarApi.deleteByMahasiswaId(parseInt(veteran.id), String(mapSemesterToNumber(semester)));
+              console.log(`Successfully removed veteran ${veteran.id} (${veteran.nama}) from Kelompok Besar`);
+            } catch (kelompokBesarError) {
+              console.error(`Error removing veteran ${veteran.id} from Kelompok Besar:`, kelompokBesarError);
+              // Lanjutkan meskipun ada error
+            }
+          } catch (veteranError) {
+            console.error(`Error releasing veteran ${veteran.id} from semester:`, veteranError);
+            // Lanjutkan meskipun ada error
+          }
+        }
+      }
+      
       await loadData();
       
       setSelectedMahasiswa([]);
+      setSelectedVeterans([]); // Reset veteran selection juga
       setShowKelompok(false);
       setHasSavedData(false);
       setHasUnsavedChanges(false);
@@ -1053,7 +1090,27 @@ const KelompokKecil: React.FC = () => {
               <div className="text-2xl md:text-4xl font-bold mb-1 text-green-600 dark:text-green-400">
                 {
                   mahasiswa.filter(
-                    (m) => !m.kelompok
+                    (m) => {
+                      // Filter mahasiswa yang belum dikelompokkan
+                      if (m.kelompok) return false;
+                      
+                      // Filter veteran yang sudah dipakai di semester lain
+                      if (m.is_veteran && m.veteran_semester && m.veteran_semester !== semester) {
+                        return false;
+                      }
+                      
+                      // Filter khusus untuk veteran: hanya veteran yang dipilih yang muncul
+                      if (m.is_veteran) {
+                        const isVeteranSelected = selectedVeterans.includes(m.id);
+                        if (!isVeteranSelected) {
+                          return false;
+                        }
+                      }
+                      
+                      // Untuk non-veteran: semua yang belum dikelompokkan tetap muncul (tidak perlu dipilih dulu)
+                      
+                      return true;
+                    }
                   ).length
                 }
               </div>
@@ -1541,10 +1598,10 @@ const KelompokKecil: React.FC = () => {
                         key={veteran.id}
                         className={`flex items-center gap-3 p-3 rounded-lg border transition-colors duration-200 ${
                           isSelected
-                            ? "bg-brand-50 dark:bg-brand-900/20 border-brand-200 dark:border-brand-700"
+                            ? "bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/30 dark:to-purple-800/30 border-purple-300 dark:border-purple-600 shadow-md"
                             : isLocked
                             ? "bg-gray-100 dark:bg-gray-800/50 border-gray-300 dark:border-gray-600 opacity-60"
-                            : "bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700 hover:bg-green-50 hover:border-green-400"
+                            : "bg-gradient-to-r from-purple-50/50 to-purple-100/50 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-700 hover:from-purple-100 hover:to-purple-200 hover:border-purple-400 dark:hover:from-purple-900/40 dark:hover:to-purple-800/40"
                         } ${isAvailable && !isLocked ? 'cursor-pointer' : 'cursor-not-allowed'}`}
                         onClick={() => {
                           if (isAvailable && !isLocked) {
@@ -1596,19 +1653,31 @@ const KelompokKecil: React.FC = () => {
                             </svg>
                           )}
                         </div>
-                        <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                          <UserIcon className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-200 to-purple-300 dark:from-purple-700 dark:to-purple-800 flex items-center justify-center relative">
+                          <UserIcon className="w-4 h-4 text-purple-700 dark:text-purple-200" />
+                          {/* Veteran Crown Icon */}
+                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center">
+                            <span className="text-xs font-bold text-yellow-800">👑</span>
+                          </div>
                         </div>
                         <div className="flex-1">
-                          <p className="font-medium text-gray-800 dark:text-white/90 text-sm">
-                            {veteran.nama}
-                          </p>
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-medium text-gray-800 dark:text-white/90 text-sm">
+                              {veteran.nama}
+                            </p>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-500 to-purple-600 text-white font-bold shadow-sm">
+                              Veteran
+                            </span>
+                          </div>
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="text-xs text-gray-600 dark:text-gray-400">
                               {veteran.nim}
                             </p>
                             <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
                               {veteran.angkatan}
+                            </span>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-300">
+                              Sem {veteran.semester_asli || '?'}
                             </span>
                             <span
                               className={`text-xs px-2 py-0.5 rounded-full ${
@@ -1827,21 +1896,50 @@ const KelompokKecil: React.FC = () => {
                             onDragOver={(e) =>
                               handleDragOverMahasiswa(e, mhs, index)
                             }
-                            className={`flex items-center gap-2 p-2 bg-white dark:bg-gray-700 rounded-lg cursor-move transition-all duration-300 ease-out hover:shadow-md transform ${
+                            className={`flex items-center gap-2 p-2 rounded-lg cursor-move transition-all duration-300 ease-out hover:shadow-md transform ${
+                              mhs.is_veteran
+                                ? "bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/30 dark:to-purple-800/30 border border-purple-200 dark:border-purple-700"
+                                : "bg-white dark:bg-gray-700"
+                            } ${
                               draggedMahasiswa?.id === mhs.id
                                 ? "opacity-50 scale-95 rotate-1"
                                 : newlyMovedMahasiswa === mhs.id
-                                ? "bg-green-100 dark:bg-green-900/20 border-2 border-green-300 dark:border-green-600 scale-105 shadow-lg animate-pulse"
-                                : "hover:bg-gray-50 dark:hover:bg-gray-600 hover:scale-[1.02] hover:-translate-y-0.5"
+                                ? mhs.is_veteran
+                                  ? "bg-gradient-to-r from-green-100 to-green-200 dark:from-green-900/40 dark:to-green-800/40 border-2 border-green-300 dark:border-green-600 scale-105 shadow-lg animate-pulse"
+                                  : "bg-green-100 dark:bg-green-900/20 border-2 border-green-300 dark:border-green-600 scale-105 shadow-lg animate-pulse"
+                                : mhs.is_veteran
+                                  ? "hover:from-purple-100 hover:to-purple-200 dark:hover:from-purple-900/50 dark:hover:to-purple-800/50 hover:scale-[1.02] hover:-translate-y-0.5"
+                                  : "hover:bg-gray-50 dark:hover:bg-gray-600 hover:scale-[1.02] hover:-translate-y-0.5"
                             }`}
                           >
-                            <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
-                              <UserIcon className="w-3 h-3 text-gray-600 dark:text-gray-400" />
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center relative ${
+                              mhs.is_veteran 
+                                ? "bg-gradient-to-br from-purple-200 to-purple-300 dark:from-purple-700 dark:to-purple-800" 
+                                : "bg-gray-200 dark:bg-gray-600"
+                            }`}>
+                              <UserIcon className={`w-3 h-3 ${
+                                mhs.is_veteran 
+                                  ? "text-purple-700 dark:text-purple-200" 
+                                  : "text-gray-600 dark:text-gray-400"
+                              }`} />
+                              {/* Veteran Crown Icon */}
+                              {mhs.is_veteran && (
+                                <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full flex items-center justify-center">
+                                  <span className="text-xs font-bold text-yellow-800">👑</span>
+                                </div>
+                              )}
                             </div>
                             <div className="flex-1">
-                              <p className="font-medium text-gray-800 dark:text-white/90 text-sm">
-                                {mhs.nama}
-                              </p>
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="font-medium text-gray-800 dark:text-white/90 text-sm">
+                                  {mhs.nama}
+                                </p>
+                                {mhs.is_veteran && (
+                                  <span className="text-xs px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-500 to-purple-600 text-white font-bold shadow-sm">
+                                    Veteran
+                                  </span>
+                                )}
+                              </div>
                               <div className="flex items-center gap-2">
                                 <p className="text-xs text-gray-600 dark:text-gray-400">
                                   {mhs.nim}
@@ -1849,6 +1947,11 @@ const KelompokKecil: React.FC = () => {
                                 <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
                                   {mhs.angkatan}
                                 </span>
+                                {mhs.is_veteran && mhs.semester_asli && (
+                                  <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-300">
+                                    Sem {mhs.semester_asli}
+                                  </span>
+                                )}
                                 <span
                                   className={`text-xs px-2 py-0.5 rounded-full ${
                                     mhs.ipk >= 3.5
@@ -1913,7 +2016,27 @@ const KelompokKecil: React.FC = () => {
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                       {
                         mahasiswa.filter(
-                          (m) => !m.kelompok
+                          (m) => {
+                            // Filter mahasiswa yang belum dikelompokkan
+                            if (m.kelompok) return false;
+                            
+                            // Filter veteran yang sudah dipakai di semester lain
+                            if (m.is_veteran && m.veteran_semester && m.veteran_semester !== semester) {
+                              return false;
+                            }
+                            
+                            // Filter khusus untuk veteran: hanya veteran yang dipilih yang muncul
+                            if (m.is_veteran) {
+                              const isVeteranSelected = selectedVeterans.includes(m.id);
+                              if (!isVeteranSelected) {
+                                return false;
+                              }
+                            }
+                            
+                            // Untuk non-veteran: semua yang belum dikelompokkan tetap muncul (tidak perlu dipilih dulu)
+                            
+                            return true;
+                          }
                         ).length
                       }{" "}
                       mahasiswa
@@ -1924,7 +2047,27 @@ const KelompokKecil: React.FC = () => {
                 <div className="space-y-2">
                   {mahasiswa
                     .filter(
-                      (m) => !m.kelompok
+                      (m) => {
+                        // Filter mahasiswa yang belum dikelompokkan
+                        if (m.kelompok) return false;
+                        
+                        // Filter veteran yang sudah dipakai di semester lain
+                        if (m.is_veteran && m.veteran_semester && m.veteran_semester !== semester) {
+                          return false;
+                        }
+                        
+                        // Filter khusus untuk veteran: hanya veteran yang dipilih yang muncul
+                        if (m.is_veteran) {
+                          const isVeteranSelected = selectedVeterans.includes(m.id);
+                          if (!isVeteranSelected) {
+                            return false;
+                          }
+                        }
+                        
+                        // Untuk non-veteran: semua yang belum dikelompokkan tetap muncul (tidak perlu dipilih dulu)
+                        
+                        return true;
+                      }
                     )
                     .map((mhs, index) => (
                       <React.Fragment key={mhs.id}>
@@ -1941,21 +2084,50 @@ const KelompokKecil: React.FC = () => {
                           onDragOver={(e) =>
                             handleDragOverMahasiswa(e, mhs, index)
                           }
-                          className={`flex items-center gap-2 p-2 bg-white dark:bg-gray-700 rounded-lg cursor-move transition-all duration-300 ease-out hover:shadow-md transform ${
+                          className={`flex items-center gap-2 p-2 rounded-lg cursor-move transition-all duration-300 ease-out hover:shadow-md transform ${
+                            mhs.is_veteran
+                              ? "bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/30 dark:to-purple-800/30 border border-purple-200 dark:border-purple-700"
+                              : "bg-white dark:bg-gray-700"
+                          } ${
                             draggedMahasiswa?.id === mhs.id
                               ? "opacity-50 scale-95 rotate-1"
                               : newlyMovedMahasiswa === mhs.id
-                              ? "bg-green-100 dark:bg-green-900/20 border-2 border-green-300 dark:border-green-600 scale-105 shadow-lg animate-pulse"
-                              : "hover:bg-gray-50 dark:hover:bg-gray-600 hover:scale-[1.02] hover:-translate-y-0.5"
+                              ? mhs.is_veteran
+                                ? "bg-gradient-to-r from-green-100 to-green-200 dark:from-green-900/40 dark:to-green-800/40 border-2 border-green-300 dark:border-green-600 scale-105 shadow-lg animate-pulse"
+                                : "bg-green-100 dark:bg-green-900/20 border-2 border-green-300 dark:border-green-600 scale-105 shadow-lg animate-pulse"
+                              : mhs.is_veteran
+                                ? "hover:from-purple-100 hover:to-purple-200 dark:hover:from-purple-900/50 dark:hover:to-purple-800/50 hover:scale-[1.02] hover:-translate-y-0.5"
+                                : "hover:bg-gray-50 dark:hover:bg-gray-600 hover:scale-[1.02] hover:-translate-y-0.5"
                           }`}
                         >
-                          <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
-                            <UserIcon className="w-3 h-3 text-gray-600 dark:text-gray-400" />
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center relative ${
+                            mhs.is_veteran 
+                              ? "bg-gradient-to-br from-purple-200 to-purple-300 dark:from-purple-700 dark:to-purple-800" 
+                              : "bg-gray-200 dark:bg-gray-600"
+                          }`}>
+                            <UserIcon className={`w-3 h-3 ${
+                              mhs.is_veteran 
+                                ? "text-purple-700 dark:text-purple-200" 
+                                : "text-gray-600 dark:text-gray-400"
+                            }`} />
+                            {/* Veteran Crown Icon */}
+                            {mhs.is_veteran && (
+                              <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full flex items-center justify-center">
+                                <span className="text-xs font-bold text-yellow-800">👑</span>
+                              </div>
+                            )}
                           </div>
                           <div className="flex-1">
-                            <p className="font-medium text-gray-800 dark:text-white/90 text-sm">
-                              {mhs.nama}
-                            </p>
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="font-medium text-gray-800 dark:text-white/90 text-sm">
+                                {mhs.nama}
+                              </p>
+                              {mhs.is_veteran && (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-gradient-to-r from-purple-500 to-purple-600 text-white font-bold shadow-sm">
+                                  V
+                                </span>
+                              )}
+                            </div>
                             <div className="flex items-center gap-2">
                               <p className="text-xs text-gray-600 dark:text-gray-400">
                                 {mhs.nim}
@@ -1963,6 +2135,11 @@ const KelompokKecil: React.FC = () => {
                               <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
                                 {mhs.angkatan}
                               </span>
+                              {mhs.is_veteran && mhs.semester_asli && (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-300">
+                                  Sem {mhs.semester_asli}
+                                </span>
+                              )}
                               <span
                                 className={`text-xs px-2 py-0.5 rounded-full ${
                                   mhs.ipk >= 3.5

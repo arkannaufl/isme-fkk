@@ -940,12 +940,13 @@ class JadwalJurnalReadingController extends Controller
             }
 
             $semesterType = $request->query('semester_type');
+            \Log::info("Getting jadwal jurnal reading for dosen ID: {$dosenId}, semester_type: {$semesterType}");
 
             // Use raw query to get data first
             $rawJadwal = \DB::table('jadwal_jurnal_reading')
                 ->where(function($q) use ($dosenId) {
                     $q->where('dosen_id', $dosenId)
-                      ->orWhere('dosen_ids', 'like', '%' . $dosenId . '%');
+                      ->orWhereJsonContains('dosen_ids', $dosenId);
                 })
                 ->when($semesterType === 'antara', function($q) {
                     $q->whereNotNull('kelompok_kecil_antara_id');
@@ -957,12 +958,14 @@ class JadwalJurnalReadingController extends Controller
                 ->orderBy('jam_mulai')
                 ->get();
             
+            \Log::info("Raw query found {$rawJadwal->count()} records for dosen ID: {$dosenId}");
+            
             // Convert to Eloquent models for relationships
             $jadwal = JadwalJurnalReading::with([
                 'mataKuliah:kode,nama,semester',
                 'ruangan:id,nama,gedung',
                 'dosen:id,name',
-                'kelompokKecil:id,nama',
+                'kelompokKecil:id,nama_kelompok',
                 'kelompokKecilAntara:id,nama_kelompok'
             ])
             ->select([
@@ -975,6 +978,14 @@ class JadwalJurnalReadingController extends Controller
 
 
             \Log::info("Found {$jadwal->count()} JadwalJurnalReading records for dosen ID: {$dosenId}");
+            
+            if ($jadwal->count() === 0) {
+                \Log::warning("No jadwal found for dosen ID: {$dosenId}");
+                return response()->json([
+                    'message' => 'Tidak ada jadwal Jurnal Reading untuk dosen ini',
+                    'data' => []
+                ]);
+            }
             
             $mappedJadwal = $jadwal->map(function ($jadwal) {
                 // Determine semester type based on kelompok_kecil_antara_id
@@ -1016,7 +1027,7 @@ class JadwalJurnalReadingController extends Controller
                     'kelompok_kecil_antara_id' => $jadwal->kelompok_kecil_antara_id,
                     'kelompok_kecil' => $jadwal->kelompokKecil ? (object) [
                         'id' => $jadwal->kelompokKecil->id,
-                        'nama' => $jadwal->kelompokKecil->nama
+                        'nama' => $jadwal->kelompokKecil->nama_kelompok
                     ] : null,
                     'kelompok_kecil_antara' => $jadwal->kelompokKecilAntara ? (object) [
                         'id' => $jadwal->kelompokKecilAntara->id,
@@ -1073,6 +1084,9 @@ class JadwalJurnalReadingController extends Controller
             'alasan_konfirmasi' => $request->alasan
         ]);
 
+        // LONG-TERM FIX: Update dosen_ids based on confirmation status
+        $this->updateDosenIdsBasedOnConfirmation($jadwal, $request->dosen_id, $request->status);
+
 
         // Log activity
 
@@ -1108,6 +1122,40 @@ class JadwalJurnalReadingController extends Controller
         }
 
         return response()->json(['message' => 'Konfirmasi berhasil disimpan', 'status' => $request->status]);
+    }
+
+    /**
+     * Update dosen_ids based on confirmation status
+     * This ensures dosen_ids reflects actual confirmed dosen
+     */
+    private function updateDosenIdsBasedOnConfirmation($jadwal, $dosenId, $status)
+    {
+        try {
+            $currentDosenIds = $jadwal->dosen_ids ? (is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true)) : [];
+            
+            if ($status === 'bisa') {
+                // Add dosen to dosen_ids if not already present
+                if (!in_array($dosenId, $currentDosenIds)) {
+                    $currentDosenIds[] = $dosenId;
+                    \Illuminate\Support\Facades\Log::info("Adding dosen {$dosenId} to dosen_ids for jurnal jadwal {$jadwal->id}");
+                }
+            } elseif ($status === 'tidak_bisa') {
+                // Remove dosen from dosen_ids
+                $currentDosenIds = array_filter($currentDosenIds, function($id) use ($dosenId) {
+                    return $id != $dosenId;
+                });
+                $currentDosenIds = array_values($currentDosenIds); // Re-index array
+                \Illuminate\Support\Facades\Log::info("Removing dosen {$dosenId} from dosen_ids for jurnal jadwal {$jadwal->id}");
+            }
+
+            // Update jadwal with new dosen_ids
+            $jadwal->update(['dosen_ids' => $currentDosenIds]);
+            
+            \Illuminate\Support\Facades\Log::info("Updated dosen_ids for jurnal jadwal {$jadwal->id}: " . json_encode($currentDosenIds));
+            
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Error updating dosen_ids for jurnal jadwal {$jadwal->id}: " . $e->getMessage());
+        }
     }
 
     private function saveRiwayatKonfirmasi($jadwal, $status, $alasan = null, $dosen_id = null)

@@ -62,7 +62,8 @@ class MahasiswaVeteranController extends Controller
         $validator = Validator::make($request->all(), [
             'user_id' => 'required|exists:users,id',
             'is_veteran' => 'required|boolean',
-            'veteran_notes' => 'nullable|string|max:1000'
+            'veteran_notes' => 'nullable|string|max:1000',
+            'veteran_semester' => 'nullable|string'
         ]);
 
         if ($validator->fails()) {

@@ -488,6 +488,8 @@ const DashboardSuperAdmin: React.FC = () => {
           } Report`,
           orientation: "landscape" as const,
           includeSummary: true,
+          includeCharts: true,
+          includeMetadata: true,
         };
 
         if (reportType === "attendance") {
@@ -2290,7 +2292,7 @@ const DashboardSuperAdmin: React.FC = () => {
                         Export Reports
                       </p>
                       <p className="text-xs text-gray-600 dark:text-gray-400">
-                        Download laporan sistem
+                        Download laporan sistem dengan Excel profesional
                       </p>
             </div>
               </button>
@@ -2673,9 +2675,14 @@ const DashboardSuperAdmin: React.FC = () => {
             </button>
             <div>
               <div className="flex items-center justify-between pb-4 sm:pb-6">
-                <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
-                  Export Reports
-            </h2>
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
+                    Export Reports
+                  </h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Laporan Excel profesional dengan chart, metadata, dan analisis lengkap
+                  </p>
+                </div>
           </div>
           
               <div>
@@ -2751,9 +2758,9 @@ const DashboardSuperAdmin: React.FC = () => {
                               <p className="font-medium text-gray-900 dark:text-white">
                                 Attendance Report
                               </p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                Laporan kehadiran mahasiswa
-                              </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Laporan kehadiran mahasiswa dengan analisis status
+                      </p>
                     </div>
                   </div>
             </div>
@@ -2819,7 +2826,7 @@ const DashboardSuperAdmin: React.FC = () => {
                                 Assessment Report
                               </p>
                               <p className="text-xs text-gray-500 dark:text-gray-400">
-                                Laporan penilaian mahasiswa
+                                Laporan penilaian mahasiswa dengan grade & analisis
                               </p>
                             </div>
                           </div>
@@ -2959,9 +2966,9 @@ const DashboardSuperAdmin: React.FC = () => {
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     {[
-                          { value: "excel", label: "Excel", icon: "📊" },
-                          { value: "pdf", label: "PDF", icon: "📄" },
-                          { value: "both", label: "Both", icon: "📁" },
+                          { value: "excel", label: "Excel", icon: "📊", description: "Dengan chart & metadata" },
+                          { value: "pdf", label: "PDF", icon: "📄", description: "Format dokumen resmi" },
+                          { value: "both", label: "Both", icon: "📁", description: "Excel + PDF" },
                     ].map((format) => {
                           const isSelected = selectedExportFormats.includes(
                             format.value
@@ -3005,8 +3012,11 @@ const DashboardSuperAdmin: React.FC = () => {
                                   <div className="text-2xl mb-1">
                                     {format.icon}
                                   </div>
-                                  <div className="text-xs text-gray-600 dark:text-gray-400">
+                                  <div className="text-xs text-gray-600 dark:text-gray-400 font-medium">
                                     {format.label}
+                                  </div>
+                                  <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                    {format.description}
                                   </div>
                             </div>
                           </div>

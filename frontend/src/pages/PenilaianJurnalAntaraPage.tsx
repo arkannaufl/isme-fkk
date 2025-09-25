@@ -40,6 +40,24 @@ export default function PenilaianJurnalPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [penilaianSubmitted, setPenilaianSubmitted] = useState(false);
+  const [canEdit, setCanEdit] = useState(true);
+
+  // Check user access before loading data
+  useEffect(() => {
+    const user = getUser();
+    if (!user) {
+      navigate('/');
+      return;
+    }
+    
+    // Only allow dosen, super_admin, and tim_akademik to access this page
+    if (!['dosen', 'super_admin', 'tim_akademik'].includes(user.role)) {
+      setError('Anda tidak memiliki akses untuk mengakses halaman ini.');
+      setLoading(false);
+      return;
+    }
+  }, [navigate]);
 
   // Fetch data dari backend
   useEffect(() => {

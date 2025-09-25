@@ -1786,8 +1786,6 @@ export default function Dosen() {
         }
       });
       
-      console.log("🔍 PBL Data from /pbls/all:", pblData);
-      console.log("🔍 Extracted PBL IDs:", allPblIds);
 
       if (allPblIds.length > 0) {
         // Gunakan endpoint yang sama dengan PBL-detail.tsx untuk konsistensi
@@ -1798,7 +1796,6 @@ export default function Dosen() {
         // Sesuaikan dengan format data dari PBL-detail.tsx
       const assignmentData = assignedRes.data.data || {};
       setAssignmentData(assignmentData);
-        console.log("Assignment data updated:", assignmentData);
       } else {
         setAssignmentData({});
       }
@@ -1812,77 +1809,72 @@ export default function Dosen() {
 
   // Function untuk menghitung assignment count per dosen
   const getAssignmentCount = (dosenId: number): number => {
-    const dosen = data.find((d) => d.id === dosenId);
-    if (!dosen) return 0;
-
-    // Gunakan data dosen_peran langsung dari data dosen (sama seperti ReportingDosen.tsx)
-    if (dosen.dosen_peran && Array.isArray(dosen.dosen_peran)) {
-      const dosenMengajarCount = dosen.dosen_peran.filter((peran: any) => 
-        peran.tipe_peran === 'dosen_mengajar' || peran.tipe_peran === 'mengajar'
-      ).length;
-      
-      return dosenMengajarCount;
-    }
-
-    // Fallback: cek peran_utama
-    if (dosen.peran_utama === 'dosen_mengajar') {
-      return 1;
-    }
-
-    return 0;
+    // Hitung dari assignmentData yang real-time
+    let count = 0;
+    Object.values(assignmentData).forEach((assignments: any[]) => {
+      if (Array.isArray(assignments)) {
+        assignments.forEach((assignment: any) => {
+          if (assignment.id === dosenId && 
+              (assignment.pbl_role === 'dosen_mengajar' || assignment.pbl_role === 'koordinator' || assignment.pbl_role === 'tim_blok')) {
+            count++;
+          }
+        });
+      }
+    });
+    
+    console.log(`📊 Assignment count for dosen ${dosenId}: ${count}`);
+    return count;
   };
 
   // Function untuk mendapatkan detail assignment per dosen
   const getAssignmentDetails = (dosenId: number) => {
     const details: string[] = [];
-    const dosen = data.find((d) => d.id === dosenId);
     
-    if (!dosen) return details;
-
-    // Gunakan data dosen_peran langsung dari data dosen (sama seperti ReportingDosen.tsx)
-    if (dosen.dosen_peran && Array.isArray(dosen.dosen_peran)) {
-      dosen.dosen_peran.forEach((peran: any) => {
-        if (peran.tipe_peran === 'dosen_mengajar' || peran.tipe_peran === 'mengajar') {
-          let detailText = '';
-          
-          if (peran.mata_kuliah_nama) {
-            detailText = peran.mata_kuliah_nama;
-          } else if (peran.peran_kurikulum) {
-            detailText = peran.peran_kurikulum;
-          } else {
-            detailText = 'Dosen Mengajar';
+    // Gunakan assignmentData yang real-time
+    Object.entries(assignmentData).forEach(([pblId, assignments]: [string, any[]]) => {
+      if (Array.isArray(assignments)) {
+        assignments.forEach((assignment: any) => {
+          if (assignment.id === dosenId && 
+              (assignment.pbl_role === 'dosen_mengajar' || assignment.pbl_role === 'koordinator' || assignment.pbl_role === 'tim_blok')) {
+            
+            // Cari mata kuliah berdasarkan PBL ID
+            const mataKuliah = data.find(dosen => 
+              dosen.dosen_peran?.some((peran: any) => 
+                peran.mata_kuliah_kode && 
+                // Cari PBL yang sesuai dengan mata kuliah ini
+                Object.values(assignmentData).some((pblAssignments: any[]) => 
+                  Array.isArray(pblAssignments) && 
+                  pblAssignments.some((pblAssignment: any) => 
+                    pblAssignment.id === dosenId && 
+                    pblAssignment.pbl_role === assignment.pbl_role
+                  )
+                )
+              )
+            );
+            
+            let detailText = 'Dosen Mengajar';
+            if (mataKuliah?.dosen_peran) {
+              const peran = mataKuliah.dosen_peran.find((p: any) => 
+                p.tipe_peran === 'dosen_mengajar' || p.tipe_peran === 'mengajar'
+              );
+              if (peran?.mata_kuliah_nama) {
+                detailText = peran.mata_kuliah_nama;
+              } else if (peran?.peran_kurikulum) {
+                detailText = peran.peran_kurikulum;
+              }
+              
+              // Tambahkan informasi semester dan blok jika ada
+              if (peran?.semester && peran?.blok) {
+                detailText += ` | Semester ${peran.semester} | Blok ${peran.blok}`;
+              }
+            }
+            
+            details.push(detailText);
           }
-          
-          // Tambahkan informasi semester dan blok jika ada
-          if (peran.semester && peran.blok) {
-            detailText += ` | Semester ${peran.semester} | Blok ${peran.blok}`;
-          }
-          
-          details.push(detailText);
-        }
-      });
-    }
-
-    // Fallback: cek peran_utama
-    if (dosen.peran_utama === 'dosen_mengajar') {
-      let detailText = '';
-      
-      if (dosen.peran_kurikulum_mengajar) {
-        detailText = dosen.peran_kurikulum_mengajar;
-          } else {
-        detailText = 'Dosen Mengajar';
-          }
-      
-      // Coba ambil semester dan blok dari dosen_peran jika ada
-      if (dosen.dosen_peran && dosen.dosen_peran.length > 0) {
-        const peranMengajar = dosen.dosen_peran.find(p => p.tipe_peran === 'mengajar');
-        if (peranMengajar) {
-          detailText += ` | Semester ${peranMengajar.semester} | Blok ${peranMengajar.blok}`;
-        }
+        });
       }
+    });
 
-      details.push(detailText);
-    }
 
     return details;
   };
@@ -2074,6 +2066,7 @@ export default function Dosen() {
   // Event listener untuk update real-time saat assignment berubah
   useEffect(() => {
     const handleAssignmentUpdate = () => {
+      console.log("🔄 Event pbl-assignment-updated received, refreshing assignment data...");
       fetchAssignmentData();
     };
 

@@ -16,6 +16,7 @@ export interface Mahasiswa {
   veteran_set_at?: string;
   veteran_set_by?: number;
   veteran_semester?: string;
+  semester_asli?: number;
   veteranSetBy?: {
     id: number;
     name: string;
@@ -113,7 +114,7 @@ export const kelompokBesarApi = {
     api.get<KelompokBesarResponse>(`/kelompok-besar/semester/${semesterId}`),
 
   // Tambah mahasiswa ke kelompok besar
-  create: (data: { semester: string; mahasiswa_ids: number[] }) =>
+  create: (data: { semester: string; mahasiswa_ids: number[]; is_veteran_addition?: boolean }) =>
     api.post('/kelompok-besar', data),
 
   // Hapus mahasiswa dari kelompok besar

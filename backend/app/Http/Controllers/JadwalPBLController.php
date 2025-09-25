@@ -454,10 +454,14 @@ class JadwalPBLController extends Controller
             })
             ->firstOrFail();
 
+        // Update status konfirmasi
         $jadwal->update([
             'status_konfirmasi' => $request->status,
             'alasan_konfirmasi' => $request->alasan
         ]);
+
+        // LONG-TERM FIX: Update dosen_ids based on confirmation status
+        $this->updateDosenIdsBasedOnConfirmation($jadwal, $request->dosen_id, $request->status);
 
         // Jika dosen tidak bisa, kirim notifikasi ke admin
         if ($request->status === 'tidak_bisa') {
@@ -468,6 +472,40 @@ class JadwalPBLController extends Controller
             'message' => 'Status konfirmasi berhasil diperbarui',
             'status' => $request->status
         ]);
+    }
+
+    /**
+     * Update dosen_ids based on confirmation status
+     * This ensures dosen_ids reflects actual confirmed dosen
+     */
+    private function updateDosenIdsBasedOnConfirmation($jadwal, $dosenId, $status)
+    {
+        try {
+            $currentDosenIds = $jadwal->dosen_ids ? (is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true)) : [];
+            
+            if ($status === 'bisa') {
+                // Add dosen to dosen_ids if not already present
+                if (!in_array($dosenId, $currentDosenIds)) {
+                    $currentDosenIds[] = $dosenId;
+                    \Illuminate\Support\Facades\Log::info("Adding dosen {$dosenId} to dosen_ids for jadwal {$jadwal->id}");
+                }
+            } elseif ($status === 'tidak_bisa') {
+                // Remove dosen from dosen_ids
+                $currentDosenIds = array_filter($currentDosenIds, function($id) use ($dosenId) {
+                    return $id != $dosenId;
+                });
+                $currentDosenIds = array_values($currentDosenIds); // Re-index array
+                \Illuminate\Support\Facades\Log::info("Removing dosen {$dosenId} from dosen_ids for jadwal {$jadwal->id}");
+            }
+
+            // Update jadwal with new dosen_ids
+            $jadwal->update(['dosen_ids' => $currentDosenIds]);
+            
+            \Illuminate\Support\Facades\Log::info("Updated dosen_ids for jadwal {$jadwal->id}: " . json_encode($currentDosenIds));
+            
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Error updating dosen_ids for jadwal {$jadwal->id}: " . $e->getMessage());
+        }
     }
 
     // Kirim notifikasi ke admin untuk replace dosen

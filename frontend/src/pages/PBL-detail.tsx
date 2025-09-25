@@ -132,9 +132,6 @@ export default function PBL() {
     const totalAssignedDosen = Object.values(assignedDosen).flat().length;
     const hasData = totalAssignedDosen > 0;
     setHasGeneratedData(hasData);
-    console.log(
-      `🔍 Check Generated Data: ${totalAssignedDosen} assigned dosen, hasGeneratedData: ${hasData}`
-    );
     return hasData;
   };
 
@@ -147,16 +144,10 @@ export default function PBL() {
 
     try {
       const response = await pblGenerateApi.checkGenerateStatus(parseInt(blokId));
-      console.log('🔍 PBL-detail validation response:', response);
-      console.log('🔍 PBL-detail validation data:', response.data);
       
       // Hanya gunakan data dari API (database)
       const isGenerated = response.data.success && response.data.data?.is_generated === true;
       
-      console.log('🎯 PBL-detail validation result:', { 
-        isGenerated, 
-        success: response.data.success 
-      });
       
       if (!isGenerated) {
         setGenerateValidationError('Blok ini belum di-generate. Silakan generate dosen terlebih dahulu.');
@@ -385,7 +376,6 @@ export default function PBL() {
     // PERBAIKAN BARU: Validasi yang lebih fleksibel - cek apakah ada data PBL
     const hasPblData = Object.keys(pblData).length > 0;
     if (!hasPblData) {
-      console.log(`❌ MANUAL ASSIGNMENT FAILED - No PBL data available`);
       setError(
         "Tidak dapat melakukan assignment manual. Silakan generate dosen terlebih dahulu di halaman PBL Generate."
       );
@@ -393,21 +383,9 @@ export default function PBL() {
     }
 
     try {
-      // Cari semua PBL dalam semester yang sama
+      // Cari PBL dalam semester yang sama TAPI HANYA di blok yang sedang dilihat
       const currentSemester = mk.semester;
-      console.log(`🔍 Finding PBLs for semester ${currentSemester}...`);
-
-      console.log(`📊 Debug Data:`, {
-        pblDataKeys: Object.keys(pblData || {}),
-        pblDataValues: Object.values(pblData || {}).map((arr) => arr.length),
-        blokMataKuliahCount: (blokMataKuliah || []).length,
-        currentMkKode: mk.kode,
-        currentMkSemester: mk.semester,
-        blokMataKuliahSemesters: (blokMataKuliah || []).map((m) => ({
-          kode: m.kode,
-          semester: m.semester,
-        })),
-      });
+      const currentBlok = mk.blok; // Ambil blok dari mata kuliah yang sedang di-assign
 
       const semesterPBLs = Object.values(pblData || {})
         .flat()
@@ -418,29 +396,16 @@ export default function PBL() {
           // PERBAIKAN: Konversi kedua semester menjadi number untuk perbandingan yang benar
           const mkSemesterNum = mk ? parseInt(mk.semester.toString()) : null;
           const currentSemesterNum = parseInt(currentSemester.toString());
-          const matches = mk && mkSemesterNum === currentSemesterNum;
+          const mkBlok = mk ? mk.blok : null;
+          
+          // Pastikan semester sama DAN blok sama
+          const matches = mk && mkSemesterNum === currentSemesterNum && mkBlok === currentBlok;
 
-          console.log(
-            `🔍 Filtering PBL ${p.nama_modul} (${p.mata_kuliah_kode}):`,
-            {
-              mkFound: mk ? mk.nama : "NOT FOUND",
-              mkSemester: mk ? mk.semester : "N/A",
-              mkSemesterNum: mkSemesterNum,
-              currentSemester: currentSemester,
-              currentSemesterNum: currentSemesterNum,
-              matches: matches,
-            }
-          );
           return matches;
         });
 
-      console.log(
-        `📋 Found ${semesterPBLs.length} PBLs for semester ${currentSemester}:`,
-        semesterPBLs.map((p) => ({ id: p.id, name: p.nama_modul }))
-      );
 
-      // Assign dosen ke semua PBL dalam semester yang sama
-      console.log(`🚀 Starting API calls for ${semesterPBLs.length} PBLs...`);
+      // Assign dosen ke PBL dalam semester dan blok yang sama
       const assignPromises = (semesterPBLs || []).map(async (semesterPbl) => {
         try {
           // Tentukan role berdasarkan dosen_peran
@@ -455,9 +420,6 @@ export default function PBL() {
             role = dosenPeran.tipe_peran;
           }
 
-          console.log(
-            `📡 API Call - Assigning ${dosen.name} to PBL ${semesterPbl.id} with role ${role}`
-          );
 
           const response = await api.post(
             `/pbls/${semesterPbl.id}/assign-dosen`,
@@ -467,13 +429,8 @@ export default function PBL() {
             }
           );
 
-          console.log(`✅ API Success - PBL ${semesterPbl.id}:`, response.data);
           return { pblId: semesterPbl.id, success: true, response };
         } catch (error: any) {
-          console.log(
-            `❌ API Error - PBL ${semesterPbl.id}:`,
-            error?.response?.data || error.message
-          );
           return {
             pblId: semesterPbl.id,
             success: false,
@@ -486,42 +443,22 @@ export default function PBL() {
       const successfulAssignments = results.filter((r) => r.success);
       const failedAssignments = results.filter((r) => !r.success);
 
-      console.log(`📊 API Results:`, {
-        total: results.length,
-        successful: successfulAssignments.length,
-        failed: failedAssignments.length,
-        successfulPblIds: successfulAssignments.map((r) => r.pblId),
-        failedPblIds: failedAssignments.map((r) => r.pblId),
-      });
 
       // PERBAIKAN BARU: Refresh assigned dosen data untuk semua PBL yang berhasil
 
       if (successfulAssignments.length > 0) {
         // PERBAIKAN BARU: Langsung tambahkan dosen ke state assignedDosen untuk immediate UI update
-        console.log(
-          `🔄 Starting immediate state update for PBL IDs:`,
-          successfulAssignments.map((r) => r.pblId)
-        );
         setAssignedDosen((prev) => {
-          console.log(`📊 Current assignedDosen state before update:`, prev);
           const updated = { ...prev };
           successfulAssignments
             .map((r) => r.pblId)
             .forEach((pblId) => {
               if (pblId !== undefined) {
                 const existingAssignments = updated[pblId] || [];
-                console.log(
-                  `🔍 PBL ${pblId} existing assignments:`,
-                  existingAssignments.map((d) => d.name)
-                );
 
                 // Cek apakah dosen sudah ada di PBL ini
                 const isAlreadyAssigned = existingAssignments.some(
                   (d) => d.id === dosen.id
-                );
-                console.log(
-                  `❓ Is ${dosen.name} already assigned to PBL ${pblId}?`,
-                  isAlreadyAssigned
                 );
 
                 if (!isAlreadyAssigned) {
@@ -547,29 +484,11 @@ export default function PBL() {
                   };
 
                   updated[pblId] = [...existingAssignments, newDosenData];
-                  console.log(
-                    `✅ Added ${dosen.name} to PBL ${pblId}. New assignments:`,
-                    updated[pblId].map((d) => d.name)
-                  );
 
-                  // DEBUG: Log penambahan dosen ke state
-                  console.log(
-                    `✅ Manual Assignment - Added ${dosen.name} to PBL ${pblId}:`,
-                    {
-                      dosenData: newDosenData,
-                      keahlian: dosen.keahlian,
-                      requiredKeahlian: mk.keahlian_required,
-                      isKeahlianMatch: checkKeahlianMatch(dosen, mk),
-                    }
-                  );
                 } else {
-                  console.log(
-                    `⚠️ ${dosen.name} already assigned to PBL ${pblId}, skipping`
-                  );
                 }
               }
             });
-          console.log(`📊 Final assignedDosen state after update:`, updated);
           return updated;
         });
 
@@ -630,24 +549,21 @@ export default function PBL() {
         // Semua berhasil
         if (isKeahlianMatch) {
           setSuccess(
-            `${dosen.name} berhasil di-assign ke semua modul semester ${currentSemester}`
+            `${dosen.name} berhasil di-assign ke semua modul Blok ${currentBlok} semester ${currentSemester}`
           );
         } else {
           setSuccess(
-            `${dosen.name} berhasil di-assign ke semua modul semester ${currentSemester} (Keahlian tidak sesuai)`
+            `${dosen.name} berhasil di-assign ke semua modul Blok ${currentBlok} semester ${currentSemester} (Keahlian tidak sesuai)`
           );
         }
 
         // Dispatch event untuk update real-time di Dosen.tsx
-        console.log(
-          "📡 Dispatching pbl-assignment-updated event (ALL SUCCESS):",
-          {
-            dosenId: dosen.id,
-            dosenName: dosen.name,
-            pblIds: successfulAssignments.map((r) => r.pblId),
-            isKeahlianMatch: isKeahlianMatch,
-          }
-        );
+        console.log("📡 Dispatching pbl-assignment-updated event for assignment:", {
+          dosenId: dosen.id,
+          dosenName: dosen.name,
+          action: "assign",
+          pblIds: successfulAssignments.map((r) => r.pblId)
+        });
         window.dispatchEvent(
           new CustomEvent("pbl-assignment-updated", {
             detail: {
@@ -666,7 +582,7 @@ export default function PBL() {
           setSuccess(
             `${dosen.name} berhasil di-assign ke ${
               successfulAssignments.length
-            }/${(semesterPBLs || []).length} modul semester ${currentSemester}`
+            }/${(semesterPBLs || []).length} modul Blok ${currentBlok} semester ${currentSemester}`
           );
         } else {
           setSuccess(
@@ -674,7 +590,7 @@ export default function PBL() {
               successfulAssignments.length
             }/${
               (semesterPBLs || []).length
-            } modul semester ${currentSemester} (Keahlian tidak sesuai)`
+            } modul Blok ${currentBlok} semester ${currentSemester} (Keahlian tidak sesuai)`
           );
         }
 
@@ -703,7 +619,7 @@ export default function PBL() {
       } else {
         // Semua gagal
         setError(
-          `Gagal assign ${dosen.name} ke semua modul semester ${currentSemester}`
+          `Gagal assign ${dosen.name} ke semua modul Blok ${currentBlok} semester ${currentSemester}`
         );
       }
 
@@ -3226,6 +3142,30 @@ export default function PBL() {
 
                                           // PERBAIKAN BARU: Cek status generated data setelah drag unassign
                                           checkHasGeneratedData();
+
+                                          // PERBAIKAN BARU: Dispatch event untuk update real-time di Dosen.tsx setelah unassign
+                                          console.log("📡 Dispatching pbl-assignment-updated event for drag unassign:", {
+                                            dosenId: draggedDosen.id,
+                                            dosenName: draggedDosen.name,
+                                            action: "unassign",
+                                            fromPblId: draggedFromPBLId
+                                          });
+                                          window.dispatchEvent(
+                                            new CustomEvent("pbl-assignment-updated", {
+                                              detail: {
+                                                timestamp: Date.now(),
+                                                dosenId: draggedDosen.id,
+                                                dosenName: draggedDosen.name,
+                                                action: "unassign",
+                                                fromPblId: draggedFromPBLId,
+                                                semester: mk.semester,
+                                                blok: mk.blok,
+                                                mataKuliah: mk.nama,
+                                                mataKuliahKode: mk.kode
+                                              }
+                                            })
+                                          );
+                                          console.log("✅ Event dispatched successfully (DRAG UNASSIGN)");
                                         }
 
                                         // Assign ke SEMUA PBL dalam mata kuliah yang sama
@@ -4015,6 +3955,26 @@ export default function PBL() {
 
                                                         // PERBAIKAN BARU: Cek status generated data setelah unassign
                                                         checkHasGeneratedData();
+
+                                                        // PERBAIKAN BARU: Dispatch event untuk update real-time di Dosen.tsx
+                                                        console.log("📡 Dispatching pbl-assignment-updated event for unassign:", {
+                                                          dosenId: dosen.id,
+                                                          dosenName: dosen.name,
+                                                          action: "unassign"
+                                                        });
+                                                        window.dispatchEvent(
+                                                          new CustomEvent("pbl-assignment-updated", {
+                                                            detail: {
+                                                              timestamp: Date.now(),
+                                                              dosenId: dosen.id,
+                                                              dosenName: dosen.name,
+                                                              action: "unassign",
+                                                              semester: mk.semester,
+                                                              blok: mk.blok,
+                                                              pblIds: (semesterPBLs || []).map(p => p.id).filter(Boolean)
+                                                            },
+                                                          })
+                                                        );
                                                       } catch (err) {
                                                         const errorMsg =
                                                           err &&

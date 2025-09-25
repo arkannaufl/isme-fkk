@@ -612,23 +612,39 @@ class NotificationController extends Controller
                     $jadwal = \App\Models\JadwalPBL::find($jadwalId);
                     
                     if ($jadwal) {
-                        // Cek apakah dosen memiliki akses
-                        $hasAccess = false;
-                        if ($jadwal->dosen_id == $userId) {
-                            $hasAccess = true;
-                        } elseif ($jadwal->dosen_ids && is_array($jadwal->dosen_ids) && !empty($jadwal->dosen_ids)) {
-                            $hasAccess = in_array($userId, $jadwal->dosen_ids);
+                        // Untuk reassignment, kita tidak perlu cek akses karena superadmin yang meminta
+                        // Langsung reset status dan tambahkan dosen ke dosen_ids
+                        
+                        // Log current state before reset
+                        \Log::info("Before reset PBL jadwal ID: {$jadwalId}, user ID: {$userId}", [
+                            'current_status' => $jadwal->status_konfirmasi,
+                            'current_dosen_ids' => $jadwal->dosen_ids,
+                            'current_dosen_id' => $jadwal->dosen_id
+                        ]);
+                        
+                        // Reset status konfirmasi
+                        $jadwal->update([
+                            'status_konfirmasi' => 'belum_konfirmasi',
+                            'alasan_konfirmasi' => null
+                        ]);
+                        
+                        // Pastikan dosen ada di dosen_ids untuk memungkinkan konfirmasi ulang
+                        $currentDosenIds = $jadwal->dosen_ids ? (is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true)) : [];
+                        
+                        // Jika dosen tidak ada di dosen_ids, tambahkan kembali
+                        if (!in_array($userId, $currentDosenIds)) {
+                            $currentDosenIds[] = $userId;
+                            $jadwal->update(['dosen_ids' => $currentDosenIds]);
+                            \Log::info("Re-added dosen {$userId} to dosen_ids for PBL jadwal ID: {$jadwalId}");
                         }
                         
-                        if ($hasAccess) {
-                            $jadwal->update([
-                                'status_konfirmasi' => 'belum_konfirmasi',
-                                'alasan_konfirmasi' => null
-                            ]);
-                            \Log::info("Reset PBL confirmation status for jadwal ID: {$jadwalId}, user ID: {$userId}");
-                        } else {
-                            \Log::warning("User {$userId} does not have access to PBL jadwal ID: {$jadwalId}");
-                        }
+                        // Log final state after reset
+                        $jadwal->refresh(); // Reload from database
+                        \Log::info("After reset PBL jadwal ID: {$jadwalId}, user ID: {$userId}", [
+                            'new_status' => $jadwal->status_konfirmasi,
+                            'new_dosen_ids' => $jadwal->dosen_ids,
+                            'new_dosen_id' => $jadwal->dosen_id
+                        ]);
                     } else {
                         \Log::warning("PBL jadwal ID: {$jadwalId} not found");
                     }
@@ -703,15 +719,31 @@ class NotificationController extends Controller
                     break;
                     
                 case 'jurnal_reading':
-                    $jadwal = \App\Models\JadwalJurnalReading::where('id', $jadwalId)
-                        ->where('dosen_id', $userId)
-                        ->first();
+                    $jadwal = \App\Models\JadwalJurnalReading::find($jadwalId);
                     
                     if ($jadwal) {
+                        // Untuk reassignment, kita tidak perlu cek akses karena superadmin yang meminta
+                        // Langsung reset status dan tambahkan dosen ke dosen_ids
+                        
+                        // Reset status konfirmasi
                         $jadwal->update([
                             'status_konfirmasi' => 'belum_konfirmasi',
                             'alasan_konfirmasi' => null
                         ]);
+                        
+                        // Pastikan dosen ada di dosen_ids untuk memungkinkan konfirmasi ulang
+                        $currentDosenIds = $jadwal->dosen_ids ? (is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true)) : [];
+                        
+                        // Jika dosen tidak ada di dosen_ids, tambahkan kembali
+                        if (!in_array($userId, $currentDosenIds)) {
+                            $currentDosenIds[] = $userId;
+                            $jadwal->update(['dosen_ids' => $currentDosenIds]);
+                            \Log::info("Re-added dosen {$userId} to dosen_ids for Jurnal Reading jadwal ID: {$jadwalId}");
+                        }
+                        
+                        \Log::info("Reset Jurnal Reading confirmation status for jadwal ID: {$jadwalId}, user ID: {$userId}");
+                    } else {
+                        \Log::warning("Jurnal Reading jadwal ID: {$jadwalId} not found");
                     }
                     break;
             }

@@ -34,21 +34,35 @@ class KelompokBesarController extends Controller
         $semester = $request->semester;
         $mahasiswaIds = $request->mahasiswa_ids;
 
-        // Simpan (replace: hapus dulu data semester ini, lalu insert baru)
-        DB::transaction(function() use ($semester, $mahasiswaIds) {
-            KelompokBesar::where('semester', $semester)->delete();
+        // Cek apakah ini adalah request untuk menambah veteran atau replace semua data
+        $isVeteranAddition = $request->has('is_veteran_addition') && $request->is_veteran_addition;
+
+        DB::transaction(function() use ($semester, $mahasiswaIds, $isVeteranAddition) {
+            if (!$isVeteranAddition) {
+                // Jika bukan penambahan veteran, hapus semua data semester ini dulu (behavior lama)
+                KelompokBesar::where('semester', $semester)->delete();
+            }
+            
+            // Tambahkan mahasiswa yang belum ada di kelompok besar
             foreach ($mahasiswaIds as $id) {
-                KelompokBesar::create([
-                    'semester' => $semester,
-                    'mahasiswa_id' => $id
-                ]);
+                $existing = KelompokBesar::where('semester', $semester)
+                    ->where('mahasiswa_id', $id)
+                    ->first();
+                
+                if (!$existing) {
+                    KelompokBesar::create([
+                        'semester' => $semester,
+                        'mahasiswa_id' => $id
+                    ]);
+                }
             }
         });
 
         // Log aktivitas batch kelompok besar
+        $action = $isVeteranAddition ? 'Menambah veteran ke' : 'Mengatur';
         activity()
             ->causedBy(Auth::user())
-            ->log("Mengatur kelompok besar untuk semester {$semester} dengan " . count($mahasiswaIds) . " mahasiswa");
+            ->log("{$action} kelompok besar untuk semester {$semester} dengan " . count($mahasiswaIds) . " mahasiswa");
 
         return response()->json(['message' => 'Data kelompok besar berhasil disimpan']);
     }

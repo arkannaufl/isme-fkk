@@ -1126,18 +1126,7 @@ export default function PBLGenerate() {
           assignedDosenPerSemester.add(selectedTimBlok.id);
         }
         
-        // DEBUG: Log perhitungan
-        console.log(`🔍 Semester ${semester} - Debug Perhitungan:`, {
-          totalModul,
-          totalKelompok,
-          totalDosenNeeded,
-          timBlokTersedia: selectedTimBlokList.length,
-          maxTimBlok,
-          timBlokTerpilih: selectedTimBlokListLimited.length,
-          dosenMengajarNeeded,
-          rumus: `${totalKelompok} × ${totalModul} = ${totalDosenNeeded} dosen total (${selectedKoordinator ? '1' : '0'} Koordinator + ${selectedTimBlokListLimited.length} Tim Blok + ${dosenMengajarNeeded} Dosen Mengajar)`,
-          mkInSemester: mkInSemester.length
-        });
+        // DEBUG: Log perhitungan dihapus untuk mengurangi console output
 
         // Cari Dosen Mengajar yang sesuai keahlian
         const dosenMengajar = dosenList.filter((dosen) => {
@@ -1219,19 +1208,8 @@ export default function PBLGenerate() {
           // Ambil dosen sesuai kebutuhan (tidak boleh kelebihan)
           const dosenToAssign = sortedDosenMengajar.slice(0, dosenMengajarNeeded);
           
-          // DEBUG: Log jumlah dosen
+          // DEBUG: Log jumlah dosen (dihapus untuk mengurangi console output)
           const totalDosenAssigned = (selectedKoordinator ? 1 : 0) + selectedTimBlokListLimited.length + dosenToAssign.length;
-          console.log(`🔍 Semester ${semester} - Debug Dosen:`, {
-            totalDosenNeeded,
-            dosenMengajarTersedia: dosenMengajar.length,
-            dosenToAssign: dosenToAssign.length,
-            dosenMengajarNeeded,
-            timBlokTersedia: selectedTimBlokList.length,
-            timBlokTerpilih: selectedTimBlokListLimited.length,
-            totalDosenAssigned,
-            kekurangan: totalDosenNeeded - totalDosenAssigned,
-            prioritas: "Berdasarkan pbl_assignment_count terendah"
-          });
 
           // Assign setiap dosen ke SEMUA modul dalam semester ini
           for (const dosen of dosenToAssign) {
@@ -1351,9 +1329,6 @@ export default function PBLGenerate() {
       setIsGenerating(false);
       
       // Status generate sudah tersimpan di database melalui API
-      if (blokId) {
-        console.log(`✅ Generate completed for blok ${blokId} - status saved to database`);
-      }
     }
   };
 
@@ -1400,9 +1375,6 @@ export default function PBLGenerate() {
       setResetLoading(false);
       
       // Status generate sudah dihapus dari database melalui API
-      if (blokId) {
-        console.log(`🗑️ Reset completed for blok ${blokId} - status removed from database`);
-      }
     }
   };
 
@@ -1848,8 +1820,8 @@ export default function PBLGenerate() {
             
             return hasMissingKelompok ? (
               <button
-                onClick={() => navigate("/generate-mahasiswa")}
-                className="px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 bg-orange-600 hover:bg-orange-700 text-white shadow-theme-xs hover:shadow-theme-sm transition-all duration-200"
+                onClick={() => navigate("/generate/kelompok/")}
+                className="px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white shadow-theme-xs hover:shadow-theme-sm transition-all duration-200"
               >
                 <FontAwesomeIcon icon={faUsers} className="w-4 h-4" />
                 Generate Kelompok Kecil

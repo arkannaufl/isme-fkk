@@ -82,10 +82,20 @@ export default function PenilaianPBLPage() {
   // Check user permission and penilaian status
   useEffect(() => {
     const user = getUser();
-    if (user) {
-      setUserRole(user.role || '');
+    if (!user) {
+      navigate('/');
+      return;
     }
-  }, []);
+    
+    // Only allow dosen, super_admin, and tim_akademik to access this page
+    if (!['dosen', 'super_admin', 'tim_akademik'].includes(user.role)) {
+      setError('Anda tidak memiliki akses untuk mengakses halaman ini.');
+      setLoading(false);
+      return;
+    }
+    
+    setUserRole(user.role || '');
+  }, [navigate]);
 
   // Fetch data blok untuk dapatkan nama dan kode
   useEffect(() => {
@@ -466,17 +476,17 @@ export default function PenilaianPBLPage() {
         idx + 1,
         m.npm,
         m.nama,
-          nilai.A ?? "",
-          nilai.B ?? "",
-          nilai.C ?? "",
-          nilai.D ?? "",
-          nilai.E ?? "",
-          nilai.F ?? "",
-          nilai.G ?? "",
+          (nilai as any).A ?? "",
+          (nilai as any).B ?? "",
+          (nilai as any).C ?? "",
+          (nilai as any).D ?? "",
+          (nilai as any).E ?? "",
+          (nilai as any).F ?? "",
+          (nilai as any).G ?? "",
         hitungJumlah(m.npm),
         hitungTotalNilai(m.npm),
       ];
-      if (isPBL2) row.push(nilai.petaKonsep ?? "");
+      if (isPBL2) row.push((nilai as any).petaKonsep ?? "");
         const dataRow = sheet.addRow(row);
         dataRow.alignment = { vertical: "middle", horizontal: "center" };
         dataRow.getCell(3).alignment = { vertical: "middle", horizontal: "left" }; // NAMA kiri
@@ -551,7 +561,7 @@ export default function PenilaianPBLPage() {
       // Tanda tangan Paraf
       if (signatureParaf) {
         const imageId = workbook.addImage({
-          buffer: base64ToBuffer(signatureParaf),
+          buffer: base64ToBuffer(signatureParaf) as any,
           extension: 'png',
         });
         // Center di kotak G-K ttdBoxRow
