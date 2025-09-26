@@ -88,8 +88,6 @@ function mapSemesterToNumber(semester: string | number | null): number | null {
   if (semester == null) return null;
   if (typeof semester === "number") return semester;
   if (!isNaN(Number(semester))) return Number(semester);
-  // ❌ HAPUS LOGIC SALAH: tidak boleh mapping ganjil/genap ke angka
-  // Struktur yang benar: semester 1,3,5,7 = Ganjil, semester 2,4,6 = Genap
   return null;
 }
 
@@ -153,6 +151,58 @@ export default function PBLGenerate() {
   const [peranKoordinatorCount, setPeranKoordinatorCount] = useState<number>(0);
   const [peranTimBlokCount, setPeranTimBlokCount] = useState<number>(0);
   const [dosenMengajarCount, setDosenMengajarCount] = useState<number>(0);
+
+  // Comprehensive statistics state
+  const [pblStatistics, setPblStatistics] = useState<{
+    // Assignment Statistics
+    totalAssignments: number;
+    assignmentRate: number;
+    unassignedPBLCount: number;
+    
+    // Dosen Statistics  
+    dosenUtilizationRate: number;
+    standbyDosenUsage: number;
+    dosenOverloadCount: number;
+    
+    // Quality Statistics
+    keahlianMatchRate: number;
+    assignmentDistribution: {
+      koordinator: number;
+      timBlok: number;
+      dosenMengajar: number;
+    };
+    
+    // Performance Statistics
+    lastGenerateTime: string | null;
+    dataFreshness: 'fresh' | 'stale' | 'outdated';
+    warningCount: number;
+    
+    // Per Semester Statistics
+    semesterCoverage: Record<number, {
+      completionRate: number;
+      dosenCount: number;
+      kelompokCount: number;
+      totalPBL: number;
+      assignedPBL: number;
+    }>;
+  }>({
+    totalAssignments: 0,
+    assignmentRate: 0,
+    unassignedPBLCount: 0,
+    dosenUtilizationRate: 0,
+    standbyDosenUsage: 0,
+    dosenOverloadCount: 0,
+    keahlianMatchRate: 0,
+    assignmentDistribution: {
+      koordinator: 0,
+      timBlok: 0,
+      dosenMengajar: 0,
+    },
+    lastGenerateTime: null,
+    dataFreshness: 'fresh',
+    warningCount: 0,
+    semesterCoverage: {},
+  });
 
   // State untuk menyimpan data kelompok kecil asli dari API
   const [allKelompokKecilData, setAllKelompokKecilData] = useState<any[]>([]);
@@ -236,15 +286,6 @@ export default function PBLGenerate() {
     }
   }, [error]);
 
-  // Warning tidak auto-clear, harus manual ditambah dosen
-  // useEffect(() => {
-  //   if (warning) {
-  //     const timer = setTimeout(() => {
-  //       setWarning(null);
-  //     }, 8000); // Warning lebih lama karena informatif
-  //     return () => clearTimeout(timer);
-  //   }
-  // }, [warning]);
 
   // OPTIMIZATION: Cleanup timeout on unmount
   useEffect(() => {
@@ -520,6 +561,7 @@ export default function PBLGenerate() {
     blokId,
   ]);
 
+
   // Function to handle lihat mahasiswa
   const handleLihatMahasiswa = async (kelompok: KelompokKecil) => {
     try {
@@ -569,6 +611,7 @@ export default function PBLGenerate() {
       alert("Gagal memuat data mahasiswa");
     }
   };
+
 
   // Function to calculate statistics
   const calculateStatistics = (
@@ -752,6 +795,257 @@ export default function PBLGenerate() {
       {}
     );
   }, [filteredMataKuliah]);
+
+  // Function to calculate comprehensive statistics
+  const calculateComprehensiveStatistics = useCallback(() => {
+    if (filteredMataKuliah.length === 0 || dosenList.length === 0) {
+      return;
+    }
+
+    // Calculate total PBLs
+    const totalPBLs = filteredMataKuliah.reduce(
+      (acc, mk) => acc + (pblData[mk.kode]?.length || 0),
+      0
+    );
+
+    // Calculate assignments per semester (unik per dosen)
+    let totalAssignments = 0;
+    let totalDosenNeeded = 0;
+    
+    // Hitung per semester berdasarkan rumus: Kelompok × Modul
+    Object.entries(groupedBySemester).forEach(([semester, mataKuliahList]) => {
+      const semesterNumber = parseInt(semester);
+      const totalPBL = mataKuliahList.reduce((acc, mk) => acc + (pblData[mk.kode]?.length || 0), 0);
+      
+      // Hitung kelompok untuk semester ini
+      const semesterKey = String(semesterNumber);
+      const semesterData = kelompokKecilData[semesterKey];
+      let kelompokCount = 0;
+      if (semesterData && semesterData.details) {
+        const uniqueKelompok = new Set(
+          semesterData.details.map((item: any) => item.nama_kelompok)
+        );
+        kelompokCount = uniqueKelompok.size;
+      }
+      
+      // Total dosen yang dibutuhkan untuk semester ini = Kelompok × Modul
+      const dosenNeededForSemester = kelompokCount * totalPBL;
+      totalDosenNeeded += dosenNeededForSemester;
+      
+      // Hitung dosen yang sudah di-assign untuk semester ini (unik per dosen)
+      const assignedDosenSet = new Set<number>();
+      mataKuliahList.forEach(mk => {
+        (pblData[mk.kode] || []).forEach(pbl => {
+          if (pbl.id && assignedDosen[pbl.id]?.length > 0) {
+            assignedDosen[pbl.id].forEach(d => assignedDosenSet.add(d.id));
+          }
+        });
+      });
+      
+      totalAssignments += assignedDosenSet.size;
+    });
+    
+    const assignmentRate = totalDosenNeeded > 0 ? (totalAssignments / totalDosenNeeded) * 100 : 0;
+    const unassignedPBLCount = totalDosenNeeded - totalAssignments;
+
+    // Calculate dosen utilization
+    const totalDosen = dosenList.length;
+    const assignedDosenSet = new Set(Object.values(assignedDosen).flat().map(d => d.id));
+    const dosenUtilizationRate = totalDosen > 0 ? (assignedDosenSet.size / totalDosen) * 100 : 0;
+
+    // Calculate standby dosen usage
+    const standbyDosenUsage = Object.values(assignedDosen).flat().filter(dosen => {
+      const keahlian = parseKeahlian(dosen.keahlian);
+      return keahlian.some(k => k.toLowerCase().includes('standby'));
+    }).length;
+
+    // Calculate dosen overload (more than 3 assignments)
+    const dosenAssignmentCount: Record<number, number> = {};
+    Object.values(assignedDosen).flat().forEach(dosen => {
+      dosenAssignmentCount[dosen.id] = (dosenAssignmentCount[dosen.id] || 0) + 1;
+    });
+    const dosenOverloadCount = Object.values(dosenAssignmentCount).filter(count => count > 3).length;
+
+    // Calculate keahlian match rate per modul (mata kuliah)
+    let keahlianMatches = 0;
+    let totalModulChecks = 0;
+    
+    filteredMataKuliah.forEach(mk => {
+      const pbls = pblData[mk.kode] || [];
+      if (pbls.length > 0) {
+        totalModulChecks++;
+        
+        // Cek apakah modul ini memiliki dosen dengan keahlian yang sesuai
+        const hasMatch = pbls.some(pbl => {
+          const assigned = assignedDosen[pbl.id!] || [];
+          return assigned.some(dosen => {
+            const dosenKeahlian = parseKeahlian(dosen.keahlian);
+            const requiredKeahlian = parseKeahlian(mk.keahlian_required);
+            return requiredKeahlian.some(req => 
+              dosenKeahlian.some(dk => 
+                dk.toLowerCase().includes(req.toLowerCase()) || 
+                req.toLowerCase().includes(dk.toLowerCase())
+              )
+            );
+          });
+        });
+        
+        if (hasMatch) keahlianMatches++;
+      }
+    });
+    const keahlianMatchRate = totalModulChecks > 0 ? (keahlianMatches / totalModulChecks) * 100 : 0;
+
+    // Calculate assignment distribution per semester (unik per dosen)
+    const assignmentDistribution = {
+      koordinator: 0,
+      timBlok: 0,
+      dosenMengajar: 0,
+    };
+    
+    // Hitung per semester untuk menghindari duplikasi dosen
+    const processedDosen = new Set<number>();
+    
+    Object.entries(groupedBySemester).forEach(([semester, mataKuliahList]) => {
+      const semesterNumber = parseInt(semester);
+      
+      // Hitung dosen yang sudah di-assign untuk semester ini (unik per dosen)
+      const assignedDosenSet = new Set<number>();
+      mataKuliahList.forEach(mk => {
+        (pblData[mk.kode] || []).forEach(pbl => {
+          if (pbl.id && assignedDosen[pbl.id]?.length > 0) {
+            assignedDosen[pbl.id].forEach(d => assignedDosenSet.add(d.id));
+          }
+        });
+      });
+      
+      // Hitung distribution untuk semester ini
+      assignedDosenSet.forEach(dosenId => {
+        if (!processedDosen.has(dosenId)) {
+          processedDosen.add(dosenId);
+          
+          // Cari dosen dari dosenList
+          const dosen = dosenList.find(d => d.id === dosenId);
+          if (dosen) {
+            // Tentukan peran berdasarkan dosen_peran untuk semester ini
+            let dosenRole = 'dosen_mengajar'; // default
+            
+            if (dosen.dosen_peran && Array.isArray(dosen.dosen_peran)) {
+              // Cek apakah dosen ini adalah koordinator untuk semester ini
+              const isKoordinator = dosen.dosen_peran.some((peran: any) => 
+                peran.tipe_peran === 'koordinator' && 
+                peran.semester === String(semesterNumber) &&
+                mataKuliahList.some(mk => mk.kode === peran.mata_kuliah_kode)
+              );
+              
+              // Cek apakah dosen ini adalah tim blok untuk semester ini
+              const isTimBlok = dosen.dosen_peran.some((peran: any) => 
+                peran.tipe_peran === 'tim_blok' && 
+                peran.semester === String(semesterNumber) &&
+                mataKuliahList.some(mk => mk.kode === peran.mata_kuliah_kode)
+              );
+              
+              if (isKoordinator) {
+                dosenRole = 'koordinator';
+              } else if (isTimBlok) {
+                dosenRole = 'tim_blok';
+              }
+            }
+            
+            // Hitung berdasarkan peran yang benar
+            if (dosenRole === 'koordinator') {
+              assignmentDistribution.koordinator++;
+            } else if (dosenRole === 'tim_blok') {
+              assignmentDistribution.timBlok++;
+            } else {
+              assignmentDistribution.dosenMengajar++;
+            }
+          }
+        }
+      });
+    });
+
+    // Calculate data freshness
+    const now = new Date();
+    const lastGenerate = pblStatistics.lastGenerateTime ? new Date(pblStatistics.lastGenerateTime) : null;
+    let dataFreshness: 'fresh' | 'stale' | 'outdated' = 'fresh';
+    
+    if (lastGenerate) {
+      const diffHours = (now.getTime() - lastGenerate.getTime()) / (1000 * 60 * 60);
+      if (diffHours > 24) dataFreshness = 'outdated';
+      else if (diffHours > 6) dataFreshness = 'stale';
+    }
+
+    // Calculate semester coverage
+    const semesterCoverage: Record<number, {
+      completionRate: number;
+      dosenCount: number;
+      kelompokCount: number;
+      totalPBL: number;
+      assignedPBL: number;
+    }> = {};
+
+    Object.entries(groupedBySemester).forEach(([semester, mataKuliahList]) => {
+      const semesterNumber = parseInt(semester);
+      const totalPBL = mataKuliahList.reduce((acc, mk) => acc + (pblData[mk.kode]?.length || 0), 0);
+      
+      // Hitung total dosen yang dibutuhkan berdasarkan rumus: Kelompok × Modul
+      const semesterKey = String(semesterNumber);
+      const semesterData = kelompokKecilData[semesterKey];
+      let kelompokCount = 0;
+      if (semesterData && semesterData.details) {
+        const uniqueKelompok = new Set(
+          semesterData.details.map((item: any) => item.nama_kelompok)
+        );
+        kelompokCount = uniqueKelompok.size;
+      }
+      
+      // RUMUS YANG BENAR: Total Dosen Dibutuhkan = Kelompok × Modul
+      const totalDosenNeeded = kelompokCount * totalPBL;
+      
+      // Hitung dosen yang sudah di-assign (unik per dosen)
+      const assignedDosenSet = new Set<number>();
+      mataKuliahList.forEach(mk => {
+        (pblData[mk.kode] || []).forEach(pbl => {
+          if (pbl.id && assignedDosen[pbl.id]?.length > 0) {
+            assignedDosen[pbl.id].forEach(d => assignedDosenSet.add(d.id));
+          }
+        });
+      });
+
+      // Persentase = (Dosen yang sudah di-assign / Total dosen yang dibutuhkan) × 100
+      const completionRate = totalDosenNeeded > 0 ? (assignedDosenSet.size / totalDosenNeeded) * 100 : 0;
+
+      semesterCoverage[semesterNumber] = {
+        completionRate,
+        dosenCount: assignedDosenSet.size,
+        kelompokCount,
+        totalPBL,
+        assignedPBL: assignedDosenSet.size, // Jumlah dosen yang sudah di-assign
+      };
+    });
+
+    setPblStatistics({
+      totalAssignments,
+      assignmentRate,
+      unassignedPBLCount,
+      dosenUtilizationRate,
+      standbyDosenUsage,
+      dosenOverloadCount,
+      keahlianMatchRate,
+      assignmentDistribution,
+      lastGenerateTime: pblStatistics.lastGenerateTime,
+      dataFreshness,
+      warningCount: warnings.length,
+      semesterCoverage,
+    });
+  }, [filteredMataKuliah, dosenList, pblData, assignedDosen, groupedBySemester, kelompokKecilData, warnings.length, pblStatistics.lastGenerateTime]);
+
+  // Calculate comprehensive statistics when data changes
+  useEffect(() => {
+    if (filteredMataKuliah.length > 0 && dosenList.length > 0) {
+      calculateComprehensiveStatistics();
+    }
+  }, [filteredMataKuliah, dosenList, assignedDosen, groupedBySemester, kelompokKecilData, warnings.length, pblStatistics.lastGenerateTime, calculateComprehensiveStatistics]);
 
   const sortedSemesters = Object.keys(groupedBySemester)
     .map(Number)
@@ -1285,6 +1579,12 @@ export default function PBLGenerate() {
             }`
           );
 
+          // Update last generate time
+          setPblStatistics(prev => ({
+            ...prev,
+            lastGenerateTime: new Date().toISOString()
+          }));
+
           // Refresh data
           const assignedDosenRes = await api.post(
             "/pbl-generate/get-assignments",
@@ -1405,20 +1705,6 @@ export default function PBLGenerate() {
           </div>
         </div>
 
-        {/* Statistics Cards Skeleton - Hidden for now */}
-        {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
-                <div className="flex-1">
-                  <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
-                  <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-            </div>
-        </div>
-            </div>
-          ))}
-        </div> */}
 
         {/* Generate Dosen Section Skeleton */}
         <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6 mb-8">
@@ -1534,27 +1820,32 @@ export default function PBLGenerate() {
         </div>
       </div>
 
-      {/* Statistics Cards - Hidden for now */}
-      {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      {/* Comprehensive Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {/* Assignment Statistics */}
         <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
               <FontAwesomeIcon
-                icon={faBookOpen}
+                icon={faCheckCircle}
                 className="w-6 h-6 text-blue-500"
               />
             </div>
             <div>
               <div className="text-2xl font-bold text-gray-800 dark:text-white">
-                {Object.values(pblData).flat().length}
+                {pblStatistics.totalAssignments}
               </div>
               <div className="text-sm text-gray-600 dark:text-gray-400">
-                Total Modul PBL
+                Total Assignment
+              </div>
+              <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                {pblStatistics.assignmentRate.toFixed(1)}% completion
               </div>
             </div>
           </div>
         </div>
 
+        {/* Dosen Utilization */}
         <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
@@ -1565,102 +1856,164 @@ export default function PBLGenerate() {
             </div>
             <div>
               <div className="text-2xl font-bold text-gray-800 dark:text-white">
-                {Object.values(kelompokKecilData).reduce(
-                  (total, data) => total + (data.details?.length || 0),
-                  0
-                )}
+                {pblStatistics.dosenUtilizationRate.toFixed(1)}%
               </div>
               <div className="text-sm text-gray-600 dark:text-gray-400">
-                Total Kelompok
+                Dosen Utilization
+              </div>
+              <div className="text-xs text-green-600 dark:text-green-400 font-medium">
+                {pblStatistics.standbyDosenUsage} standby used
               </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center">
-              <FontAwesomeIcon
-                icon={faExclamationTriangle}
-                className="w-6 h-6 text-orange-500"
-              />
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-gray-800 dark:text-white">
-                {
-                  Array.from(
-                    new Set(
-                      filteredMataKuliah.flatMap(
-                        (mk) => mk.keahlian_required || []
-                      )
-                    )
-                  ).length
-                }
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Jumlah Keahlian
-            </div>
-          </div>
-        </div>
-      </div>
-
+        {/* Quality Statistics */}
         <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center">
               <FontAwesomeIcon
-                icon={faUsers}
+                icon={faBookOpen}
                 className="w-6 h-6 text-purple-500"
               />
             </div>
             <div>
               <div className="text-2xl font-bold text-gray-800 dark:text-white">
-                {peranKoordinatorCount}
+                {pblStatistics.keahlianMatchRate.toFixed(1)}%
               </div>
               <div className="text-sm text-gray-600 dark:text-gray-400">
-                Peran Koordinator
+                Keahlian Match
+              </div>
+              <div className="text-xs text-purple-600 dark:text-purple-400 font-medium">
+                {pblStatistics.unassignedPBLCount} unassigned
               </div>
             </div>
           </div>
         </div>
 
+        {/* System Health */}
         <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-yellow-200 dark:bg-yellow-900/40 flex items-center justify-center">
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+              pblStatistics.dataFreshness === 'fresh' ? 'bg-green-100 dark:bg-green-900/20' :
+              pblStatistics.dataFreshness === 'stale' ? 'bg-yellow-100 dark:bg-yellow-900/20' :
+              'bg-red-100 dark:bg-red-900/20'
+            }`}>
               <FontAwesomeIcon
-                icon={faUsers}
-                className="w-6 h-6 text-yellow-600"
+                icon={faCog}
+                className={`w-6 h-6 ${
+                  pblStatistics.dataFreshness === 'fresh' ? 'text-green-500' :
+                  pblStatistics.dataFreshness === 'stale' ? 'text-yellow-500' :
+                  'text-red-500'
+                }`}
               />
             </div>
             <div>
               <div className="text-2xl font-bold text-gray-800 dark:text-white">
-                {peranTimBlokCount}
+                {pblStatistics.warningCount}
               </div>
               <div className="text-sm text-gray-600 dark:text-gray-400">
-                Peran Tim Blok
+                Active Warnings
+              </div>
+              <div className={`text-xs font-medium ${
+                pblStatistics.dataFreshness === 'fresh' ? 'text-green-600 dark:text-green-400' :
+                pblStatistics.dataFreshness === 'stale' ? 'text-yellow-600 dark:text-yellow-400' :
+                'text-red-600 dark:text-red-400'
+              }`}>
+                {pblStatistics.dataFreshness} data
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/20 flex items-center justify-center">
-              <FontAwesomeIcon
-                icon={faUsers}
-                className="w-6 h-6 text-indigo-500"
-              />
+      {/* Assignment Distribution */}
+      <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6 mb-8">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+          Assignment Distribution
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+            <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+              <span className="text-white text-sm font-bold">K</span>
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-800 dark:text-white">
-                {dosenMengajarCount}
+              <div className="text-lg font-bold text-blue-700 dark:text-blue-300">
+                {pblStatistics.assignmentDistribution.koordinator}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Peran Dosen Mengajar
+              <div className="text-sm text-blue-600 dark:text-blue-400">Koordinator</div>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+            <div className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center">
+              <span className="text-white text-sm font-bold">T</span>
+            </div>
+            <div>
+              <div className="text-lg font-bold text-purple-700 dark:text-purple-300">
+                {pblStatistics.assignmentDistribution.timBlok}
               </div>
+              <div className="text-sm text-purple-600 dark:text-purple-400">Tim Blok</div>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+            <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
+              <span className="text-white text-sm font-bold">D</span>
+            </div>
+            <div>
+              <div className="text-lg font-bold text-green-700 dark:text-green-300">
+                {pblStatistics.assignmentDistribution.dosenMengajar}
+              </div>
+              <div className="text-sm text-green-600 dark:text-green-400">Dosen Mengajar</div>
             </div>
           </div>
         </div>
-      </div> */}
+      </div>
+
+      {/* Semester Coverage */}
+      <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6 mb-8">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+          Semester Coverage
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {Object.entries(pblStatistics.semesterCoverage).map(([semester, data]) => (
+            <div key={semester} className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-semibold text-gray-800 dark:text-white">
+                  Semester {semester}
+                </h4>
+                <span className={`text-xs px-2 py-1 rounded-full ${
+                  data.completionRate >= 90 ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300' :
+                  data.completionRate >= 70 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-300' :
+                  'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300'
+                }`}>
+                  {data.completionRate.toFixed(1)}%
+                </span>
+              </div>
+              <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                <div className="flex justify-between">
+                  <span>Dosen:</span>
+                  <span>{data.assignedPBL}/{data.kelompokCount * data.totalPBL}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Kelompok:</span>
+                  <span>{data.kelompokCount}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Modul:</span>
+                  <span>{data.totalPBL}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Butuh:</span>
+                  <span>{data.kelompokCount * data.totalPBL} dosen</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
 
       {/* Success/Error Messages */}
       {success && (

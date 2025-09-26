@@ -17,6 +17,9 @@ return new class extends Migration
             $table->enum('jenis', ['Ganjil', 'Genap']);
             $table->boolean('aktif')->default(false);
             $table->timestamps();
+            
+            // Add unique constraint to prevent duplicate semester types per academic year
+            $table->unique(['tahun_ajaran_id', 'jenis'], 'unique_semester_per_year');
         });
     }
 

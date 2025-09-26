@@ -92,7 +92,20 @@ export default function TahunAjaran() {
 
   // Memoize handler
   const handleInputChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    
+    if (name === 'tahun') {
+      // Auto-complete tahun ajaran format
+      if (value.length === 4 && /^\d{4}$/.test(value)) {
+        const currentYear = parseInt(value);
+        const nextYear = currentYear + 1;
+        setForm((prev) => ({ ...prev, [name]: `${value}/${nextYear}` }));
+      } else {
+        setForm((prev) => ({ ...prev, [name]: value }));
+      }
+    } else {
+      setForm((prev) => ({ ...prev, [name]: value }));
+    }
   }, []);
 
   const handleAdd = useCallback(async () => {
@@ -123,9 +136,16 @@ export default function TahunAjaran() {
   }, [form, fetchData]);
 
   const handleDelete = useCallback((id: number) => {
+    // Check if the academic year is active
+    const tahunAjaran = data.find(t => t.id === id);
+    if (tahunAjaran?.aktif) {
+      setError("Tahun ajaran yang sedang aktif tidak dapat dihapus. Silakan aktifkan tahun ajaran lain terlebih dahulu.");
+      return;
+    }
+    
     setSelectedDeleteId(id);
     setShowDeleteModal(true);
-  }, []);
+  }, [data]);
 
   const confirmDelete = useCallback(async () => {
     setIsDeleting(true);
@@ -136,8 +156,12 @@ export default function TahunAjaran() {
         await api.delete(`/tahun-ajaran/${selectedDeleteId}`);
         setSuccess("Tahun ajaran berhasil dihapus.");
         fetchData();
-      } catch (error) {
-        setError("Gagal menghapus tahun ajaran.");
+      } catch (error: any) {
+        if (error.response?.data?.message) {
+          setError(error.response.data.message);
+        } else {
+          setError("Gagal menghapus tahun ajaran.");
+        }
       }
     }
     setShowDeleteModal(false);
@@ -372,8 +396,13 @@ export default function TahunAjaran() {
                   </button>
                   <button
                     onClick={() => handleDelete(t.id)}
-                    className="inline-flex items-center gap-1 px-2 py-1 text-sm font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition"
-                    title="Delete"
+                    disabled={t.aktif}
+                    className={`inline-flex items-center gap-1 px-2 py-1 text-sm font-medium transition ${
+                      t.aktif 
+                        ? 'text-gray-400 cursor-not-allowed' 
+                        : 'text-red-500 hover:text-red-700 dark:hover:text-red-300'
+                    }`}
+                    title={t.aktif ? "Tahun ajaran aktif tidak dapat dihapus" : "Delete"}
                   >
                     <FontAwesomeIcon icon={faTrash} className="w-4 h-4" />
                     Delete
@@ -695,8 +724,10 @@ export default function TahunAjaran() {
                         name="tahun"
                         value={form.tahun}
                         onChange={handleInputChange}
-                        placeholder="Contoh: 2023/2024"
+                        placeholder="Ketik tahun (contoh: 2024) atau format lengkap (2024/2025)"
                         className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        pattern="\d{4}/\d{4}"
+                        inputMode="numeric"
                       />
                     </div>
                     {modalError && (

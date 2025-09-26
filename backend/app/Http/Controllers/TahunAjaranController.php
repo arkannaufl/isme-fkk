@@ -54,6 +54,13 @@ class TahunAjaranController extends Controller
 
     public function destroy(TahunAjaran $tahunAjaran)
     {
+        // Prevent deletion of active academic year
+        if ($tahunAjaran->aktif) {
+            return response()->json([
+                'message' => 'Tahun ajaran yang sedang aktif tidak dapat dihapus. Silakan aktifkan tahun ajaran lain terlebih dahulu.'
+            ], 422);
+        }
+        
         $tahunAjaran->delete();
         
         return response()->json(null, 204);

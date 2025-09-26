@@ -362,12 +362,7 @@ const SupportCenter: React.FC = () => {
 
   return (
     <div>
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="mb-6"
-      >
+      <div className="mb-6">
         <div className="flex items-center mb-4">
           <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg mr-4">
             <FontAwesomeIcon icon={faHeadset} className="text-2xl text-blue-600 dark:text-blue-400" />
@@ -379,7 +374,7 @@ const SupportCenter: React.FC = () => {
             </p>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* Success Message */}
       <AnimatePresence>
@@ -402,12 +397,7 @@ const SupportCenter: React.FC = () => {
       </AnimatePresence>
 
       {/* Tab Navigation */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
-        className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-6 overflow-hidden"
-      >
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-6 overflow-hidden">
         <div className="flex">
           {[
             {
@@ -448,16 +438,11 @@ const SupportCenter: React.FC = () => {
             </button>
           ))}
         </div>
-      </motion.div>
+      </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Form Section */}
-        <motion.div 
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          className="xl:col-span-2"
-        >
+        <div className="xl:col-span-2">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 transition-colors duration-200">
               <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Bug Report Form */}
@@ -808,15 +793,10 @@ const SupportCenter: React.FC = () => {
                 </div>
               </form>
             </div>
-          </motion.div>
+          </div>
 
         {/* Developer Info Sidebar */}
-        <motion.div 
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-          className="space-y-6"
-        >
+        <div className="space-y-6">
           {/* Developer List */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 overflow-hidden transition-colors duration-200">
             <div className="flex items-center justify-between mb-4">
@@ -934,7 +914,7 @@ const SupportCenter: React.FC = () => {
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Edit Developer Modal */}

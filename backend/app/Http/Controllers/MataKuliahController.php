@@ -476,7 +476,7 @@ class MataKuliahController extends Controller
                 try {
                     // Validasi data per baris
                     $validator = \Validator::make($rowData, [
-                        'kode' => 'required|string|unique:mata_kuliah,kode',
+                        'kode' => 'required|string|unique:mata_kuliah,kode|max:255',
                         'nama' => 'required|string',
                         'semester' => 'required',
                         'periode' => 'required|string',

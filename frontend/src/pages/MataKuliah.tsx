@@ -8,8 +8,6 @@ import { Listbox, Transition } from '@headlessui/react';
 import { useNavigate } from "react-router-dom";
 
 // Komponen input kustom untuk DatePickerz
-
-
 type MataKuliah = {
   kode: string;
   nama: string;
@@ -44,33 +42,79 @@ const calculateWeeks = (startDate: string, endDate: string): number | null => {
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
 const JENIS_OPTIONS = ["Blok", "Non Blok"];
 const SEMESTER_OPTIONS = ["Antara", 1, 2, 3, 4, 5, 6, 7];
-const BLOK_OPTIONS = [1, 2, 3, 4];
 
 
 
-// Tambahkan fungsi untuk mendapatkan blok yang tersedia
-const getAvailableBlokOptions = (semester: number | string, currentBlok: number | null = null, data: MataKuliah[]) => {
-  // Dapatkan semua mata kuliah dengan semester yang sama
-  const mataKuliahInSemester = data.filter((mk: MataKuliah) => mk.semester === semester);
+
+// Fungsi untuk mendapatkan nomor blok berikutnya yang tersedia
+const getNextAvailableBlok = (semester: number | string, data: MataKuliah[], currentBlok: number | null = null) => {
+  // Dapatkan semua mata kuliah blok di semester yang sama (kecuali yang sedang diedit)
+  // Normalisasi semester untuk perbandingan (string vs number)
+  const normalizedSemester = String(semester);
+  const blokInSemester = data
+    .filter((mk: MataKuliah) => 
+      String(mk.semester) === normalizedSemester && 
+      mk.jenis === 'Blok' && 
+      mk.blok !== null && 
+      mk.blok !== currentBlok
+    )
+    .map((mk: MataKuliah) => mk.blok as number)
+    .sort((a, b) => a - b);
   
-  // Dapatkan blok yang sudah digunakan (kecuali blok yang sedang diedit)
-  const usedBlok = mataKuliahInSemester
-    .filter((mk: MataKuliah) => mk.blok !== null && mk.blok !== currentBlok)
-    .map((mk: MataKuliah) => mk.blok as number);
-  
-  // Jika sedang edit, tambahkan blok saat ini ke daftar yang tersedia
-  if (currentBlok !== null) {
-    // Urutkan blok yang tersedia dari 1-4
-    return BLOK_OPTIONS.filter(blok => !usedBlok.includes(blok) || blok === currentBlok)
-      .sort((a, b) => a - b);
+  // Jika tidak ada blok di semester tersebut, mulai dari 1
+  if (blokInSemester.length === 0) {
+    return 1;
   }
   
-  // Filter blok yang belum digunakan dan urutkan
-  return BLOK_OPTIONS.filter(blok => !usedBlok.includes(blok))
-    .sort((a, b) => a - b);
+  // Cari nomor blok terkecil yang belum digunakan
+  let nextBlok = 1;
+  for (const blok of blokInSemester) {
+    if (nextBlok === blok) {
+      nextBlok++;
+    } else {
+      break;
+    }
+  }
+  
+  return nextBlok;
 };
 
-// Tambahkan fungsi untuk mengurutkan data berdasarkan blok
+
+// Fungsi untuk mengkonversi tanggal dari Excel ke format YYYY-MM-DD
+const convertExcelDate = (value: any): string => {
+  if (!value || value === '') return '';
+  
+  // Jika sudah dalam format YYYY-MM-DD, return as is
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+  
+  // Jika berupa number (Excel date serial number)
+  if (typeof value === 'number') {
+    // Excel date serial number: days since 1900-01-01
+    const excelEpoch = new Date(1900, 0, 1);
+    const date = new Date(excelEpoch.getTime() + (value - 2) * 24 * 60 * 60 * 1000);
+    return date.toISOString().split('T')[0];
+  }
+  
+  // Jika berupa string yang bisa di-parse sebagai tanggal
+  if (typeof value === 'string') {
+    const date = new Date(value);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString().split('T')[0];
+    }
+  }
+  
+  // Jika berupa Date object
+  if (value instanceof Date) {
+    return value.toISOString().split('T')[0];
+  }
+  
+  // Jika tidak bisa dikonversi, return string kosong
+  return '';
+};
+
+// Fungsi untuk mengurutkan data berdasarkan blok
 const sortDataByBlok = (data: MataKuliah[]) => {
   return [...data].sort((a, b) => {
     // Jika kedua item adalah blok, urutkan berdasarkan nomor blok
@@ -160,23 +204,23 @@ function toDateYMD(dateString: string) {
   return dateString.slice(0, 10);
 }
 
-// Tambahkan tipe untuk CSR agar ada id
+// Tipe untuk CSR
 interface CSRItem {
   id?: number;
   nomor_csr: string;
   tanggal_mulai: string;
   tanggal_akhir: string;
-  keahlian_required?: string[]; // tambahkan property ini
+  keahlian_required?: string[];
 }
 
-// Tambahkan tipe untuk PBL
+// Tipe untuk PBL
 type PBLItem = {
   id?: number;
   modul_ke: string;
   nama_modul: string;
 };
 
-// Update types untuk materi terpisah
+// Tipe untuk materi terpisah
 interface MateriItem {
   id: number;
   kode_mata_kuliah: string;
@@ -442,24 +486,25 @@ export default function MataKuliah() {
     try {
       setSuccess(null);
       // Validasi custom sebelum submit
-      // 1. Non Blok hanya boleh 1 per semester
-      if (form.jenis === 'Non Blok') {
-        const nonBlokCount = data.filter(mk => isSemesterMatch(mk.semester, form.semester) && mk.jenis === 'Non Blok' && mk.kode !== form.kode).length;
-        if (nonBlokCount > 0 && !editMode) {
-          setError('Mata kuliah Non Blok per semester hanya boleh 1.');
-          setIsSaving(false);
-          return;
-        }
+      // 1. Validasi kode mata kuliah
+      if (!form.kode || form.kode.trim().length === 0) {
+        setError('Kode mata kuliah harus diisi.');
+        setIsSaving(false);
+        return;
       }
-      // 2. Blok maksimal 4 per semester
+      if (form.kode.length > 255) {
+        setError('Kode mata kuliah maksimal 255 karakter.');
+        setIsSaving(false);
+        return;
+      }
+      // 2. Validasi blok untuk mata kuliah jenis Blok
+      if (form.jenis === 'Blok' && (!form.blok || form.blok < 1 || !Number.isInteger(form.blok))) {
+        setError('Nomor blok harus berupa bilangan bulat positif (1, 2, 3, dst.).');
+        setIsSaving(false);
+        return;
+      }
+      // 2. Tanggal blok tidak boleh overlap
       if (form.jenis === 'Blok') {
-        const blokCount = data.filter(mk => isSemesterMatch(mk.semester, form.semester) && mk.jenis === 'Blok' && mk.kode !== form.kode).length;
-        if (blokCount >= 4 && !editMode) {
-          setError('Mata kuliah Blok per semester maksimal 4.');
-          setIsSaving(false);
-          return;
-        }
-        // 3. Tanggal blok tidak boleh overlap
         const overlap = data.some(mk =>
           mk.semester === form.semester &&
           mk.jenis === 'Blok' &&
@@ -477,7 +522,7 @@ export default function MataKuliah() {
           return;
         }
       }
-      // 4. Tanggal akhir harus setelah tanggal mulai
+      // 3. Tanggal akhir harus setelah tanggal mulai
       if (form.tanggalMulai && form.tanggalAkhir && new Date(form.tanggalAkhir) < new Date(form.tanggalMulai)) {
         setError('Tanggal Akhir harus setelah Tanggal Mulai.');
         setIsSaving(false);
@@ -845,6 +890,9 @@ export default function MataKuliah() {
 
       // Transform data untuk dikirim ke backend (seperti Dosen.tsx)
       const dataToExport = previewData.map((row) => {
+        // Konversi kode ke string (penting untuk backend validation)
+        const kode = String(row.kode);
+        
         // Konversi string ke array untuk peran_dalam_kurikulum dan keahlian_required
         const peran_dalam_kurikulum = typeof row.peran_dalam_kurikulum === "string"
           ? row.peran_dalam_kurikulum
@@ -870,6 +918,7 @@ export default function MataKuliah() {
 
         return {
           ...row,
+          kode,
           peran_dalam_kurikulum,
           keahlian_required,
           // Pastikan tipe_non_block null untuk Blok
@@ -926,7 +975,7 @@ export default function MataKuliah() {
       nama: "",
       semester: 1 as number | string,
       periode: "Ganjil",
-      jenis: "Non Blok",
+      jenis: "Blok",
       kurikulum: new Date().getFullYear(),
       tanggalMulai: "",
       tanggalAkhir: "",
@@ -953,6 +1002,12 @@ export default function MataKuliah() {
     setExistingMateriItems([]);
     if (materiFileInputRef.current) materiFileInputRef.current.value = "";
   };  
+
+  // Handle buka modal untuk input data baru
+  const handleOpenModal = () => {
+    setShowModal(true);
+    setEditMode(false);
+  };
 
   // Semester options berdasarkan semester aktif
   const semesterOptions = getSemesterOptionsForActivePeriod(activeSemesterJenis, Array.isArray(data) ? data : []);
@@ -1164,13 +1219,21 @@ export default function MataKuliah() {
       reader.onload = (e) => {
         try {
           const data = e.target?.result;
-          const workbook = XLSX.read(data, { type: "array" });
+          const workbook = XLSX.read(data, { 
+            type: "array",
+            cellFormula: true, // Enable formula evaluation
+            cellDates: true,   // Enable date parsing
+            cellNF: false,     // Disable number format
+            cellStyles: false, // Disable cell styles for better performance
+          });
           const firstSheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[firstSheetName];
 
-          // Get data as array of arrays
+          // Get data as array of arrays with formula evaluation
           const aoa = XLSX.utils.sheet_to_json(worksheet, {
             header: 1,
+            raw: false,        // Convert all values to strings
+            defval: "",        // Default value for empty cells
           }) as any[][];
 
           if (aoa.length === 0) {
@@ -1189,7 +1252,14 @@ export default function MataKuliah() {
             const rowData: any = {};
             const currentRow = aoa[i];
             normalizedHeaders.forEach((header, index) => {
-              rowData[header] = currentRow[index];
+              let value = currentRow[index];
+              
+              // Handle date fields specifically
+              if (header === 'tanggal_mulai' || header === 'tanggal_akhir') {
+                value = convertExcelDate(value);
+              }
+              
+              rowData[header] = value;
             });
             jsonData.push(rowData);
           }
@@ -1251,22 +1321,19 @@ export default function MataKuliah() {
       }
     });
 
-    // Validasi jumlah Blok dan Non Blok per semester
-    Object.entries(blokPerSemester).forEach(([semester, count]) => {
-      if (count > 4) {
-        errors.push(`Mata kuliah Blok pada semester ${semester} melebihi batas maksimal 4 (${count} data).`);
-      }
-    });
-
-    Object.entries(nonBlokPerSemester).forEach(([semester, count]) => {
-      if (count > 1) {
-        errors.push(`Mata kuliah Non Blok pada semester ${semester} melebihi batas maksimal 1 (${count} data).`);
-      }
-    });
 
     // Validasi per baris
     excelData.forEach((row, index) => {
       const rowKode = row.kode ? String(row.kode) : '';
+      
+      // Validasi blok untuk mata kuliah jenis Blok
+      if (row.jenis === 'Blok' && row.blok !== null && row.blok !== undefined) {
+        const blokValue = Number(row.blok);
+        if (!Number.isInteger(blokValue) || blokValue < 1) {
+          errors.push(`Baris ${index + 2}: Nomor blok harus berupa bilangan bulat positif (1, 2, 3, dst.).`);
+        }
+      }
+      
       const rowErrors = validateRow(row, excelData, index, existingDbData);
       
       rowErrors.forEach(error => {
@@ -1312,7 +1379,11 @@ export default function MataKuliah() {
   function validateRow(row: any, allRows: any[], rowIdx: number, existingDbData: MataKuliah[]): { field: string, message: string }[] {
     const errors: { field: string, message: string }[] = [];
     const rowKode = row.kode ? String(row.kode) : '';
-    if (!row.kode) errors.push({ field: 'kode', message: 'Kode harus diisi' });
+    if (!row.kode) {
+      errors.push({ field: 'kode', message: 'Kode harus diisi' });
+    } else if (row.kode.length > 255) {
+      errors.push({ field: 'kode', message: 'Kode maksimal 255 karakter' });
+    }
     if (!row.nama) errors.push({ field: 'nama', message: 'Nama harus diisi' });
     if (!row.semester || (row.semester !== 'Antara' && isNaN(Number(row.semester)))) errors.push({ field: 'semester', message: 'Semester harus diisi dengan angka atau "Antara"' });
     if (!row.periode) errors.push({ field: 'periode', message: 'Periode harus diisi' });
@@ -1437,6 +1508,14 @@ export default function MataKuliah() {
       setPblList([]);
     }
   }, [jumlahPBL, form.jenis]);
+
+  // Auto-fill blok saat modal dibuka atau semester berubah (hanya untuk data baru)
+  useEffect(() => {
+    if (showModal && !editMode && form.jenis === 'Blok' && form.semester && Array.isArray(data) && data.length > 0) {
+      const nextBlok = getNextAvailableBlok(form.semester, data, null);
+      setForm(prev => ({ ...prev, blok: nextBlok }));
+    }
+  }, [showModal, editMode, form.jenis, form.semester, data]);
 
   // Fungsi hapus CSR di form
   const handleDeleteCsr = (idx: number) => {
@@ -1843,7 +1922,7 @@ export default function MataKuliah() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-all duration-300 ease-in-out">
           <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => setShowModal(true)}
+              onClick={handleOpenModal}
               className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition-all duration-300 ease-in-out transform"
             >
               Input Data
@@ -2572,10 +2651,11 @@ export default function MataKuliah() {
                       setForm(updatedForm);
                     }}
                     disabled={editMode}
+                    maxLength={255}
                     className={`w-full px-3 py-2 rounded-lg border ${
                       'border-gray-300 dark:border-gray-700'
                      } bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-brand-500 dark:focus:bg-gray-800`}
-                    placeholder="Masukkan kode mata kuliah"
+                    placeholder="Masukkan kode mata kuliah (bisa huruf saja, angka saja, atau kombinasi)"
                   />
                   {/* ALERT: Kode sudah ada di database */}
                   {!editMode && form.kode.trim() && data.some(mk => mk.kode === form.kode.trim()) && (
@@ -2653,13 +2733,6 @@ export default function MataKuliah() {
                       <option key={jenis} value={jenis}>{jenis}</option>
                     ))}
                   </select>
-                  {/* ALERT: Non Blok sudah ada di semester yang sama */}
-                  {form.jenis === 'Non Blok' && !editMode &&
-                    data.filter(mk => isSemesterMatch(mk.semester, form.semester) && mk.jenis === 'Non Blok').length > 0 && (
-                      <div className="text-sm text-red-500 bg-red-100 rounded p-2 mt-4">
-                        Mata kuliah Non Blok per semester hanya boleh 1. Sudah ada Non Blok di semester ini.
-                      </div>
-                  )}
                 </div>
                 {form.jenis === 'Non Blok' && form.semester !== "Antara" && (
                   <div className="mb-3 sm:mb-4">
@@ -2815,29 +2888,21 @@ export default function MataKuliah() {
                     <label htmlFor="blok" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Blok ke-
                     </label>
-                    <select
+                    <input
+                      type="number"
                       id="blok"
                       name="blok"
                       value={form.blok || ''}
+                      min="1"
+                      step="1"
                       onChange={(e) => {
-                        const updatedForm = { ...form, blok: Number(e.target.value) };
+                        const value = e.target.value ? parseInt(e.target.value, 10) : null;
+                        const updatedForm = { ...form, blok: value };
                         setForm(updatedForm);
                       }}
-                      className={`w-full px-3 py-2 rounded-lg border ${
-                        'border-gray-300 dark:border-gray-700'
-                      } bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-brand-500`}
-                    >
-                      <option value="">Pilih Blok</option>
-                      {getAvailableBlokOptions(form.semester, form.blok, data).map((blok) => (
-                        <option key={blok} value={blok}>{blok}</option>
-                      ))}
-                    </select>
-                    {/* Error jika semua blok sudah terpakai, hanya di tambah (bukan edit) */}
-                    {!editMode && getAvailableBlokOptions(form.semester, form.blok, data).length === 0 && (
-                      <div className="text-sm text-red-500 bg-red-100 rounded p-2 mt-4">
-                        Mata kuliah Blok per semester ini sudah maksimal 4, tidak bisa menambah Blok lagi.
-                      </div>
-                    )}
+                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      placeholder="Masukkan nomor blok (contoh: 1, 2, 3, dst.)"
+                    />
                   </div>
                 )}
                 <div className="mb-3 sm:mb-4">
