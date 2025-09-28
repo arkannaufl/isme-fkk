@@ -128,8 +128,8 @@ class HybridMahasiswaImport implements ToCollection, WithHeadingRow, WithChunkRe
         }
 
         // NIM format validation (basic)
-        if (!preg_match('/^[0-9]{10,15}$/', $row['nim'])) {
-            $this->errors[] = "Row {$rowNumber}: NIM must be 10-15 digits";
+        if (!preg_match('/^[0-9]{8,15}$/', $row['nim'])) {
+            $this->errors[] = "Row {$rowNumber}: NIM must be 8-15 digits";
             return null;
         }
 

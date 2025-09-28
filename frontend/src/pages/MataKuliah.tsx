@@ -286,6 +286,7 @@ export default function MataKuliah() {
   const [editMode, setEditMode] = useState(false);
   const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
   const [success, setSuccess] = useState<string | null>(null);
+  const [importedCount, setImportedCount] = useState(0);
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteModalBulk, setShowDeleteModalBulk] = useState(false);
@@ -390,6 +391,15 @@ export default function MataKuliah() {
       return () => clearTimeout(timer);
     }
   }, [success]);
+
+  useEffect(() => {
+    if (importedCount > 0) {
+      const timer = setTimeout(() => {
+        setImportedCount(0);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [importedCount]);
 
   // Fetch semester aktif
   const fetchActiveSemester = async () => {
@@ -934,10 +944,7 @@ export default function MataKuliah() {
       });
 
       if (importResponse.status === 200) {
-        const importedCount = importResponse.data.imported_count || 0;
-        if (importedCount > 0) {
-          setSuccess(`${importedCount} Data mata kuliah berhasil diimport ke database.`);
-        }
+        setImportedCount(importResponse.data.imported_count || 0);
         // Reset state
         setPreviewData([]);
         setValidationErrors([]);
@@ -1209,6 +1216,191 @@ export default function MataKuliah() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "MataKuliah");
     XLSX.writeFile(wb, "Template_Import_MataKuliah.xlsx");
+  };
+
+  // Fungsi untuk memformat tanggal ke format Indonesia
+  const formatDateToIndonesian = (dateString: string | null | undefined): string => {
+    if (!dateString) return '';
+    
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return dateString; // Return original if invalid date
+      
+      return date.toLocaleDateString('id-ID', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    } catch (error) {
+      return dateString; // Return original if error
+    }
+  };
+
+  // Export data ke Excel dengan format yang bisa diimport kembali
+  const exportToExcel = async () => {
+    try {
+      // Ambil semua data (tidak difilter) dengan format yang sesuai untuk import
+      const dataToExport = data.map((mk: MataKuliah) => ({
+        'kode': mk.kode,
+        'nama': mk.nama,
+        'semester': mk.semester,
+        'periode': mk.periode,
+        'jenis': mk.jenis,
+        'kurikulum': mk.kurikulum,
+        'tanggal_mulai': mk.tanggalMulai || mk.tanggal_mulai || '',
+        'tanggal_akhir': mk.tanggalAkhir || mk.tanggal_akhir || '',
+        'blok': mk.blok || '',
+        'durasi_minggu': mk.durasiMinggu || mk.durasi_minggu || '',
+        'tipe_non_block': mk.tipe_non_block || '',
+        'peran_dalam_kurikulum': Array.isArray(mk.peran_dalam_kurikulum) 
+          ? mk.peran_dalam_kurikulum.join(', ') 
+          : mk.peran_dalam_kurikulum || '',
+        'keahlian_required': Array.isArray(mk.keahlian_required) 
+          ? mk.keahlian_required.join(', ') 
+          : mk.keahlian_required || '',
+        'rps_file': mk.rps_file || ''
+      }));
+
+      // Buat workbook baru
+      const wb = XLSX.utils.book_new();
+
+      // Buat worksheet untuk data utama
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+
+      // Set lebar kolom
+      const colWidths = [
+        { wch: 15 }, // kode
+        { wch: 40 }, // nama
+        { wch: 10 }, // semester
+        { wch: 12 }, // periode
+        { wch: 12 }, // jenis
+        { wch: 10 }, // kurikulum
+        { wch: 15 }, // tanggal_mulai
+        { wch: 15 }, // tanggal_akhir
+        { wch: 8 },  // blok
+        { wch: 12 }, // durasi_minggu
+        { wch: 15 }, // tipe_non_block
+        { wch: 30 }, // peran_dalam_kurikulum
+        { wch: 30 }, // keahlian_required
+        { wch: 20 }  // rps_file
+      ];
+      ws['!cols'] = colWidths;
+
+      // Tambahkan header dengan styling
+      const headerRange = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+        if (!ws[cellAddress]) continue;
+        
+        // Set header styling
+        ws[cellAddress].s = {
+          font: { bold: true, color: { rgb: "FFFFFF" } },
+          fill: { fgColor: { rgb: "4472C4" } },
+          alignment: { horizontal: "center", vertical: "center" },
+          border: {
+            top: { style: "thin", color: { rgb: "000000" } },
+            bottom: { style: "thin", color: { rgb: "000000" } },
+            left: { style: "thin", color: { rgb: "000000" } },
+            right: { style: "thin", color: { rgb: "000000" } }
+          }
+        };
+      }
+
+      // Tambahkan border untuk semua data
+      const dataRange = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      for (let row = dataRange.s.r; row <= dataRange.e.r; row++) {
+        for (let col = dataRange.s.c; col <= dataRange.e.c; col++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+          if (!ws[cellAddress]) continue;
+          
+          if (!ws[cellAddress].s) ws[cellAddress].s = {};
+          ws[cellAddress].s.border = {
+            top: { style: "thin", color: { rgb: "CCCCCC" } },
+            bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+            left: { style: "thin", color: { rgb: "CCCCCC" } },
+            right: { style: "thin", color: { rgb: "CCCCCC" } }
+          };
+          
+          // Alternating row colors
+          if (row > 0) {
+            ws[cellAddress].s.fill = {
+              fgColor: { rgb: row % 2 === 0 ? "F8F9FA" : "FFFFFF" }
+            };
+          }
+        }
+      }
+
+      // Buat worksheet untuk ringkasan
+      const summaryData = [
+        ['RINGKASAN DATA MATA KULIAH'],
+        [''],
+        ['Total Data', dataToExport.length],
+        ['Data Blok', dataToExport.filter(d => d.jenis === 'Blok').length],
+        ['Data Non Blok', dataToExport.filter(d => d.jenis === 'Non Blok').length],
+        ['Data CSR', dataToExport.filter(d => d.tipe_non_block === 'CSR').length],
+        ['Data Non-CSR', dataToExport.filter(d => d.tipe_non_block === 'Non-CSR').length],
+        [''],
+        ['Data per Semester:'],
+        ['Semester 1', dataToExport.filter(d => d.semester === 1).length],
+        ['Semester 2', dataToExport.filter(d => d.semester === 2).length],
+        ['Semester 3', dataToExport.filter(d => d.semester === 3).length],
+        ['Semester 4', dataToExport.filter(d => d.semester === 4).length],
+        ['Semester 5', dataToExport.filter(d => d.semester === 5).length],
+        ['Semester 6', dataToExport.filter(d => d.semester === 6).length],
+        ['Semester 7', dataToExport.filter(d => d.semester === 7).length],
+        ['Semester Antara', dataToExport.filter(d => d.semester === 'Antara').length],
+        [''],
+        ['Data per Periode:'],
+        ['Ganjil', dataToExport.filter(d => d.periode === 'Ganjil').length],
+        ['Genap', dataToExport.filter(d => d.periode === 'Genap').length],
+        ['Antara', dataToExport.filter(d => d.periode === 'Antara').length],
+        [''],
+        ['Tanggal Export', new Date().toLocaleString('id-ID')],
+        ['Dibuat oleh', 'Sistem ISME FKK']
+      ];
+
+      const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
+      summaryWs['!cols'] = [{ wch: 20 }, { wch: 30 }];
+
+      // Styling untuk summary
+      summaryWs['A1'].s = {
+        font: { bold: true, size: 16, color: { rgb: "FFFFFF" } },
+        fill: { fgColor: { rgb: "2F5597" } },
+        alignment: { horizontal: "center", vertical: "center" }
+      };
+
+      // Tambahkan border untuk summary
+      const summaryRange = XLSX.utils.decode_range(summaryWs['!ref'] || 'A1');
+      for (let row = summaryRange.s.r; row <= summaryRange.e.r; row++) {
+        for (let col = summaryRange.s.c; col <= summaryRange.e.c; col++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+          if (!summaryWs[cellAddress]) continue;
+          
+          if (!summaryWs[cellAddress].s) summaryWs[cellAddress].s = {};
+          summaryWs[cellAddress].s.border = {
+            top: { style: "thin", color: { rgb: "CCCCCC" } },
+            bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+            left: { style: "thin", color: { rgb: "CCCCCC" } },
+            right: { style: "thin", color: { rgb: "CCCCCC" } }
+          };
+        }
+      }
+
+      // Tambahkan worksheet ke workbook
+      XLSX.utils.book_append_sheet(wb, ws, "Data Mata Kuliah");
+      XLSX.utils.book_append_sheet(wb, summaryWs, "Ringkasan");
+
+      // Generate filename dengan timestamp
+      const now = new Date();
+      const timestamp = now.toISOString().slice(0, 19).replace(/:/g, '-');
+      const filename = `Data_MataKuliah_${timestamp}.xlsx`;
+
+      // Download file
+      XLSX.writeFile(wb, filename);
+      
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+    }
   };
 
   // Baca file Excel
@@ -1945,6 +2137,13 @@ export default function MataKuliah() {
               <FontAwesomeIcon icon={faDownload} className="w-5 h-5" />
               Download Template Excel
             </button>
+            <button
+              onClick={exportToExcel}
+              className="px-4 py-2 rounded-lg bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 text-sm font-medium shadow-theme-xs hover:bg-purple-200 dark:hover:bg-purple-800 transition flex items-center gap-2"
+            >
+              <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5" />
+              Export ke Excel
+            </button>
           </div>
         </div>
 
@@ -2230,6 +2429,20 @@ export default function MataKuliah() {
             className="mt-4 p-3 rounded-lg bg-green-100 text-green-700"
           >
             {success}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      <AnimatePresence>
+        {importedCount > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
+          >
+            {importedCount} data mata kuliah berhasil diimpor ke database.
           </motion.div>
         )}
       </AnimatePresence>

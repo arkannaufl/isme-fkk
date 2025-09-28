@@ -53,7 +53,8 @@ const csrColors = [
   'bg-sky-600',     // CSR 4
 ];
 
-const nonBlokColor = 'bg-gray-500';
+const nonBlokCsrColor = 'bg-orange-500';      // Non Blok CSR
+const nonBlokNonCsrColor = 'bg-slate-500';    // Non Blok Non CSR
 
 
 // Helper to get day difference
@@ -564,10 +565,15 @@ function PetaAkademikSkeleton() {
             <div className="w-4 h-4 rounded-sm bg-green-400 animate-pulse" />
             <div className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
           </div>
-          {/* Non Blok */}
+          {/* Non Blok CSR */}
           <div className="flex items-center gap-2 text-sm">
-            <div className="w-4 h-4 rounded-sm bg-gray-500 animate-pulse" />
-            <div className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+            <div className="w-4 h-4 rounded-sm bg-orange-500 animate-pulse" />
+            <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          </div>
+          {/* Non Blok Non CSR */}
+          <div className="flex items-center gap-2 text-sm">
+            <div className="w-4 h-4 rounded-sm bg-slate-500 animate-pulse" />
+            <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
           </div>
           {/* Hari Libur Nasional */}
           <div className="flex items-center gap-2 text-sm">
@@ -799,8 +805,15 @@ export default function PetaAkademikPage() {
           // Use predefined color for CSR courses
           colorMap.set(course.kode, csrColors[course.csr_number - 1]);
         } else if (course.jenis === 'Non Blok') {
-          // Use gray for Non Blok courses
-          colorMap.set(course.kode, nonBlokColor);
+          // Use different colors for Non Blok based on tipe_non_block
+          if (course.tipe_non_block === 'CSR') {
+            colorMap.set(course.kode, nonBlokCsrColor);
+          } else if (course.tipe_non_block === 'Non-CSR') {
+            colorMap.set(course.kode, nonBlokNonCsrColor);
+          } else {
+            // Fallback for courses without tipe_non_block
+            colorMap.set(course.kode, nonBlokCsrColor);
+          }
         } else {
           // Fallback to rotating through tailwind colors
           colorMap.set(course.kode, tailwindColors[colorIndex % tailwindColors.length]);
@@ -886,8 +899,12 @@ export default function PetaAkademikPage() {
                   ))}
                   {/* Non Blok courses */}
                   <div className="flex items-center gap-2 text-sm">
-                    <div className={`w-4 h-4 rounded-sm ${nonBlokColor}`}></div>
-                    <span className="text-gray-700 dark:text-gray-300">Non Blok</span>
+                    <div className={`w-4 h-4 rounded-sm ${nonBlokCsrColor}`}></div>
+                    <span className="text-gray-700 dark:text-gray-300">Non Blok CSR</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <div className={`w-4 h-4 rounded-sm ${nonBlokNonCsrColor}`}></div>
+                    <span className="text-gray-700 dark:text-gray-300">Non Blok Non CSR</span>
                   </div>
                   {/* CSR courses */}
                   {csrColors.map((color, idx) => (

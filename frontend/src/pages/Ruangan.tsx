@@ -237,9 +237,6 @@ export default function Ruangan() {
 
       if (res.status === 200) {
         setImportedCount(res.data.imported_count || 0);
-        if (res.data.imported_count > 0) {
-          setSuccess("Data berhasil diimpor ke database.");
-        }
         if (res.data.errors && res.data.errors.length > 0) {
           setError("Sebagian data gagal diimpor karena tidak valid:");
           if (res.data.failed_rows && res.data.failed_rows.length > 0) {
@@ -448,6 +445,151 @@ export default function Ruangan() {
     XLSX.writeFile(wb, "Template_Import_Ruangan.xlsx");
   };
 
+  // Export data ke Excel dengan format yang bisa diimport kembali
+  const exportToExcel = async () => {
+    try {
+      // Ambil semua data (tidak difilter) dengan format yang sesuai untuk import
+      const dataToExport = data.map((r: RuanganType) => ({
+        'id_ruangan': r.id_ruangan,
+        'nama': r.nama,
+        'kapasitas': r.kapasitas,
+        'gedung': r.gedung,
+        'keterangan': r.keterangan || ''
+      }));
+
+      // Buat workbook baru
+      const wb = XLSX.utils.book_new();
+
+      // Buat worksheet untuk data utama
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+
+      // Set lebar kolom
+      const colWidths = [
+        { wch: 15 }, // id_ruangan
+        { wch: 30 }, // nama
+        { wch: 12 }, // kapasitas
+        { wch: 20 }, // gedung
+        { wch: 25 }  // keterangan
+      ];
+      ws['!cols'] = colWidths;
+
+      // Tambahkan header dengan styling
+      const headerRange = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+        if (!ws[cellAddress]) continue;
+        
+        // Set header styling
+        ws[cellAddress].s = {
+          font: { bold: true, color: { rgb: "FFFFFF" } },
+          fill: { fgColor: { rgb: "4472C4" } },
+          alignment: { horizontal: "center", vertical: "center" },
+          border: {
+            top: { style: "thin", color: { rgb: "000000" } },
+            bottom: { style: "thin", color: { rgb: "000000" } },
+            left: { style: "thin", color: { rgb: "000000" } },
+            right: { style: "thin", color: { rgb: "000000" } }
+          }
+        };
+      }
+
+      // Tambahkan border untuk semua data
+      const dataRange = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      for (let row = dataRange.s.r; row <= dataRange.e.r; row++) {
+        for (let col = dataRange.s.c; col <= dataRange.e.c; col++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+          if (!ws[cellAddress]) continue;
+          
+          if (!ws[cellAddress].s) ws[cellAddress].s = {};
+          ws[cellAddress].s.border = {
+            top: { style: "thin", color: { rgb: "CCCCCC" } },
+            bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+            left: { style: "thin", color: { rgb: "CCCCCC" } },
+            right: { style: "thin", color: { rgb: "CCCCCC" } }
+          };
+          
+          // Alternating row colors
+          if (row > 0) {
+            ws[cellAddress].s.fill = {
+              fgColor: { rgb: row % 2 === 0 ? "F8F9FA" : "FFFFFF" }
+            };
+          }
+        }
+      }
+
+      // Buat worksheet untuk ringkasan
+      const gedungOptions = Array.from(new Set(dataToExport.map(d => d.gedung).filter(Boolean)));
+      const summaryData = [
+        ['RINGKASAN DATA RUANGAN'],
+        [''],
+        ['Total Data', dataToExport.length],
+        ['Ruangan dengan Keterangan', dataToExport.filter(d => d.keterangan && d.keterangan.trim() !== '').length],
+        ['Ruangan tanpa Keterangan', dataToExport.filter(d => !d.keterangan || d.keterangan.trim() === '').length],
+        [''],
+        ['Data per Gedung:'],
+        ...gedungOptions.map(gedung => [
+          gedung,
+          dataToExport.filter(d => d.gedung === gedung).length
+        ]),
+        [''],
+        ['Statistik Kapasitas:'],
+        ['Kapasitas <= 20', dataToExport.filter(d => d.kapasitas <= 20).length],
+        ['Kapasitas 21-50', dataToExport.filter(d => d.kapasitas > 20 && d.kapasitas <= 50).length],
+        ['Kapasitas 51-100', dataToExport.filter(d => d.kapasitas > 50 && d.kapasitas <= 100).length],
+        ['Kapasitas > 100', dataToExport.filter(d => d.kapasitas > 100).length],
+        [''],
+        ['Kapasitas Rata-rata', Math.round(dataToExport.reduce((sum, d) => sum + d.kapasitas, 0) / dataToExport.length)],
+        ['Kapasitas Terkecil', Math.min(...dataToExport.map(d => d.kapasitas))],
+        ['Kapasitas Terbesar', Math.max(...dataToExport.map(d => d.kapasitas))],
+        [''],
+        ['Tanggal Export', new Date().toLocaleString('id-ID')],
+        ['Dibuat oleh', 'Sistem ISME FKK']
+      ];
+
+      const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
+      summaryWs['!cols'] = [{ wch: 25 }, { wch: 30 }];
+
+      // Styling untuk summary
+      summaryWs['A1'].s = {
+        font: { bold: true, size: 16, color: { rgb: "FFFFFF" } },
+        fill: { fgColor: { rgb: "2F5597" } },
+        alignment: { horizontal: "center", vertical: "center" }
+      };
+
+      // Tambahkan border untuk summary
+      const summaryRange = XLSX.utils.decode_range(summaryWs['!ref'] || 'A1');
+      for (let row = summaryRange.s.r; row <= summaryRange.e.r; row++) {
+        for (let col = summaryRange.s.c; col <= summaryRange.e.c; col++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+          if (!summaryWs[cellAddress]) continue;
+          
+          if (!summaryWs[cellAddress].s) summaryWs[cellAddress].s = {};
+          summaryWs[cellAddress].s.border = {
+            top: { style: "thin", color: { rgb: "CCCCCC" } },
+            bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+            left: { style: "thin", color: { rgb: "CCCCCC" } },
+            right: { style: "thin", color: { rgb: "CCCCCC" } }
+          };
+        }
+      }
+
+      // Tambahkan worksheet ke workbook
+      XLSX.utils.book_append_sheet(wb, ws, "Data Ruangan");
+      XLSX.utils.book_append_sheet(wb, summaryWs, "Ringkasan");
+
+      // Generate filename dengan timestamp
+      const now = new Date();
+      const timestamp = now.toISOString().slice(0, 19).replace(/:/g, '-');
+      const filename = `Data_Ruangan_${timestamp}.xlsx`;
+
+      // Download file
+      XLSX.writeFile(wb, filename);
+      
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+    }
+  };
+
   const roomToDelete = data.find((r) => r.id === selectedDeleteId);
 
   return (
@@ -479,6 +621,13 @@ export default function Ruangan() {
           >
             <FontAwesomeIcon icon={faDownload} className="w-5 h-5" />
             Download Template Excel
+          </button>
+          <button
+            onClick={exportToExcel}
+            className="px-4 py-2 rounded-lg bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 text-sm font-medium shadow-theme-xs hover:bg-purple-200 dark:hover:bg-purple-800 transition flex items-center gap-2"
+          >
+            <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5" />
+            Export ke Excel
           </button>
         </div>
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -556,6 +705,20 @@ export default function Ruangan() {
           </motion.div>
         )}
       </AnimatePresence>
+      
+      <AnimatePresence>
+        {importedCount > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
+          >
+            {importedCount} data ruangan berhasil diimpor ke database.
+          </motion.div>
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {error && (
           <motion.div
@@ -571,19 +734,6 @@ export default function Ruangan() {
       </AnimatePresence>
       
 
-      <AnimatePresence>
-        {importedCount > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
-            className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
-          >
-            {importedCount} data ruangan berhasil diimpor ke database.
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {importedFile && (
         <div className="w-full mt-4">

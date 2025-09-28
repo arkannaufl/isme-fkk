@@ -82,7 +82,7 @@ const addMetadataSheet = (worksheet: any, exportData: ExportData, config: Report
     ["Waktu Dibuat:", new Date().toLocaleTimeString('id-ID')],
     ["Jumlah Data:", exportData.data.length],
     ["Format File:", "Microsoft Excel (.xlsx)"],
-    ["Dibuat Oleh:", "Sistem Akademik UMJ"],
+    ["Dibuat Oleh:", "Sistem Isme FKK"],
     ["Versi Sistem:", "1.0.0"],
     ["Status:", "Resmi"]
   ];
@@ -246,8 +246,8 @@ export const exportToExcel = async (
     const workbook = new ExcelJS.Workbook();
     
     // Set workbook properties
-    workbook.creator = "UMJ Academic System";
-    workbook.lastModifiedBy = "UMJ Academic System";
+    workbook.creator = "Sistem Isme FKK";
+    workbook.lastModifiedBy = "Sistem Isme FKK";
     workbook.created = new Date();
     workbook.modified = new Date();
     workbook.lastPrinted = new Date();
@@ -293,7 +293,7 @@ export const exportToExcel = async (
     worksheet.mergeCells(`A4:${String.fromCharCode(65 + exportData.headers.length - 1)}4`);
 
     const metadataRow2 = worksheet.addRow([
-      `Dibuat oleh: Sistem Akademik UMJ | Waktu: ${new Date().toLocaleTimeString('id-ID')}`
+      `Dibuat oleh: Sistem Isme FKK | Waktu: ${new Date().toLocaleTimeString('id-ID')}`
     ]);
     metadataRow2.font = { size: 9, color: { argb: "FF999999" } };
     metadataRow2.alignment = { horizontal: "center" };
@@ -551,7 +551,7 @@ export const exportToExcel = async (
 
     // Add footer with university info
     const footerRow = worksheet.addRow([
-      "Laporan ini dibuat secara otomatis oleh Sistem Akademik Universitas Muhammadiyah Jakarta"
+      "Laporan ini dibuat secara otomatis oleh Sistem Isme FKK"
     ]);
     footerRow.font = { size: 8, color: { argb: "FF999999" }, italic: true };
     footerRow.alignment = { horizontal: "center" };
@@ -618,10 +618,10 @@ export const exportToPDF = (
     doc.setProperties({
       title: exportData.title,
       subject: "Laporan Akademik - Fakultas Kedokteran UMJ",
-      author: "Sistem Akademik UMJ",
-      creator: "Sistem Akademik UMJ",
+      author: "Sistem Isme FKK",
+      creator: "Sistem Isme FKK",
       keywords: "laporan, akademik, kedokteran, umj, mahasiswa",
-      producer: "Sistem Akademik UMJ v1.0.0"
+      producer: "Sistem Isme FKK v1.0.0"
     });
 
     // Add professional header with university branding
@@ -686,7 +686,7 @@ const addPDFHeader = (doc: any, exportData: ExportData) => {
   
   doc.text(`Tanggal Laporan: ${dateStr}`, 20, 45);
   doc.text(`Waktu: ${timeStr}`, 20, 50);
-  doc.text(`Dibuat oleh: Sistem Akademik UMJ`, pageWidth - 20, 45, { align: "right" });
+  doc.text(`Dibuat oleh: Sistem Isme FKK`, pageWidth - 20, 45, { align: "right" });
   doc.text(`Jumlah Data: ${exportData.data.length}`, pageWidth - 20, 50, { align: "right" });
   
   // Separator line
@@ -908,7 +908,7 @@ const addPDFFooter = (doc: any) => {
     // Footer text
       doc.setFontSize(8);
     doc.setTextColor(153, 153, 153);
-    doc.text("Laporan ini dibuat secara otomatis oleh Sistem Akademik Universitas Muhammadiyah Jakarta", 20, pageHeight - 5);
+    doc.text("Laporan ini dibuat secara otomatis oleh Sistem Isme FKK", 20, pageHeight - 5);
     doc.text(`Dicetak pada: ${new Date().toLocaleString('id-ID')}`, pageWidth - 20, pageHeight - 5, { align: "right" });
   }
 };

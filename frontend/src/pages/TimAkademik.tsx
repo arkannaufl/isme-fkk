@@ -206,6 +206,138 @@ export default function TimAkademik() {
     XLSX.writeFile(wb, "Template_Import_TimAkademik.xlsx");
   };
 
+  // Export data ke Excel dengan format yang bisa diimport kembali
+  const exportToExcel = async () => {
+    try {
+      // Ambil semua data (tidak difilter) dengan format yang sesuai untuk import
+      const dataToExport = data.map((t: UserTimAkademik) => ({
+        'nip': t.nip,
+        'nama': t.name,
+        'username': t.username,
+        'email': t.email,
+        'telepon': t.telp,
+        'keterangan': t.ket || '',
+        'password': 'password123' // Default password untuk import
+      }));
+
+      // Buat workbook baru
+      const wb = XLSX.utils.book_new();
+
+      // Buat worksheet untuk data utama
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+
+      // Set lebar kolom
+      const colWidths = [
+        { wch: 15 }, // nip
+        { wch: 30 }, // nama
+        { wch: 20 }, // username
+        { wch: 30 }, // email
+        { wch: 15 }, // telepon
+        { wch: 25 }, // keterangan
+        { wch: 15 }  // password
+      ];
+      ws['!cols'] = colWidths;
+
+      // Tambahkan header dengan styling
+      const headerRange = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+        if (!ws[cellAddress]) continue;
+        
+        // Set header styling
+        ws[cellAddress].s = {
+          font: { bold: true, color: { rgb: "FFFFFF" } },
+          fill: { fgColor: { rgb: "4472C4" } },
+          alignment: { horizontal: "center", vertical: "center" },
+          border: {
+            top: { style: "thin", color: { rgb: "000000" } },
+            bottom: { style: "thin", color: { rgb: "000000" } },
+            left: { style: "thin", color: { rgb: "000000" } },
+            right: { style: "thin", color: { rgb: "000000" } }
+          }
+        };
+      }
+
+      // Tambahkan border untuk semua data
+      const dataRange = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      for (let row = dataRange.s.r; row <= dataRange.e.r; row++) {
+        for (let col = dataRange.s.c; col <= dataRange.e.c; col++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+          if (!ws[cellAddress]) continue;
+          
+          if (!ws[cellAddress].s) ws[cellAddress].s = {};
+          ws[cellAddress].s.border = {
+            top: { style: "thin", color: { rgb: "CCCCCC" } },
+            bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+            left: { style: "thin", color: { rgb: "CCCCCC" } },
+            right: { style: "thin", color: { rgb: "CCCCCC" } }
+          };
+          
+          // Alternating row colors
+          if (row > 0) {
+            ws[cellAddress].s.fill = {
+              fgColor: { rgb: row % 2 === 0 ? "F8F9FA" : "FFFFFF" }
+            };
+          }
+        }
+      }
+
+      // Buat worksheet untuk ringkasan
+      const summaryData = [
+        ['RINGKASAN DATA TIM AKADEMIK'],
+        [''],
+        ['Total Data', dataToExport.length],
+        ['Data dengan Keterangan', dataToExport.filter(d => d.keterangan && d.keterangan.trim() !== '').length],
+        ['Data tanpa Keterangan', dataToExport.filter(d => !d.keterangan || d.keterangan.trim() === '').length],
+        [''],
+        ['Tanggal Export', new Date().toLocaleString('id-ID')],
+        ['Dibuat oleh', 'Sistem ISME FKK']
+      ];
+
+      const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
+      summaryWs['!cols'] = [{ wch: 20 }, { wch: 30 }];
+
+      // Styling untuk summary
+      summaryWs['A1'].s = {
+        font: { bold: true, size: 16, color: { rgb: "FFFFFF" } },
+        fill: { fgColor: { rgb: "2F5597" } },
+        alignment: { horizontal: "center", vertical: "center" }
+      };
+
+      // Tambahkan border untuk summary
+      const summaryRange = XLSX.utils.decode_range(summaryWs['!ref'] || 'A1');
+      for (let row = summaryRange.s.r; row <= summaryRange.e.r; row++) {
+        for (let col = summaryRange.s.c; col <= summaryRange.e.c; col++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+          if (!summaryWs[cellAddress]) continue;
+          
+          if (!summaryWs[cellAddress].s) summaryWs[cellAddress].s = {};
+          summaryWs[cellAddress].s.border = {
+            top: { style: "thin", color: { rgb: "CCCCCC" } },
+            bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+            left: { style: "thin", color: { rgb: "CCCCCC" } },
+            right: { style: "thin", color: { rgb: "CCCCCC" } }
+          };
+        }
+      }
+
+      // Tambahkan worksheet ke workbook
+      XLSX.utils.book_append_sheet(wb, ws, "Data Tim Akademik");
+      XLSX.utils.book_append_sheet(wb, summaryWs, "Ringkasan");
+
+      // Generate filename dengan timestamp
+      const now = new Date();
+      const timestamp = now.toISOString().slice(0, 19).replace(/:/g, '-');
+      const filename = `Data_TimAkademik_${timestamp}.xlsx`;
+
+      // Download file
+      XLSX.writeFile(wb, filename);
+      
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+    }
+  };
+
   const handleImport = async (e: ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
@@ -513,6 +645,13 @@ export default function TimAkademik() {
           >
             <FontAwesomeIcon icon={faDownload} className="w-5 h-5" />
             Download Template Excel
+          </button>
+          <button
+            onClick={exportToExcel}
+            className="px-4 py-2 rounded-lg bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 text-sm font-medium shadow-theme-xs hover:bg-purple-200 dark:hover:bg-purple-800 transition flex items-center gap-2"
+          >
+            <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5" />
+            Export ke Excel
           </button>
         </div>
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-0">

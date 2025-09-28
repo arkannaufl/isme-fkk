@@ -1301,14 +1301,22 @@ export default function PBLGenerate() {
     try {
       const assignments: any[] = [];
 
-      // PERBAIKAN: Tracking dosen yang sudah di-assign per semester
-      const assignedDosenPerSemester: Set<number> = new Set();
+      // IMPLEMENTASI BARU: Distribusi Proporsional
+      // Step 1: Hitung kebutuhan per semester (Modul × Kelompok)
+      const semesterNeeds: Record<number, number> = {};
+      const semesterData: Record<number, {
+        mataKuliah: MataKuliah[];
+        pbls: any[];
+        kelompok: number;
+        modul: number;
+        koordinator: Dosen[];
+        timBlok: Dosen[];
+      }> = {};
 
-      // Loop untuk setiap semester
       const semesters = [1, 3, 5, 7]; // Semester Ganjil
 
+      // Kumpulkan data untuk semua semester terlebih dahulu
       for (const semester of semesters) {
-        // Cari mata kuliah untuk semester ini
         const mkInSemester = filteredMataKuliah.filter(
           (mk) => String(mk.semester) === String(semester)
         );
@@ -1326,13 +1334,11 @@ export default function PBLGenerate() {
           }
         }
 
-        // Debug: Cek apakah ada modul PBL
         if (allPBLs.length === 0) {
           continue;
         }
 
-        // RUMUS YANG BENAR: 1 Koordinator + 1 Tim Blok + (Kelompok × Modul) Dosen Mengajar per modul
-        const totalModul = allPBLs.length;
+        // Hitung kelompok kecil
         const totalKelompok = (() => {
           const semesterKey = String(semester);
           const semesterData = kelompokKecilData[semesterKey];
@@ -1345,7 +1351,10 @@ export default function PBLGenerate() {
           return 0;
         })();
 
-        // CARI KOORDINATOR (dari dosen_peran dengan tipe_peran = koordinator) - HANYA 1 per semester
+        const totalModul = allPBLs.length;
+        const totalDosenNeeded = totalKelompok * totalModul;
+
+        // Cari Koordinator dan Tim Blok
         const koordinatorForSemester = dosenList.filter((dosen) => {
           return dosen.dosen_peran?.some(
             (peran: any) =>
@@ -1355,7 +1364,6 @@ export default function PBLGenerate() {
           );
         });
 
-        // CARI TIM BLOK (dari dosen_peran dengan tipe_peran = tim_blok) - HANYA 1 per semester
         const timBlokForSemester = dosenList.filter((dosen) => {
           return dosen.dosen_peran?.some(
             (peran: any) =>
@@ -1365,11 +1373,75 @@ export default function PBLGenerate() {
           );
         });
 
-        // AMBIL HANYA 1 KOORDINATOR per blok, TIM BLOK bisa lebih dari 1
-        const selectedKoordinator = koordinatorForSemester[0];
-        const selectedTimBlokList = timBlokForSemester; // Ambil semua Tim Blok yang tersedia
+        semesterNeeds[semester] = totalDosenNeeded;
+        semesterData[semester] = {
+          mataKuliah: mkInSemester,
+          pbls: allPBLs,
+          kelompok: totalKelompok,
+          modul: totalModul,
+          koordinator: koordinatorForSemester,
+          timBlok: timBlokForSemester,
+        };
+      }
 
-        // ASSIGN KOORDINATOR ke SEMUA modul dalam blok ini (HANYA 1 ORANG per blok)
+      // Step 2: Hitung total kebutuhan dan proporsi
+      const totalNeeds = Object.values(semesterNeeds).reduce((a, b) => a + b, 0);
+      const totalDosenAvailable = dosenList.filter((dosen) => {
+        // Kecualikan dosen yang sudah menjadi Koordinator atau Tim Blok
+        return !dosen.dosen_peran?.some(
+          (peran: any) =>
+            peran.tipe_peran === "koordinator" || peran.tipe_peran === "tim_blok"
+        );
+      }).length;
+
+      // Step 3: Hitung distribusi proporsional
+      const semesterDistribution: Record<number, number> = {};
+      const semesterProportions: Record<number, number> = {};
+
+      Object.keys(semesterNeeds).forEach((semesterStr) => {
+        const semester = parseInt(semesterStr);
+        semesterProportions[semester] = semesterNeeds[semester] / totalNeeds;
+        semesterDistribution[semester] = Math.floor(
+          totalDosenAvailable * semesterProportions[semester]
+        );
+      });
+
+      // Step 4: Distribusikan sisa dosen ke semester yang paling kurang
+      const totalDistributed = Object.values(semesterDistribution).reduce((a, b) => a + b, 0);
+      const remainingDosen = totalDosenAvailable - totalDistributed;
+
+      if (remainingDosen > 0) {
+        // Urutkan semester berdasarkan yang paling kurang (kebutuhan vs distribusi)
+        const sortedSemesters = Object.keys(semesterNeeds).sort((a, b) => {
+          const semesterA = parseInt(a);
+          const semesterB = parseInt(b);
+          const shortageA = semesterNeeds[semesterA] - semesterDistribution[semesterA];
+          const shortageB = semesterNeeds[semesterB] - semesterDistribution[semesterB];
+          return shortageB - shortageA; // Yang paling kurang di depan
+        });
+
+        // Distribusikan sisa dosen
+        for (let i = 0; i < remainingDosen && i < sortedSemesters.length; i++) {
+          const semester = parseInt(sortedSemesters[i]);
+          semesterDistribution[semester]++;
+        }
+      }
+
+
+      // Step 5: Tracking dosen yang sudah di-assign
+      const assignedDosenPerSemester: Set<number> = new Set();
+
+      // Step 6: Assign dosen untuk setiap semester berdasarkan distribusi
+      for (const semester of semesters) {
+        const data = semesterData[semester];
+        if (!data) continue;
+
+        const { mataKuliah: mkInSemester, pbls: allPBLs, kelompok: totalKelompok, modul: totalModul, koordinator: koordinatorForSemester, timBlok: timBlokForSemester } = data;
+
+        // AMBIL HANYA 1 KOORDINATOR per semester
+        const selectedKoordinator = koordinatorForSemester[0];
+
+        // ASSIGN KOORDINATOR ke SEMUA modul dalam semester ini
         if (selectedKoordinator) {
           for (const { pbl } of allPBLs) {
             if (pbl.id) {
@@ -1381,31 +1453,15 @@ export default function PBLGenerate() {
             }
           }
           
-          // Tandai dosen ini sudah di-assign di semester ini
+          // Tandai dosen ini sudah di-assign
           assignedDosenPerSemester.add(selectedKoordinator.id);
         }
 
-        // RUMUS YANG BENAR: Total Dosen Dibutuhkan = Kelompok × Modul = 6 dosen total
-        const totalDosenNeeded = totalKelompok * totalModul; // 3 × 2 = 6 dosen total
-        
-        // BATASI TIM BLOK jika terlalu banyak (prioritas: Koordinator > Tim Blok > Dosen Mengajar)
-        // Maksimal Tim Blok = Total Dosen - Koordinator
-        const maxTimBlok = Math.max(0, totalDosenNeeded - (selectedKoordinator ? 1 : 0));
-        
-        // SORT TIM BLOK berdasarkan pbl_assignment_count terendah (prioritas yang paling sedikit penugasannya)
-        const sortedTimBlokList = selectedTimBlokList.sort((a, b) => {
-          const countA = a.pbl_assignment_count || 0;
-          const countB = b.pbl_assignment_count || 0;
-          return countA - countB; // Ascending: yang paling sedikit penugasannya di depan
-        });
-        
-        const selectedTimBlokListLimited = sortedTimBlokList.slice(0, maxTimBlok);
-        
-        // Hitung sisa slot untuk Dosen Mengajar
-        const dosenMengajarNeeded = totalDosenNeeded - (selectedKoordinator ? 1 : 0) - selectedTimBlokListLimited.length;
+        // ASSIGN TIM BLOK (dibatasi maksimal 2 per semester)
+        const maxTimBlok = Math.min(2, timBlokForSemester.length);
+        const selectedTimBlokList = timBlokForSemester.slice(0, maxTimBlok);
 
-        // ASSIGN TIM BLOK (DIBATASI) ke SEMUA modul dalam blok ini
-        for (const selectedTimBlok of selectedTimBlokListLimited) {
+        for (const selectedTimBlok of selectedTimBlokList) {
           for (const { pbl } of allPBLs) {
             if (pbl.id) {
               assignments.push({
@@ -1416,26 +1472,27 @@ export default function PBLGenerate() {
             }
           }
           
-          // Tandai dosen ini sudah di-assign di semester ini
+          // Tandai dosen ini sudah di-assign
           assignedDosenPerSemester.add(selectedTimBlok.id);
         }
-        
-        // DEBUG: Log perhitungan dihapus untuk mengurangi console output
 
-        // Cari Dosen Mengajar yang sesuai keahlian
+        // DISTRIBUSI PROPORSIONAL: Assign Dosen Mengajar berdasarkan distribusi yang sudah dihitung
+        const dosenMengajarNeeded = semesterDistribution[semester];
+        
+        // Cari Dosen Mengajar yang sesuai keahlian dan belum di-assign
         const dosenMengajar = dosenList.filter((dosen) => {
-          // PERBAIKAN: Kecualikan dosen yang sudah menjadi Koordinator atau Tim Blok di SEMESTER MANAPUN
-          const isKoordinatorOrTimBlokInAnySemester = dosen.dosen_peran?.some(
+          // Kecualikan dosen yang sudah menjadi Koordinator atau Tim Blok
+          const isKoordinatorOrTimBlok = dosen.dosen_peran?.some(
             (peran: any) =>
               (peran.tipe_peran === "koordinator" ||
                 peran.tipe_peran === "tim_blok")
           );
 
-          if (isKoordinatorOrTimBlokInAnySemester) {
+          if (isKoordinatorOrTimBlok) {
             return false;
           }
 
-          // PERBAIKAN: Kecualikan dosen yang sudah di-assign sebagai Koordinator/Tim Blok di semester ini
+          // Kecualikan dosen yang sudah di-assign
           if (assignedDosenPerSemester.has(dosen.id)) {
             return false;
           }
@@ -1490,20 +1547,17 @@ export default function PBLGenerate() {
           return hasMatchingKeahlian;
         });
 
-        // Assign Dosen Mengajar sesuai kebutuhan
+        // Assign Dosen Mengajar sesuai distribusi proporsional
         if (dosenMengajar.length > 0 && dosenMengajarNeeded > 0) {
-          // SORT DOSEN MENGAJAR berdasarkan pbl_assignment_count terendah (prioritas yang paling sedikit penugasannya)
+          // SORT DOSEN MENGAJAR berdasarkan pbl_assignment_count terendah
           const sortedDosenMengajar = dosenMengajar.sort((a, b) => {
             const countA = a.pbl_assignment_count || 0;
             const countB = b.pbl_assignment_count || 0;
-            return countA - countB; // Ascending: yang paling sedikit penugasannya di depan
+            return countA - countB;
           });
           
-          // Ambil dosen sesuai kebutuhan (tidak boleh kelebihan)
+          // Ambil dosen sesuai distribusi proporsional
           const dosenToAssign = sortedDosenMengajar.slice(0, dosenMengajarNeeded);
-          
-          // DEBUG: Log jumlah dosen (dihapus untuk mengurangi console output)
-          const totalDosenAssigned = (selectedKoordinator ? 1 : 0) + selectedTimBlokListLimited.length + dosenToAssign.length;
 
           // Assign setiap dosen ke SEMUA modul dalam semester ini
           for (const dosen of dosenToAssign) {
@@ -1522,6 +1576,9 @@ export default function PBLGenerate() {
           }
 
           // Cek kekurangan dosen dan simpan warning
+          const totalDosenAssigned = (selectedKoordinator ? 1 : 0) + selectedTimBlokList.length + dosenToAssign.length;
+          const totalDosenNeeded = totalKelompok * totalModul;
+
           if (totalDosenAssigned < totalDosenNeeded) {
             const kekurangan = totalDosenNeeded - totalDosenAssigned;
             const keahlianRequired = mkInSemester
@@ -1541,8 +1598,9 @@ export default function PBLGenerate() {
             });
           }
         } else {
-          // Warning jika tidak ada dosen mengajar
-          const totalDosenAssigned = (selectedKoordinator ? 1 : 0) + selectedTimBlokListLimited.length;
+          // Warning jika tidak ada dosen mengajar yang tersedia
+          const totalDosenAssigned = (selectedKoordinator ? 1 : 0) + selectedTimBlokList.length;
+          const totalDosenNeeded = totalKelompok * totalModul;
           
           if (totalDosenAssigned < totalDosenNeeded) {
             const kekurangan = totalDosenNeeded - totalDosenAssigned;

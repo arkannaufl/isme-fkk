@@ -8,7 +8,6 @@ import {
   faChevronDown,
   faChevronUp,
   faBookOpen,
-  faRefresh,
   faInfoCircle,
 } from "@fortawesome/free-solid-svg-icons";
 import { AnimatePresence, motion } from "framer-motion";
@@ -159,7 +158,6 @@ export default function Dosen() {
   const [showAllPeran, setShowAllPeran] = useState<{ [key: string]: boolean }>(
     {}
   );
-  const [refreshingAssignment, setRefreshingAssignment] = useState(false);
   const toggleGroup = (rowKey: string) => {
     setExpandedGroups((prev) => ({ ...prev, [rowKey]: !prev[rowKey] }));
   };
@@ -184,6 +182,15 @@ export default function Dosen() {
       return () => clearTimeout(timer);
     }
   }, [success]);
+
+  useEffect(() => {
+    if (importedCount > 0) {
+      const timer = setTimeout(() => {
+        setImportedCount(0);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [importedCount]);
 
   // Fungsi untuk download template Excel
   const downloadTemplate = async () => {
@@ -220,6 +227,144 @@ export default function Dosen() {
 
     // Generate file dan download
     XLSX.writeFile(wb, "Template_Import_Dosen.xlsx");
+  };
+
+  // Export data ke Excel dengan format yang bisa diimport kembali
+  const exportToExcel = async () => {
+    try {
+      // Ambil semua data (tidak difilter) dengan format yang sesuai untuk import
+      const dataToExport = data.map((d: UserDosen) => ({
+        'nid/nidn/nuptk': `${d.nid || '-'}/${d.nidn || '-'}/${d.nuptk || '-'}`,
+        'nama': d.name,
+        'username': d.username,
+        'email': d.email,
+        'telepon': d.telp,
+        'password': 'password123', // Default password untuk import
+        'kompetensi': Array.isArray(d.kompetensi) 
+          ? d.kompetensi.join(', ') 
+          : d.kompetensi || '',
+        'keahlian': Array.isArray(d.keahlian) 
+          ? d.keahlian.join(', ') 
+          : d.keahlian || ''
+      }));
+
+      // Buat workbook baru
+      const wb = XLSX.utils.book_new();
+
+      // Buat worksheet untuk data utama
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+
+      // Set lebar kolom
+      const colWidths = [
+        { wch: 25 }, // nid/nidn/nuptk
+        { wch: 30 }, // nama
+        { wch: 20 }, // username
+        { wch: 30 }, // email
+        { wch: 15 }, // telepon
+        { wch: 15 }, // password
+        { wch: 25 }, // kompetensi
+        { wch: 30 }  // keahlian
+      ];
+      ws['!cols'] = colWidths;
+
+      // Tambahkan header dengan styling
+      const headerRange = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+        if (!ws[cellAddress]) continue;
+        
+        // Set header styling
+        ws[cellAddress].s = {
+          font: { bold: true, color: { rgb: "FFFFFF" } },
+          fill: { fgColor: { rgb: "4472C4" } },
+          alignment: { horizontal: "center", vertical: "center" },
+          border: {
+            top: { style: "thin", color: { rgb: "000000" } },
+            bottom: { style: "thin", color: { rgb: "000000" } },
+            left: { style: "thin", color: { rgb: "000000" } },
+            right: { style: "thin", color: { rgb: "000000" } }
+          }
+        };
+      }
+
+      // Tambahkan border untuk semua data
+      const dataRange = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      for (let row = dataRange.s.r; row <= dataRange.e.r; row++) {
+        for (let col = dataRange.s.c; col <= dataRange.e.c; col++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+          if (!ws[cellAddress]) continue;
+          
+          if (!ws[cellAddress].s) ws[cellAddress].s = {};
+          ws[cellAddress].s.border = {
+            top: { style: "thin", color: { rgb: "CCCCCC" } },
+            bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+            left: { style: "thin", color: { rgb: "CCCCCC" } },
+            right: { style: "thin", color: { rgb: "CCCCCC" } }
+          };
+          
+          // Alternating row colors
+          if (row > 0) {
+            ws[cellAddress].s.fill = {
+              fgColor: { rgb: row % 2 === 0 ? "F8F9FA" : "FFFFFF" }
+            };
+          }
+        }
+      }
+
+      // Buat worksheet untuk ringkasan
+      const summaryData = [
+        ['RINGKASAN DATA DOSEN'],
+        [''],
+        ['Total Data', dataToExport.length],
+        ['Data dengan Kompetensi', dataToExport.filter(d => d.kompetensi && d.kompetensi.trim() !== '').length],
+        ['Data dengan Keahlian', dataToExport.filter(d => d.keahlian && d.keahlian.trim() !== '').length],
+        [''],
+        ['Tanggal Export', new Date().toLocaleString('id-ID')],
+        ['Dibuat oleh', 'Sistem ISME FKK']
+      ];
+
+      const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
+      summaryWs['!cols'] = [{ wch: 25 }, { wch: 30 }];
+
+      // Styling untuk summary
+      summaryWs['A1'].s = {
+        font: { bold: true, size: 16, color: { rgb: "FFFFFF" } },
+        fill: { fgColor: { rgb: "2F5597" } },
+        alignment: { horizontal: "center", vertical: "center" }
+      };
+
+      // Tambahkan border untuk summary
+      const summaryRange = XLSX.utils.decode_range(summaryWs['!ref'] || 'A1');
+      for (let row = summaryRange.s.r; row <= summaryRange.e.r; row++) {
+        for (let col = summaryRange.s.c; col <= summaryRange.e.c; col++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+          if (!summaryWs[cellAddress]) continue;
+          
+          if (!summaryWs[cellAddress].s) summaryWs[cellAddress].s = {};
+          summaryWs[cellAddress].s.border = {
+            top: { style: "thin", color: { rgb: "CCCCCC" } },
+            bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+            left: { style: "thin", color: { rgb: "CCCCCC" } },
+            right: { style: "thin", color: { rgb: "CCCCCC" } }
+          };
+        }
+      }
+
+      // Tambahkan worksheet ke workbook
+      XLSX.utils.book_append_sheet(wb, ws, "Data Dosen");
+      XLSX.utils.book_append_sheet(wb, summaryWs, "Ringkasan");
+
+      // Generate filename dengan timestamp
+      const now = new Date();
+      const timestamp = now.toISOString().slice(0, 19).replace(/:/g, '-');
+      const filename = `Data_Dosen_${timestamp}.xlsx`;
+
+      // Download file
+      XLSX.writeFile(wb, filename);
+      
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+    }
   };
 
   const handleCloseModal = () => {
@@ -268,10 +413,6 @@ export default function Dosen() {
         if (Array.isArray(res.data)) {
           setData(res.data);
         } else {
-          console.warn(
-            "API response for /users?role=dosen is not an array:",
-            res.data
-          );
           setData([]); // Ensure data is always an array
         }
         setLoading(false);
@@ -969,12 +1110,6 @@ export default function Dosen() {
     setImportedCount(0);
     setCellErrors([]);
 
-    // Show progress message for large datasets
-    if (previewData.length > 50) {
-      setSuccess(
-        "Sedang memproses data... Mohon tunggu, ini mungkin memakan waktu beberapa menit untuk data yang banyak."
-      );
-    }
 
     const validationResult = validateExcelData(previewData, data);
     if (validationResult.errors.length > 0) {
@@ -1050,24 +1185,11 @@ export default function Dosen() {
       const updatedDataRes = await api.get("/users?role=dosen");
       if (Array.isArray(updatedDataRes.data)) {
         setData(updatedDataRes.data);
-      } else {
-          console.warn(
-          "API response for /users?role=dosen after import is not an array:",
-          updatedDataRes.data
-        );
-        setData([]); // Ensure data is always an array to prevent TypeError
-      }
-      if (res.status === 200) {
-        setImportedCount(
-          res.data.imported_count || res.data.importedCount || 0
-        );
-        if ((res.data.imported_count || res.data.importedCount) > 0) {
-          setSuccess(
-            `${
-              res.data.imported_count || res.data.importedCount
-            } data dosen berhasil diimpor ke database.`
-          );
+        } else {
+          setData([]); // Ensure data is always an array to prevent TypeError
         }
+      if (res.status === 200) {
+        setImportedCount(res.data.imported_count || res.data.importedCount || 0);
         setImportedFile(null); // Hide the preview table
         setPreviewData([]);
         setValidationErrors([]);
@@ -1100,7 +1222,6 @@ export default function Dosen() {
     } finally {
       setIsSaving(false);
       setLoading(false);
-      setSuccess(null); // Clear progress message
     }
   };
 
@@ -1645,13 +1766,8 @@ export default function Dosen() {
     // Data peran_dalam_kurikulum dari database sudah spesifik per mata kuliah
     const mataKuliahPeranKurikulum = selectedMatkul.peran_dalam_kurikulum || [];
     
-    // Debug: Log data mata kuliah yang dipilih
-    console.log('Selected Mata Kuliah:', selectedMatkul);
-    console.log('Peran dalam kurikulum untuk mata kuliah ini:', mataKuliahPeranKurikulum);
-    
     // Jika ada peran kurikulum spesifik untuk mata kuliah ini, gunakan itu
     if (Array.isArray(mataKuliahPeranKurikulum) && mataKuliahPeranKurikulum.length > 0) {
-      console.log('Using specific peran kurikulum for this mata kuliah:', mataKuliahPeranKurikulum);
       setFilteredPeranKurikulumOptions(mataKuliahPeranKurikulum);
       return;
     }
@@ -1768,8 +1884,6 @@ export default function Dosen() {
   // Function untuk fetch assignment data
   const fetchAssignmentData = async () => {
     try {
-      setRefreshingAssignment(true);
-      
       // Ambil semua PBL IDs secara dinamis dari API
       const pblRes = await api.get("/pbls/all");
       const pblData = pblRes.data || {};
@@ -1802,8 +1916,6 @@ export default function Dosen() {
     } catch (error: any) {
       console.error("Error fetching assignment data:", error);
       setAssignmentData({});
-    } finally {
-      setRefreshingAssignment(false);
     }
   };
 
@@ -1822,7 +1934,6 @@ export default function Dosen() {
       }
     });
     
-    console.log(`📊 Assignment count for dosen ${dosenId}: ${count}`);
     return count;
   };
 
@@ -2066,7 +2177,6 @@ export default function Dosen() {
   // Event listener untuk update real-time saat assignment berubah
   useEffect(() => {
     const handleAssignmentUpdate = () => {
-      console.log("🔄 Event pbl-assignment-updated received, refreshing assignment data...");
       fetchAssignmentData();
     };
 
@@ -2126,21 +2236,11 @@ export default function Dosen() {
             Download Template Excel
           </button>
           <button
-            onClick={() => {
-              fetchAssignmentData();
-            }}
-            disabled={refreshingAssignment}
-            className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
-              refreshingAssignment
-                ? "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 cursor-not-allowed"
-                : "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
-            }`}
+            onClick={exportToExcel}
+            className="px-4 py-2 rounded-lg bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 text-sm font-medium shadow-theme-xs hover:bg-purple-200 dark:hover:bg-purple-800 transition flex items-center gap-2"
           >
-            <FontAwesomeIcon 
-              icon={faRefresh} 
-              className={`w-4 h-4 ${refreshingAssignment ? "animate-spin" : ""}`} 
-            />
-            {refreshingAssignment ? "Refreshing..." : "Refresh Assignment"}
+            <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5" />
+            Export ke Excel
           </button>
         </div>
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-0">
@@ -2782,6 +2882,20 @@ export default function Dosen() {
             className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
           >
             {success}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      
+      <AnimatePresence>
+        {importedCount > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
+          >
+            {importedCount} data dosen berhasil diimpor ke database.
           </motion.div>
         )}
       </AnimatePresence>

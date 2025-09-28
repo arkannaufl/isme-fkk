@@ -146,14 +146,6 @@ export default function Mahasiswa() {
     }
   }, [previewData, data, success]);
 
-  useEffect(() => {
-    if (importedCount > 0) {
-      const timer = setTimeout(() => {
-        setImportedCount(0);
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [importedCount]);
 
   // Filter options - similar to MataKuliah
   const semesterOptions = Array.from(new Set(Array.isArray(data) ? data.map((d) => d.semester).filter(s => s !== undefined) : [])).sort((a, b) => a - b);
@@ -266,7 +258,7 @@ export default function Mahasiswa() {
 
   const userToDelete = data.find((u) => String(u.id) === String(selectedDeleteNim));
 
-  const isFormValid = form.nim && form.name && form.username && form.telp && form.email && form.gender && form.ipk !== undefined && form.status && form.angkatan && (editMode || form.password);
+  const isFormValid = form.nim && form.nim.length >= 8 && form.nim.length <= 15 && form.name && form.username && form.telp && form.email && form.gender && form.ipk !== undefined && form.status && form.angkatan && (editMode || form.password);
 
   // Check if any filters are active
   const hasActiveFilters = search || filterSemester !== "all" || filterPeriode !== "all" || filterStatus !== "all" || filterGender !== "all" || filterAngkatan !== "all";
@@ -310,6 +302,174 @@ export default function Mahasiswa() {
     
     // Generate file dan download
     XLSX.writeFile(wb, "Template_Import_Mahasiswa.xlsx");
+  };
+
+  // Export data ke Excel dengan format yang bisa diimport kembali
+  const exportToExcel = async () => {
+    try {
+      // Ambil semua data (tidak difilter) dengan format yang sesuai untuk import
+      const dataToExport = data.map((m: UserMahasiswa) => ({
+        'nim': m.nim,
+        'nama': m.name,
+        'username': m.username,
+        'email': m.email,
+        'telepon': m.telp,
+        'password': 'password123', // Default password untuk import
+        'gender': m.gender === 'L' ? 'Laki-laki' : m.gender === 'P' ? 'Perempuan' : m.gender,
+        'ipk': m.ipk,
+        'status': m.status,
+        'angkatan': m.angkatan,
+        'semester': m.semester || 1
+      }));
+
+      // Buat workbook baru
+      const wb = XLSX.utils.book_new();
+
+      // Buat worksheet untuk data utama
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+
+      // Set lebar kolom
+      const colWidths = [
+        { wch: 15 }, // nim
+        { wch: 30 }, // nama
+        { wch: 20 }, // username
+        { wch: 30 }, // email
+        { wch: 15 }, // telepon
+        { wch: 15 }, // password
+        { wch: 12 }, // gender
+        { wch: 8 },  // ipk
+        { wch: 12 }, // status
+        { wch: 12 }, // angkatan
+        { wch: 10 }  // semester
+      ];
+      ws['!cols'] = colWidths;
+
+      // Tambahkan header dengan styling
+      const headerRange = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+        if (!ws[cellAddress]) continue;
+        
+        // Set header styling
+        ws[cellAddress].s = {
+          font: { bold: true, color: { rgb: "FFFFFF" } },
+          fill: { fgColor: { rgb: "4472C4" } },
+          alignment: { horizontal: "center", vertical: "center" },
+          border: {
+            top: { style: "thin", color: { rgb: "000000" } },
+            bottom: { style: "thin", color: { rgb: "000000" } },
+            left: { style: "thin", color: { rgb: "000000" } },
+            right: { style: "thin", color: { rgb: "000000" } }
+          }
+        };
+      }
+
+      // Tambahkan border untuk semua data
+      const dataRange = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+      for (let row = dataRange.s.r; row <= dataRange.e.r; row++) {
+        for (let col = dataRange.s.c; col <= dataRange.e.c; col++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+          if (!ws[cellAddress]) continue;
+          
+          if (!ws[cellAddress].s) ws[cellAddress].s = {};
+          ws[cellAddress].s.border = {
+            top: { style: "thin", color: { rgb: "CCCCCC" } },
+            bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+            left: { style: "thin", color: { rgb: "CCCCCC" } },
+            right: { style: "thin", color: { rgb: "CCCCCC" } }
+          };
+          
+          // Alternating row colors
+          if (row > 0) {
+            ws[cellAddress].s.fill = {
+              fgColor: { rgb: row % 2 === 0 ? "F8F9FA" : "FFFFFF" }
+            };
+          }
+        }
+      }
+
+      // Buat worksheet untuk ringkasan
+      const summaryData = [
+        ['RINGKASAN DATA MAHASISWA'],
+        [''],
+        ['Total Data', dataToExport.length],
+        ['Mahasiswa Aktif', dataToExport.filter(d => d.status === 'aktif').length],
+        ['Mahasiswa Cuti', dataToExport.filter(d => d.status === 'cuti').length],
+        ['Mahasiswa Lulus', dataToExport.filter(d => d.status === 'lulus').length],
+        ['Mahasiswa Keluar', dataToExport.filter(d => d.status === 'keluar').length],
+        [''],
+        ['Data per Gender:'],
+        ['Laki-laki', dataToExport.filter(d => d.gender === 'Laki-laki').length],
+        ['Perempuan', dataToExport.filter(d => d.gender === 'Perempuan').length],
+        [''],
+        ['Data per Semester:'],
+        ['Semester 1', dataToExport.filter(d => d.semester === 1).length],
+        ['Semester 2', dataToExport.filter(d => d.semester === 2).length],
+        ['Semester 3', dataToExport.filter(d => d.semester === 3).length],
+        ['Semester 4', dataToExport.filter(d => d.semester === 4).length],
+        ['Semester 5', dataToExport.filter(d => d.semester === 5).length],
+        ['Semester 6', dataToExport.filter(d => d.semester === 6).length],
+        ['Semester 7', dataToExport.filter(d => d.semester === 7).length],
+        ['Semester 8', dataToExport.filter(d => d.semester === 8).length],
+        [''],
+        ['Data per Angkatan:'],
+        ...angkatanOptions.slice(0, 10).map(angkatan => [
+          `Angkatan ${angkatan}`,
+          dataToExport.filter(d => d.angkatan === angkatan).length
+        ]),
+        [''],
+        ['Statistik IPK:'],
+        ['IPK >= 3.5', dataToExport.filter(d => Number(d.ipk) >= 3.5).length],
+        ['IPK 3.0 - 3.49', dataToExport.filter(d => Number(d.ipk) >= 3.0 && Number(d.ipk) < 3.5).length],
+        ['IPK 2.5 - 2.99', dataToExport.filter(d => Number(d.ipk) >= 2.5 && Number(d.ipk) < 3.0).length],
+        ['IPK < 2.5', dataToExport.filter(d => Number(d.ipk) < 2.5).length],
+        [''],
+        ['Tanggal Export', new Date().toLocaleString('id-ID')],
+        ['Dibuat oleh', 'Sistem ISME FKK']
+      ];
+
+      const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
+      summaryWs['!cols'] = [{ wch: 25 }, { wch: 30 }];
+
+      // Styling untuk summary
+      summaryWs['A1'].s = {
+        font: { bold: true, size: 16, color: { rgb: "FFFFFF" } },
+        fill: { fgColor: { rgb: "2F5597" } },
+        alignment: { horizontal: "center", vertical: "center" }
+      };
+
+      // Tambahkan border untuk summary
+      const summaryRange = XLSX.utils.decode_range(summaryWs['!ref'] || 'A1');
+      for (let row = summaryRange.s.r; row <= summaryRange.e.r; row++) {
+        for (let col = summaryRange.s.c; col <= summaryRange.e.c; col++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+          if (!summaryWs[cellAddress]) continue;
+          
+          if (!summaryWs[cellAddress].s) summaryWs[cellAddress].s = {};
+          summaryWs[cellAddress].s.border = {
+            top: { style: "thin", color: { rgb: "CCCCCC" } },
+            bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+            left: { style: "thin", color: { rgb: "CCCCCC" } },
+            right: { style: "thin", color: { rgb: "CCCCCC" } }
+          };
+        }
+      }
+
+      // Tambahkan worksheet ke workbook
+      XLSX.utils.book_append_sheet(wb, ws, "Data Mahasiswa");
+      XLSX.utils.book_append_sheet(wb, summaryWs, "Ringkasan");
+
+      // Generate filename dengan timestamp
+      const now = new Date();
+      const timestamp = now.toISOString().slice(0, 19).replace(/:/g, '-');
+      const filename = `Data_Mahasiswa_${timestamp}.xlsx`;
+
+      // Download file
+      XLSX.writeFile(wb, filename);
+      
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+    }
   };
 
   const handleImport = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -381,7 +541,7 @@ export default function Mahasiswa() {
         
         // Always show success message if any data was imported
         if (res.data.imported_count > 0) {
-          setSuccess(res.data.message || `Berhasil mengimpor ${res.data.imported_count} data mahasiswa`);
+          setImportedCount(res.data.imported_count);
           setError(""); // Clear error message
           
           // Clear all preview and validation states since import was successful
@@ -713,6 +873,13 @@ export default function Mahasiswa() {
             <FontAwesomeIcon icon={faDownload} className="w-5 h-5" />
             Download Template Excel
           </button>
+          <button
+            onClick={exportToExcel}
+            className="px-4 py-2 rounded-lg bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 text-sm font-medium shadow-theme-xs hover:bg-purple-200 dark:hover:bg-purple-800 transition flex items-center gap-2"
+          >
+            <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5" />
+            Export ke Excel
+          </button>
         </div>
       </div>
       {/* Search dan Filter */}
@@ -800,6 +967,7 @@ export default function Mahasiswa() {
           </motion.div>
         )}
       </AnimatePresence>
+      
       <AnimatePresence>
         {importedCount > 0 && (
           <motion.div
@@ -1460,13 +1628,23 @@ export default function Mahasiswa() {
                         name="nim" 
                         value={form.nim} 
                         onChange={handleInputChange} 
-                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500" 
+                        className={`w-full px-3 py-2 rounded-lg border ${
+                          form.nim && (form.nim.length < 8 || form.nim.length > 15) 
+                            ? 'border-red-500 dark:border-red-500' 
+                            : 'border-gray-300 dark:border-gray-700'
+                        } bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-base focus:outline-none focus:ring-2 focus:ring-brand-500`}
                         disabled={editMode}
                         pattern="[0-9]*"
                         inputMode="numeric"
                         onKeyDown={handleNumberInput}
                         autoComplete="off"
+                        placeholder="8-15 digit"
                       />
+                      {form.nim && (form.nim.length < 8 || form.nim.length > 15) && (
+                        <p className="text-red-500 text-xs mt-1">
+                          NIM harus 8-15 digit
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Gender</label>
