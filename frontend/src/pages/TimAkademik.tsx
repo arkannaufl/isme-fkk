@@ -1015,7 +1015,7 @@ export default function TimAkademik() {
               Menampilkan {paginatedData.length} dari {filteredData.length} data
             </span>
           </div>
-          <div className="flex gap-1">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
@@ -1023,19 +1023,101 @@ export default function TimAkademik() {
             >
               Prev
             </button>
-            {Array.from({ length: totalPages }, (_, i) => (
+            
+            {/* Smart Pagination with Scroll */}
+            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll" style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: '#cbd5e1 #f1f5f9'
+            }}>
+              <style dangerouslySetInnerHTML={{
+                __html: `
+                  .pagination-scroll::-webkit-scrollbar {
+                    height: 6px;
+                  }
+                  .pagination-scroll::-webkit-scrollbar-track {
+                    background: #f1f5f9;
+                    border-radius: 3px;
+                  }
+                  .pagination-scroll::-webkit-scrollbar-thumb {
+                    background: #cbd5e1;
+                    border-radius: 3px;
+                  }
+                  .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                    background: #94a3b8;
+                  }
+                  .dark .pagination-scroll::-webkit-scrollbar-track {
+                    background: #1e293b;
+                  }
+                  .dark .pagination-scroll::-webkit-scrollbar-thumb {
+                    background: #475569;
+                  }
+                  .dark .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                    background: #64748b;
+                  }
+                `
+              }} />
+              
+              {/* Always show first page */}
               <button
-                key={i}
-                onClick={() => setPage(i + 1)}
-                className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 ${
-                  page === i + 1
+                onClick={() => setPage(1)}
+                className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                  page === 1
                     ? 'bg-brand-500 text-white'
                     : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
-                } transition`}
+                }`}
               >
-                {i + 1}
+                1
               </button>
-            ))}
+              
+              {/* Show ellipsis if current page is far from start */}
+              {page > 4 && (
+                <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
+              )}
+              
+              {/* Show pages around current page */}
+              {Array.from({ length: totalPages }, (_, i) => {
+                const pageNum = i + 1;
+                // Show pages around current page (2 pages before and after)
+                const shouldShow = pageNum > 1 && pageNum < totalPages && 
+                  (pageNum >= page - 2 && pageNum <= page + 2);
+                
+                if (!shouldShow) return null;
+                
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setPage(pageNum)}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                      page === pageNum
+                        ? 'bg-brand-500 text-white'
+                        : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+              
+              {/* Show ellipsis if current page is far from end */}
+              {page < totalPages - 3 && (
+                <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
+              )}
+              
+              {/* Always show last page if it's not the first page */}
+              {totalPages > 1 && (
+                <button
+                  onClick={() => setPage(totalPages)}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    page === totalPages
+                      ? 'bg-brand-500 text-white'
+                      : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {totalPages}
+                </button>
+              )}
+            </div>
+            
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}

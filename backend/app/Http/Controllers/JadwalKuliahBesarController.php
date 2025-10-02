@@ -919,6 +919,38 @@ class JadwalKuliahBesarController extends Controller
     }
 
     /**
+     * Validasi tanggal jadwal dalam rentang mata kuliah
+     */
+    private function validateTanggalMataKuliah($data, $mataKuliah)
+    {
+        $tanggalJadwal = $data['tanggal'];
+        
+        // Ambil tanggal mulai dan akhir mata kuliah
+        $tanggalMulai = $mataKuliah->tanggal_mulai ?? $mataKuliah->tanggalMulai;
+        $tanggalAkhir = $mataKuliah->tanggal_akhir ?? $mataKuliah->tanggalAkhir;
+        
+        if (!$tanggalMulai || !$tanggalAkhir) {
+            return 'Mata kuliah tidak memiliki rentang tanggal yang valid';
+        }
+        
+        // Konversi ke format yang sama untuk perbandingan
+        $tanggalJadwalFormatted = date('Y-m-d', strtotime($tanggalJadwal));
+        $tanggalMulaiFormatted = date('Y-m-d', strtotime($tanggalMulai));
+        $tanggalAkhirFormatted = date('Y-m-d', strtotime($tanggalAkhir));
+        
+        // Validasi tanggal jadwal harus dalam rentang mata kuliah
+        if ($tanggalJadwalFormatted < $tanggalMulaiFormatted) {
+            return "Tanggal jadwal ({$tanggalJadwalFormatted}) tidak boleh sebelum tanggal mulai mata kuliah ({$tanggalMulaiFormatted})";
+        }
+        
+        if ($tanggalJadwalFormatted > $tanggalAkhirFormatted) {
+            return "Tanggal jadwal ({$tanggalJadwalFormatted}) tidak boleh setelah tanggal akhir mata kuliah ({$tanggalAkhirFormatted})";
+        }
+        
+        return null; // Tanggal valid
+    }
+
+    /**
      * Cek bentrok antar Kelompok Besar (Kelompok Besar vs Kelompok Besar)
      */
     private function checkKelompokBesarVsKelompokBesarBentrok($data, $ignoreId = null): bool
@@ -1693,6 +1725,160 @@ class JadwalKuliahBesarController extends Controller
             \Log::info("Notifikasi replacement berhasil dikirim ke super admin untuk jadwal kuliah besar ID: {$jadwal->id}");
         } catch (\Exception $e) {
             \Log::error("Gagal mengirim notifikasi replacement untuk jadwal kuliah besar ID {$jadwal->id}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Import jadwal kuliah besar dari Excel
+     */
+    public function importExcel(Request $request, $kode)
+    {
+        try {
+            // Validasi input
+            $request->validate([
+                'data' => 'required|array|min:1',
+                'data.*.tanggal' => 'required|date',
+                'data.*.jam_mulai' => 'required|string',
+                'data.*.jam_selesai' => 'required|string',
+                'data.*.materi' => 'required|string',
+                'data.*.dosen_id' => 'required|integer|exists:users,id',
+                'data.*.ruangan_id' => 'required|integer|exists:ruangan,id',
+                'data.*.jumlah_sesi' => 'required|integer|min:1|max:6',
+            ]);
+
+            $excelData = $request->input('data');
+            $successCount = 0;
+            $errors = [];
+
+            // Cek apakah mata kuliah adalah semester antara
+            $mataKuliah = MataKuliah::where('kode', $kode)->first();
+            if (!$mataKuliah) {
+                return response()->json(['message' => 'Mata kuliah tidak ditemukan'], 404);
+            }
+            $isSemesterAntara = $mataKuliah->semester === "Antara";
+
+            // Validasi dan import data satu per satu
+            foreach ($excelData as $index => $data) {
+                try {
+                    // Validasi tanggal dalam rentang mata kuliah
+                    $tanggalMessage = $this->validateTanggalMataKuliah($data, $mataKuliah);
+                    if ($tanggalMessage) {
+                        $errors[] = "Baris " . ($index + 1) . ": " . $tanggalMessage;
+                        continue;
+                    }
+
+                    // Validasi kapasitas ruangan
+                    $kapasitasMessage = $this->validateRuanganCapacity($data, $isSemesterAntara);
+                    if ($kapasitasMessage) {
+                        $errors[] = "Baris " . ($index + 1) . ": " . $kapasitasMessage;
+                        continue;
+                    }
+
+                    // Validasi bentrok
+                    $bentrokMessage = $this->checkBentrokWithDetail($data, null, $isSemesterAntara);
+                    if ($bentrokMessage) {
+                        $errors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;
+                        continue;
+                    }
+
+                    // Validasi keahlian dosen dengan materi (hanya untuk semester biasa)
+                    if (!$isSemesterAntara && isset($data['materi']) && isset($data['dosen_id'])) {
+                        $dosen = User::find($data['dosen_id']);
+                        if ($dosen) {
+                            $keahlianDosen = is_array($dosen->keahlian) 
+                                ? $dosen->keahlian 
+                                : array_map('trim', explode(',', $dosen->keahlian ?? ''));
+                            
+                            if (!in_array($data['materi'], $keahlianDosen)) {
+                                $errors[] = "Baris " . ($index + 1) . ": Materi \"" . $data['materi'] . "\" tidak sesuai dengan keahlian dosen \"" . $dosen->name . "\". Keahlian dosen: " . implode(', ', $keahlianDosen);
+                                continue;
+                            }
+                        }
+                    }
+
+                    // Validasi kelompok besar ID sesuai dengan semester mata kuliah (hanya untuk semester biasa)
+                    if (!$isSemesterAntara && isset($data['kelompok_besar_id']) && $data['kelompok_besar_id']) {
+                        $kelompokBesarSemester = $data['kelompok_besar_id'];
+                        $mataKuliahSemester = $mataKuliah->semester;
+                        
+                        if ($kelompokBesarSemester != $mataKuliahSemester) {
+                            $errors[] = "Baris " . ($index + 1) . ": Kelompok besar ID {$kelompokBesarSemester} tidak sesuai dengan semester mata kuliah ({$mataKuliahSemester}). Hanya boleh menggunakan kelompok besar semester {$mataKuliahSemester}.";
+                            continue;
+                        }
+                    }
+
+                    // Siapkan data untuk disimpan
+                    $jadwalData = [
+                        'mata_kuliah_kode' => $kode,
+                        'tanggal' => $data['tanggal'],
+                        'jam_mulai' => $data['jam_mulai'],
+                        'jam_selesai' => $data['jam_selesai'],
+                        'materi' => $data['materi'],
+                        'topik' => $data['topik'] ?? null,
+                        'dosen_id' => $data['dosen_id'],
+                        'ruangan_id' => $data['ruangan_id'],
+                        'jumlah_sesi' => $data['jumlah_sesi'],
+                        'kelompok_besar_id' => $data['kelompok_besar_id'] ?? null,
+                        'kelompok_besar_antara_id' => $data['kelompok_besar_antara_id'] ?? null,
+                    ];
+
+                    // Untuk semester antara, set dosen_ids
+        if ($isSemesterAntara) {
+                        $jadwalData['dosen_ids'] = [$data['dosen_id']];
+                        $jadwalData['materi'] = null;
+                        $jadwalData['dosen_id'] = null;
+                    }
+
+                    // Simpan data
+                    $jadwal = JadwalKuliahBesar::create($jadwalData);
+
+            // Log activity
+            activity()
+                        ->performedOn($jadwal)
+                ->withProperties([
+                    'mata_kuliah_kode' => $kode,
+                            'topik' => $jadwalData['topik'] ?? null,
+                            'tanggal' => $data['tanggal'],
+                            'jam_mulai' => $data['jam_mulai'],
+                            'jam_selesai' => $data['jam_selesai'],
+                            'materi' => $data['materi'],
+                            'dosen_id' => $data['dosen_id'],
+                            'ruangan_id' => $data['ruangan_id'],
+                            'jumlah_sesi' => $data['jumlah_sesi'],
+                            'import_type' => 'excel'
+                        ])
+                        ->log('Jadwal kuliah besar diimport dari Excel');
+
+                    $successCount++;
+
+        } catch (\Exception $e) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . $e->getMessage();
+                }
+            }
+
+            // Jika ada error validasi, return status 422
+            if (count($errors) > 0) {
+                return response()->json([
+                    'success' => $successCount,
+                    'total' => count($excelData),
+                    'errors' => $errors,
+                    'message' => "Gagal mengimport {$successCount} dari " . count($excelData) . " jadwal"
+                ], 422);
+            }
+
+            // Jika tidak ada error, return status 200
+            return response()->json([
+                'success' => $successCount,
+                'total' => count($excelData),
+                'errors' => $errors,
+                'message' => "Berhasil mengimport {$successCount} dari " . count($excelData) . " jadwal"
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error importing jadwal kuliah besar: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Gagal mengimport data: ' . $e->getMessage()
+            ], 500);
         }
     }
 

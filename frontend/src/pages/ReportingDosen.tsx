@@ -1361,7 +1361,7 @@ const ReportingDosen: React.FC = () => {
                 dari {pagination.total} dosen
               </span>
             </div>
-            <div className="flex gap-1">
+            <div className="flex items-center gap-2">
               <button
                 onClick={() =>
                   setPagination((prev) => ({
@@ -1374,21 +1374,107 @@ const ReportingDosen: React.FC = () => {
               >
                 Prev
               </button>
-              {Array.from({ length: pagination.last_page }, (_, i) => (
+              
+              {/* Smart Pagination with Scroll */}
+              <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll" style={{
+                scrollbarWidth: 'thin',
+                scrollbarColor: '#cbd5e1 #f1f5f9'
+              }}>
+                <style dangerouslySetInnerHTML={{
+                  __html: `
+                    .pagination-scroll::-webkit-scrollbar {
+                      height: 6px;
+                    }
+                    .pagination-scroll::-webkit-scrollbar-track {
+                      background: #f1f5f9;
+                      border-radius: 3px;
+                    }
+                    .pagination-scroll::-webkit-scrollbar-thumb {
+                      background: #cbd5e1;
+                      border-radius: 3px;
+                    }
+                    .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                      background: #94a3b8;
+                    }
+                    .dark .pagination-scroll::-webkit-scrollbar-track {
+                      background: #1e293b;
+                    }
+                    .dark .pagination-scroll::-webkit-scrollbar-thumb {
+                      background: #475569;
+                    }
+                    .dark .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                      background: #64748b;
+                    }
+                  `
+                }} />
+                
+                {/* Always show first page */}
                 <button
-                  key={i}
                   onClick={() =>
-                    setPagination((prev) => ({ ...prev, current_page: i + 1 }))
+                    setPagination((prev) => ({ ...prev, current_page: 1 }))
                   }
-                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 ${
-                    pagination.current_page === i + 1
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    pagination.current_page === 1
                       ? "bg-brand-500 text-white"
                       : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  } transition`}
+                  }`}
                 >
-                  {i + 1}
+                  1
                 </button>
-              ))}
+                
+                {/* Show ellipsis if current page is far from start */}
+                {pagination.current_page > 4 && (
+                  <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
+                )}
+                
+                {/* Show pages around current page */}
+                {Array.from({ length: pagination.last_page }, (_, i) => {
+                  const pageNum = i + 1;
+                  // Show pages around current page (2 pages before and after)
+                  const shouldShow = pageNum > 1 && pageNum < pagination.last_page && 
+                    (pageNum >= pagination.current_page - 2 && pageNum <= pagination.current_page + 2);
+                  
+                  if (!shouldShow) return null;
+                  
+                  return (
+                    <button
+                      key={i}
+                      onClick={() =>
+                        setPagination((prev) => ({ ...prev, current_page: pageNum }))
+                      }
+                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                        pagination.current_page === pageNum
+                          ? "bg-brand-500 text-white"
+                          : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+                
+                {/* Show ellipsis if current page is far from end */}
+                {pagination.current_page < pagination.last_page - 3 && (
+                  <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
+                )}
+                
+                {/* Always show last page if it's not the first page */}
+                {pagination.last_page > 1 && (
+                  <button
+                    onClick={() =>
+                      setPagination((prev) => ({ ...prev, current_page: pagination.last_page }))
+                    }
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                      pagination.current_page === pagination.last_page
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
+                  >
+                    {pagination.last_page}
+                  </button>
+                )}
+              </div>
+              
               <button
                 onClick={() =>
                   setPagination((prev) => ({

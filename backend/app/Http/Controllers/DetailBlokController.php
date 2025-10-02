@@ -11,6 +11,7 @@ use App\Models\JadwalPraktikum;
 use App\Models\JadwalJurnalReading;
 use App\Models\PBL;
 use App\Models\KelompokKecil;
+use App\Models\KelompokBesar;
 use App\Models\User;
 use App\Models\Ruangan;
 
@@ -39,6 +40,7 @@ class DetailBlokController extends Controller
                 'jadwal_jurnal_reading' => $this->getJadwalJurnalReading($kode),
                 'modul_pbl' => $this->getModulPBL($kode),
                 'kelompok_kecil' => $this->getKelompokKecil($mataKuliah->semester),
+                'kelompok_besar' => $this->getKelompokBesar($mataKuliah->semester),
                 'dosen' => $this->getDosen($mataKuliah),
                 'ruangan' => $this->getRuangan(),
                 'kelas_praktikum' => [],
@@ -171,6 +173,28 @@ class DetailBlokController extends Controller
     private function getKelompokKecil($semester)
     {
         return KelompokKecil::where('semester', $semester)->get();
+    }
+
+    private function getKelompokBesar($semester)
+    {
+        // Ambil semua semester yang memiliki kelompok besar
+        $semesters = KelompokBesar::distinct()->pluck('semester')->toArray();
+        
+        $kelompokBesarData = [];
+        
+        foreach ($semesters as $sem) {
+            $jumlahMahasiswa = KelompokBesar::where('semester', $sem)->count();
+            
+            if ($jumlahMahasiswa > 0) {
+                $kelompokBesarData[] = [
+                    'id' => $sem, // Gunakan semester sebagai ID
+                    'label' => "Kelompok Besar Semester {$sem} ({$jumlahMahasiswa} mahasiswa)",
+                    'jumlah_mahasiswa' => $jumlahMahasiswa
+                ];
+            }
+        }
+
+        return $kelompokBesarData;
     }
 
     private function getDosen($mataKuliah)

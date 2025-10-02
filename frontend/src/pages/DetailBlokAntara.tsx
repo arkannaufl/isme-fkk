@@ -1,8 +1,3 @@
-
-
-
-
-
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useCallback } from 'react';
 import api, { API_BASE_URL, handleApiError } from '../utils/api';

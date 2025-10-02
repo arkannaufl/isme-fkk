@@ -225,6 +225,9 @@ Route::middleware('auth:sanctum')->prefix('mata-kuliah/{kode}')->group(function 
     // Route untuk jadwal PBL berdasarkan PBL ID
     Route::get('/pbls/{pblId}/jadwal', [App\Http\Controllers\JadwalPBLController::class, 'getJadwalByPblId']);
 
+    // Route untuk import Excel jadwal PBL
+    Route::post('/jadwal-pbl/import', [App\Http\Controllers\JadwalPBLController::class, 'importExcel']);
+
     // Batch endpoint untuk DetailBlok page optimization
     Route::get('/batch-data', [App\Http\Controllers\DetailBlokController::class, 'getBatchData']);
 });
@@ -280,6 +283,7 @@ Route::middleware('auth:sanctum')->prefix('kuliah-besar')->group(function () {
     Route::get('/all-dosen', [JadwalKuliahBesarController::class, 'allDosen']);
     Route::get('/kelompok-besar', [JadwalKuliahBesarController::class, 'kelompokBesar']);
     Route::get('/kelompok-besar-antara', [JadwalKuliahBesarController::class, 'kelompokBesarAntara']);
+    Route::post('/import/{kode}', [JadwalKuliahBesarController::class, 'importExcel']);
 });
 
 // Routes untuk Kelompok Besar Antara (Global untuk semester Antara)

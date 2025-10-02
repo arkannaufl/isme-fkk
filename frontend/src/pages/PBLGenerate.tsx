@@ -1087,6 +1087,41 @@ export default function PBLGenerate() {
     );
   }, [dosenWithKeahlian]);
 
+  // DETEKSI KONFLIK PER SEMESTER (untuk pewarnaan badge orange di halaman generate)
+  const getSemesterConflictSet = useCallback((mataKuliahList: MataKuliah[]) => {
+    const conflictSet = new Set<number>();
+
+    // Kumpulkan assignment per dosen di semester ini
+    const roleMap: Record<number, Set<string>> = {};
+    const koordinatorSet = new Set<number>();
+
+    mataKuliahList.forEach((mk) => {
+      (pblData[mk.kode] || []).forEach((pbl) => {
+        if (!pbl.id) return;
+        const assigned = assignedDosen[pbl.id] || [];
+        assigned.forEach((d) => {
+          const dosenId = d.id;
+          const role = (d as any).pbl_role || d.pbl_role || "dosen_mengajar";
+          if (!roleMap[dosenId]) roleMap[dosenId] = new Set<string>();
+          roleMap[dosenId].add(role);
+          if (role === "koordinator") koordinatorSet.add(dosenId);
+        });
+      });
+    });
+
+    // Konflik tipe A: lebih dari satu koordinator pada semester ini
+    if (koordinatorSet.size > 1) {
+      koordinatorSet.forEach((id) => conflictSet.add(id));
+    }
+
+    // Konflik tipe B: satu dosen memiliki >1 peran pada semester ini
+    Object.entries(roleMap).forEach(([id, roles]) => {
+      if (roles.size > 1) conflictSet.add(Number(id));
+    });
+
+    return conflictSet;
+  }, [assignedDosen, pblData]);
+
   // Dosen standby: memiliki keahlian "standby"
   const standbyDosenList = useMemo(() => {
     return dosenWithKeahlian.filter((d) =>
@@ -1457,9 +1492,8 @@ export default function PBLGenerate() {
           assignedDosenPerSemester.add(selectedKoordinator.id);
         }
 
-        // ASSIGN TIM BLOK (dibatasi maksimal 2 per semester)
-        const maxTimBlok = Math.min(2, timBlokForSemester.length);
-        const selectedTimBlokList = timBlokForSemester.slice(0, maxTimBlok);
+        // ASSIGN TIM BLOK (semua Tim Blok yang tersedia untuk semester ini)
+        const selectedTimBlokList = timBlokForSemester;
 
         for (const selectedTimBlok of selectedTimBlokList) {
           for (const { pbl } of allPBLs) {
@@ -2297,6 +2331,9 @@ export default function PBLGenerate() {
           const semesterKey = String(semesterNumber);
           const semesterData = kelompokKecilData[semesterKey];
 
+          // Hitung set dosen yang konflik di semester ini
+          const semesterConflictSet = getSemesterConflictSet(mataKuliahList);
+
           let totalKelompok = 0;
           let totalModul = 0;
           let totalDosenRequired = 0;
@@ -2631,6 +2668,14 @@ export default function PBLGenerate() {
                                     "text-yellow-800 dark:text-yellow-200";
                                   bgColor =
                                     "bg-yellow-100 dark:bg-yellow-900/40";
+                                } else if (semesterConflictSet.has(dosen.id)) {
+                                  // Badge ORANGE jika konflik peran di semester ini
+                                  avatarColor = "bg-orange-500";
+                                  borderColor = "border-orange-200";
+                                  textColor =
+                                    "text-orange-800 dark:text-orange-200";
+                                  bgColor =
+                                    "bg-orange-100 dark:bg-orange-900/40";
                                 }
 
                                 return (

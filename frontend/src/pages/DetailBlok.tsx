@@ -1,12 +1,14 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useEffect, useState, useCallback } from 'react';
+import { useRef } from 'react';
+import { useEffect, useState, useCallback, ChangeEvent } from 'react';
 import api, { API_BASE_URL, handleApiError } from '../utils/api';
 import { ChevronLeftIcon } from '../icons';
 import { AnimatePresence, motion } from 'framer-motion';
 import Select from 'react-select';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPenToSquare, faTrash, faStar } from '@fortawesome/free-solid-svg-icons';
+import { faPenToSquare, faTrash, faStar, faFileExcel, faDownload, faUpload, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 import { getRuanganOptions } from '../utils/ruanganHelper';
+import * as XLSX from 'xlsx';
 
 interface MataKuliah {
   kode: string;
@@ -79,7 +81,7 @@ type JadwalJurnalReadingType = {
 
 type ModulPBLType = { id: number; modul_ke: string; nama_modul: string; };
 type KelompokKecilType = { id: number; nama_kelompok: string; jumlah_anggota: number; };
-type DosenType = { id: number; name: string; nid?: string; };
+type DosenType = { id: number; name: string; nid?: string; keahlian?: string | string[]; };
 type RuanganType = { id: number; nama: string; kapasitas?: number; gedung?: string; };
 type JadwalPBLType = {
   id?: number;
@@ -179,6 +181,42 @@ export default function DetailBlok() {
   const [hasAssignedPBL, setHasAssignedPBL] = useState(false);
   const [loadingAssignedPBL, setLoadingAssignedPBL] = useState(false);
 
+  // State untuk import Excel
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importData, setImportData] = useState<JadwalKuliahBesarType[]>([]);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [cellErrors, setCellErrors] = useState<{ row: number, field: string, message: string }[]>([]);
+  const [editingCell, setEditingCell] = useState<{ row: number; key: string } | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importSuccess, setImportSuccess] = useState(false);
+  const [detectedFormat, setDetectedFormat] = useState<'legacy' | 'client' | 'unknown' | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [importedCount, setImportedCount] = useState(0);
+  
+  // State untuk import PBL Excel
+  const [showPBLImportModal, setShowPBLImportModal] = useState(false);
+  const [pblImportFile, setPBLImportFile] = useState<File | null>(null);
+  const [pblImportData, setPBLImportData] = useState<JadwalPBLType[]>([]);
+  const [pblCellErrors, setPBLCellErrors] = useState<{ row: number, field: string, message: string }[]>([]);
+  const [pblEditingCell, setPBLEditingCell] = useState<{ row: number; key: string } | null>(null);
+  const [isPBLImporting, setIsPBLImporting] = useState(false);
+  const [pblImportSuccess, setPBLImportSuccess] = useState(false);
+  const [pblSuccess, setPBLSuccess] = useState<string | null>(null);
+  const [pblImportedCount, setPBLImportedCount] = useState(0);
+  
+  // State untuk pagination PBL import preview
+  const [pblImportPage, setPBLImportPage] = useState(1);
+  const [pblImportPageSize, setPBLImportPageSize] = useState(10);
+  
+  // State untuk pagination import preview
+  const [importPage, setImportPage] = useState(1);
+  const [importPageSize, setImportPageSize] = useState(10);
+  
+  // Ref untuk input file Excel
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pblFileInputRef = useRef<HTMLInputElement>(null);
+
   // Fetch materi (keahlian) dari mata kuliah yang sedang dipilih
   const fetchMateriOptions = async () => {
     if (!data) return;
@@ -221,7 +259,7 @@ export default function DetailBlok() {
       
       setKelompokBesarOptions(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
-      console.error('Error fetching kelompok besar:', err);
+      // Error fetching kelompok besar
     }
   };
 
@@ -233,7 +271,7 @@ export default function DetailBlok() {
       
       setKelompokBesarAgendaOptions(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
-      console.error('Error fetching kelompok besar agenda:', err);
+      // Error fetching kelompok besar agenda
     }
   };
 
@@ -364,7 +402,7 @@ export default function DetailBlok() {
     const totalMenit = jam * 60 + menit + jumlahKali * 50;
     const jamAkhir = Math.floor(totalMenit / 60).toString().padStart(2, '0');
     const menitAkhir = (totalMenit % 60).toString().padStart(2, '0');
-    return `${jamAkhir}.${menitAkhir}`;
+    return `${jamAkhir}:${menitAkhir}`;
   }
 
   function formatJamTanpaDetik(jam: string) {
@@ -779,6 +817,7 @@ export default function DetailBlok() {
       // Set reference data
       setModulPBLList(Array.isArray(batchData.modul_pbl) ? batchData.modul_pbl : []);
       setKelompokKecilList(Array.isArray(batchData.kelompok_kecil) ? batchData.kelompok_kecil : []);
+      setKelompokBesarOptions(Array.isArray(batchData.kelompok_besar) ? batchData.kelompok_besar : []);
       setAllRuanganList(Array.isArray(batchData.ruangan) ? batchData.ruangan : []);
       setRuanganList(Array.isArray(batchData.ruangan) ? batchData.ruangan : []);
       setKelasPraktikumOptions(Array.isArray(batchData.kelas_praktikum) ? batchData.kelas_praktikum.map((k: any) => k.nama || k) : []);
@@ -793,13 +832,12 @@ export default function DetailBlok() {
       
     } catch (err) {
       setErrorJadwal('Gagal mengambil data batch');
-      setError('Gagal mengambil data batch'); // Set main error state
-      console.error('Batch data fetch error:', err);
-      setLoading(false); // Reset loading state on error
+      setError('Gagal mengambil data batch');
+      setLoading(false);
     } finally {
       setLoadingPBL(false);
       setLoadingDosenRuangan(false);
-      setLoading(false); // Reset main loading state
+      setLoading(false);
     }
   }, [kode]);
 
@@ -809,7 +847,6 @@ export default function DetailBlok() {
       const response = await api.get('/ruangan');
       setRuanganList(response.data);
     } catch (err) {
-      console.error('Error fetching ruangan:', err);
       setRuanganList([]);
     }
   }, []);
@@ -866,6 +903,46 @@ export default function DetailBlok() {
   useEffect(() => {
     fetchBatchData();
   }, [fetchBatchData]);
+
+  // Auto-hide success message
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => {
+        setSuccess(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
+
+  // Auto-hide imported count
+  useEffect(() => {
+    if (importedCount > 0) {
+      const timer = setTimeout(() => {
+        setImportedCount(0);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [importedCount]);
+
+  // Auto-hide PBL success message
+  useEffect(() => {
+    if (pblSuccess) {
+      const timer = setTimeout(() => {
+        setPBLSuccess(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [pblSuccess]);
+
+  // Auto-hide PBL imported count
+  useEffect(() => {
+    if (pblImportedCount > 0) {
+      const timer = setTimeout(() => {
+        setPBLImportedCount(0);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [pblImportedCount]);
 
   useEffect(() => {
     fetchAssignedDosenPBL();
@@ -1761,6 +1838,1108 @@ export default function DetailBlok() {
     setSelectedDeleteJurnalReadingIndex(null);
   }
 
+  // Fungsi untuk download template Excel
+  // Fungsi untuk download template PBL Excel
+  const downloadPBLTemplate = async () => {
+    try {
+      // Ambil data yang diperlukan untuk template
+      const modulPBLOptions = modulPBLList || [];
+      const kelompokKecilOptions = kelompokKecilList || [];
+      const dosenOptions = allDosenList || [];
+      const ruanganOptions = allRuanganList || [];
+
+      // Generate contoh tanggal dalam rentang mata kuliah
+      const tanggalMulai = data?.tanggal_mulai ? new Date(data.tanggal_mulai) : new Date();
+      const tanggalAkhir = data?.tanggal_akhir ? new Date(data.tanggal_akhir) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      
+      const generateContohTanggal = () => {
+        const start = new Date(tanggalMulai);
+        const end = new Date(tanggalAkhir);
+        const randomTime = start.getTime() + Math.random() * (end.getTime() - start.getTime());
+        return new Date(randomTime).toISOString().split('T')[0];
+      };
+
+      // Data template
+      const templateData = [
+        {
+          tanggal: generateContohTanggal(),
+          jam_mulai: "08:00",
+          jam_selesai: "10:00",
+          modul_pbl: modulPBLOptions[0]?.nama_modul || "Modul 1: Anatomi",
+          kelompok_kecil: kelompokKecilOptions[0]?.nama_kelompok || "Kelompok A1",
+          dosen: dosenOptions[0]?.name || "Dr. John Doe",
+          ruangan: ruanganOptions[0]?.nama || "R. Anatomi",
+          pbl_tipe: "PBL 1",
+          topik: "Sistem Kardiovaskular"
+        },
+        {
+          tanggal: generateContohTanggal(),
+          jam_mulai: "10:00",
+          jam_selesai: "12:30",
+          modul_pbl: modulPBLOptions[1]?.nama_modul || "Modul 2: Fisiologi",
+          kelompok_kecil: kelompokKecilOptions[1]?.nama_kelompok || "Kelompok A2",
+          dosen: dosenOptions[1]?.name || "Dr. Jane Smith",
+          ruangan: ruanganOptions[1]?.nama || "R. Fisiologi",
+          pbl_tipe: "PBL 2",
+          topik: "Sistem Respirasi"
+        }
+      ];
+
+      // Buat workbook
+      const wb = XLSX.utils.book_new();
+
+      // Sheet template
+      const ws = XLSX.utils.json_to_sheet(templateData);
+      
+      // Set lebar kolom
+      const colWidths = [
+        { wch: 12 }, // tanggal
+        { wch: 10 }, // jam_mulai
+        { wch: 10 }, // jam_selesai
+        { wch: 25 }, // modul_pbl
+        { wch: 15 }, // kelompok_kecil
+        { wch: 20 }, // dosen
+        { wch: 15 }, // ruangan
+        { wch: 10 }, // pbl_tipe
+        { wch: 25 }  // topik
+      ];
+      ws['!cols'] = colWidths;
+
+      XLSX.utils.book_append_sheet(wb, ws, "Template");
+
+      // Sheet info data
+      const infoData = [
+        { kategori: "MODUL PBL YANG TERSEDIA", data: "" },
+        ...modulPBLOptions.map(modul => ({ kategori: `Modul ${modul.modul_ke}`, data: modul.nama_modul })),
+        { kategori: "", data: "" },
+        { kategori: "KELOMPOK KECIL YANG TERSEDIA", data: "" },
+        ...kelompokKecilOptions.map(kelompok => ({ kategori: kelompok.nama_kelompok, data: `${kelompok.jumlah_anggota} mahasiswa` })),
+        { kategori: "", data: "" },
+        { kategori: "DOSEN YANG TERSEDIA", data: "" },
+        ...dosenOptions.map(dosen => ({ kategori: dosen.name, data: dosen.nid || "NID tidak tersedia" })),
+        { kategori: "", data: "" },
+        { kategori: "RUANGAN YANG TERSEDIA", data: "" },
+        ...ruanganOptions.map(ruangan => ({ kategori: ruangan.nama, data: `Kapasitas: ${ruangan.kapasitas || 0} orang` })),
+        { kategori: "", data: "" },
+        { kategori: "PBL TIPE", data: "" },
+        { kategori: "PBL 1", data: "2 sesi (100 menit)" },
+        { kategori: "PBL 2", data: "3 sesi (150 menit)" },
+        { kategori: "", data: "" },
+        { kategori: "CATATAN PENTING", data: "" },
+        { kategori: "1. Tanggal harus dalam rentang mata kuliah", data: `${tanggalMulai.toLocaleDateString('id-ID')} - ${tanggalAkhir.toLocaleDateString('id-ID')}` },
+        { kategori: "2. Jam selesai akan dihitung otomatis", data: "Berdasarkan jam mulai + (jumlah sesi × 50 menit)" },
+        { kategori: "3. PBL Tipe menentukan jumlah sesi", data: "PBL 1 = 2 sesi, PBL 2 = 3 sesi" },
+        { kategori: "4. Kelompok kecil harus sesuai semester", data: `Semester ${data?.semester || 'tidak diketahui'}` }
+      ];
+
+      const infoWs = XLSX.utils.json_to_sheet(infoData);
+      infoWs['!cols'] = [{ wch: 30 }, { wch: 50 }];
+      XLSX.utils.book_append_sheet(wb, infoWs, "Info Data");
+
+      // Download file
+      const fileName = `Template_Import_PBL_${data?.nama || 'MataKuliah'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (error) {
+      console.error('Error generating PBL template:', error);
+    }
+  };
+
+  const downloadTemplate = async () => {
+    try {
+      // Ambil data dosen dan ruangan yang tersedia
+      const dosenTersedia = dosenList.length > 0 ? dosenList.slice(0, 2) : [
+        { name: "Dosen 1" },
+        { name: "Dosen 2" }
+      ];
+      
+      const ruanganTersedia = ruanganList.length > 0 ? ruanganList.slice(0, 2) : [
+        { nama: "Ruangan 1" },
+        { nama: "Ruangan 2" }
+      ];
+
+      // Ambil data kelompok besar yang tersedia
+      const kelompokBesarTersedia = kelompokBesarOptions.length > 0 ? kelompokBesarOptions.slice(0, 2) : [
+        { id: 1, label: "Kelompok Besar Semester 1" },
+        { id: 3, label: "Kelompok Besar Semester 3" }
+      ];
+
+
+      // Generate tanggal dalam rentang mata kuliah
+      const tanggalMulai = data?.tanggal_mulai;
+      const tanggalAkhir = data?.tanggal_akhir;
+      
+      let contohTanggal1 = "2024-01-15";
+      let contohTanggal2 = "2024-01-16";
+      
+      if (tanggalMulai && tanggalAkhir) {
+        const mulai = new Date(tanggalMulai);
+        const akhir = new Date(tanggalAkhir);
+        const selisihHari = Math.floor((akhir.getTime() - mulai.getTime()) / (1000 * 60 * 60 * 24));
+        
+        // Contoh tanggal 1: 1/4 dari rentang
+        const hari1 = Math.floor(selisihHari * 0.25);
+        const contoh1 = new Date(mulai);
+        contoh1.setDate(contoh1.getDate() + hari1);
+        contohTanggal1 = contoh1.toISOString().split('T')[0];
+        
+        // Contoh tanggal 2: 3/4 dari rentang
+        const hari2 = Math.floor(selisihHari * 0.75);
+        const contoh2 = new Date(mulai);
+        contoh2.setDate(contoh2.getDate() + hari2);
+        contohTanggal2 = contoh2.toISOString().split('T')[0];
+      }
+
+      // Ambil materi dari keahlian_required mata kuliah
+      const materiTersedia = data?.keahlian_required || [];
+      
+      // Cari dosen yang memiliki keahlian yang sesuai
+      const dosenDenganKeahlian = dosenList.filter(dosen => {
+        const keahlian = Array.isArray(dosen.keahlian) 
+          ? dosen.keahlian 
+          : (dosen.keahlian || '').split(',').map((k: string) => k.trim());
+        return materiTersedia.some(materi => keahlian.includes(materi));
+      });
+
+      // Data template untuk jadwal kuliah besar menggunakan data yang tersedia
+      const templateData = [
+        {
+          tanggal: contohTanggal1,
+          jam_mulai: "08:00",
+          jam_selesai: hitungJamSelesai("08:00", 2),
+          materi: materiTersedia[0] || "Materi 1",
+          topik: "Topik 1",
+          nama_dosen: dosenDenganKeahlian[0]?.name || dosenTersedia[0]?.name || "Dosen 1",
+          nama_ruangan: ruanganTersedia[0]?.nama || "Ruangan 1",
+          kelompok_besar_id: kelompokBesarTersedia[0]?.id || 1,
+          jumlah_sesi: 2
+        },
+        {
+          tanggal: contohTanggal2,
+          jam_mulai: "10:00",
+          jam_selesai: hitungJamSelesai("10:00", 2),
+          materi: materiTersedia[1] || materiTersedia[0] || "Materi 2",
+          topik: "Topik 2",
+          nama_dosen: dosenDenganKeahlian[1]?.name || dosenDenganKeahlian[0]?.name || dosenTersedia[1]?.name || "Dosen 2",
+          nama_ruangan: ruanganTersedia[1]?.nama || "Ruangan 2",
+          kelompok_besar_id: kelompokBesarTersedia[1]?.id || 3,
+          jumlah_sesi: 2
+        }
+      ];
+
+      // Buat worksheet dengan header yang eksplisit
+      const ws = XLSX.utils.json_to_sheet(templateData, {
+        header: ['tanggal', 'jam_mulai', 'jam_selesai', 'materi', 'topik', 'nama_dosen', 'nama_ruangan', 'kelompok_besar_id', 'jumlah_sesi']
+      });
+      
+      // Set lebar kolom
+      const colWidths = [
+        { wch: 12 }, // tanggal
+        { wch: 10 }, // jam_mulai
+        { wch: 10 }, // jam_selesai
+        { wch: 25 }, // materi
+        { wch: 25 }, // topik
+        { wch: 20 }, // nama_dosen
+        { wch: 20 }, // nama_ruangan
+        { wch: 15 }, // kelompok_besar_id
+        { wch: 8 }   // jumlah_sesi
+      ];
+      ws['!cols'] = colWidths;
+      
+      // Buat worksheet untuk informasi dosen dan ruangan yang tersedia
+                const infoData = [
+                  ['INFORMASI DOSEN YANG TERSEDIA (dengan keahlian):'],
+                  ...dosenList.slice(0, 10).map(dosen => {
+                    const keahlian = Array.isArray(dosen.keahlian) 
+                      ? dosen.keahlian 
+                      : (dosen.keahlian || '').split(',').map((k: string) => k.trim());
+                    return [`${dosen.name} - Keahlian: ${keahlian.join(', ')}`];
+                  }),
+                  [''],
+                  ['INFORMASI RUANGAN YANG TERSEDIA:'],
+                  ...ruanganList.slice(0, 10).map(ruangan => [ruangan.nama]),
+                  [''],
+                  ['INFORMASI KELOMPOK BESAR YANG TERSEDIA:'],
+                  ...kelompokBesarOptions.slice(0, 10).map(kelompok => [`${kelompok.id} - ${kelompok.label}`]),
+                  [''],
+                  ['INFORMASI MATERI YANG TERSEDIA (dari keahlian_required mata kuliah):'],
+                  ...(data?.keahlian_required || []).slice(0, 10).map(keahlian => [keahlian]),
+                  [''],
+                  ['CATATAN:'],
+                  ['1. Gunakan nama dosen dan ruangan yang ada di list di atas'],
+                  ['2. Gunakan ID kelompok besar yang ada di list di atas'],
+                  ['3. MATERI HARUS SESUAI dengan keahlian dosen yang dipilih'],
+                  ['4. Format tanggal: YYYY-MM-DD (contoh: 2024-01-15)'],
+                  ['5. TANGGAL WAJIB dalam rentang mata kuliah:'],
+                  [`   - Mulai: ${tanggalMulai ? new Date(tanggalMulai).toLocaleDateString('id-ID') : 'Tidak tersedia'}`],
+                  [`   - Akhir: ${tanggalAkhir ? new Date(tanggalAkhir).toLocaleDateString('id-ID') : 'Tidak tersedia'}`],
+                  ['6. Format jam: HH:MM (contoh: 08:00)'],
+                  ['7. PERHITUNGAN JAM SELESAI:'],
+                  ['   - Jam selesai = Jam mulai + (Jumlah sesi x 50 menit)'],
+                  ['   - Contoh: 08:00 + (2 x 50 menit) = 09:40'],
+                  ['   - Contoh: 10:00 + (3 x 50 menit) = 12:30'],
+                  ['8. Jumlah sesi: 1-6'],
+                  ['9. Materi wajib diisi, topik boleh dikosongkan'],
+                  ['10. Kelompok besar ID harus berupa angka (1, 3, 5, 7, dst)'],
+                  ['11. TIDAK PERLU mengisi jam selesai, sistem akan hitung otomatis'],
+                  ['12. PENTING: Materi harus sesuai dengan keahlian dosen yang dipilih!']
+                ];
+      
+      const infoWs = XLSX.utils.aoa_to_sheet(infoData);
+      infoWs['!cols'] = [{ wch: 50 }];
+      
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Template");
+      XLSX.utils.book_append_sheet(wb, infoWs, "Info Dosen & Ruangan");
+      XLSX.writeFile(wb, "Template_Import_JadwalKuliahBesar.xlsx");
+    } catch (error) {
+      // Error downloading template
+    }
+  };
+
+  // Fungsi untuk membaca file Excel
+  // Fungsi untuk membaca file Excel PBL
+  const readPBLExcelFile = (file: File): Promise<any[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = e.target?.result;
+          const workbook = XLSX.read(data, { type: 'binary' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+          resolve(jsonData);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = () => reject(new Error('Gagal membaca file Excel'));
+      reader.readAsBinaryString(file);
+    });
+  };
+
+  // Fungsi untuk mendeteksi format Excel
+  const detectExcelFormat = (headers: string[]): 'legacy' | 'client' | 'unknown' => {
+    const headerStr = headers.join(' ').toLowerCase();
+    
+    // Format lama: tanggal, jam_mulai, jam_selesai
+    if (headerStr.includes('tanggal') && headerStr.includes('jam_mulai') && headerStr.includes('jam_selesai')) {
+      return 'legacy';
+    }
+    
+    // Format klien: Kurikulum, Kode MK, Nama Kelas, Topik, Tanggal, Waktu Mulai, Waktu Selesai
+    if (headerStr.includes('kurikulum') && headerStr.includes('kode mk') && 
+        headerStr.includes('nama kelas') && headerStr.includes('topik') && 
+        headerStr.includes('tanggal') && headerStr.includes('waktu mulai') && 
+        headerStr.includes('waktu selesai')) {
+      return 'client';
+    }
+    
+    return 'unknown';
+  };
+
+  // Fungsi untuk menghitung jumlah sesi dari durasi jam
+  const hitungJumlahSesi = (jamMulai: string, jamSelesai: string): number => {
+    try {
+      // Normalisasi format waktu (handle berbagai format)
+      const normalizeTime = (time: string): string => {
+        return time.replace(/\./g, ':').replace(/ /g, '');
+      };
+
+      const startTime = normalizeTime(jamMulai);
+      const endTime = normalizeTime(jamSelesai);
+
+      const [startH, startM] = startTime.split(":").map(Number);
+      const [endH, endM] = endTime.split(":").map(Number);
+
+      // Validasi input
+      if (isNaN(startH) || isNaN(startM) || isNaN(endH) || isNaN(endM)) {
+        throw new Error('Invalid time format');
+      }
+
+      const start = startH * 60 + startM;
+      const end = endH * 60 + endM;
+      const durasi = end - start;
+
+      if (durasi <= 0) {
+        throw new Error('End time must be after start time');
+      }
+
+      return Math.ceil(durasi / 50); // 1 sesi = 50 menit
+    } catch (error) {
+      console.warn('Error calculating session count:', error);
+      return 2; // fallback ke 2 sesi
+    }
+  };
+
+  // Fungsi untuk mapping format klien ke format standar
+  const mapClientFormatToStandard = (row: any[], headers: string[]): any => {
+    const getColumnValue = (columnName: string): string => {
+      const index = headers.findIndex(h => h.toLowerCase().includes(columnName.toLowerCase()));
+      return index >= 0 ? (row[index]?.toString() || '') : '';
+    };
+
+    const tanggal = getColumnValue('tanggal');
+    const waktuMulai = getColumnValue('waktu mulai');
+    const waktuSelesai = getColumnValue('waktu selesai');
+    const topik = getColumnValue('topik');
+    const nipPengajar = getColumnValue('nip pengajar');
+    const ruang = getColumnValue('ruang');
+    const namaKelas = getColumnValue('nama kelas');
+    
+    // Hitung jumlah sesi otomatis jika waktu mulai dan selesai tersedia
+    let jumlahSesi = 2; // default
+    if (waktuMulai && waktuSelesai) {
+      try {
+        jumlahSesi = hitungJumlahSesi(waktuMulai, waktuSelesai);
+      } catch (error) {
+        console.warn('Error calculating session count:', error);
+        jumlahSesi = 2; // fallback
+      }
+    }
+    
+    return {
+      tanggal,
+      jam_mulai: waktuMulai,
+      jam_selesai: waktuSelesai,
+      materi: topik,
+      topik: topik,
+      nama_dosen: nipPengajar, // Akan di-resolve ke dosen_id nanti
+      nama_ruangan: ruang, // Akan di-resolve ke ruangan_id nanti
+      kelompok_besar_id: namaKelas, // Akan di-resolve nanti
+      jumlah_sesi: jumlahSesi
+    };
+  };
+
+  const readExcelFile = (file: File): Promise<{ data: any[], format: 'legacy' | 'client' | 'unknown', headers: string[] }> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        try {
+          const data = e.target?.result;
+          const workbook = XLSX.read(data, { 
+            type: "array",
+            cellFormula: true,
+            cellDates: true,
+            dateNF: "yyyy-mm-dd"
+          });
+          
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+            header: 1,
+            raw: false,
+            defval: "",
+            blankrows: false
+          }) as any[][];
+          
+          // Ambil header row dengan guard agar tidak memanggil .map pada unknown
+          const rawHeaderRow = Array.isArray(jsonData[0]) ? (jsonData[0] as any[]) : [];
+          const headers = rawHeaderRow.map((h: any) => (h != null ? h.toString() : ''));
+          
+          // Deteksi format
+          const format = detectExcelFormat(headers);
+          
+          // Skip header row dan filter baris kosong
+          const dataRows = jsonData.slice(1).filter((row: any[]) => 
+            row.some(cell => cell && cell.toString().trim() !== '')
+          );
+          
+          resolve({ data: dataRows, format, headers });
+        } catch (error) {
+          reject(error);
+        }
+      };
+      
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  // Fungsi untuk validasi data Excel (menggunakan data yang sudah dikonversi)
+  // Fungsi untuk validasi data Excel PBL
+  const validatePBLExcelData = (convertedData: JadwalPBLType[]) => {
+    const cellErrors: { row: number, field: string, message: string }[] = [];
+
+    convertedData.forEach((row, index) => {
+      // Validasi field wajib
+      if (!row.tanggal) {
+        cellErrors.push({ row: index, field: 'tanggal', message: 'Tanggal wajib diisi' });
+      }
+      if (!row.jam_mulai) {
+        cellErrors.push({ row: index, field: 'jam_mulai', message: 'Jam mulai wajib diisi' });
+      }
+      if (!row.modul_pbl_id) {
+        cellErrors.push({ row: index, field: 'modul_pbl_id', message: 'Modul PBL wajib diisi' });
+      }
+      if (!row.kelompok_kecil_id) {
+        cellErrors.push({ row: index, field: 'kelompok_kecil_id', message: 'Kelompok kecil wajib diisi' });
+      }
+      if (!row.dosen_id) {
+        cellErrors.push({ row: index, field: 'dosen_id', message: 'Dosen wajib diisi' });
+      }
+      if (!row.ruangan_id) {
+        cellErrors.push({ row: index, field: 'ruangan_id', message: 'Ruangan wajib diisi' });
+      }
+
+      // Validasi format tanggal
+      if (row.tanggal && !/^\d{4}-\d{2}-\d{2}$/.test(row.tanggal)) {
+        cellErrors.push({ row: index, field: 'tanggal', message: 'Format tanggal tidak valid' });
+      }
+
+      // Validasi format jam
+      if (row.jam_mulai && !/^\d{2}:\d{2}$/.test(row.jam_mulai)) {
+        cellErrors.push({ row: index, field: 'jam_mulai', message: 'Format jam mulai tidak valid' });
+      }
+
+      // Validasi tanggal dalam rentang mata kuliah
+      if (row.tanggal && data?.tanggal_mulai && data?.tanggal_akhir) {
+        const jadwalTanggal = new Date(row.tanggal);
+        const tanggalMulai = new Date(data.tanggal_mulai);
+        const tanggalAkhir = new Date(data.tanggal_akhir);
+        
+        if (jadwalTanggal < tanggalMulai || jadwalTanggal > tanggalAkhir) {
+          cellErrors.push({ row: index, field: 'tanggal', message: 'Tanggal di luar rentang mata kuliah' });
+        }
+      }
+
+      // Validasi modul PBL
+      if (row.modul_pbl_id) {
+        const modulPBL = modulPBLList?.find(m => m.id === row.modul_pbl_id);
+        if (!modulPBL) {
+          cellErrors.push({ row: index, field: 'modul_pbl_id', message: 'Modul PBL tidak ditemukan' });
+        }
+      }
+
+      // Validasi kelompok kecil
+      if (row.kelompok_kecil_id) {
+        const kelompokKecil = kelompokKecilList?.find(k => k.id === row.kelompok_kecil_id);
+        if (!kelompokKecil) {
+          cellErrors.push({ row: index, field: 'kelompok_kecil_id', message: 'Kelompok kecil tidak ditemukan' });
+        }
+      }
+
+      // Validasi dosen
+      if (row.dosen_id) {
+        const dosen = allDosenList?.find(d => d.id === row.dosen_id);
+        if (!dosen) {
+          cellErrors.push({ row: index, field: 'dosen_id', message: 'Dosen tidak ditemukan' });
+        }
+      }
+
+      // Validasi ruangan
+      if (row.ruangan_id) {
+        const ruangan = allRuanganList?.find(r => r.id === row.ruangan_id);
+        if (!ruangan) {
+          cellErrors.push({ row: index, field: 'ruangan_id', message: 'Ruangan tidak ditemukan' });
+        }
+      }
+
+      // Validasi jam selesai jika ada
+      if (row.jam_selesai && row.jam_mulai) {
+        const jamMulai = new Date(`2000-01-01T${row.jam_mulai}`);
+        const jamSelesai = new Date(`2000-01-01T${row.jam_selesai}`);
+        
+        if (jamSelesai <= jamMulai) {
+          cellErrors.push({ row: index, field: 'jam_selesai', message: 'Jam selesai harus lebih besar dari jam mulai' });
+        }
+      }
+    });
+
+    return { cellErrors };
+  };
+
+  const validateExcelData = (convertedData: JadwalKuliahBesarType[], existingData?: JadwalKuliahBesarType[]) => {
+    const errors: string[] = [];
+    const cellErrors: { row: number, field: string, message: string }[] = [];
+    
+    convertedData.forEach((row, index) => {
+      const rowNum = index + 2;
+      
+      // Validasi field wajib
+      if (!row.tanggal || !row.jam_mulai || !row.materi || !row.kelompok_besar_id) {
+        errors.push(`Baris ${rowNum}: Tanggal, jam mulai, materi, dan kelompok besar ID wajib diisi`);
+        return;
+      }
+      
+      // Validasi format tanggal
+      const tanggal = row.tanggal.toString();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) {
+        cellErrors.push({ row: index, field: 'tanggal', message: 'Format tanggal harus YYYY-MM-DD' });
+      } else {
+        // Validasi tanggal dalam rentang mata kuliah
+        if (data) {
+          const tanggalJadwal = new Date(tanggal);
+          const tanggalMulai = new Date(data.tanggal_mulai || '');
+          const tanggalAkhir = new Date(data.tanggal_akhir || '');
+          
+          if (tanggalJadwal < tanggalMulai) {
+            cellErrors.push({ 
+              row: index, 
+              field: 'tanggal', 
+              message: `Tanggal jadwal tidak boleh sebelum tanggal mulai mata kuliah (${tanggalMulai.toLocaleDateString('id-ID')})` 
+            });
+          } else if (tanggalJadwal > tanggalAkhir) {
+            cellErrors.push({ 
+              row: index, 
+              field: 'tanggal', 
+              message: `Tanggal jadwal tidak boleh setelah tanggal akhir mata kuliah (${tanggalAkhir.toLocaleDateString('id-ID')})` 
+            });
+          }
+        }
+      }
+      
+      // Validasi format jam
+      const jamMulai = row.jam_mulai.toString();
+      if (!/^\d{2}:\d{2}$/.test(jamMulai)) {
+        cellErrors.push({ row: index, field: 'jam_mulai', message: 'Format jam mulai harus HH:MM' });
+      }
+      
+      // Validasi jam selesai (jika ada, harus sesuai perhitungan sistem)
+      if (row.jam_selesai) {
+        let jamSelesai = row.jam_selesai.toString();
+        
+        // Konversi format titik (.) ke titik dua (:) jika perlu
+        if (jamSelesai.includes('.')) {
+          jamSelesai = jamSelesai.replace('.', ':');
+        }
+        
+        if (!/^\d{2}:\d{2}$/.test(jamSelesai)) {
+          cellErrors.push({ row: index, field: 'jam_selesai', message: 'Format jam selesai harus HH:MM' });
+        } else {
+          // Hitung jam selesai yang seharusnya berdasarkan sistem
+          const jumlahSesi = row.jumlah_sesi || 1;
+          const jamSelesaiSeharusnya = hitungJamSelesai(jamMulai, jumlahSesi);
+          if (jamSelesai !== jamSelesaiSeharusnya) {
+            cellErrors.push({ row: index, field: 'jam_selesai', message: `Jam selesai seharusnya ${jamSelesaiSeharusnya} (${jumlahSesi} x 50 menit dari ${jamMulai})` });
+          }
+        }
+      }
+      
+      // Validasi kelompok besar ID
+      const kelompokBesarId = parseInt(row.kelompok_besar_id.toString());
+      if (isNaN(kelompokBesarId) || kelompokBesarId < 1) {
+        cellErrors.push({ row: index, field: 'kelompok_besar_id', message: 'Kelompok besar ID harus berupa angka positif' });
+      } else {
+        // Validasi kelompok besar ID ada di database
+        const kelompokBesar = kelompokBesarOptions.find(k => Number(k.id) === kelompokBesarId);
+        if (!kelompokBesar) {
+          cellErrors.push({ row: index, field: 'kelompok_besar_id', message: `Kelompok besar ID ${kelompokBesarId} tidak ditemukan` });
+        } else {
+          // Validasi semester kelompok besar sesuai dengan semester mata kuliah
+          const mataKuliahSemester = data?.semester;
+          if (mataKuliahSemester && kelompokBesarId != mataKuliahSemester) {
+            cellErrors.push({ row: index, field: 'kelompok_besar_id', message: `Kelompok besar ID ${kelompokBesarId} tidak sesuai dengan semester mata kuliah (${mataKuliahSemester}). Hanya boleh menggunakan kelompok besar semester ${mataKuliahSemester}.` });
+          }
+        }
+      }
+      
+      // Validasi jumlah sesi
+      const jumlahSesi = row.jumlah_sesi || 1;
+      if (jumlahSesi < 1 || jumlahSesi > 6) {
+        cellErrors.push({ row: index, field: 'jumlah_sesi', message: 'Jumlah sesi harus antara 1-6' });
+      }
+      
+      // Validasi dosen exist
+      if (!row.dosen_id) {
+        cellErrors.push({ row: index, field: 'nama_dosen', message: 'Dosen tidak ditemukan' });
+      } else {
+        // Validasi keahlian dosen dengan materi
+        const dosen = dosenList.find(d => d.id === row.dosen_id);
+        if (dosen && row.materi) {
+          const keahlianDosen = Array.isArray(dosen.keahlian) 
+            ? dosen.keahlian 
+            : (dosen.keahlian || '').split(',').map((k: string) => k.trim());
+          
+          if (!keahlianDosen.includes(row.materi)) {
+            cellErrors.push({ 
+              row: index, 
+              field: 'materi', 
+              message: `Materi "${row.materi}" tidak sesuai dengan keahlian dosen "${dosen.name}". Keahlian dosen: ${keahlianDosen.join(', ')}` 
+            });
+          }
+        }
+      }
+      
+      // Validasi ruangan exist
+      if (!row.ruangan_id) {
+        cellErrors.push({ row: index, field: 'nama_ruangan', message: 'Ruangan tidak ditemukan' });
+      }
+    });
+    
+    return { errors, cellErrors };
+  };
+
+  // Handler untuk upload file Excel
+  // Handler untuk upload file Excel PBL
+  const handlePBLImportExcel = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsPBLImporting(true);
+      setPBLCellErrors([]);
+      setPBLImportData([]);
+
+      // Baca file Excel
+      const rawData = await readPBLExcelFile(file);
+      
+      if (rawData.length === 0) {
+        setPBLCellErrors([{ row: 0, field: 'file', message: 'File Excel kosong atau tidak valid' }]);
+        return;
+      }
+
+      // Konversi data Excel ke format yang diharapkan
+      const convertedData: JadwalPBLType[] = rawData.map((row: any, index: number) => {
+        // Cari modul PBL berdasarkan nama
+        const modulPBL = modulPBLList?.find(m => 
+          m.nama_modul.toLowerCase().includes((row.modul_pbl || '').toLowerCase()) ||
+          (row.modul_pbl || '').toLowerCase().includes(m.nama_modul.toLowerCase())
+        );
+
+        // Cari kelompok kecil berdasarkan nama
+        const kelompokKecil = kelompokKecilList?.find(k => 
+          k.nama_kelompok.toLowerCase() === (row.kelompok_kecil || '').toLowerCase()
+        );
+
+        // Cari dosen berdasarkan nama
+        const dosen = allDosenList?.find(d => 
+          d.name.toLowerCase() === (row.dosen || '').toLowerCase()
+        );
+
+        // Cari ruangan berdasarkan nama
+        const ruangan = allRuanganList?.find(r => 
+          r.nama.toLowerCase() === (row.ruangan || '').toLowerCase()
+        );
+
+        // Hitung jam selesai berdasarkan PBL tipe
+        const pblTipe = row.pbl_tipe || 'PBL 1';
+        const jumlahSesi = pblTipe === 'PBL 2' ? 3 : 2;
+        const jamSelesai = hitungJamSelesai(row.jam_mulai || '08:00', jumlahSesi);
+
+        return {
+          tanggal: row.tanggal || '',
+          jam_mulai: row.jam_mulai || '',
+          jam_selesai: row.jam_selesai || jamSelesai,
+          modul_pbl_id: modulPBL?.id || 0,
+          kelompok_kecil_id: kelompokKecil?.id || 0,
+          dosen_id: dosen?.id || 0,
+          ruangan_id: ruangan?.id || 0,
+          pbl_tipe: pblTipe,
+          topik: row.topik || '',
+          jumlah_sesi: jumlahSesi
+        };
+      });
+
+      // Validasi data
+      const { cellErrors } = validatePBLExcelData(convertedData);
+      
+      setPBLCellErrors(cellErrors);
+      setPBLImportData(convertedData);
+      setPBLImportFile(file);
+      setShowPBLImportModal(true);
+    } catch (error) {
+      console.error('Error reading PBL Excel file:', error);
+      setPBLCellErrors([{ row: 0, field: 'file', message: 'Gagal membaca file Excel. Pastikan format file benar.' }]);
+    } finally {
+      setIsPBLImporting(false);
+      // Reset file input
+      if (pblFileInputRef.current) {
+        pblFileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleImportExcel = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Refresh data kelompok besar terlebih dahulu
+    await fetchBatchData();
+    
+    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      setImportErrors(['File harus berformat Excel (.xlsx atau .xls)']);
+      setShowImportModal(true);
+      return;
+    }
+    
+    setImportFile(file);
+    setImportErrors([]);
+    
+    try {
+      const { data: excelData, format, headers } = await readExcelFile(file);
+      
+      if (excelData.length === 0) {
+        setImportErrors(['File Excel kosong atau tidak memiliki data']);
+        setShowImportModal(true);
+        return;
+      }
+
+      // Cek format yang dideteksi
+      if (format === 'unknown') {
+        setImportErrors(['Format file Excel tidak dikenali. Pastikan menggunakan template yang benar.']);
+        setShowImportModal(true);
+        return;
+      }
+
+      // Konversi ke format JadwalKuliahBesarType berdasarkan format yang dideteksi
+      const convertedData: JadwalKuliahBesarType[] = excelData.map(row => {
+        let mappedData: any;
+
+        if (format === 'legacy') {
+          // Format lama (existing logic)
+          const namaDosen = row[5].toString().trim();
+          const namaRuangan = row[6].toString().trim();
+          const kelompokBesarId = parseInt(row[7]);
+          const jumlahSesi = parseInt(row[8]) || 2;
+          const jamMulai = row[1].toString();
+          
+          const dosen = dosenList.find(d => d.name.toLowerCase() === namaDosen.toLowerCase());
+          const ruangan = ruanganList.find(r => r.nama.toLowerCase() === namaRuangan.toLowerCase());
+          
+          // Hitung jam selesai otomatis berdasarkan sistem
+          let jamSelesai = hitungJamSelesai(jamMulai, jumlahSesi);
+          
+          // Jika ada jam selesai di Excel, gunakan yang ada (dengan konversi format)
+          if (row[2]) {
+            jamSelesai = row[2].toString();
+            // Konversi format titik (.) ke titik dua (:) jika perlu
+            if (jamSelesai.includes('.')) {
+              jamSelesai = jamSelesai.replace('.', ':');
+            }
+          }
+          
+          mappedData = {
+            tanggal: row[0].toString(),
+            jam_mulai: jamMulai,
+            jam_selesai: jamSelesai,
+            materi: row[3].toString(),
+            topik: row[4] ? row[4].toString() : '',
+            dosen_id: dosen?.id || 0,
+            ruangan_id: ruangan?.id || 0,
+            kelompok_besar_id: kelompokBesarId || 1,
+            jumlah_sesi: jumlahSesi
+          };
+        } else if (format === 'client') {
+          // Format klien - gunakan mapping function
+          const clientData = mapClientFormatToStandard(row, headers);
+          
+          // Debug log untuk mapping
+          console.log('Client data mapped:', clientData);
+          
+          // Resolve nama dosen ke dosen_id
+          const dosen = dosenList.find(d => 
+            d.name.toLowerCase().includes(clientData.nama_dosen.toLowerCase()) ||
+            d.nid?.toLowerCase().includes(clientData.nama_dosen.toLowerCase())
+          );
+          
+          // Resolve nama ruangan ke ruangan_id
+          const ruangan = ruanganList.find(r => 
+            r.nama.toLowerCase().includes(clientData.nama_ruangan.toLowerCase())
+          );
+          
+          // Resolve kelompok besar (untuk sementara set ke 1, bisa dikembangkan lebih lanjut)
+          const kelompokBesarId = 1;
+          
+          mappedData = {
+            tanggal: clientData.tanggal,
+            jam_mulai: clientData.jam_mulai,
+            jam_selesai: clientData.jam_selesai,
+            materi: clientData.materi,
+            topik: clientData.topik,
+            dosen_id: dosen?.id || 0,
+            ruangan_id: ruangan?.id || 0,
+            kelompok_besar_id: kelompokBesarId,
+            jumlah_sesi: clientData.jumlah_sesi
+          };
+          
+          // Debug log untuk resolved data
+          console.log('Resolved data:', {
+            dosen_found: !!dosen,
+            ruangan_found: !!ruangan,
+            dosen_name: dosen?.name,
+            ruangan_name: ruangan?.nama
+          });
+        }
+
+        return mappedData;
+      });
+      
+      // Validasi data setelah konversi
+      const validationResult = validateExcelData(convertedData, jadwalKuliahBesar);
+      setImportErrors(validationResult.errors);
+      setCellErrors(validationResult.cellErrors);
+      
+      // Tampilkan informasi format yang dideteksi
+      const formatInfo = format === 'legacy' ? 'Format Template Lama' : 'Format Template Baru';
+      console.log(`Format Excel terdeteksi: ${formatInfo}`);
+      console.log(`Headers yang ditemukan:`, headers);
+      console.log(`Jumlah baris data:`, excelData.length);
+      
+      setDetectedFormat(format);
+      setImportData(convertedData);
+      setShowImportModal(true);
+    } catch (error) {
+      setImportErrors(['Gagal membaca file Excel: ' + (error as Error).message]);
+      setShowImportModal(true);
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Handler untuk submit import
+  // Handler untuk submit import PBL
+  const handlePBLSubmitImport = async () => {
+    if (pblImportData.length === 0) return;
+
+    try {
+      setIsPBLImporting(true);
+      
+      const response = await api.post(`/mata-kuliah/${kode}/jadwal-pbl/import`, {
+        data: pblImportData
+      });
+
+      if (response.status === 200) {
+        setPBLImportedCount(response.data.success || pblImportData.length);
+        await fetchBatchData(); // Refresh data
+        setShowPBLImportModal(false);
+        setPBLImportData([]);
+        setPBLImportFile(null);
+        setPBLCellErrors([]);
+        setPBLEditingCell(null);
+        setPBLImportSuccess(false);
+        setPBLImportPage(1);
+      }
+    } catch (error: any) {
+      console.error('Error importing PBL data:', error);
+      
+      if (error.response?.status === 422) {
+        // Handle validation errors
+        const errorData = error.response.data;
+        if (errorData.errors && Array.isArray(errorData.errors)) {
+          const cellErrors = errorData.errors.map((err: string, idx: number) => ({
+            row: idx,
+            field: 'api',
+            message: err
+          }));
+          setPBLCellErrors(cellErrors);
+        } else {
+          setPBLCellErrors([{ row: 0, field: 'api', message: 'Terjadi kesalahan validasi data' }]);
+        }
+      } else {
+        setPBLCellErrors([{ row: 0, field: 'api', message: 'Gagal mengimpor data. Silakan coba lagi.' }]);
+      }
+    } finally {
+      setIsPBLImporting(false);
+    }
+  };
+
+  const handleSubmitImport = async () => {
+    if (importData.length === 0) return;
+    
+    setIsImporting(true);
+    setImportErrors([]);
+    
+    try {
+      // Kirim data ke backend untuk validasi dan import
+      const response = await api.post(`/kuliah-besar/import/${data!.kode}`, {
+        data: importData
+      });
+      
+      // Tampilkan error jika ada
+      if (response.data.errors && response.data.errors.length > 0) {
+        setImportErrors(response.data.errors);
+      }
+      
+      // Jika berhasil import sebagian atau semua
+      if (response.data.success > 0) {
+        setImportedCount(response.data.success);
+        await fetchBatchData(); // Refresh data
+        setShowImportModal(false);
+        setImportData([]);
+        setImportFile(null);
+        setImportErrors([]);
+        setCellErrors([]);
+        setEditingCell(null);
+        setImportSuccess(false);
+        setImportPage(1);
+      }
+    } catch (error: any) {
+      // Handle error response (termasuk status 422)
+      if (error.response?.data?.errors && error.response.data.errors.length > 0) {
+        setImportErrors(error.response.data.errors);
+      } else {
+        const errorMessage = error.response?.data?.message || 'Gagal mengimport data';
+        setImportErrors([errorMessage]);
+      }
+    }
+    
+    setIsImporting(false);
+  };
+
+  // Handler untuk close modal import
+  // Handler untuk close modal import PBL
+  const handlePBLCloseImportModal = () => {
+    setShowPBLImportModal(false);
+    setPBLImportData([]);
+    setPBLCellErrors([]);
+    setPBLImportFile(null);
+    setPBLImportSuccess(false);
+    setPBLEditingCell(null);
+    setPBLImportPage(1);
+    
+    // Reset file input
+    if (pblFileInputRef.current) {
+      pblFileInputRef.current.value = '';
+    }
+  };
+
+  const handlePBLCellEdit = (rowIdx: number, key: string, value: string) => {
+    const newData = [...pblImportData];
+    newData[rowIdx] = { ...newData[rowIdx], [key]: value };
+    setPBLImportData(newData);
+
+    // Re-validate data
+    const { cellErrors } = validatePBLExcelData(newData);
+    setPBLCellErrors(cellErrors);
+  };
+
+  const handlePBLDosenEdit = (rowIdx: number, value: string) => {
+    const newData = [...pblImportData];
+    const dosen = allDosenList?.find(d => d.name.toLowerCase() === value.toLowerCase());
+    newData[rowIdx] = { 
+      ...newData[rowIdx], 
+      dosen_id: dosen?.id || 0,
+      nama_dosen: value 
+    };
+    setPBLImportData(newData);
+
+    // Re-validate data
+    const { cellErrors } = validatePBLExcelData(newData);
+    setPBLCellErrors(cellErrors);
+  };
+
+  const handlePBLRuanganEdit = (rowIdx: number, value: string) => {
+    const newData = [...pblImportData];
+    const ruangan = allRuanganList?.find(r => r.nama.toLowerCase() === value.toLowerCase());
+    newData[rowIdx] = { 
+      ...newData[rowIdx], 
+      ruangan_id: ruangan?.id || 0,
+      nama_ruangan: value 
+    };
+    setPBLImportData(newData);
+
+    // Re-validate data
+    const { cellErrors } = validatePBLExcelData(newData);
+    setPBLCellErrors(cellErrors);
+  };
+
+  const handlePBLKelompokKecilEdit = (rowIdx: number, value: string) => {
+    const newData = [...pblImportData];
+    const kelompokKecil = kelompokKecilList?.find(k => k.nama_kelompok.toLowerCase() === value.toLowerCase());
+    newData[rowIdx] = { 
+      ...newData[rowIdx], 
+      kelompok_kecil_id: kelompokKecil?.id || 0,
+      nama_kelompok: value 
+    };
+    setPBLImportData(newData);
+
+    // Re-validate data
+    const { cellErrors } = validatePBLExcelData(newData);
+    setPBLCellErrors(cellErrors);
+  };
+
+  const handleCloseImportModal = () => {
+    setShowImportModal(false);
+    setImportData([]);
+    setImportFile(null);
+    setImportErrors([]);
+    setCellErrors([]);
+    setEditingCell(null);
+    setImportSuccess(false);
+    setImportPage(1);
+    setDetectedFormat(null);
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Logika pagination untuk import preview
+  const importTotalPages = Math.ceil(importData.length / importPageSize);
+  const importPaginatedData = importData.slice(
+    (importPage - 1) * importPageSize,
+    importPage * importPageSize
+  );
+
+  // Logika pagination untuk PBL import preview
+  const pblImportTotalPages = Math.ceil(pblImportData.length / pblImportPageSize);
+  const pblImportPaginatedData = pblImportData.slice(
+    (pblImportPage - 1) * pblImportPageSize,
+    pblImportPage * pblImportPageSize
+  );
+
+  // Edit cell preview
+  const handleCellEdit = (rowIdx: number, key: string, value: string) => {
+    setImportData(prev => {
+      const newData = [...prev];
+      newData[rowIdx] = { ...newData[rowIdx], [key]: value };
+      
+      // Jika yang diedit adalah kelompok_besar_id, konversi ke number
+      if (key === 'kelompok_besar_id') {
+        newData[rowIdx][key] = parseInt(value) || 0;
+      }
+      
+      const validationResult = validateExcelData(newData);
+      setCellErrors(validationResult.cellErrors);
+      setImportErrors(validationResult.errors);
+      return newData;
+    });
+  };
+
+  // Helper untuk handle edit dosen dengan pencarian
+  const handleDosenEdit = (rowIdx: number, value: string) => {
+    setImportData(prev => {
+      const newData = [...prev];
+      const selectedDosen = dosenList.find(d => d.name.toLowerCase() === value.toLowerCase());
+      
+      newData[rowIdx] = { 
+        ...newData[rowIdx], 
+        nama_dosen: value,
+        dosen_id: selectedDosen?.id || null
+      };
+      
+      const validationResult = validateExcelData(newData);
+      setCellErrors(validationResult.cellErrors);
+      setImportErrors(validationResult.errors);
+      return newData;
+    });
+  };
+
+  // Helper untuk handle edit ruangan dengan pencarian
+  const handleRuanganEdit = (rowIdx: number, value: string) => {
+    setImportData(prev => {
+      const newData = [...prev];
+      const selectedRuangan = ruanganList.find(r => r.nama.toLowerCase() === value.toLowerCase());
+      
+      // Update nama ruangan untuk display
+      newData[rowIdx] = { 
+        ...newData[rowIdx], 
+        nama_ruangan: value,
+        ruangan_id: selectedRuangan?.id || null
+      };
+      
+      const validationResult = validateExcelData(newData);
+      setCellErrors(validationResult.cellErrors);
+      setImportErrors(validationResult.errors);
+      return newData;
+    });
+  };
+
 
 
   return (
@@ -1828,11 +3007,29 @@ export default function DetailBlok() {
         </div>
       </div>
 
-      {/* Section Jadwal Materi dipisah menjadi 3 bagian berdasarkan jenisBaris */}
       {/* Section Kuliah Besar */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-bold text-gray-800 dark:text-white">Kuliah Besar</h2>
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform cursor-pointer">
+              <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-brand-700 dark:text-brand-200" />
+              Import Excel
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleImportExcel}
+                className="hidden"
+              />
+            </label>
+            <button
+              onClick={downloadTemplate}
+              className="px-4 py-2 rounded-lg bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 text-sm font-medium shadow-theme-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition flex items-center gap-2"
+            >
+              <FontAwesomeIcon icon={faDownload} className="w-5 h-5" />
+              Download Template Excel
+            </button>
           <button
             onClick={() => {
               setForm({
@@ -1864,6 +3061,37 @@ export default function DetailBlok() {
             Tambah Jadwal
           </button>
         </div>
+        </div>
+
+        {/* Success Messages */}
+        <AnimatePresence>
+          {success && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
+            >
+              {success}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {importedCount > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
+            >
+              {importedCount} jadwal kuliah besar berhasil diimpor ke database.
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
           <div className="max-w-full overflow-x-auto hide-scroll">
             <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
@@ -4707,6 +5935,30 @@ export default function DetailBlok() {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-bold text-gray-800 dark:text-white">PBL</h2>
+          <div className="flex items-center gap-3">
+            {/* Import Excel Button */}
+            <label className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform cursor-pointer">
+              <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-brand-700 dark:text-brand-200" />
+              Import Excel
+              <input
+                ref={pblFileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handlePBLImportExcel}
+                className="hidden"
+              />
+            </label>
+            
+            {/* Download Template Button */}
+            <button
+              onClick={downloadPBLTemplate}
+              className="px-4 py-2 rounded-lg bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 text-sm font-medium shadow-theme-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition flex items-center gap-2"
+            >
+              <FontAwesomeIcon icon={faDownload} className="w-5 h-5" />
+              Download Template Excel
+            </button>
+            
+            {/* Tambah Jadwal Button */}
           <button
             onClick={() => {
               setForm({
@@ -4740,6 +5992,37 @@ export default function DetailBlok() {
             Tambah Jadwal
           </button>
         </div>
+        </div>
+
+        {/* Success Messages untuk PBL */}
+        <AnimatePresence>
+          {pblSuccess && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-green-100 dark:bg-green-900/20 rounded-md p-3 mb-4 text-green-700 dark:text-green-300"
+            >
+              {pblSuccess}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {pblImportedCount > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-green-100 dark:bg-green-900/20 rounded-md p-3 mb-4 text-green-700 dark:text-green-300"
+            >
+              {pblImportedCount} jadwal PBL berhasil diimpor ke database.
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
           <div className="max-w-full overflow-x-auto hide-scroll" >
             <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
@@ -5127,6 +6410,838 @@ export default function DetailBlok() {
                 <button onClick={() => setShowDeleteJurnalReadingModal(false)} className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition">Batal</button>
                 <button onClick={handleConfirmDeleteJurnalReading} className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition">Hapus</button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      
+      {/* Modal Import Excel */}
+      <AnimatePresence>
+        {showImportModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={handleCloseImportModal}
+            />
+            {/* Modal Content */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={handleCloseImportModal}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+
+              {/* Header */}
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Import Jadwal Kuliah Besar</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Preview dan validasi data sebelum import</p>
+                {detectedFormat && (
+                  <div className="mt-2">
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                      detectedFormat === 'legacy' 
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300'
+                        : detectedFormat === 'client'
+                        ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300'
+                        : 'bg-gray-100 text-gray-700 dark:bg-gray-900/20 dark:text-gray-300'
+                    }`}>
+                      {detectedFormat === 'legacy' ? 'Format Template Lama' : 
+                       detectedFormat === 'client' ? 'Format Template Baru' : 'Format Tidak Dikenali'}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {importSuccess ? (
+                <div className="text-center py-12">
+                  <div className="w-20 h-20 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <FontAwesomeIcon icon={faStar} className="w-10 h-10 text-green-500" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-2">Import Berhasil!</h3>
+                  <p className="text-gray-500 dark:text-gray-400">Data jadwal kuliah besar berhasil diimport.</p>
+                </div>
+              ) : (
+                <>
+                  {/* File Info */}
+                  {importFile && (
+                    <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-500" />
+                        <div className="flex-1">
+                          <p className="font-medium text-blue-800 dark:text-blue-200">{importFile.name}</p>
+                          <p className="text-sm text-blue-600 dark:text-blue-300">
+                            {(importFile.size / 1024).toFixed(1)} KB
+                          </p>
+                        </div>
+                        {detectedFormat && (
+                          <div className="flex items-center gap-2">
+                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                              detectedFormat === 'legacy' 
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300'
+                                : detectedFormat === 'client'
+                                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300'
+                                : 'bg-gray-100 text-gray-700 dark:bg-gray-900/20 dark:text-gray-300'
+                            }`}>
+                              {detectedFormat === 'legacy' ? 'Template Lama' : 
+                               detectedFormat === 'client' ? 'Template Baru' : 'Format Tidak Dikenali'}
+                            </span>
+                            {detectedFormat === 'client' && (
+                              <span className="text-xs text-purple-600 dark:text-purple-400">
+                                (Auto-mapping ke format standar - {importData.length} data)
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Error Messages */}
+                  {(importErrors.length > 0 || cellErrors.length > 0) && (
+                    <div className="mb-6">
+                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <FontAwesomeIcon icon={faExclamationTriangle} className="w-5 h-5 text-red-500" />
+                          <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                            Error Validasi ({importErrors.length + cellErrors.length} error)
+                          </h3>
+                        </div>
+                        <div className="max-h-40 overflow-y-auto">
+                          {/* Error dari API response */}
+                          {importErrors.map((err, idx) => (
+                            <p key={idx} className="text-sm text-red-600 dark:text-red-400 mb-1">• {err}</p>
+                          ))}
+                          {/* Error cell/detail */}
+                          {cellErrors.map((err, idx) => (
+                            <p key={idx} className="text-sm text-red-600 dark:text-red-400 mb-1">
+                              • {err.message} (Baris {err.row + 1}, Kolom {err.field.toUpperCase()})
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Preview Data Table */}
+                  {importData.length > 0 && (
+                    <div className="mb-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                          Preview Data ({importData.length} jadwal)
+                        </h3>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          File: {importFile?.name}
+                        </div>
+                      </div>
+                      
+                      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                        <div className="max-w-full overflow-x-auto hide-scroll">
+                          <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                            <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                              <tr>
+                                <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Mulai</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Selesai</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Materi</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Topik</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Dosen</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Kelompok Besar</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Sesi</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {importPaginatedData.map((row, index) => {
+                                const actualIndex = (importPage - 1) * importPageSize + index;
+                                const dosen = dosenList.find(d => d.id === row.dosen_id);
+                                const ruangan = ruanganList.find(r => r.id === row.ruangan_id);
+                                const kelompokBesar = kelompokBesarOptions.find(k => Number(k.id) === row.kelompok_besar_id);
+                                
+                                const renderEditableCell = (field: string, value: any, isNumeric = false) => {
+                                  const isEditing = editingCell?.row === actualIndex && editingCell?.key === field;
+                                  const cellError = cellErrors.find(err => err.row === actualIndex && err.field === field);
+                                  
+                                  return (
+                                    <td
+                                      className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                      onClick={() => setEditingCell({ row: actualIndex, key: field })}
+                                      title={cellError ? cellError.message : ''}
+                                    >
+                                      {isEditing ? (
+                                        <input
+                                          className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                          type={isNumeric ? "number" : "text"}
+                                          value={value || ""}
+                                          onChange={e => handleCellEdit(actualIndex, field, e.target.value)}
+                                          onBlur={() => setEditingCell(null)}
+                                          autoFocus
+                                        />
+                                      ) : (
+                                        value || '-'
+                                      )}
+                                    </td>
+                                  );
+                                };
+                                
+                                return (
+                                  <tr 
+                                    key={index} 
+                                    className={`${index % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}`}
+                                  >
+                                    <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{index + 1}</td>
+                                    {renderEditableCell('tanggal', row.tanggal)}
+                                    {renderEditableCell('jam_mulai', row.jam_mulai)}
+                                    {renderEditableCell('jam_selesai', row.jam_selesai)}
+                                    {renderEditableCell('materi', row.materi)}
+                                    {renderEditableCell('topik', row.topik)}
+                                    
+                                    {/* Dosen - Special handling */}
+                                    {(() => {
+                                      const field = 'nama_dosen';
+                                      const isEditing = editingCell?.row === index && editingCell?.key === field;
+                                      const cellError = cellErrors.find(err => err.row === index && err.field === field);
+                                      
+                                      return (
+                                        <td
+                                          className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                          onClick={() => setEditingCell({ row: index, key: field })}
+                                          title={cellError ? cellError.message : ''}
+                                        >
+                                          {isEditing ? (
+                                            <input
+                                              className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                              value={row.nama_dosen || dosen?.name || ""}
+                                              onChange={e => handleDosenEdit(actualIndex, e.target.value)}
+                                              onBlur={() => setEditingCell(null)}
+                                              autoFocus
+                                            />
+                                          ) : (
+                                            <span className={dosen ? 'text-gray-800 dark:text-white/90' : 'text-red-500'}>
+                                              {dosen?.name || 'Tidak ditemukan'}
+                                            </span>
+                                          )}
+                                        </td>
+                                      );
+                                    })()}
+                                    
+                                    {/* Ruangan - Special handling */}
+                                    {(() => {
+                                      const field = 'nama_ruangan';
+                                      const isEditing = editingCell?.row === index && editingCell?.key === field;
+                                      const cellError = cellErrors.find(err => err.row === index && err.field === field);
+                                      
+                                      return (
+                                        <td
+                                          className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                          onClick={() => setEditingCell({ row: index, key: field })}
+                                          title={cellError ? cellError.message : ''}
+                                        >
+                                          {isEditing ? (
+                                            <input
+                                              className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                              value={row.nama_ruangan || ruangan?.nama || ""}
+                                              onChange={e => handleRuanganEdit(actualIndex, e.target.value)}
+                                              onBlur={() => setEditingCell(null)}
+                                              autoFocus
+                                            />
+                                          ) : (
+                                            <span className={ruangan ? 'text-gray-800 dark:text-white/90' : 'text-red-500'}>
+                                              {ruangan?.nama || 'Tidak ditemukan'}
+                                            </span>
+                                          )}
+                                        </td>
+                                      );
+                                    })()}
+                                    
+                                    {(() => {
+                                      const field = 'kelompok_besar_id';
+                                      const isEditing = editingCell?.row === index && editingCell?.key === field;
+                                      const cellError = cellErrors.find(err => err.row === index && err.field === field);
+                                      
+                                      return (
+                                        <td
+                                          className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                          onClick={() => setEditingCell({ row: index, key: field })}
+                                          title={cellError ? cellError.message : ''}
+                                        >
+                                          {isEditing ? (
+                                            <input
+                                              className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                              type="number"
+                                              value={row.kelompok_besar_id || ""}
+                                              onChange={e => handleCellEdit(actualIndex, field, e.target.value)}
+                                              onBlur={() => setEditingCell(null)}
+                                              autoFocus
+                                            />
+                                          ) : (
+                                            <span className="text-gray-800 dark:text-white/90">
+                                              {kelompokBesar ? kelompokBesar.label : `ID ${row.kelompok_besar_id}`}
+                                            </span>
+                                          )}
+                                        </td>
+                                      );
+                                    })()}
+                                    {renderEditableCell('jumlah_sesi', row.jumlah_sesi, true)}
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                      
+                      {/* Pagination untuk Import Preview */}
+                      {importData.length > importPageSize && (
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-4">
+                            <select
+                              value={importPageSize}
+                              onChange={e => { setImportPageSize(Number(e.target.value)); setImportPage(1); }}
+                              className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                            >
+                              <option value={5}>5 per halaman</option>
+                              <option value={10}>10 per halaman</option>
+                              <option value={20}>20 per halaman</option>
+                              <option value={50}>50 per halaman</option>
+                            </select>
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                              Menampilkan {((importPage - 1) * importPageSize) + 1}-{Math.min(importPage * importPageSize, importData.length)} dari {importData.length} jadwal
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setImportPage(p => Math.max(1, p - 1))}
+                              disabled={importPage === 1}
+                              className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                            >
+                              Prev
+                            </button>
+                            
+                            {/* Smart Pagination with Scroll */}
+                            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll" style={{
+                              scrollbarWidth: 'thin',
+                              scrollbarColor: '#cbd5e1 #f1f5f9'
+                            }}>
+                              <style dangerouslySetInnerHTML={{
+                                __html: `
+                                  .pagination-scroll::-webkit-scrollbar {
+                                    height: 6px;
+                                  }
+                                  .pagination-scroll::-webkit-scrollbar-track {
+                                    background: #f1f5f9;
+                                    border-radius: 3px;
+                                  }
+                                  .pagination-scroll::-webkit-scrollbar-thumb {
+                                    background: #cbd5e1;
+                                    border-radius: 3px;
+                                  }
+                                  .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                                    background: #94a3b8;
+                                  }
+                                  .dark .pagination-scroll::-webkit-scrollbar-track {
+                                    background: #1e293b;
+                                  }
+                                  .dark .pagination-scroll::-webkit-scrollbar-thumb {
+                                    background: #475569;
+                                  }
+                                  .dark .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                                    background: #64748b;
+                                  }
+                                `
+                              }} />
+                              
+                              {/* Always show first page if it's not the last page */}
+                              {importTotalPages > 1 && (
+                                <button
+                                  onClick={() => setImportPage(1)}
+                                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                                    importPage === 1
+                                      ? 'bg-brand-500 text-white'
+                                      : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                  }`}
+                                >
+                                  1
+                                </button>
+                              )}
+                              
+                              {/* Show ellipsis if current page is far from start */}
+                              {importPage > 4 && (
+                                <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
+                              )}
+                              
+                              {/* Show pages around current page */}
+                              {Array.from({ length: importTotalPages }, (_, i) => {
+                                const pageNum = i + 1;
+                                // Show pages around current page (2 pages before and after)
+                                const shouldShow = pageNum > 1 && pageNum < importTotalPages && 
+                                  (pageNum >= importPage - 2 && pageNum <= importPage + 2);
+                                
+                                if (!shouldShow) return null;
+                                
+                                return (
+                                  <button
+                                    key={pageNum}
+                                    onClick={() => setImportPage(pageNum)}
+                                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                                      importPage === pageNum
+                                        ? 'bg-brand-500 text-white'
+                                        : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                    }`}
+                                  >
+                                    {pageNum}
+                                  </button>
+                                );
+                              })}
+                              
+                              {/* Show ellipsis if current page is far from end */}
+                              {importPage < importTotalPages - 3 && (
+                                <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
+                              )}
+                              
+                              {/* Always show last page if it's not the first page */}
+                              {importTotalPages > 1 && (
+                                <button
+                                  onClick={() => setImportPage(importTotalPages)}
+                                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                                    importPage === importTotalPages
+                                      ? 'bg-brand-500 text-white'
+                                      : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                  }`}
+                                >
+                                  {importTotalPages}
+                                </button>
+                              )}
+                            </div>
+                            
+                            <button
+                              onClick={() => setImportPage(p => Math.min(importTotalPages, p + 1))}
+                              disabled={importPage === importTotalPages}
+                              className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                            >
+                              Next
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Mapping Info untuk Format Klien */}
+                  {detectedFormat === 'client' && (
+                    <div className="mb-6 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <FontAwesomeIcon icon={faExclamationTriangle} className="w-5 h-5 text-purple-500 mt-0.5" />
+                        <div>
+                          <h4 className="font-medium text-purple-800 dark:text-purple-200 mb-2">
+                            Auto-Mapping Format Klien
+                          </h4>
+                          <div className="text-sm text-purple-700 dark:text-purple-300 space-y-1">
+                            <p>• <strong>Tanggal</strong> → tanggal</p>
+                            <p>• <strong>Waktu Mulai</strong> → jam_mulai</p>
+                            <p>• <strong>Waktu Selesai</strong> → jam_selesai</p>
+                            <p>• <strong>Topik</strong> → materi</p>
+                            <p>• <strong>NIP Pengajar</strong> → nama_dosen (auto-resolve ke dosen_id)</p>
+                            <p>• <strong>Ruang</strong> → nama_ruangan (auto-resolve ke ruangan_id)</p>
+                            <p>• <strong>Jumlah Sesi</strong> → auto-calculated dari durasi (1 sesi = 50 menit)</p>
+                          </div>
+                          <div className="mt-3 p-2 bg-purple-100 dark:bg-purple-800/30 rounded text-xs">
+                            <p className="text-purple-800 dark:text-purple-200">
+                              <strong>Statistik Mapping:</strong> {importData.length} baris data berhasil di-mapping
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <button
+                      onClick={handleCloseImportModal}
+                      className="px-6 py-3 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                    >
+                      Batal
+                    </button>
+                    {importData.length > 0 && importErrors.length === 0 && cellErrors.length === 0 && (
+                      <button
+                        onClick={handleSubmitImport}
+                        disabled={isImporting}
+                        className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {isImporting ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            Importing...
+                          </>
+                        ) : (
+                          <>
+                            <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                            Import Data ({importData.length} jadwal)
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Import PBL Excel */}
+      <AnimatePresence>
+        {showPBLImportModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={handlePBLCloseImportModal}
+            />
+            {/* Modal Content */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={handlePBLCloseImportModal}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+
+              {/* Header */}
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Import Jadwal PBL</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Preview dan validasi data sebelum import</p>
+              </div>
+
+              {pblImportSuccess ? (
+                <div className="text-center py-12">
+                  <div className="w-20 h-20 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <FontAwesomeIcon icon={faStar} className="w-10 h-10 text-green-500" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-2">Import Berhasil!</h3>
+                  <p className="text-gray-500 dark:text-gray-400">Data jadwal PBL berhasil diimport.</p>
+                </div>
+              ) : (
+                <>
+                  {/* File Info */}
+                  {pblImportFile && (
+                    <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-500" />
+                        <div>
+                          <p className="font-medium text-blue-800 dark:text-blue-200">{pblImportFile.name}</p>
+                          <p className="text-sm text-blue-600 dark:text-blue-300">
+                            {(pblImportFile.size / 1024).toFixed(1)} KB
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Error Messages */}
+                  {pblCellErrors.length > 0 && (
+                    <div className="mb-6">
+                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <FontAwesomeIcon icon={faExclamationTriangle} className="w-5 h-5 text-red-500" />
+                          <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                            Error Validasi ({pblCellErrors.length} error)
+                          </h3>
+                        </div>
+                        <div className="max-h-40 overflow-y-auto">
+                          {pblCellErrors.map((err, idx) => (
+                            <p key={idx} className="text-sm text-red-600 dark:text-red-400 mb-1">
+                              • {err.message} (Baris {err.row + 1}, Kolom {err.field.toUpperCase()})
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Preview Data Table */}
+                  {pblImportData.length > 0 && (
+                    <div className="mb-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                          Preview Data ({pblImportData.length} jadwal)
+                        </h3>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          File: {pblImportFile?.name}
+                        </div>
+                      </div>
+                      
+                      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                        <div className="max-w-full overflow-x-auto hide-scroll">
+                          <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                            <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                              <tr>
+                                <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Mulai</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Selesai</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Modul PBL</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Kelompok Kecil</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Dosen</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">PBL Tipe</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Topik</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {pblImportPaginatedData.map((row, index) => {
+                                const actualIndex = (pblImportPage - 1) * pblImportPageSize + index;
+                                const modulPBL = modulPBLList?.find(m => m.id === row.modul_pbl_id);
+                                const kelompokKecil = kelompokKecilList?.find(k => k.id === row.kelompok_kecil_id);
+                                const dosen = allDosenList?.find(d => d.id === row.dosen_id);
+                                const ruangan = allRuanganList?.find(r => r.id === row.ruangan_id);
+                                
+                                const renderEditableCell = (field: string, value: any, isNumeric = false) => {
+                                  const isEditing = pblEditingCell?.row === actualIndex && pblEditingCell?.key === field;
+                                  const cellError = pblCellErrors.find(err => err.row === actualIndex && err.field === field);
+                                  
+                                  return (
+                                    <td
+                                      className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                      onClick={() => setPBLEditingCell({ row: actualIndex, key: field })}
+                                      title={cellError ? cellError.message : ''}
+                                    >
+                                      {isEditing ? (
+                                        <input
+                                          className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                          type={isNumeric ? "number" : "text"}
+                                          value={value || ""}
+                                          onChange={e => handlePBLCellEdit(actualIndex, field, e.target.value)}
+                                          onBlur={() => setPBLEditingCell(null)}
+                                          autoFocus
+                                        />
+                                      ) : (
+                                        value || '-'
+                                      )}
+                                    </td>
+                                  );
+                                };
+                                
+                                return (
+                                  <tr 
+                                    key={index} 
+                                    className={`${index % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}`}
+                                  >
+                                    <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{index + 1}</td>
+                                    {renderEditableCell('tanggal', row.tanggal)}
+                                    {renderEditableCell('jam_mulai', row.jam_mulai)}
+                                    {renderEditableCell('jam_selesai', row.jam_selesai)}
+                                    
+                                    {/* Modul PBL - Special handling */}
+                                    {(() => {
+                                      const field = 'modul_pbl_id';
+                                      const isEditing = pblEditingCell?.row === actualIndex && pblEditingCell?.key === field;
+                                      const cellError = pblCellErrors.find(err => err.row === actualIndex && err.field === field);
+                                      
+                                      return (
+                                        <td
+                                          className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                          onClick={() => setPBLEditingCell({ row: actualIndex, key: field })}
+                                          title={cellError ? cellError.message : ''}
+                                        >
+                                          {isEditing ? (
+                                            <input
+                                              className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                              value={modulPBL?.nama_modul || ""}
+                                              onChange={e => {
+                                                const modul = modulPBLList?.find(m => m.nama_modul.toLowerCase().includes(e.target.value.toLowerCase()));
+                                                handlePBLCellEdit(actualIndex, field, modul?.id?.toString() || '0');
+                                              }}
+                                              onBlur={() => setPBLEditingCell(null)}
+                                              autoFocus
+                                            />
+                                          ) : (
+                                            <span className={modulPBL ? 'text-gray-800 dark:text-white/90' : 'text-red-500'}>
+                                              {modulPBL?.nama_modul || 'Tidak ditemukan'}
+                                            </span>
+                                          )}
+                                        </td>
+                                      );
+                                    })()}
+                                    
+                                    {/* Kelompok Kecil - Special handling */}
+                                    {(() => {
+                                      const field = 'kelompok_kecil_id';
+                                      const isEditing = pblEditingCell?.row === actualIndex && pblEditingCell?.key === field;
+                                      const cellError = pblCellErrors.find(err => err.row === actualIndex && err.field === field);
+                                      
+                                      return (
+                                        <td
+                                          className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                          onClick={() => setPBLEditingCell({ row: actualIndex, key: field })}
+                                          title={cellError ? cellError.message : ''}
+                                        >
+                                          {isEditing ? (
+                                            <input
+                                              className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                              value={kelompokKecil?.nama_kelompok || ""}
+                                              onChange={e => handlePBLKelompokKecilEdit(actualIndex, e.target.value)}
+                                              onBlur={() => setPBLEditingCell(null)}
+                                              autoFocus
+                                            />
+                                          ) : (
+                                            <span className={kelompokKecil ? 'text-gray-800 dark:text-white/90' : 'text-red-500'}>
+                                              {kelompokKecil?.nama_kelompok || 'Tidak ditemukan'}
+                                            </span>
+                                          )}
+                                        </td>
+                                      );
+                                    })()}
+                                    
+                                    {/* Dosen - Special handling */}
+                                    {(() => {
+                                      const field = 'dosen_id';
+                                      const isEditing = pblEditingCell?.row === actualIndex && pblEditingCell?.key === field;
+                                      const cellError = pblCellErrors.find(err => err.row === actualIndex && err.field === field);
+                                      
+                                      return (
+                                        <td
+                                          className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                          onClick={() => setPBLEditingCell({ row: actualIndex, key: field })}
+                                          title={cellError ? cellError.message : ''}
+                                        >
+                                          {isEditing ? (
+                                            <input
+                                              className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                              value={dosen?.name || ""}
+                                              onChange={e => handlePBLDosenEdit(actualIndex, e.target.value)}
+                                              onBlur={() => setPBLEditingCell(null)}
+                                              autoFocus
+                                            />
+                                          ) : (
+                                            <span className={dosen ? 'text-gray-800 dark:text-white/90' : 'text-red-500'}>
+                                              {dosen?.name || 'Tidak ditemukan'}
+                                            </span>
+                                          )}
+                                        </td>
+                                      );
+                                    })()}
+                                    
+                                    {/* Ruangan - Special handling */}
+                                    {(() => {
+                                      const field = 'ruangan_id';
+                                      const isEditing = pblEditingCell?.row === actualIndex && pblEditingCell?.key === field;
+                                      const cellError = pblCellErrors.find(err => err.row === actualIndex && err.field === field);
+                                      
+                                      return (
+                                        <td
+                                          className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                          onClick={() => setPBLEditingCell({ row: actualIndex, key: field })}
+                                          title={cellError ? cellError.message : ''}
+                                        >
+                                          {isEditing ? (
+                                            <input
+                                              className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                              value={ruangan?.nama || ""}
+                                              onChange={e => handlePBLRuanganEdit(actualIndex, e.target.value)}
+                                              onBlur={() => setPBLEditingCell(null)}
+                                              autoFocus
+                                            />
+                                          ) : (
+                                            <span className={ruangan ? 'text-gray-800 dark:text-white/90' : 'text-red-500'}>
+                                              {ruangan?.nama || 'Tidak ditemukan'}
+                                            </span>
+                                          )}
+                                        </td>
+                                      );
+                                    })()}
+                                    
+                                    {renderEditableCell('pbl_tipe', row.pbl_tipe)}
+                                    {renderEditableCell('topik', row.topik)}
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <button
+                      onClick={handlePBLCloseImportModal}
+                      className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                    >
+                      Batal
+                    </button>
+                    {pblImportData.length > 0 && pblCellErrors.length === 0 && (
+                      <button
+                        onClick={handlePBLSubmitImport}
+                        disabled={isPBLImporting}
+                        className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {isPBLImporting ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            Importing...
+                          </>
+                        ) : (
+                          <>
+                            <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                            Import Data ({pblImportData.length} jadwal)
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
             </motion.div>
           </div>
         )}

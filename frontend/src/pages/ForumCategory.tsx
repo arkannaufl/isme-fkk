@@ -987,22 +987,116 @@ const ForumCategory: React.FC = () => {
         {/* Pagination */}
         {totalPages > 1 && (
           <div className="mt-8 flex justify-center">
-            <div className="flex space-x-2">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                (page) => (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Prev
+              </button>
+              
+              {/* Smart Pagination with Scroll */}
+              <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll" style={{
+                scrollbarWidth: 'thin',
+                scrollbarColor: '#cbd5e1 #f1f5f9'
+              }}>
+                <style dangerouslySetInnerHTML={{
+                  __html: `
+                    .pagination-scroll::-webkit-scrollbar {
+                      height: 6px;
+                    }
+                    .pagination-scroll::-webkit-scrollbar-track {
+                      background: #f1f5f9;
+                      border-radius: 3px;
+                    }
+                    .pagination-scroll::-webkit-scrollbar-thumb {
+                      background: #cbd5e1;
+                      border-radius: 3px;
+                    }
+                    .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                      background: #94a3b8;
+                    }
+                    .dark .pagination-scroll::-webkit-scrollbar-track {
+                      background: #1e293b;
+                    }
+                    .dark .pagination-scroll::-webkit-scrollbar-thumb {
+                      background: #475569;
+                    }
+                    .dark .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                      background: #64748b;
+                    }
+                  `
+                }} />
+                
+                {/* Always show first page */}
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 transition whitespace-nowrap ${
+                    currentPage === 1
+                      ? "bg-blue-600 dark:bg-blue-700 text-white"
+                      : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  1
+                </button>
+                
+                {/* Show ellipsis if current page is far from start */}
+                {currentPage > 4 && (
+                  <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
+                )}
+                
+                {/* Show pages around current page */}
+                {Array.from({ length: totalPages }, (_, i) => {
+                  const pageNum = i + 1;
+                  // Show pages around current page (2 pages before and after)
+                  const shouldShow = pageNum > 1 && pageNum < totalPages && 
+                    (pageNum >= currentPage - 2 && pageNum <= currentPage + 2);
+                  
+                  if (!shouldShow) return null;
+                  
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 transition whitespace-nowrap ${
+                        currentPage === pageNum
+                          ? "bg-blue-600 dark:bg-blue-700 text-white"
+                          : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+                
+                {/* Show ellipsis if current page is far from end */}
+                {currentPage < totalPages - 3 && (
+                  <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
+                )}
+                
+                {/* Always show last page if it's not the first page */}
+                {totalPages > 1 && (
                   <button
-                    key={page}
-                    onClick={() => setCurrentPage(page)}
-                    className={`px-3 py-2 rounded-lg text-sm font-medium ${
-                      currentPage === page
+                    onClick={() => setCurrentPage(totalPages)}
+                    className={`px-3 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 transition whitespace-nowrap ${
+                      currentPage === totalPages
                         ? "bg-blue-600 dark:bg-blue-700 text-white"
-                        : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+                        : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                     }`}
                   >
-                    {page}
+                    {totalPages}
                   </button>
-                )
-              )}
+                )}
+              </div>
+              
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Next
+              </button>
             </div>
           </div>
         )}

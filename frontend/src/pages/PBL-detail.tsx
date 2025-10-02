@@ -189,6 +189,12 @@ export default function PBL() {
     },
   });
 
+  // Ref untuk menyimpan snapshot terakhir statistik, mencegah setState berulang
+  const pblStatsRef = useRef(pblDetailStatistics);
+  useEffect(() => {
+    pblStatsRef.current = pblDetailStatistics;
+  }, [pblDetailStatistics]);
+
   // PERBAIKAN BARU: Fungsi untuk mengecek apakah sudah ada data yang di-generate
   const checkHasGeneratedData = () => {
     const totalAssignedDosen = Object.values(assignedDosen).flat().length;
@@ -343,6 +349,15 @@ export default function PBL() {
   const [assignedDosen, setAssignedDosen] = useState<{
     [pblId: number]: Dosen[];
   }>({});
+
+  // STATE: Konflik per semester untuk pewarnaan badge dan warning
+  const [semesterConflicts, setSemesterConflicts] = useState<{
+    [semester: number]: {
+      koordinatorIds: number[];
+      multiRoleIds: number[];
+    };
+  }>({});
+  const [conflictWarnings, setConflictWarnings] = useState<string[]>([]);
   // Track role assignments per PBL for UI coloring
   const [roleAssignments, setRoleAssignments] = useState<{
     [pblId: number]: { koordinator?: number[]; timBlok?: number[] };
@@ -708,6 +723,51 @@ export default function PBL() {
     // Jika sudah ada assignment, hanya tampilkan dosen dari pbl_mappings
     return assignedFromMappings;
   };
+
+  // DETEKSI KONFLIK per semester (Tipe A: >1 koordinator, Tipe B: dosen punya >1 peran)
+  const detectSemesterConflicts = useCallback((
+    grouped: Record<number, MataKuliah[]>
+  ) => {
+    const newConflicts: { [semester: number]: { koordinatorIds: number[]; multiRoleIds: number[] } } = {};
+    const newWarnings: string[] = [];
+
+    Object.entries(grouped).forEach(([semesterStr, mkList]) => {
+      const semester = parseInt(semesterStr);
+      const roleMap: Record<number, Set<string>> = {};
+      const koordinatorSet = new Set<number>();
+
+      mkList.forEach((mk) => {
+        (pblData[mk.kode] || []).forEach((pbl) => {
+          if (!pbl.id) return;
+          const assigned = assignedDosen[pbl.id] || [];
+          assigned.forEach((d) => {
+            const id = d.id;
+            const role = (d as any).pbl_role || d.pbl_role || "dosen_mengajar";
+            if (!roleMap[id]) roleMap[id] = new Set<string>();
+            roleMap[id].add(role);
+            if (role === "koordinator") koordinatorSet.add(id);
+          });
+        });
+      });
+
+      const koordinatorIds = Array.from(koordinatorSet);
+      const multiRoleIds = Object.entries(roleMap)
+        .filter(([, roles]) => roles.size > 1)
+        .map(([id]) => Number(id));
+
+      if (koordinatorIds.length > 1) {
+        newWarnings.push(`Konflik: lebih dari satu koordinator pada Semester ${semester}. Mohon unassign salah satu.`);
+      }
+      if (multiRoleIds.length > 0) {
+        newWarnings.push(`Konflik peran pada Semester ${semester}: beberapa dosen memiliki peran ganda. Mohon unassign salah satu.`);
+      }
+
+      newConflicts[semester] = { koordinatorIds, multiRoleIds };
+    });
+
+    setSemesterConflicts(newConflicts);
+    setConflictWarnings(newWarnings);
+  }, [assignedDosen, pblData]);
 
   // Helper untuk mendapatkan dosen yang tersedia (tidak di-assign ke semester manapun)
   const assignedDosenIds = Object.values(assignedDosen)
@@ -1968,7 +2028,7 @@ export default function PBL() {
       return keahlian.some(k => k.toLowerCase().includes('standby'));
     }).length;
 
-    setPblDetailStatistics({
+    const nextStats = {
       blokCompletionRate,
       dosenPerBlok,
       modulPerBlok,
@@ -1990,7 +2050,16 @@ export default function PBL() {
       assignmentRate: blokCompletionRate,
       dosenUtilizationRate,
       assignmentDistribution,
-    });
+    } as typeof pblDetailStatistics;
+
+    try {
+      const isEqual = JSON.stringify(pblStatsRef.current) === JSON.stringify(nextStats);
+      if (!isEqual) {
+        setPblDetailStatistics(nextStats);
+      }
+    } catch {
+      setPblDetailStatistics(nextStats);
+    }
   }, [blokMataKuliahFilteredByBlok, dosenList, pblData, assignedDosen, hasGeneratedData, isGenerateValidated, warnings.length, pblDetailStatistics.lastGenerateTime]);
 
   // Calculate detail statistics when data changes
@@ -1998,7 +2067,15 @@ export default function PBL() {
     if (blokMataKuliahFilteredByBlok.length > 0 && dosenList.length > 0) {
       calculateDetailStatistics();
     }
-  }, [blokMataKuliahFilteredByBlok, dosenList, assignedDosen, hasGeneratedData, isGenerateValidated, warnings.length, pblDetailStatistics.lastGenerateTime, calculateDetailStatistics]);
+  }, [
+    blokMataKuliahFilteredByBlok,
+    dosenList,
+    assignedDosen,
+    hasGeneratedData,
+    isGenerateValidated,
+    warnings.length,
+    pblDetailStatistics.lastGenerateTime,
+  ]);
   const sortedSemesters = Object.keys(groupedBySemester || {})
     .map(Number)
     .sort((a, b) => a - b);
@@ -2092,6 +2169,13 @@ export default function PBL() {
     });
     return { belum, sudah };
   })();
+
+  // Jalankan deteksi konflik saat groupedBySemester atau assignedDosen berubah
+  useEffect(() => {
+    if (Object.keys(groupedBySemester || {}).length > 0) {
+      detectSemesterConflicts(groupedBySemester);
+    }
+  }, [groupedBySemester, assignedDosen, detectSemesterConflicts]);
 
   // --- Pagination logic (MUST be before any return) ---
   const totalPages = Math.ceil((allFilteredMataKuliah || []).length / pageSize);
@@ -2398,7 +2482,7 @@ export default function PBL() {
       {/* Header */}
       <div className="mb-8">
         <button
-          onClick={() => navigate("/pbl")}
+          onClick={() => navigate("/pbl", { replace: true })}
           className="flex items-center gap-2 text-brand-500 hover:text-brand-600 transition-all duration-300 ease-out hover:scale-105 transform mb-4"
         >
           <svg
@@ -2923,7 +3007,22 @@ export default function PBL() {
                           })()}
                         </div>
                       </div>
-                      {/* PBL Cards Grid */}
+              {/* Warning konflik per semester */}
+              {(() => {
+                const s = Number(semester);
+                const sc = semesterConflicts[s];
+                if (!sc) return null;
+                const hasKoordinatorConflict = (sc.koordinatorIds || []).length > 1;
+                const hasMultiRoleConflict = (sc.multiRoleIds || []).length > 0;
+                if (!hasKoordinatorConflict && !hasMultiRoleConflict) return null;
+                return (
+                  <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700 rounded-lg text-sm text-orange-800 dark:text-orange-200">
+                    Terjadi konflik peran pada Semester {semester}. Mohon unassign salah satu dosen yang bertanda badge orange.
+                  </div>
+                );
+              })()}
+
+              {/* PBL Cards Grid */}
                       <div className="grid gap-4">
                         {(semesterPBLs || []).map((mk: MataKuliah) => {
                           const pblList = pblData[mk.kode] || [];
@@ -3756,7 +3855,7 @@ export default function PBL() {
                                                 textColor =
                                                   "text-blue-700 dark:text-blue-200";
                                                 bgColor =
-                                                  "bg-blue-100 dark:bg-blue-900/40";
+                                                  "bg-blue-100 dark:bg-blue-900/20";
                                               } else if (
                                                 pblRole === "tim_blok"
                                               ) {
@@ -3767,7 +3866,7 @@ export default function PBL() {
                                                 textColor =
                                                   "text-purple-700 dark:text-purple-200";
                                                 bgColor =
-                                                  "bg-purple-100 dark:bg-purple-900/40";
+                                                  "bg-purple-100 dark:bg-purple-900/20";
                                               }
 
                                               // Cek apakah keahlian dosen sesuai dengan mata kuliah
@@ -3781,18 +3880,23 @@ export default function PBL() {
                                               const isTimBlok =
                                                 pblRole === "tim_blok";
 
-                                              // Jika standby, override warna
+                                              // Tentukan apakah konflik pada semester ini
+                                              const sc = semesterConflicts[Number(semester)];
+                                              const isConflict = sc && ((sc.koordinatorIds || []).includes(dosen.id) || (sc.multiRoleIds || []).includes(dosen.id));
+
+                                              // Prioritas warna: Standby > Konflik (orange) > Tidak match (merah)
                                               if (isStandby) {
                                                 avatarColor = "bg-yellow-400";
-                                                borderColor =
-                                                  "border-yellow-200";
-                                                textColor =
-                                                  "text-yellow-800 dark:text-yellow-200";
-                                                bgColor =
-                                                  "bg-yellow-100 dark:bg-yellow-900/40";
-                                              }
-                                              // Jika keahlian tidak sesuai dan bukan koordinator/tim blok, ubah warna menjadi merah
-                                              else if (
+                                                borderColor = "border-yellow-200";
+                                                textColor = "text-yellow-800 dark:text-yellow-200";
+                                                bgColor = "bg-yellow-100 dark:bg-yellow-900/40";
+                                              } else if (isConflict) {
+                                                avatarColor = "bg-orange-500";
+                                                borderColor = "border-orange-200";
+                                                textColor = "text-orange-800 dark:text-orange-200";
+                                                bgColor = "bg-orange-100 dark:bg-orange-900/40";
+                                              } else if (
+                                                // Jika keahlian tidak sesuai dan bukan koordinator/tim blok, ubah warna menjadi merah
                                                 !isKeahlianMatch &&
                                                 !isKoordinator &&
                                                 !isTimBlok
