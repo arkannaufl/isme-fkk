@@ -6,6 +6,7 @@ use App\Models\MataKuliah;
 use App\Models\JadwalNonBlokNonCSR;
 use App\Models\User;
 use App\Models\Ruangan;
+use App\Models\KelompokBesar;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -48,12 +49,32 @@ class DetailNonBlokNonCSRController extends Controller
                 '13.25', '14.15', '15.05', '15.35', '16.25', '17.15'
             ];
 
+            // Get kelompok besar options untuk agenda dan materi
+            $kelompokBesarAgendaOptions = [];
+            $semesters = KelompokBesar::distinct()->pluck('semester')->toArray();
+            
+            foreach ($semesters as $sem) {
+                $jumlahMahasiswa = KelompokBesar::where('semester', $sem)->count();
+                
+                if ($jumlahMahasiswa > 0) {
+                    $kelompokBesarAgendaOptions[] = [
+                        'id' => $sem, // Gunakan semester sebagai ID
+                        'label' => "Kelompok Besar Semester {$sem} ({$jumlahMahasiswa} mahasiswa)",
+                        'jumlah_mahasiswa' => $jumlahMahasiswa
+                    ];
+                }
+            }
+
+            $kelompokBesarMateriOptions = $kelompokBesarAgendaOptions; // Same for now
+
             return response()->json([
                 'mata_kuliah' => $mataKuliah,
                 'jadwal_non_blok_non_csr' => $jadwalNonBlokNonCSR,
                 'dosen_list' => $dosenList,
                 'ruangan_list' => $ruanganList,
                 'jam_options' => $jamOptions,
+                'kelompok_besar_agenda_options' => $kelompokBesarAgendaOptions,
+                'kelompok_besar_materi_options' => $kelompokBesarMateriOptions,
             ]);
 
         } catch (\Exception $e) {

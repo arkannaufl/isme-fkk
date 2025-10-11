@@ -340,6 +340,53 @@ class JadwalPBLController extends Controller
             $importedData = [];
             $errors = [];
 
+            // Validasi semua data terlebih dahulu (all or nothing approach)
+            foreach ($data['data'] as $index => $row) {
+                // Set jumlah_sesi berdasarkan pbl_tipe jika tidak disediakan
+                if (!isset($row['jumlah_sesi'])) {
+                    $row['jumlah_sesi'] = $row['pbl_tipe'] === 'PBL 2' ? 3 : 2;
+                }
+
+                // Set mata_kuliah_kode dan pbl_id
+                $row['mata_kuliah_kode'] = $kode;
+                $row['pbl_id'] = $row['modul_pbl_id'];
+
+                // Validasi kapasitas ruangan
+                $kapasitasMessage = $this->validateRuanganCapacity($row);
+                if ($kapasitasMessage) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . $kapasitasMessage;
+                }
+
+                // Validasi bentrok
+                $bentrokMessage = $this->checkBentrokWithDetail($row, null);
+                if ($bentrokMessage) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;
+                }
+
+                // Validasi tanggal dalam rentang mata kuliah
+                $mataKuliah = \App\Models\MataKuliah::where('kode', $kode)->first();
+                if ($mataKuliah && $mataKuliah->tanggal_mulai && $mataKuliah->tanggal_akhir) {
+                    $jadwalTanggal = new \DateTime($row['tanggal']);
+                    $tanggalMulai = new \DateTime($mataKuliah->tanggal_mulai);
+                    $tanggalAkhir = new \DateTime($mataKuliah->tanggal_akhir);
+                    
+                    if ($jadwalTanggal < $tanggalMulai || $jadwalTanggal > $tanggalAkhir) {
+                        $errors[] = "Baris " . ($index + 1) . ": Tanggal harus dalam rentang {$mataKuliah->tanggal_mulai} - {$mataKuliah->tanggal_akhir}";
+                    }
+                }
+            }
+
+            // Jika ada error validasi, return error tanpa import apapun
+            if (count($errors) > 0) {
+                return response()->json([
+                    'success' => 0,
+                    'total' => count($data['data']),
+                    'errors' => $errors,
+                    'message' => "Gagal mengimport data. Perbaiki error terlebih dahulu."
+                ], 422);
+            }
+
+            // Jika tidak ada error, import semua data
             foreach ($data['data'] as $index => $row) {
                 try {
                     // Set jumlah_sesi berdasarkan pbl_tipe jika tidak disediakan
@@ -350,33 +397,6 @@ class JadwalPBLController extends Controller
                     // Set mata_kuliah_kode dan pbl_id
                     $row['mata_kuliah_kode'] = $kode;
                     $row['pbl_id'] = $row['modul_pbl_id'];
-
-                    // Validasi kapasitas ruangan
-                    $kapasitasMessage = $this->validateRuanganCapacity($row);
-                    if ($kapasitasMessage) {
-                        $errors[] = "Baris " . ($index + 1) . ": " . $kapasitasMessage;
-                        continue;
-                    }
-
-                    // Validasi bentrok
-                    $bentrokMessage = $this->checkBentrokWithDetail($row, null);
-                    if ($bentrokMessage) {
-                        $errors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;
-                        continue;
-                    }
-
-                    // Validasi tanggal dalam rentang mata kuliah
-                    $mataKuliah = \App\Models\MataKuliah::where('kode', $kode)->first();
-                    if ($mataKuliah && $mataKuliah->tanggal_mulai && $mataKuliah->tanggal_akhir) {
-                        $jadwalTanggal = new \DateTime($row['tanggal']);
-                        $tanggalMulai = new \DateTime($mataKuliah->tanggal_mulai);
-                        $tanggalAkhir = new \DateTime($mataKuliah->tanggal_akhir);
-                        
-                        if ($jadwalTanggal < $tanggalMulai || $jadwalTanggal > $tanggalAkhir) {
-                            $errors[] = "Baris " . ($index + 1) . ": Tanggal harus dalam rentang {$mataKuliah->tanggal_mulai} - {$mataKuliah->tanggal_akhir}";
-                            continue;
-                        }
-                    }
 
                     // Buat jadwal PBL
                     $jadwal = JadwalPBL::create($row);
@@ -1194,6 +1214,72 @@ class JadwalPBLController extends Controller
                 'message' => 'Gagal mengambil jadwal PBL',
                 'error' => $e->getMessage()
             ], 500);
+        }
+    }
+
+    // Ajukan reschedule jadwal PBL
+    public function reschedule(Request $request, $jadwalId)
+    {
+        $request->validate([
+            'reschedule_reason' => 'required|string|max:1000',
+            'dosen_id' => 'required|exists:users,id'
+        ]);
+
+        $jadwal = JadwalPBL::with(['modulPBL.mataKuliah', 'dosen'])
+            ->where('id', $jadwalId)
+            ->where(function ($query) use ($request) {
+                $query->where('dosen_id', $request->dosen_id)
+                    ->orWhereJsonContains('dosen_ids', $request->dosen_id);
+            })
+            ->firstOrFail();
+
+        // Update status menjadi waiting_reschedule
+        $jadwal->update([
+            'status_konfirmasi' => 'waiting_reschedule',
+            'reschedule_reason' => $request->reschedule_reason,
+            'status_reschedule' => 'waiting'
+        ]);
+
+        // Kirim notifikasi ke admin
+        $this->sendRescheduleNotification($jadwal, $request->reschedule_reason);
+
+        return response()->json([
+            'message' => 'Permintaan reschedule berhasil diajukan',
+            'status' => 'waiting_reschedule'
+        ]);
+    }
+
+    /**
+     * Kirim notifikasi reschedule ke admin
+     */
+    private function sendRescheduleNotification($jadwal, $reason)
+    {
+        try {
+            $superAdmins = User::where('role', 'super_admin')->get();
+            $timAkademik = User::where('role', 'tim_akademik')->get();
+            $admins = $superAdmins->merge($timAkademik);
+
+            foreach ($admins as $admin) {
+                \App\Models\Notification::create([
+                    'user_id' => $admin->id,
+                    'title' => 'Permintaan Reschedule Jadwal',
+                    'message' => "Dosen {$jadwal->dosen->name} mengajukan reschedule untuk jadwal PBL. Alasan: {$reason}",
+                    'type' => 'warning',
+                    'is_read' => false,
+                    'data' => [
+                        'jadwal_id' => $jadwal->id,
+                        'jadwal_type' => 'pbl',
+                        'dosen_name' => $jadwal->dosen->name,
+                        'dosen_id' => $jadwal->dosen->id,
+                        'reschedule_reason' => $reason,
+                        'notification_type' => 'reschedule_request'
+                    ]
+                ]);
+            }
+
+            \Log::info("Reschedule notification sent for PBL jadwal ID: {$jadwal->id}");
+        } catch (\Exception $e) {
+            \Log::error("Error sending reschedule notification for PBL jadwal ID: {$jadwal->id}: " . $e->getMessage());
         }
     }
 }

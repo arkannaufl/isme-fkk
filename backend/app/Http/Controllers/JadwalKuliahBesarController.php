@@ -1757,55 +1757,64 @@ class JadwalKuliahBesarController extends Controller
             }
             $isSemesterAntara = $mataKuliah->semester === "Antara";
 
-            // Validasi dan import data satu per satu
+            // Validasi semua data terlebih dahulu (all or nothing approach)
+            foreach ($excelData as $index => $data) {
+                // Validasi tanggal dalam rentang mata kuliah
+                $tanggalMessage = $this->validateTanggalMataKuliah($data, $mataKuliah);
+                if ($tanggalMessage) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . $tanggalMessage;
+                }
+
+                // Validasi kapasitas ruangan
+                $kapasitasMessage = $this->validateRuanganCapacity($data, $isSemesterAntara);
+                if ($kapasitasMessage) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . $kapasitasMessage;
+                }
+
+                // Validasi bentrok
+                $bentrokMessage = $this->checkBentrokWithDetail($data, null, $isSemesterAntara);
+                if ($bentrokMessage) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;
+                }
+
+                // Validasi keahlian dosen dengan materi (hanya untuk semester biasa)
+                if (!$isSemesterAntara && isset($data['materi']) && isset($data['dosen_id'])) {
+                    $dosen = User::find($data['dosen_id']);
+                    if ($dosen) {
+                        $keahlianDosen = is_array($dosen->keahlian) 
+                            ? $dosen->keahlian 
+                            : array_map('trim', explode(',', $dosen->keahlian ?? ''));
+                        
+                        if (!in_array($data['materi'], $keahlianDosen)) {
+                            $errors[] = "Baris " . ($index + 1) . ": Materi \"" . $data['materi'] . "\" tidak sesuai dengan keahlian dosen \"" . $dosen->name . "\". Keahlian dosen: " . implode(', ', $keahlianDosen);
+                        }
+                    }
+                }
+
+                // Validasi kelompok besar ID sesuai dengan semester mata kuliah (hanya untuk semester biasa)
+                if (!$isSemesterAntara && isset($data['kelompok_besar_id']) && $data['kelompok_besar_id']) {
+                    $kelompokBesarSemester = $data['kelompok_besar_id'];
+                    $mataKuliahSemester = $mataKuliah->semester;
+                    
+                    if ($kelompokBesarSemester != $mataKuliahSemester) {
+                        $errors[] = "Baris " . ($index + 1) . ": Kelompok besar ID {$kelompokBesarSemester} tidak sesuai dengan semester mata kuliah ({$mataKuliahSemester}). Hanya boleh menggunakan kelompok besar semester {$mataKuliahSemester}.";
+                    }
+                }
+            }
+
+            // Jika ada error validasi, return error tanpa import apapun
+            if (count($errors) > 0) {
+                return response()->json([
+                    'success' => 0,
+                    'total' => count($excelData),
+                    'errors' => $errors,
+                    'message' => "Gagal mengimport data. Perbaiki error terlebih dahulu."
+                ], 422);
+            }
+
+            // Jika tidak ada error, import semua data
             foreach ($excelData as $index => $data) {
                 try {
-                    // Validasi tanggal dalam rentang mata kuliah
-                    $tanggalMessage = $this->validateTanggalMataKuliah($data, $mataKuliah);
-                    if ($tanggalMessage) {
-                        $errors[] = "Baris " . ($index + 1) . ": " . $tanggalMessage;
-                        continue;
-                    }
-
-                    // Validasi kapasitas ruangan
-                    $kapasitasMessage = $this->validateRuanganCapacity($data, $isSemesterAntara);
-                    if ($kapasitasMessage) {
-                        $errors[] = "Baris " . ($index + 1) . ": " . $kapasitasMessage;
-                        continue;
-                    }
-
-                    // Validasi bentrok
-                    $bentrokMessage = $this->checkBentrokWithDetail($data, null, $isSemesterAntara);
-                    if ($bentrokMessage) {
-                        $errors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;
-                        continue;
-                    }
-
-                    // Validasi keahlian dosen dengan materi (hanya untuk semester biasa)
-                    if (!$isSemesterAntara && isset($data['materi']) && isset($data['dosen_id'])) {
-                        $dosen = User::find($data['dosen_id']);
-                        if ($dosen) {
-                            $keahlianDosen = is_array($dosen->keahlian) 
-                                ? $dosen->keahlian 
-                                : array_map('trim', explode(',', $dosen->keahlian ?? ''));
-                            
-                            if (!in_array($data['materi'], $keahlianDosen)) {
-                                $errors[] = "Baris " . ($index + 1) . ": Materi \"" . $data['materi'] . "\" tidak sesuai dengan keahlian dosen \"" . $dosen->name . "\". Keahlian dosen: " . implode(', ', $keahlianDosen);
-                                continue;
-                            }
-                        }
-                    }
-
-                    // Validasi kelompok besar ID sesuai dengan semester mata kuliah (hanya untuk semester biasa)
-                    if (!$isSemesterAntara && isset($data['kelompok_besar_id']) && $data['kelompok_besar_id']) {
-                        $kelompokBesarSemester = $data['kelompok_besar_id'];
-                        $mataKuliahSemester = $mataKuliah->semester;
-                        
-                        if ($kelompokBesarSemester != $mataKuliahSemester) {
-                            $errors[] = "Baris " . ($index + 1) . ": Kelompok besar ID {$kelompokBesarSemester} tidak sesuai dengan semester mata kuliah ({$mataKuliahSemester}). Hanya boleh menggunakan kelompok besar semester {$mataKuliahSemester}.";
-                            continue;
-                        }
-                    }
 
                     // Siapkan data untuk disimpan
                     $jadwalData = [
@@ -1879,6 +1888,81 @@ class JadwalKuliahBesarController extends Controller
             return response()->json([
                 'message' => 'Gagal mengimport data: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    // Ajukan reschedule jadwal Kuliah Besar
+    public function reschedule(Request $request, $id)
+    {
+        $request->validate([
+            'reschedule_reason' => 'required|string|max:1000',
+            'dosen_id' => 'required|exists:users,id'
+        ]);
+
+        $jadwal = JadwalKuliahBesar::with(['mataKuliah', 'ruangan'])->findOrFail($id);
+
+        // Cek apakah dosen_id ada dalam dosen_ids (untuk semester antara)
+        if ($jadwal->dosen_ids && in_array($request->dosen_id, $jadwal->dosen_ids)) {
+            // Untuk semester antara - update status
+            $jadwal->update([
+                'status_konfirmasi' => 'waiting_reschedule',
+                'reschedule_reason' => $request->reschedule_reason,
+                'status_reschedule' => 'waiting'
+            ]);
+
+            $dosen = \App\Models\User::find($request->dosen_id);
+        } else {
+            // Untuk semester biasa - single dosen
+            $jadwal = JadwalKuliahBesar::with(['dosen', 'mataKuliah', 'ruangan'])->findOrFail($id);
+            $jadwal->update([
+                'status_konfirmasi' => 'waiting_reschedule',
+                'reschedule_reason' => $request->reschedule_reason,
+                'status_reschedule' => 'waiting'
+            ]);
+
+            $dosen = $jadwal->dosen;
+        }
+
+        // Kirim notifikasi ke admin
+        $this->sendRescheduleNotification($jadwal, $request->reschedule_reason, $dosen);
+
+        return response()->json([
+            'message' => 'Permintaan reschedule berhasil diajukan',
+            'status' => 'waiting_reschedule'
+        ]);
+    }
+
+    /**
+     * Kirim notifikasi reschedule ke admin
+     */
+    private function sendRescheduleNotification($jadwal, $reason, $dosen)
+    {
+        try {
+            $superAdmins = User::where('role', 'super_admin')->get();
+            $timAkademik = User::where('role', 'tim_akademik')->get();
+            $admins = $superAdmins->merge($timAkademik);
+
+            foreach ($admins as $admin) {
+                \App\Models\Notification::create([
+                    'user_id' => $admin->id,
+                    'title' => 'Permintaan Reschedule Jadwal',
+                    'message' => "Dosen {$dosen->name} mengajukan reschedule untuk jadwal Kuliah Besar. Alasan: {$reason}",
+                    'type' => 'warning',
+                    'is_read' => false,
+                    'data' => [
+                        'jadwal_id' => $jadwal->id,
+                        'jadwal_type' => 'kuliah_besar',
+                        'dosen_name' => $dosen->name,
+                        'dosen_id' => $dosen->id,
+                        'reschedule_reason' => $reason,
+                        'notification_type' => 'reschedule_request'
+                    ]
+                ]);
+            }
+
+            \Log::info("Reschedule notification sent for Kuliah Besar jadwal ID: {$jadwal->id}");
+        } catch (\Exception $e) {
+            \Log::error("Error sending reschedule notification for Kuliah Besar jadwal ID: {$jadwal->id}: " . $e->getMessage());
         }
     }
 

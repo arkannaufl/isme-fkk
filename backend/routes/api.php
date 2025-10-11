@@ -235,28 +235,33 @@ Route::middleware('auth:sanctum')->prefix('mata-kuliah/{kode}')->group(function 
 // Jadwal PBL untuk dosen
 Route::middleware('auth:sanctum')->get('/jadwal-pbl/dosen/{dosenId}', [App\Http\Controllers\JadwalPBLController::class, 'getJadwalForDosen']);
 Route::middleware('auth:sanctum')->put('/jadwal-pbl/{jadwalId}/konfirmasi', [App\Http\Controllers\JadwalPBLController::class, 'konfirmasiJadwal']);
+Route::middleware('auth:sanctum')->post('/jadwal-pbl/{jadwalId}/reschedule', [App\Http\Controllers\JadwalPBLController::class, 'reschedule']);
 
 // Jadwal Kuliah Besar untuk dosen
 Route::middleware('auth:sanctum')->get('/jadwal-kuliah-besar/dosen/{dosenId}', [JadwalKuliahBesarController::class, 'getJadwalForDosen']);
 Route::middleware('auth:sanctum')->put('/jadwal-kuliah-besar/{id}/konfirmasi', [JadwalKuliahBesarController::class, 'konfirmasi']);
+Route::middleware('auth:sanctum')->post('/jadwal-kuliah-besar/{id}/reschedule', [JadwalKuliahBesarController::class, 'reschedule']);
 Route::middleware('auth:sanctum')->get('/riwayat-konfirmasi/dosen/{dosenId}', [JadwalKuliahBesarController::class, 'getRiwayatDosen']);
 
 // Jadwal Praktikum untuk dosen
 Route::middleware('auth:sanctum')->get('/jadwal-praktikum/dosen/{dosenId}', [App\Http\Controllers\JadwalPraktikumController::class, 'getJadwalForDosen']);
 Route::middleware('auth:sanctum')->put('/jadwal-praktikum/{id}/konfirmasi', [App\Http\Controllers\JadwalPraktikumController::class, 'konfirmasi']);
-
+Route::middleware('auth:sanctum')->post('/jadwal-praktikum/{id}/reschedule', [App\Http\Controllers\JadwalPraktikumController::class, 'reschedule']);
 
 // Jadwal Jurnal Reading untuk dosen
 Route::middleware('auth:sanctum')->get('/jadwal-jurnal-reading/dosen/{dosenId}', [App\Http\Controllers\JadwalJurnalReadingController::class, 'getJadwalForDosen']);
 Route::middleware('auth:sanctum')->put('/jadwal-jurnal-reading/{id}/konfirmasi', [App\Http\Controllers\JadwalJurnalReadingController::class, 'konfirmasi']);
+Route::middleware('auth:sanctum')->post('/jadwal-jurnal-reading/{id}/reschedule', [App\Http\Controllers\JadwalJurnalReadingController::class, 'reschedule']);
 
 // Jadwal CSR untuk dosen
 Route::middleware('auth:sanctum')->get('/jadwal-csr/dosen/{dosenId}', [App\Http\Controllers\JadwalCSRController::class, 'getJadwalForDosen']);
 Route::middleware('auth:sanctum')->put('/jadwal-csr/{id}/konfirmasi', [App\Http\Controllers\JadwalCSRController::class, 'konfirmasiJadwal']);
+Route::middleware('auth:sanctum')->post('/jadwal-csr/{id}/reschedule', [App\Http\Controllers\JadwalCSRController::class, 'reschedule']);
 
 // Jadwal Non Blok Non CSR untuk dosen
 Route::middleware('auth:sanctum')->get('/jadwal-non-blok-non-csr/dosen/{dosenId}', [App\Http\Controllers\JadwalNonBlokNonCSRController::class, 'getJadwalForDosen']);
 Route::middleware('auth:sanctum')->put('/jadwal-non-blok-non-csr/{id}/konfirmasi', [App\Http\Controllers\JadwalNonBlokNonCSRController::class, 'konfirmasiJadwal']);
+Route::middleware('auth:sanctum')->post('/jadwal-non-blok-non-csr/{id}/reschedule', [App\Http\Controllers\JadwalNonBlokNonCSRController::class, 'reschedule']);
 
 Route::middleware('auth:sanctum')->prefix('mata-kuliah/{kode}/kelompok/{kelompok}/pertemuan/{pertemuan}')->group(function () {
     Route::get('penilaian-pbl', [App\Http\Controllers\PenilaianPBLController::class, 'index']);
@@ -314,6 +319,7 @@ Route::middleware('auth:sanctum')->prefix('agenda-khusus')->group(function () {
     Route::post('/jadwal/{kode}', [App\Http\Controllers\JadwalAgendaKhususController::class, 'store']);
     Route::put('/jadwal/{kode}/{id}', [App\Http\Controllers\JadwalAgendaKhususController::class, 'update']);
     Route::delete('/jadwal/{kode}/{id}', [App\Http\Controllers\JadwalAgendaKhususController::class, 'destroy']);
+    Route::post('/jadwal/{kode}/import', [App\Http\Controllers\JadwalAgendaKhususController::class, 'importExcel']);
     Route::get('/kelompok-besar', [App\Http\Controllers\JadwalAgendaKhususController::class, 'kelompokBesar']);
 });
 
@@ -322,6 +328,7 @@ Route::middleware('auth:sanctum')->prefix('praktikum')->group(function () {
     Route::post('/jadwal/{kode}', [App\Http\Controllers\JadwalPraktikumController::class, 'store']);
     Route::put('/jadwal/{kode}/{id}', [App\Http\Controllers\JadwalPraktikumController::class, 'update']);
     Route::delete('/jadwal/{kode}/{id}', [App\Http\Controllers\JadwalPraktikumController::class, 'destroy']);
+    Route::post('/jadwal/{kode}/import', [App\Http\Controllers\JadwalPraktikumController::class, 'importExcel']);
     Route::get('/kelas/{semester}', [App\Http\Controllers\JadwalPraktikumController::class, 'getKelasPraktikum']);
     Route::get('/materi/{blok}/{semester}', [App\Http\Controllers\JadwalPraktikumController::class, 'getMateri']);
     Route::get('/pengampu/{keahlian}/{blok}/{semester}', [App\Http\Controllers\JadwalPraktikumController::class, 'getPengampu']);
@@ -330,6 +337,7 @@ Route::middleware('auth:sanctum')->prefix('praktikum')->group(function () {
 Route::middleware('auth:sanctum')->prefix('jurnal-reading')->group(function () {
     Route::get('/jadwal/{kode}', [App\Http\Controllers\JadwalJurnalReadingController::class, 'index']);
     Route::post('/jadwal/{kode}', [App\Http\Controllers\JadwalJurnalReadingController::class, 'store']);
+    Route::post('/jadwal/{kode}/import', [App\Http\Controllers\JadwalJurnalReadingController::class, 'importExcel']);
     Route::put('/jadwal/{kode}/{id}', [App\Http\Controllers\JadwalJurnalReadingController::class, 'update']);
     Route::delete('/jadwal/{kode}/{id}', [App\Http\Controllers\JadwalJurnalReadingController::class, 'destroy']);
 });
@@ -354,6 +362,7 @@ Route::middleware('auth:sanctum')->get('/non-blok-non-csr-jam-options', [JadwalN
 Route::middleware('auth:sanctum')->prefix('csr')->group(function () {
     Route::get('/jadwal/{kode}', [JadwalCSRController::class, 'index']);
     Route::post('/jadwal/{kode}', [JadwalCSRController::class, 'store']);
+    Route::post('/jadwal/{kode}/import', [JadwalCSRController::class, 'importExcel']);
     Route::put('/jadwal/{kode}/{id}', [JadwalCSRController::class, 'update']);
     Route::delete('/jadwal/{kode}/{id}', [JadwalCSRController::class, 'destroy']);
 
@@ -377,6 +386,7 @@ Route::middleware('auth:sanctum')->get('/csr-detail/{csrId}/batch-data', [App\Ht
 Route::middleware('auth:sanctum')->prefix('non-blok-non-csr')->group(function () {
     Route::get('/jadwal/{kode}', [JadwalNonBlokNonCSRController::class, 'index']);
     Route::post('/jadwal/{kode}', [JadwalNonBlokNonCSRController::class, 'store']);
+    Route::post('/jadwal/{kode}/import', [JadwalNonBlokNonCSRController::class, 'importExcel']);
     Route::put('/jadwal/{kode}/{id}', [JadwalNonBlokNonCSRController::class, 'update']);
     Route::delete('/jadwal/{kode}/{id}', [JadwalNonBlokNonCSRController::class, 'destroy']);
     Route::get('/kelompok-besar', [JadwalNonBlokNonCSRController::class, 'kelompokBesar']);

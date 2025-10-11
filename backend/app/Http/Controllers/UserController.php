@@ -613,6 +613,7 @@ class UserController extends Controller
                             'topik' => $isArray ? $item['topik'] : $item->topik,
                             'kategori_csr' => $isArray ? ($item['kategori']['nama'] ?? '') : ($item->kategori->nama ?? ''),
                             'jenis_csr' => $isArray ? $item['jenis_csr'] : $item->jenis_csr,
+                            'nomor_csr' => $isArray ? ($item['nomor_csr'] ?? '') : ($item->nomor_csr ?? ''),
                             'ruangan_nama' => $isArray ? ($item['ruangan']['nama'] ?? '') : ($item->ruangan->nama ?? ''),
                             'jumlah_sesi' => $isArray ? $item['jumlah_sesi'] : $item->jumlah_sesi,
                             'semester' => '',

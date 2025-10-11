@@ -240,9 +240,41 @@ class JadwalAgendaKhususController extends Controller
 
     private function checkBentrokWithDetail($data, $ignoreId = null): ?string
     {
-        // Jika tidak menggunakan ruangan, tidak perlu cek bentrok
+        // Jika tidak menggunakan ruangan, hanya cek bentrok berdasarkan kelompok
         if (!$data['use_ruangan']) {
-            return null;
+            // Cek bentrok dengan kelompok besar (jika ada kelompok_besar_id atau kelompok_besar_antara_id)
+            if (isset($data['kelompok_besar_id']) && $data['kelompok_besar_id']) {
+                $kelompokBesarBentrokMessage = $this->checkKelompokBesarBentrokWithDetail($data, $ignoreId);
+                if ($kelompokBesarBentrokMessage) {
+                    return $kelompokBesarBentrokMessage;
+                }
+            }
+
+            // Cek bentrok dengan kelompok besar antara (jika ada kelompok_besar_antara_id)
+            if (isset($data['kelompok_besar_antara_id']) && $data['kelompok_besar_antara_id']) {
+                $kelompokBesarAntaraBentrokMessage = $this->checkKelompokBesarAntaraBentrokWithDetail($data, $ignoreId);
+                if ($kelompokBesarAntaraBentrokMessage) {
+                    return $kelompokBesarAntaraBentrokMessage;
+                }
+            }
+
+            // Cek bentrok antar Kelompok Besar (Kelompok Besar vs Kelompok Besar)
+            if (isset($data['kelompok_besar_id']) && $data['kelompok_besar_id']) {
+                $kelompokBesarVsKelompokBesarBentrokMessage = $this->checkKelompokBesarVsKelompokBesarBentrokWithDetail($data, $ignoreId);
+                if ($kelompokBesarVsKelompokBesarBentrokMessage) {
+                    return $kelompokBesarVsKelompokBesarBentrokMessage;
+                }
+            }
+
+            // Cek bentrok antar Kelompok Besar Antara (Kelompok Besar Antara vs Kelompok Besar Antara)
+            if (isset($data['kelompok_besar_antara_id']) && $data['kelompok_besar_antara_id']) {
+                $kelompokBesarAntaraVsKelompokBesarAntaraBentrokMessage = $this->checkKelompokBesarAntaraVsKelompokBesarAntaraBentrokWithDetail($data, $ignoreId);
+                if ($kelompokBesarAntaraVsKelompokBesarAntaraBentrokMessage) {
+                    return $kelompokBesarAntaraVsKelompokBesarAntaraBentrokMessage;
+                }
+            }
+
+            return null; // Tidak ada bentrok jika tidak menggunakan ruangan
         }
 
         // Cek bentrok dengan jadwal Agenda Khusus
@@ -540,6 +572,11 @@ class JadwalAgendaKhususController extends Controller
      */
     private function validateRuanganCapacity($data)
     {
+        // Jika tidak ada ruangan_id atau null, skip validasi kapasitas
+        if (!isset($data['ruangan_id']) || $data['ruangan_id'] === null || $data['ruangan_id'] === 0) {
+            return null; // Tidak ada validasi kapasitas jika tidak menggunakan ruangan
+        }
+
         // Ambil data ruangan
         $ruangan = Ruangan::find($data['ruangan_id']);
         if (!$ruangan) {
@@ -577,6 +614,160 @@ class JadwalAgendaKhususController extends Controller
         }
 
         return null; // Kapasitas mencukupi
+    }
+
+    /**
+     * Import jadwal agenda khusus dari Excel
+     */
+    public function importExcel(Request $request, $kode)
+    {
+        try {
+            // Validasi input
+            $request->validate([
+                'data' => 'required|array|min:1',
+                'data.*.tanggal' => 'required|date',
+                'data.*.jam_mulai' => 'required|string',
+                'data.*.jam_selesai' => 'required|string',
+                'data.*.agenda' => 'required|string',
+                'data.*.ruangan_id' => 'nullable|integer',
+                'data.*.jumlah_sesi' => 'required|integer|min:1|max:6',
+            ]);
+
+            $excelData = $request->input('data');
+            $successCount = 0;
+            $errors = [];
+
+            // Cek apakah mata kuliah ada
+            $mataKuliah = MataKuliah::where('kode', $kode)->first();
+            if (!$mataKuliah) {
+                return response()->json(['message' => 'Mata kuliah tidak ditemukan'], 404);
+            }
+
+            // Validasi semua data terlebih dahulu (all or nothing approach)
+            foreach ($excelData as $index => $data) {
+                // Validasi ruangan_id jika diisi
+                if (isset($data['ruangan_id']) && $data['ruangan_id'] !== null && $data['ruangan_id'] !== 0) {
+                    $ruangan = \App\Models\Ruangan::find($data['ruangan_id']);
+                    if (!$ruangan) {
+                        $errors[] = "Baris " . ($index + 1) . ": Ruangan tidak ditemukan";
+                    }
+                }
+
+                // Validasi tanggal dalam rentang mata kuliah
+                $tanggalMessage = $this->validateTanggalMataKuliah($data, $mataKuliah);
+                if ($tanggalMessage) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . $tanggalMessage;
+                }
+
+                // Validasi kapasitas ruangan
+                $kapasitasMessage = $this->validateRuanganCapacity($data);
+                if ($kapasitasMessage) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . $kapasitasMessage;
+                }
+
+                // Validasi bentrok
+                $bentrokMessage = $this->checkBentrokWithDetail($data, null);
+                if ($bentrokMessage) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;
+                }
+            }
+
+            // Jika ada error validasi, return error tanpa import apapun
+            if (count($errors) > 0) {
+                return response()->json([
+                    'success' => 0,
+                    'total' => count($excelData),
+                    'errors' => $errors,
+                    'message' => "Gagal mengimport data. Perbaiki error terlebih dahulu."
+                ], 422);
+            }
+
+            // Jika tidak ada error, import semua data
+            foreach ($excelData as $index => $data) {
+                try {
+                    // Siapkan data untuk disimpan
+                    $jadwalData = [
+                        'mata_kuliah_kode' => $kode,
+                        'tanggal' => $data['tanggal'],
+                        'jam_mulai' => $data['jam_mulai'],
+                        'jam_selesai' => $data['jam_selesai'],
+                        'agenda' => $data['agenda'],
+                        'ruangan_id' => ($data['ruangan_id'] && $data['ruangan_id'] !== 0) ? $data['ruangan_id'] : null,
+                        'jumlah_sesi' => $data['jumlah_sesi'],
+                        'kelompok_besar_id' => $data['kelompok_besar_id'] ?? null,
+                        'kelompok_besar_antara_id' => $data['kelompok_besar_antara_id'] ?? null,
+                        'use_ruangan' => $data['use_ruangan'] ?? true,
+                    ];
+
+                    // Simpan data
+                    $jadwal = JadwalAgendaKhusus::create($jadwalData);
+
+                    // Log activity
+                    activity()
+                        ->performedOn($jadwal)
+                        ->withProperties([
+                            'mata_kuliah_kode' => $kode,
+                            'agenda' => $data['agenda'],
+                            'tanggal' => $data['tanggal'],
+                            'jam_mulai' => $data['jam_mulai'],
+                            'jam_selesai' => $data['jam_selesai'],
+                            'ruangan_id' => $data['ruangan_id'],
+                            'jumlah_sesi' => $data['jumlah_sesi'],
+                            'import_type' => 'excel'
+                        ])
+                        ->log('Jadwal agenda khusus diimport dari Excel');
+
+                    $successCount++;
+
+                } catch (\Exception $e) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . $e->getMessage();
+                }
+            }
+
+            // Jika ada error validasi, return status 422
+            if (count($errors) > 0) {
+                return response()->json([
+                    'success' => $successCount,
+                    'total' => count($excelData),
+                    'errors' => $errors,
+                    'message' => "Gagal mengimport {$successCount} dari " . count($excelData) . " jadwal agenda khusus"
+                ], 422);
+            }
+
+            // Jika tidak ada error, return status 200
+            return response()->json([
+                'success' => $successCount,
+                'total' => count($excelData),
+                'errors' => $errors,
+                'message' => "Berhasil mengimport {$successCount} dari " . count($excelData) . " jadwal agenda khusus"
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error importing jadwal agenda khusus: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Terjadi kesalahan saat mengimport data: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Validasi tanggal dalam rentang mata kuliah
+     */
+    private function validateTanggalMataKuliah($data, $mataKuliah)
+    {
+        if (!$mataKuliah->tanggal_mulai || !$mataKuliah->tanggal_akhir) {
+            return null; // Tidak ada validasi jika tanggal tidak di-set
+        }
+
+        $tanggalInput = new \DateTime($data['tanggal']);
+        $tanggalMulai = new \DateTime($mataKuliah->tanggal_mulai);
+        $tanggalAkhir = new \DateTime($mataKuliah->tanggal_akhir);
+
+        if ($tanggalInput < $tanggalMulai || $tanggalInput > $tanggalAkhir) {
+            return "Tanggal di luar rentang mata kuliah ({$mataKuliah->tanggal_mulai} s/d {$mataKuliah->tanggal_akhir})";
+        }
+
+        return null;
     }
 
     /**

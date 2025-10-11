@@ -970,4 +970,230 @@ class JadwalCSRController extends Controller
             \Log::error("Error sending replacement notification for CSR: " . $e->getMessage());
         }
     }
+
+    // Ajukan reschedule jadwal CSR
+    public function reschedule(Request $request, $jadwalId)
+    {
+        $request->validate([
+            'reschedule_reason' => 'required|string|max:1000',
+            'dosen_id' => 'required|exists:users,id'
+        ]);
+
+        $jadwal = JadwalCSR::with(['mataKuliah', 'dosen', 'ruangan', 'kategori'])
+            ->where('id', $jadwalId)
+            ->where('dosen_id', $request->dosen_id)
+            ->firstOrFail();
+
+        $jadwal->update([
+            'status_konfirmasi' => 'waiting_reschedule',
+            'reschedule_reason' => $request->reschedule_reason,
+            'status_reschedule' => 'waiting'
+        ]);
+
+        // Kirim notifikasi ke admin
+        $this->sendRescheduleNotification($jadwal, $request->reschedule_reason);
+
+        return response()->json([
+            'message' => 'Permintaan reschedule berhasil diajukan',
+            'status' => 'waiting_reschedule'
+        ]);
+    }
+
+    /**
+     * Kirim notifikasi reschedule ke admin
+     */
+    private function sendRescheduleNotification($jadwal, $reason)
+    {
+        try {
+            $dosen = User::find($jadwal->dosen_id);
+            $superAdmins = User::where('role', 'super_admin')->get();
+            $timAkademik = User::where('role', 'tim_akademik')->get();
+            $admins = $superAdmins->merge($timAkademik);
+
+            foreach ($admins as $admin) {
+                \App\Models\Notification::create([
+                    'user_id' => $admin->id,
+                    'title' => 'Permintaan Reschedule Jadwal',
+                    'message' => "Dosen {$dosen->name} mengajukan reschedule untuk jadwal CSR. Alasan: {$reason}",
+                    'type' => 'warning',
+                    'is_read' => false,
+                    'data' => [
+                        'jadwal_id' => $jadwal->id,
+                        'jadwal_type' => 'csr',
+                        'dosen_name' => $dosen->name,
+                        'dosen_id' => $dosen->id,
+                        'reschedule_reason' => $reason,
+                        'notification_type' => 'reschedule_request'
+                    ]
+                ]);
+            }
+
+            \Log::info("Reschedule notification sent for CSR jadwal ID: {$jadwal->id}");
+        } catch (\Exception $e) {
+            \Log::error("Error sending reschedule notification for CSR jadwal ID: {$jadwal->id}: " . $e->getMessage());
+        }
+    }
+
+    public function importExcel(Request $request, string $kode): JsonResponse
+    {
+        try {
+            $request->validate([
+                'data' => 'required|array',
+                'data.*.jenis_csr' => 'required|in:reguler,responsi',
+                'data.*.tanggal' => 'required|date',
+                'data.*.jam_mulai' => 'required|string',
+                'data.*.jam_selesai' => 'required|string',
+                'data.*.jumlah_sesi' => 'required|integer|min:1|max:6',
+                'data.*.kelompok_kecil_id' => 'required|integer|exists:kelompok_kecil,id',
+                'data.*.topik' => 'required|string',
+                'data.*.kategori_id' => 'required|integer|exists:csrs,id',
+                'data.*.dosen_id' => 'required|integer|exists:users,id',
+                'data.*.ruangan_id' => 'required|integer|exists:ruangan,id',
+            ]);
+
+            $data = $request->input('data');
+            $mataKuliah = MataKuliah::where('kode', $kode)->first();
+
+            if (!$mataKuliah) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mata kuliah tidak ditemukan'
+                ], 404);
+            }
+
+            // Validasi rentang tanggal mata kuliah
+            foreach ($data as $index => $row) {
+                $tanggalJadwal = new \DateTime($row['tanggal']);
+                $tanggalMulai = new \DateTime($mataKuliah->tanggal_mulai);
+                $tanggalAkhir = new \DateTime($mataKuliah->tanggal_akhir);
+
+                if ($tanggalJadwal < $tanggalMulai || $tanggalJadwal > $tanggalAkhir) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Tanggal di luar rentang mata kuliah pada baris " . ($index + 1)
+                    ], 400);
+                }
+
+                // Validasi sesi sesuai jenis CSR
+                if ($row['jenis_csr'] === 'reguler' && $row['jumlah_sesi'] !== 3) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "CSR Reguler harus 3 sesi pada baris " . ($index + 1)
+                    ], 400);
+                }
+
+                if ($row['jenis_csr'] === 'responsi' && $row['jumlah_sesi'] !== 2) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "CSR Responsi harus 2 sesi pada baris " . ($index + 1)
+                    ], 400);
+                }
+            }
+
+            // Validasi konflik jadwal dan kapasitas ruangan
+            foreach ($data as $index => $row) {
+                // Cek konflik jadwal dosen
+                $konflikDosen = JadwalCSR::where('dosen_id', $row['dosen_id'])
+                    ->where('tanggal', $row['tanggal'])
+                    ->where(function ($query) use ($row) {
+                        $query->whereBetween('jam_mulai', [$row['jam_mulai'], $row['jam_selesai']])
+                            ->orWhereBetween('jam_selesai', [$row['jam_mulai'], $row['jam_selesai']])
+                            ->orWhere(function ($q) use ($row) {
+                                $q->where('jam_mulai', '<=', $row['jam_mulai'])
+                                    ->where('jam_selesai', '>=', $row['jam_selesai']);
+                            });
+                    })
+                    ->exists();
+
+                if ($konflikDosen) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Konflik jadwal dosen pada baris " . ($index + 1)
+                    ], 400);
+                }
+
+                // Cek konflik jadwal ruangan
+                $konflikRuangan = JadwalCSR::where('ruangan_id', $row['ruangan_id'])
+                    ->where('tanggal', $row['tanggal'])
+                    ->where(function ($query) use ($row) {
+                        $query->whereBetween('jam_mulai', [$row['jam_mulai'], $row['jam_selesai']])
+                            ->orWhereBetween('jam_selesai', [$row['jam_mulai'], $row['jam_selesai']])
+                            ->orWhere(function ($q) use ($row) {
+                                $q->where('jam_mulai', '<=', $row['jam_mulai'])
+                                    ->where('jam_selesai', '>=', $row['jam_selesai']);
+                            });
+                    })
+                    ->exists();
+
+                if ($konflikRuangan) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Konflik jadwal ruangan pada baris " . ($index + 1)
+                    ], 400);
+                }
+
+                // Cek kapasitas ruangan
+                $ruangan = Ruangan::find($row['ruangan_id']);
+                $kelompokKecil = KelompokKecil::find($row['kelompok_kecil_id']);
+                
+                if ($ruangan && $kelompokKecil && $ruangan->kapasitas && $kelompokKecil->jumlah_anggota > $ruangan->kapasitas) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Kapasitas ruangan tidak mencukupi pada baris " . ($index + 1) . " (Kelompok: {$kelompokKecil->jumlah_anggota}, Kapasitas: {$ruangan->kapasitas})"
+                    ], 400);
+                }
+            }
+
+            // Insert data jika semua validasi berhasil
+            DB::beginTransaction();
+            
+            try {
+                $insertedData = [];
+                foreach ($data as $row) {
+                    // Konversi format jam dari "07.20" ke "07:20" (sama seperti di store method)
+                    $jamMulai = str_replace('.', ':', $row['jam_mulai']);
+                    $jamSelesai = str_replace('.', ':', $row['jam_selesai']);
+                    
+                    $jadwalCSR = JadwalCSR::create([
+                        'mata_kuliah_kode' => $kode,
+                        'jenis_csr' => $row['jenis_csr'],
+                        'tanggal' => $row['tanggal'],
+                        'jam_mulai' => $jamMulai,
+                        'jam_selesai' => $jamSelesai,
+                        'jumlah_sesi' => $row['jumlah_sesi'],
+                        'kelompok_kecil_id' => $row['kelompok_kecil_id'],
+                        'topik' => $row['topik'],
+                        'kategori_id' => $row['kategori_id'],
+                        'dosen_id' => $row['dosen_id'],
+                        'ruangan_id' => $row['ruangan_id'],
+                    ]);
+                    
+                    $insertedData[] = $jadwalCSR;
+                }
+
+                DB::commit();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Data CSR berhasil diimport',
+                    'data' => $insertedData
+                ]);
+
+            } catch (\Exception $e) {
+                DB::rollback();
+                throw $e;
+            }
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat mengimport data: ' . implode(', ', $e->validator->errors()->all())
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat mengimport data: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

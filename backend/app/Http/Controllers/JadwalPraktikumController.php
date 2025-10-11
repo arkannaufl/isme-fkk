@@ -745,4 +745,199 @@ class JadwalPraktikumController extends Controller
         }
     }
 
+    /**
+     * Import Excel jadwal praktikum
+     */
+    public function importExcel(Request $request, $kode)
+    {
+        try {
+        $data = $request->validate([
+            'data' => 'required|array',
+            'data.*.tanggal' => 'required|date',
+            'data.*.jam_mulai' => 'required|string',
+            'data.*.jam_selesai' => 'required|string',
+            'data.*.sesi' => 'required|integer|min:1|max:6',
+            'data.*.materi' => 'required|string',
+            'data.*.topik' => 'required|string',
+            'data.*.kelas_praktikum' => 'required|string',
+            'data.*.dosen_id' => 'required|exists:users,id',
+            'data.*.ruangan_id' => 'required|exists:ruangan,id',
+            'data.*.jumlah_sesi' => 'nullable|integer|min:1|max:6',
+        ]);
+
+            $importedData = [];
+            $errors = [];
+
+            // Validasi semua data terlebih dahulu (all or nothing approach)
+            foreach ($data['data'] as $index => $row) {
+                // Set jumlah_sesi dari kolom sesi Excel
+                $row['jumlah_sesi'] = $row['sesi'] ?? 2; // Gunakan sesi dari Excel, default 2
+
+                // Set mata_kuliah_kode
+                $row['mata_kuliah_kode'] = $kode;
+                
+                // Materi sudah ada di $row['materi'] dari input Excel
+
+                // Validasi tanggal dalam range mata kuliah
+                $mataKuliah = \App\Models\MataKuliah::where('kode', $kode)->first();
+                if ($mataKuliah && $mataKuliah->tanggal_mulai && $mataKuliah->tanggal_akhir) {
+                    $jadwalTanggal = new \DateTime($row['tanggal']);
+                    $tanggalMulai = new \DateTime($mataKuliah->tanggal_mulai);
+                    $tanggalAkhir = new \DateTime($mataKuliah->tanggal_akhir);
+                    if ($jadwalTanggal < $tanggalMulai || $jadwalTanggal > $tanggalAkhir) {
+                        $errors[] = "Baris " . ($index + 1) . ": Tanggal harus dalam rentang {$mataKuliah->tanggal_mulai} - {$mataKuliah->tanggal_akhir}";
+                    }
+                }
+
+                // Konversi dosen_id ke dosen_ids untuk validasi kapasitas ruangan
+                $rowForValidation = $row;
+                $rowForValidation['dosen_ids'] = [$row['dosen_id']];
+
+                // Validasi kapasitas ruangan
+                $kapasitasMessage = $this->validateRuanganCapacity($rowForValidation);
+                if ($kapasitasMessage) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . $kapasitasMessage;
+                }
+
+                // Validasi bentrok
+                $bentrokMessage = $this->checkBentrokWithDetail($row, null);
+                if ($bentrokMessage) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;
+                }
+            }
+
+            // Jika ada error validasi, return error tanpa import apapun
+            if (count($errors) > 0) {
+                return response()->json([
+                    'success' => 0,
+                    'total' => count($data['data']),
+                    'errors' => $errors,
+                    'message' => "Gagal mengimport data. Perbaiki error terlebih dahulu."
+                ], 422);
+            }
+
+            // Jika tidak ada error, import semua data
+            foreach ($data['data'] as $index => $row) {
+                try {
+                    // Set jumlah_sesi dari kolom sesi Excel
+                    $row['jumlah_sesi'] = $row['sesi'] ?? 2; // Gunakan sesi dari Excel, default 2
+
+                    // Set mata_kuliah_kode
+                    $row['mata_kuliah_kode'] = $kode;
+
+                    // Buat jadwal praktikum
+                    $jadwal = JadwalPraktikum::create($row);
+
+                    // Attach dosen (praktikum menggunakan single dosen, bukan multiple)
+                    $jadwal->dosen()->attach($row['dosen_id']);
+
+                    // Kirim notifikasi ke dosen
+                    $this->sendAssignmentNotification($jadwal, $row['dosen_id']);
+
+                    $importedData[] = $jadwal;
+
+                    // Log activity
+                    activity()
+                        ->performedOn($jadwal)
+                        ->withProperties([
+                            'mata_kuliah_kode' => $kode,
+                            'tanggal' => $row['tanggal'],
+                            'jam_mulai' => $row['jam_mulai'],
+                            'jam_selesai' => $row['jam_selesai'],
+                            'materi' => $row['materi'],
+                            'topik' => $row['topik'],
+                            'kelas_praktikum' => $row['kelas_praktikum']
+                        ])
+                        ->log("Jadwal Praktikum imported: {$row['materi']} - {$row['topik']}");
+
+                } catch (\Exception $e) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . $e->getMessage();
+                }
+            }
+
+            if (count($errors) > 0) {
+                return response()->json([
+                    'success' => count($importedData),
+                    'total' => count($data['data']),
+                    'errors' => $errors,
+                    'message' => 'Gagal mengimport ' . (count($data['data']) - count($importedData)) . ' dari ' . count($data['data']) . ' jadwal'
+                ], 422);
+            }
+
+            return response()->json([
+                'success' => count($importedData),
+                'total' => count($data['data']),
+                'message' => 'Berhasil mengimport ' . count($importedData) . ' jadwal praktikum'
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error importing praktikum data: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Terjadi kesalahan saat mengimport data: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // Ajukan reschedule jadwal Praktikum
+    public function reschedule(Request $request, $id)
+    {
+        $request->validate([
+            'reschedule_reason' => 'required|string|max:1000',
+            'dosen_id' => 'required|exists:users,id'
+        ]);
+
+        $jadwal = JadwalPraktikum::findOrFail($id);
+
+        // Update pivot table untuk reschedule
+        $jadwal->dosen()->updateExistingPivot($request->dosen_id, [
+            'status_konfirmasi' => 'waiting_reschedule',
+            'reschedule_reason' => $request->reschedule_reason,
+            'status_reschedule' => 'waiting',
+            'updated_at' => now()
+        ]);
+
+        // Kirim notifikasi ke admin
+        $this->sendRescheduleNotification($jadwal, $request->dosen_id, $request->reschedule_reason);
+
+        return response()->json([
+            'message' => 'Permintaan reschedule berhasil diajukan',
+            'status' => 'waiting_reschedule'
+        ]);
+    }
+
+    /**
+     * Kirim notifikasi reschedule ke admin
+     */
+    private function sendRescheduleNotification($jadwal, $dosenId, $reason)
+    {
+        try {
+            $dosen = \App\Models\User::find($dosenId);
+            $superAdmins = \App\Models\User::where('role', 'super_admin')->get();
+            $timAkademik = \App\Models\User::where('role', 'tim_akademik')->get();
+            $admins = $superAdmins->merge($timAkademik);
+
+            foreach ($admins as $admin) {
+                \App\Models\Notification::create([
+                    'user_id' => $admin->id,
+                    'title' => 'Permintaan Reschedule Jadwal',
+                    'message' => "Dosen {$dosen->name} mengajukan reschedule untuk jadwal Praktikum. Alasan: {$reason}",
+                    'type' => 'warning',
+                    'is_read' => false,
+                    'data' => [
+                        'jadwal_id' => $jadwal->id,
+                        'jadwal_type' => 'praktikum',
+                        'dosen_name' => $dosen->name,
+                        'dosen_id' => $dosen->id,
+                        'reschedule_reason' => $reason,
+                        'notification_type' => 'reschedule_request'
+                    ]
+                ]);
+            }
+
+            \Log::info("Reschedule notification sent for Praktikum jadwal ID: {$jadwal->id}");
+        } catch (\Exception $e) {
+            \Log::error("Error sending reschedule notification for Praktikum jadwal ID: {$jadwal->id}: " . $e->getMessage());
+        }
+    }
+
 }

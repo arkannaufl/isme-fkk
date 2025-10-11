@@ -1259,4 +1259,221 @@ class JadwalJurnalReadingController extends Controller
         }
     }
 
+    // Ajukan reschedule jadwal Jurnal Reading
+    public function reschedule(Request $request, $id)
+    {
+        $request->validate([
+            'reschedule_reason' => 'required|string|max:1000',
+            'dosen_id' => 'required|exists:users,id'
+        ]);
+
+        $jadwal = JadwalJurnalReading::with(['mataKuliah', 'ruangan'])->findOrFail($id);
+        
+        // Check if dosen is assigned to this jadwal
+        $isAssigned = false;
+        if ($jadwal->dosen_id == $request->dosen_id) {
+            $isAssigned = true;
+        } elseif ($jadwal->dosen_ids && in_array($request->dosen_id, $jadwal->dosen_ids)) {
+            $isAssigned = true;
+        }
+
+        if (!$isAssigned) {
+            return response()->json([
+                'message' => 'Anda tidak memiliki akses untuk mengajukan reschedule jadwal ini'
+            ], 403);
+        }
+
+        $jadwal->update([
+            'status_konfirmasi' => 'waiting_reschedule',
+            'reschedule_reason' => $request->reschedule_reason,
+            'status_reschedule' => 'waiting'
+        ]);
+
+        // Kirim notifikasi ke admin
+        $this->sendRescheduleNotification($jadwal, $request->reschedule_reason);
+
+        return response()->json([
+            'message' => 'Permintaan reschedule berhasil diajukan',
+            'status' => 'waiting_reschedule'
+        ]);
+    }
+
+    /**
+     * Kirim notifikasi reschedule ke admin
+     */
+    private function sendRescheduleNotification($jadwal, $reason)
+    {
+        try {
+            $dosen = User::find($jadwal->dosen_id);
+            $superAdmins = User::where('role', 'super_admin')->get();
+            $timAkademik = User::where('role', 'tim_akademik')->get();
+            $admins = $superAdmins->merge($timAkademik);
+
+            foreach ($admins as $admin) {
+                \App\Models\Notification::create([
+                    'user_id' => $admin->id,
+                    'title' => 'Permintaan Reschedule Jadwal',
+                    'message' => "Dosen {$dosen->name} mengajukan reschedule untuk jadwal Jurnal Reading. Alasan: {$reason}",
+                    'type' => 'warning',
+                    'is_read' => false,
+                    'data' => [
+                        'jadwal_id' => $jadwal->id,
+                        'jadwal_type' => 'jurnal',
+                        'dosen_name' => $dosen->name,
+                        'dosen_id' => $dosen->id,
+                        'reschedule_reason' => $reason,
+                        'notification_type' => 'reschedule_request'
+                    ]
+                ]);
+            }
+
+            \Log::info("Reschedule notification sent for Jurnal Reading jadwal ID: {$jadwal->id}");
+        } catch (\Exception $e) {
+            \Log::error("Error sending reschedule notification for Jurnal Reading jadwal ID: {$jadwal->id}: " . $e->getMessage());
+        }
+    }
+
+    // Import Excel untuk Jurnal Reading
+    public function importExcel(Request $request, $kode)
+    {
+        try {
+            $data = $request->validate([
+                'data' => 'required|array',
+                'data.*.tanggal' => 'required|date',
+                'data.*.jam_mulai' => 'required|string',
+                'data.*.jam_selesai' => 'required|string',
+                'data.*.jumlah_sesi' => 'required|integer|min:1|max:6',
+                'data.*.kelompok_kecil_id' => 'required|integer|min:1',
+                'data.*.dosen_id' => 'required|integer|min:1',
+                'data.*.ruangan_id' => 'required|integer|min:1',
+                'data.*.topik' => 'required|string',
+            ]);
+
+            $mataKuliah = \App\Models\MataKuliah::find($kode);
+            if (!$mataKuliah) {
+                return response()->json(['message' => 'Mata kuliah tidak ditemukan'], 404);
+            }
+
+            $errors = [];
+            $validData = [];
+
+            // Validasi semua data terlebih dahulu (all or nothing approach)
+            foreach ($data['data'] as $index => $row) {
+                $rowErrors = [];
+
+                // Validasi tanggal dalam rentang mata kuliah
+                if ($row['tanggal'] < $mataKuliah->tanggal_mulai || $row['tanggal'] > $mataKuliah->tanggal_akhir) {
+                    $rowErrors[] = "Tanggal di luar rentang mata kuliah";
+                }
+
+                // Validasi kelompok kecil
+                $kelompokKecil = \App\Models\KelompokKecil::find($row['kelompok_kecil_id']);
+                if (!$kelompokKecil) {
+                    $rowErrors[] = "Kelompok kecil tidak ditemukan";
+                } else {
+                    // Validasi semester kelompok kecil sesuai dengan mata kuliah
+                    if ($kelompokKecil->semester != $mataKuliah->semester) {
+                        $rowErrors[] = "Semester kelompok kecil tidak sesuai dengan mata kuliah";
+                    }
+                }
+
+                // Validasi dosen
+                $dosen = \App\Models\User::find($row['dosen_id']);
+                if (!$dosen) {
+                    $rowErrors[] = "Dosen tidak ditemukan";
+                } else {
+                    // Validasi dosen harus sudah di-assign untuk PBL atau standby
+                    $isAssignedPBL = \App\Models\PBLMapping::where('dosen_id', $row['dosen_id'])->exists();
+                    $isStandby = is_array($dosen->keahlian) 
+                        ? in_array('standby', $dosen->keahlian) 
+                        : (strpos($dosen->keahlian ?? '', 'standby') !== false);
+                    
+                    if (!$isAssignedPBL && !$isStandby) {
+                        $rowErrors[] = "Dosen belum di-generate untuk PBL. Hanya dosen yang sudah di-generate atau dosen standby yang boleh digunakan";
+                    }
+                }
+
+                // Validasi ruangan
+                $ruangan = \App\Models\Ruangan::find($row['ruangan_id']);
+                if (!$ruangan) {
+                    $rowErrors[] = "Ruangan tidak ditemukan";
+                }
+
+                // Validasi kapasitas ruangan
+                if ($kelompokKecil && $ruangan) {
+                    $jumlahMahasiswa = \App\Models\KelompokKecil::where('nama_kelompok', $kelompokKecil->nama_kelompok)
+                                                               ->where('semester', $kelompokKecil->semester)
+                                                               ->count();
+                    $totalOrang = $jumlahMahasiswa + 1; // +1 untuk dosen
+                    
+                    if ($totalOrang > $ruangan->kapasitas) {
+                        $rowErrors[] = "Kapasitas ruangan tidak mencukupi. Ruangan {$ruangan->nama} hanya dapat menampung {$ruangan->kapasitas} orang, sedangkan diperlukan {$totalOrang} orang";
+                    }
+                }
+
+                // Validasi bentrok
+                $bentrokMessage = $this->checkBentrokWithDetail($row, null);
+                if ($bentrokMessage) {
+                    $rowErrors[] = $bentrokMessage;
+                }
+
+                if (!empty($rowErrors)) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . implode(', ', $rowErrors);
+                } else {
+                    $validData[] = $row;
+                }
+            }
+
+            // Jika ada error, return semua error (all or nothing)
+            if (!empty($errors)) {
+                return response()->json([
+                    'success' => 0,
+                    'total' => count($data['data']),
+                    'errors' => $errors,
+                    'message' => 'Gagal mengimport data. Perbaiki error terlebih dahulu.'
+                ], 422);
+            }
+
+            // Jika semua data valid, import semua data
+            $importedCount = 0;
+            foreach ($validData as $row) {
+                $jadwalData = [
+                    'mata_kuliah_kode' => $kode,
+                    'tanggal' => $row['tanggal'],
+                    'jam_mulai' => $row['jam_mulai'],
+                    'jam_selesai' => $row['jam_selesai'],
+                    'jumlah_sesi' => $row['jumlah_sesi'],
+                    'kelompok_kecil_id' => $row['kelompok_kecil_id'],
+                    'dosen_id' => $row['dosen_id'],
+                    'ruangan_id' => $row['ruangan_id'],
+                    'topik' => $row['topik'],
+                ];
+
+                \App\Models\JadwalJurnalReading::create($jadwalData);
+                $importedCount++;
+            }
+
+            // Log activity
+            activity()
+                ->withProperties([
+                    'mata_kuliah_kode' => $kode,
+                    'imported_count' => $importedCount,
+                    'total_data' => count($data['data'])
+                ])
+                ->log('Import Excel Jadwal Jurnal Reading');
+
+            return response()->json([
+                'success' => $importedCount,
+                'total' => count($data['data']),
+                'message' => "Berhasil mengimport {$importedCount} dari " . count($data['data']) . " jadwal jurnal reading"
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error importing Jurnal Reading Excel: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Terjadi kesalahan saat mengimport data: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
 }

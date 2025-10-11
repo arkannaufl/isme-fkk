@@ -1,13 +1,35 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import api, { handleApiError } from '../utils/api';
 import { ChevronLeftIcon } from '../icons';
 import Select from 'react-select';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPenToSquare, faTrash } from '@fortawesome/free-solid-svg-icons';
+import { faPenToSquare, faTrash, faFileExcel, faDownload, faUpload, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 import { AnimatePresence, motion } from 'framer-motion';
 import { getRuanganOptions } from '../utils/ruanganHelper';
+import * as XLSX from 'xlsx';
 
+// Constants
+const SESSION_DURATION_MINUTES = 50;
+const CSR_REGULER_SESSIONS = 3;
+const CSR_RESPONSI_SESSIONS = 2;
+const MAX_SESSIONS = 6;
+const MIN_SESSIONS = 1;
+const TEMPLATE_DISPLAY_LIMIT = 10;
+const DEFAULT_PAGE_SIZE = 10;
+const EXCEL_COLUMN_WIDTHS = {
+  TANGGAL: 12,
+  JAM_MULAI: 10,
+  JAM_SELESAI: 10,
+  JENIS_CSR: 12,
+  SESI: 8,
+  KELOMPOK_KECIL: 15,
+  TOPIK: 35,
+  KEAHLIAN: 15,
+  DOSEN: 25,
+  RUANGAN: 20,
+  INFO_COLUMN: 50
+};
 
 interface MataKuliah {
   kode: string;
@@ -19,10 +41,7 @@ interface MataKuliah {
   tipe_non_block?: string;
   tanggal_mulai?: string;
   tanggal_akhir?: string;
-  tanggalMulai?: string;
-  tanggalAkhir?: string;
   durasi_minggu?: number | null;
-  durasiMinggu?: number | null;
 }
 
 interface JadwalCSR {
@@ -103,6 +122,23 @@ interface Mahasiswa {
   ipk: number;
 }
 
+interface JadwalCSRType {
+  jenis_csr: 'reguler' | 'responsi';
+  tanggal: string;
+  jam_mulai: string;
+  jam_selesai: string;
+  jumlah_sesi: number;
+  kelompok_kecil_id: number;
+  topik: string;
+  kategori_id: number;
+  dosen_id: number;
+  ruangan_id: number;
+  nama_kelompok?: string;
+  nama_keahlian?: string;
+  nama_dosen?: string;
+  nama_ruangan?: string;
+}
+
 export default function DetailNonBlokCSR() {
   const { kode } = useParams();
   const navigate = useNavigate();
@@ -159,23 +195,861 @@ export default function DetailNonBlokCSR() {
   const [absensi, setAbsensi] = useState<AbsensiCSR>({});
   const [savingAbsensi, setSavingAbsensi] = useState(false);
 
+  // State untuk import Excel CSR
+  const [showCSRImportModal, setShowCSRImportModal] = useState(false);
+  const [csrImportFile, setCSRImportFile] = useState<File | null>(null);
+  const [csrImportData, setCSRImportData] = useState<JadwalCSRType[]>([]);
+  const [csrImportErrors, setCSRImportErrors] = useState<string[]>([]);
+  const [csrCellErrors, setCSRCellErrors] = useState<{ row: number, field: string, message: string }[]>([]);
+  const [csrEditingCell, setCSREditingCell] = useState<{ row: number, key: string } | null>(null);
+  const [csrImportPage, setCSRImportPage] = useState(1);
+  const [csrImportPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [csrImportedCount, setCSRImportedCount] = useState(0);
+  const [isCSRImporting, setIsCSRImporting] = useState(false);
+  const csrFileInputRef = useRef<HTMLInputElement>(null);
+
+  // State untuk bulk delete CSR
+  const [selectedCSRItems, setSelectedCSRItems] = useState<number[]>([]);
+  const [showCSRBulkDeleteModal, setShowCSRBulkDeleteModal] = useState(false);
+  const [isCSRDeleting, setIsCSRDeleting] = useState(false);
+  const [csrSuccess, setCSRSuccess] = useState<string | null>(null);
+
   function hitungJamSelesai(jamMulai: string, jumlahSesi: number) {
     if (!jamMulai) return '';
     const [jamStr, menitStr] = jamMulai.split(/[.:]/);
     const jam = Number(jamStr);
     const menit = Number(menitStr);
     if (isNaN(jam) || isNaN(menit)) return '';
-    const totalMenit = jam * 60 + menit + jumlahSesi * 50;
+    const totalMenit = jam * 60 + menit + jumlahSesi * SESSION_DURATION_MINUTES;
     const jamAkhir = Math.floor(totalMenit / 60).toString().padStart(2, '0');
     const menitAkhir = (totalMenit % 60).toString().padStart(2, '0');
     return `${jamAkhir}.${menitAkhir}`;
   }
 
+  // Fungsi untuk download template Excel CSR
+  const downloadCSRTemplate = async () => {
+    try {
+      // Ambil data yang diperlukan untuk template
+      const kelompokKecilTersedia = kelompokKecilList.length > 0 ? kelompokKecilList.slice(0, 2) : [
+        { id: 1, nama_kelompok: "1" },
+        { id: 2, nama_kelompok: "2" }
+      ];
+      
+      const ruanganTersedia = ruanganList.length > 0 ? ruanganList.slice(0, 2) : [
+        { id: 1, nama: "Ruangan 1" },
+        { id: 2, nama: "Ruangan 2" }
+      ];
+
+      const dosenTersedia = dosenList.length > 0 ? dosenList.slice(0, 2) : [
+        { id: 1, name: "Dosen 1" },
+        { id: 2, name: "Dosen 2" }
+      ];
+
+      const keahlianTersedia = kategoriList.length > 0 ? kategoriList.flatMap(kategori => 
+        (kategori.keahlian_required || []).slice(0, 1)
+      ).slice(0, 2) : ["Kardiologi", "Neurologi"];
+
+      // Hitung jumlah mahasiswa per kelompok kecil (sama seperti PBL)
+      const kelompokKecilWithCount = kelompokKecilList.reduce((acc: any[], item: any) => {
+        const existingGroup = acc.find(group => group.nama_kelompok === item.nama_kelompok);
+        if (existingGroup) {
+          existingGroup.jumlah_anggota = (existingGroup.jumlah_anggota || 0) + 1;
+        } else {
+          acc.push({
+            id: item.id,
+            nama_kelompok: item.nama_kelompok,
+            jumlah_anggota: 1
+          });
+        }
+        return acc;
+      }, []);
+
+      // Generate tanggal dalam rentang mata kuliah
+      const tanggalMulai = data?.tanggal_mulai;
+      const tanggalAkhir = data?.tanggal_akhir;
+      
+      let contohTanggal1 = "2024-01-15";
+      let contohTanggal2 = "2024-01-16";
+      
+      if (tanggalMulai && tanggalAkhir) {
+        const mulai = new Date(tanggalMulai);
+        const akhir = new Date(tanggalAkhir);
+        const selisihHari = Math.floor((akhir.getTime() - mulai.getTime()) / (1000 * 60 * 60 * 24));
+        
+        // Contoh tanggal 1: 1/4 dari rentang
+        const hari1 = Math.floor(selisihHari * 0.25);
+        const contoh1 = new Date(mulai);
+        contoh1.setDate(contoh1.getDate() + hari1);
+        contohTanggal1 = contoh1.toISOString().split('T')[0];
+        
+        // Contoh tanggal 2: 3/4 dari rentang
+        const hari2 = Math.floor(selisihHari * 0.75);
+        const contoh2 = new Date(mulai);
+        contoh2.setDate(contoh2.getDate() + hari2);
+        contohTanggal2 = contoh2.toISOString().split('T')[0];
+      }
+
+      // Data template dengan data real
+      const templateData = [
+        {
+          'Jenis CSR': 'reguler',
+          'Tanggal': contohTanggal1,
+          'Jam Mulai': '07.20',
+          'Sesi': '3',
+          'Jam Selesai': '10.50',
+          'Kelompok Kecil': kelompokKecilTersedia[0]?.nama_kelompok || '1',
+          'Topik': 'Pemeriksaan Fisik Sistem Kardiovaskular',
+          'Keahlian': keahlianTersedia[0] || 'Kardiologi',
+          'Dosen': dosenTersedia[0]?.name || 'Dosen 1',
+          'Ruangan': ruanganTersedia[0]?.nama || 'Ruangan 1'
+        },
+        {
+          'Jenis CSR': 'responsi',
+          'Tanggal': contohTanggal2,
+          'Jam Mulai': '08.10',
+          'Sesi': '2',
+          'Jam Selesai': '10.10',
+          'Kelompok Kecil': kelompokKecilTersedia[1]?.nama_kelompok || '2',
+          'Topik': 'Interpretasi EKG',
+          'Keahlian': keahlianTersedia[1] || keahlianTersedia[0] || 'Kardiologi',
+          'Dosen': dosenTersedia[1]?.name || dosenTersedia[0]?.name || 'Dosen 2',
+          'Ruangan': ruanganTersedia[1]?.nama || 'Ruangan 2'
+        }
+      ];
+
+      // Buat workbook
+      const wb = XLSX.utils.book_new();
+      
+      // Sheet 1: Template CSR dengan header yang eksplisit
+      const ws = XLSX.utils.json_to_sheet(templateData, {
+        header: ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Jenis CSR', 'Sesi', 'Kelompok Kecil', 'Topik', 'Keahlian', 'Dosen', 'Ruangan']
+      });
+      
+      // Set lebar kolom
+      const colWidths = [
+        { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
+        { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
+        { wch: EXCEL_COLUMN_WIDTHS.JAM_SELESAI },
+        { wch: EXCEL_COLUMN_WIDTHS.JENIS_CSR },
+        { wch: EXCEL_COLUMN_WIDTHS.SESI },
+        { wch: EXCEL_COLUMN_WIDTHS.KELOMPOK_KECIL },
+        { wch: EXCEL_COLUMN_WIDTHS.TOPIK },
+        { wch: EXCEL_COLUMN_WIDTHS.KEAHLIAN },
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
+        { wch: EXCEL_COLUMN_WIDTHS.RUANGAN }
+      ];
+      ws['!cols'] = colWidths;
+      
+      XLSX.utils.book_append_sheet(wb, ws, 'Template CSR');
+
+      // Sheet 2: Tips dan Info
+      const infoData = [
+        ['TIPS DAN INFORMASI IMPORT JADWAL CSR'],
+        [''],
+        ['📋 CARA UPLOAD FILE:'],
+        ['1. Download template ini dan isi dengan data jadwal CSR'],
+        ['2. Pastikan semua kolom wajib diisi dengan benar'],
+        ['3. Upload file Excel yang sudah diisi ke sistem'],
+        ['4. Periksa preview data dan perbaiki error jika ada'],
+        ['5. Klik "Import Data" untuk menyimpan jadwal'],
+        [''],
+        ['✏️ CARA EDIT DATA:'],
+        ['1. Klik pada kolom yang ingin diedit di tabel preview'],
+        ['2. Ketik atau paste data yang benar'],
+        ['3. Sistem akan otomatis validasi dan update error'],
+        ['4. Pastikan tidak ada error sebelum import'],
+        [''],
+        ['📊 KETERSEDIAAN DATA:'],
+        [''],
+        ['⏰ JAM YANG TERSEDIA:'],
+        ...jamOptions.slice(0, TEMPLATE_DISPLAY_LIMIT).map(jam => [`• ${jam}`]),
+        [''],
+        ['👥 KELOMPOK KECIL YANG TERSEDIA:'],
+        ...(kelompokKecilWithCount && kelompokKecilWithCount.length > 0 ? 
+          kelompokKecilWithCount
+            .slice(0, TEMPLATE_DISPLAY_LIMIT)
+            .map(kelompok => [`• Kelompok ${kelompok.nama_kelompok} (${kelompok.jumlah_anggota} mahasiswa)`]) : 
+          [['• Belum ada data kelompok kecil']]),
+        [''],
+        ['🎯 KEAHLIAN YANG TERSEDIA:'],
+        ...kategoriList.flatMap(kategori => 
+          (kategori.keahlian_required || []).slice(0, 3).map(keahlian => [`• ${keahlian} (${kategori.nomor_csr})`])
+        ),
+        [''],
+        ['👨‍🏫 DOSEN YANG TERSEDIA:'],
+        ...dosenList.slice(0, TEMPLATE_DISPLAY_LIMIT).map(dosen => [`• ${dosen.name} (${dosen.nid}) - ${dosen.keahlian}`]),
+        [''],
+        ['🏢 RUANGAN YANG TERSEDIA:'],
+        ...ruanganList.slice(0, TEMPLATE_DISPLAY_LIMIT).map(ruangan => [`• ${ruangan.nama} (Kapasitas: ${ruangan.kapasitas || 'N/A'})`]),
+        [''],
+        ['⚠️ VALIDASI SISTEM:'],
+        [''],
+        ['📅 VALIDASI TANGGAL:'],
+        ['• Format: YYYY-MM-DD (contoh: 2024-01-15)'],
+        ['• Wajib dalam rentang mata kuliah:'],
+        [`  - Mulai: ${data?.tanggal_mulai ? new Date(data.tanggal_mulai).toLocaleDateString('id-ID') : '-'}`],
+        [`  - Akhir: ${data?.tanggal_akhir ? new Date(data.tanggal_akhir).toLocaleDateString('id-ID') : '-'}`],
+        [''],
+        ['⏰ VALIDASI JAM:'],
+        ['• Format: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
+        ['• Jam mulai harus sesuai opsi yang tersedia'],
+        ['• Jam selesai akan divalidasi berdasarkan perhitungan:'],
+        ['  Jam selesai = Jam mulai + (Jumlah sesi x 50 menit)'],
+        ['  Contoh: 07:20 + (2 x 50 menit) = 09:00'],
+        [''],
+        ['📝 VALIDASI JENIS CSR:'],
+        ['• Jenis CSR: "reguler" atau "responsi"'],
+        [`• CSR Reguler = ${CSR_REGULER_SESSIONS} sesi (${CSR_REGULER_SESSIONS * SESSION_DURATION_MINUTES} menit)`],
+        [`• CSR Responsi = ${CSR_RESPONSI_SESSIONS} sesi (${CSR_RESPONSI_SESSIONS * SESSION_DURATION_MINUTES} menit)`],
+        [''],
+        ['🔢 VALIDASI SESI:'],
+        [`• Jumlah sesi: ${CSR_REGULER_SESSIONS} untuk reguler, ${CSR_RESPONSI_SESSIONS} untuk responsi`],
+        ['• Digunakan untuk menghitung jam selesai'],
+        ['• 1 sesi = 50 menit'],
+        [''],
+        ['👥 VALIDASI KELOMPOK KECIL:'],
+        ['• Kelompok kecil wajib diisi'],
+        ['• Nama kelompok kecil harus ada di database'],
+        ['• Harus sesuai dengan semester mata kuliah'],
+        [''],
+        ['🎯 VALIDASI KEAHLIAN:'],
+        ['• Keahlian wajib diisi'],
+        ['• Keahlian harus sesuai dengan dosen yang dipilih'],
+        ['• Dosen harus memiliki keahlian yang sesuai'],
+        [''],
+        ['👨‍🏫 VALIDASI DOSEN:'],
+        ['• Dosen wajib diisi'],
+        ['• Nama dosen harus ada di database'],
+        ['• Dosen harus memiliki keahlian yang sesuai dengan keahlian yang dipilih'],
+        [''],
+        ['🏢 VALIDASI RUANGAN:'],
+        ['• Ruangan wajib diisi'],
+        ['• Nama ruangan harus ada di database'],
+        ['• Kapasitas ruangan harus mencukupi jumlah mahasiswa'],
+        [''],
+        ['💡 TIPS PENTING:'],
+        ['• Gunakan data yang ada di list ketersediaan di atas'],
+        ['• Periksa preview sebelum import'],
+        ['• Edit langsung di tabel preview jika ada error'],
+        ['• Sistem akan highlight error dengan warna merah'],
+        ['• Tooltip akan menampilkan pesan error detail']
+      ];
+
+      const infoWs = XLSX.utils.aoa_to_sheet(infoData);
+      infoWs['!cols'] = [{ wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN }];
+      XLSX.utils.book_append_sheet(wb, infoWs, 'Tips dan Info');
+
+      // Download file
+      XLSX.writeFile(wb, `Template_CSR_${data?.nama || 'MataKuliah'}.xlsx`);
+    } catch (error) {
+      // Error generating template
+    }
+  };
+
+  // Fungsi untuk membaca file Excel CSR
+  const readCSRExcelFile = async (file: File) => {
+    return new Promise<{ data: any[], headers: string[], format: 'template' | 'export' }>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          
+          // Ambil sheet pertama
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          
+          // Konversi ke JSON
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          
+          if (jsonData.length < 2) {
+            reject(new Error('File Excel kosong atau tidak memiliki header'));
+            return;
+          }
+          
+          // Ambil header (baris pertama)
+          const headers = jsonData[0] as string[];
+          const headerStr = headers.join(' ').toLowerCase();
+          
+          // Deteksi format berdasarkan header
+          let format: 'template' | 'export' = 'template';
+          if (headerStr.includes('no') && headerStr.includes('tanggal') && headerStr.includes('jam mulai') && 
+              headerStr.includes('jam selesai') && headerStr.includes('jenis csr') && headerStr.includes('sesi')) {
+            format = 'export';
+          }
+          
+          // Ambil data (baris kedua dan seterusnya)
+          const dataRows = jsonData.slice(1).filter(row => 
+            row && Array.isArray(row) && row.some(cell => cell !== undefined && cell !== '')
+          );
+          
+          resolve({ data: dataRows, headers, format });
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = () => reject(new Error('Gagal membaca file'));
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  // Fungsi untuk handle import Excel CSR
+  const handleCSRImportExcel = async (file: File) => {
+    try {
+      const { data: excelData, headers, format } = await readCSRExcelFile(file);
+      
+      if (excelData.length === 0) {
+        setCSRImportErrors(['File Excel kosong atau tidak memiliki data']);
+        setShowCSRImportModal(true);
+        return;
+      }
+
+      // Cek format header berdasarkan format yang dideteksi
+      let expectedHeaders: string[];
+      if (format === 'export') {
+        expectedHeaders = ['No', 'Tanggal', 'Jam Mulai', 'Jam Selesai', 'Jenis CSR', 'Sesi', 'Kelompok Kecil', 'Topik', 'Keahlian', 'Dosen', 'Ruangan'];
+      } else {
+        expectedHeaders = ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Jenis CSR', 'Sesi', 'Kelompok Kecil', 'Topik', 'Keahlian', 'Dosen', 'Ruangan'];
+      }
+      
+      const headerMatch = expectedHeaders.every(header => headers.includes(header));
+      
+      if (!headerMatch) {
+        setCSRImportErrors(['Format file Excel tidak sesuai. Pastikan menggunakan template yang benar.']);
+        setShowCSRImportModal(true);
+        return;
+      }
+
+      // Konversi data Excel ke format yang diinginkan berdasarkan format yang dideteksi
+      const convertedData: JadwalCSRType[] = excelData.map((row: any[], index: number) => {
+        let tanggal, jamMulai, jamSelesai, jenisCSR, jumlahSesi, kelompokKecilNama, topik, keahlianNama, dosenNama, ruanganNama;
+        
+        if (format === 'export') {
+          // Format export: No, Tanggal, Jam Mulai, Jam Selesai, Jenis CSR, Sesi, Kelompok Kecil, Topik, Keahlian, Dosen, Ruangan
+          tanggal = row[1]?.toString();
+          jamMulai = row[2]?.toString();
+          jamSelesai = row[3]?.toString();
+          // Handle jenis CSR dari export yang mungkin "CSR Reguler" atau "CSR Responsi"
+          const jenisCSRExport = row[4]?.toString().toLowerCase();
+          jenisCSR = jenisCSRExport?.includes('reguler') ? 'reguler' : jenisCSRExport?.includes('responsi') ? 'responsi' : jenisCSRExport;
+          jumlahSesi = parseInt(row[5]?.toString() || '0');
+          kelompokKecilNama = row[6]?.toString();
+          topik = row[7]?.toString();
+          keahlianNama = row[8]?.toString();
+          dosenNama = row[9]?.toString();
+          ruanganNama = row[10]?.toString();
+        } else {
+          // Format template: Tanggal, Jam Mulai, Jam Selesai, Jenis CSR, Sesi, Kelompok Kecil, Topik, Keahlian, Dosen, Ruangan
+          tanggal = row[0]?.toString();
+          jamMulai = row[1]?.toString();
+          jamSelesai = row[2]?.toString();
+          jenisCSR = row[3]?.toString().toLowerCase();
+          jumlahSesi = parseInt(row[4]?.toString() || '0');
+          kelompokKecilNama = row[5]?.toString();
+          topik = row[6]?.toString();
+          keahlianNama = row[7]?.toString();
+          dosenNama = row[8]?.toString();
+          ruanganNama = row[9]?.toString();
+        }
+
+
+        // Handle jam yang tidak valid dan normalize format
+        if (jamMulai) {
+          // Bersihkan data jam dari karakter yang tidak diinginkan
+          jamMulai = jamMulai.toString().trim();
+          // Handle jam yang tidak valid (00.00 atau kosong)
+          if (jamMulai === '00.00' || jamMulai === '00:00' || jamMulai === '0' || jamMulai === '0.00') {
+            jamMulai = '';
+          } else {
+            // Normalize format jam (pastikan menggunakan format HH.MM)
+            if (jamMulai.includes(':')) {
+              jamMulai = jamMulai.replace(':', '.');
+            }
+            // Pastikan format jam valid (HH.MM)
+            if (!/^\d{1,2}\.\d{2}$/.test(jamMulai)) {
+              jamMulai = '';
+            }
+          }
+        } else {
+          jamMulai = '';
+        }
+
+        if (jamSelesai) {
+          // Bersihkan data jam dari karakter yang tidak diinginkan
+          jamSelesai = jamSelesai.toString().trim();
+          // Handle jam yang tidak valid (00.00 atau kosong)
+          if (jamSelesai === '00.00' || jamSelesai === '00:00' || jamSelesai === '0' || jamSelesai === '0.00') {
+            jamSelesai = '';
+          } else {
+            // Normalize format jam (pastikan menggunakan format HH.MM)
+            if (jamSelesai.includes(':')) {
+              jamSelesai = jamSelesai.replace(':', '.');
+            }
+            // Pastikan format jam valid (HH.MM)
+            if (!/^\d{1,2}\.\d{2}$/.test(jamSelesai)) {
+              jamSelesai = '';
+            }
+          }
+        } else {
+          jamSelesai = '';
+        }
+
+
+        // Cari ID berdasarkan nama
+        const kelompokKecil = kelompokKecilList.find(k => k.nama_kelompok === kelompokKecilNama);
+        const kategori = kategoriList.find(k => k.keahlian_required?.includes(keahlianNama));
+        const dosen = dosenList.find(d => d.name === dosenNama);
+        const ruangan = ruanganList.find(r => r.nama === ruanganNama);
+
+        return {
+          jenis_csr: jenisCSR as 'reguler' | 'responsi',
+          tanggal: tanggal || '',
+          jam_mulai: jamMulai || '',
+          jam_selesai: jamSelesai || '',
+          jumlah_sesi: jumlahSesi,
+          kelompok_kecil_id: kelompokKecil?.id || 0,
+          topik: topik || '',
+          kategori_id: kategori?.id || 0,
+          dosen_id: dosen?.id || 0,
+          ruangan_id: ruangan?.id || 0,
+          nama_kelompok: kelompokKecilNama,
+          nama_keahlian: keahlianNama,
+          nama_dosen: dosenNama,
+          nama_ruangan: ruanganNama
+        };
+      });
+
+      setCSRImportData(convertedData);
+      
+      // Validasi data setelah konversi
+      const { cellErrors } = validateCSRExcelData(convertedData);
+      setCSRCellErrors(cellErrors);
+      setCSRImportErrors([]);
+      setShowCSRImportModal(true);
+    } catch (error) {
+      setCSRImportErrors(['Gagal membaca file Excel: ' + (error as Error).message]);
+      setShowCSRImportModal(true);
+    }
+  };
+
+  // Helper function untuk validasi tanggal
+  const validateDate = (tanggal: string, rowNumber: number): string | null => {
+    if (!tanggal) {
+      return `Tanggal wajib diisi (Baris ${rowNumber}, Kolom TANGGAL)`;
+    }
+    
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(tanggal)) {
+      return `Format tanggal harus YYYY-MM-DD (Baris ${rowNumber}, Kolom TANGGAL)`;
+    }
+    
+    // Validasi rentang tanggal mata kuliah
+    const tanggalMulai = data?.tanggal_mulai ? new Date(data.tanggal_mulai) : null;
+    const tanggalAkhir = data?.tanggal_akhir ? new Date(data.tanggal_akhir) : null;
+    const tanggalJadwal = new Date(tanggal);
+
+    if (tanggalMulai && tanggalAkhir && (tanggalJadwal < tanggalMulai || tanggalJadwal > tanggalAkhir)) {
+      return `Tanggal di luar rentang mata kuliah (Baris ${rowNumber}, Kolom TANGGAL)`;
+    }
+    
+    return null;
+  };
+
+  // Helper function untuk validasi jam
+  const validateTime = (jam: string, rowNumber: number, fieldName: string): string | null => {
+    if (!jam) {
+      return `${fieldName} wajib diisi (Baris ${rowNumber}, Kolom ${fieldName.toUpperCase()})`;
+    }
+    
+    if (!/^\d{1,2}[.:]\d{2}$/.test(jam)) {
+      return `Format ${fieldName} harus HH:MM atau HH.MM (Baris ${rowNumber}, Kolom ${fieldName.toUpperCase()})`;
+    }
+    
+    // Validasi jam sesuai dengan opsi yang tersedia
+    const normalizeTimeForComparison = (time: string): string => {
+      if (!time) return time;
+      return time.replace('.', ':');
+    };
+    
+    const isTimeValid = (inputTime: string): boolean => {
+      const normalizedInput = normalizeTimeForComparison(inputTime);
+      return jamOptions.some(option => normalizeTimeForComparison(option) === normalizedInput);
+    };
+    
+    if (!isTimeValid(jam)) {
+      return `${fieldName} "${jam}" tidak valid. Jam yang tersedia: ${jamOptions.join(', ')} (Baris ${rowNumber}, Kolom ${fieldName.toUpperCase()})`;
+    }
+    
+    return null;
+  };
+
+  // Fungsi untuk validasi data Excel CSR
+  const validateCSRExcelData = (dataRows: JadwalCSRType[]) => {
+    const errors: { row: number, field: string, message: string }[] = [];
+
+    dataRows.forEach((row, index) => {
+      const rowNumber = index + 1;
+
+      // Validasi jenis CSR
+      if (!row.jenis_csr) {
+        errors.push({ row: rowNumber, field: 'jenis_csr', message: `Jenis CSR wajib diisi (Baris ${rowNumber}, Kolom JENIS_CSR)` });
+      } else if (!['reguler', 'responsi'].includes(row.jenis_csr)) {
+        errors.push({ row: rowNumber, field: 'jenis_csr', message: `Jenis CSR harus "reguler" atau "responsi" (Baris ${rowNumber}, Kolom JENIS_CSR)` });
+      }
+
+      // Validasi tanggal
+      const tanggalError = validateDate(row.tanggal, rowNumber);
+      if (tanggalError) {
+        errors.push({ row: rowNumber, field: 'tanggal', message: tanggalError });
+      }
+
+      // Validasi jam mulai
+      const jamMulaiError = validateTime(row.jam_mulai, rowNumber, 'jam mulai');
+      if (jamMulaiError) {
+        errors.push({ row: rowNumber, field: 'jam_mulai', message: jamMulaiError });
+      }
+
+      // Validasi sesi
+      if (!row.jumlah_sesi) {
+        errors.push({ row: rowNumber, field: 'jumlah_sesi', message: `Sesi wajib diisi (Baris ${rowNumber}, Kolom SESI)` });
+      } else {
+        const sesi = parseInt(row.jumlah_sesi.toString());
+        if (isNaN(sesi) || sesi < MIN_SESSIONS || sesi > MAX_SESSIONS) {
+          errors.push({ row: rowNumber, field: 'jumlah_sesi', message: `Sesi harus antara ${MIN_SESSIONS}-${MAX_SESSIONS} (Baris ${rowNumber}, Kolom SESI)` });
+        } else {
+          // Validasi sesi sesuai jenis CSR
+          if (row.jenis_csr === 'reguler' && sesi !== CSR_REGULER_SESSIONS) {
+            errors.push({ row: rowNumber, field: 'jumlah_sesi', message: `CSR Reguler harus ${CSR_REGULER_SESSIONS} sesi (Baris ${rowNumber}, Kolom SESI)` });
+          } else if (row.jenis_csr === 'responsi' && sesi !== CSR_RESPONSI_SESSIONS) {
+            errors.push({ row: rowNumber, field: 'jumlah_sesi', message: `CSR Responsi harus ${CSR_RESPONSI_SESSIONS} sesi (Baris ${rowNumber}, Kolom SESI)` });
+          }
+        }
+      }
+
+      // Validasi jam selesai jika ada
+      if (row.jam_selesai && row.jam_mulai) {
+        const jamSelesaiInput = row.jam_selesai.toString();
+        
+        const normalizeTimeForComparison = (time: string): string => {
+          if (!time) return time;
+          return time.replace('.', ':');
+        };
+        
+        if (!/^\d{1,2}[.:]\d{2}$/.test(jamSelesaiInput)) {
+          errors.push({ row: rowNumber, field: 'jam_selesai', message: `Format jam selesai harus HH:MM atau HH.MM (Baris ${rowNumber}, Kolom JAM_SELESAI)` });
+        } else {
+          // Hitung jam selesai yang seharusnya berdasarkan sesi
+          let jumlahSesi = row.jumlah_sesi || 1;
+          const jamMulaiForCalculation = normalizeTimeForComparison(row.jam_mulai.toString());
+          const jamSelesaiSeharusnya = hitungJamSelesai(jamMulaiForCalculation, jumlahSesi);
+          
+          // Bandingkan dengan format yang dinormalisasi
+          const normalizedJamSelesai = normalizeTimeForComparison(jamSelesaiInput);
+          const normalizedJamSelesaiSeharusnya = normalizeTimeForComparison(jamSelesaiSeharusnya);
+          
+          if (normalizedJamSelesai !== normalizedJamSelesaiSeharusnya) {
+            errors.push({ row: rowNumber, field: 'jam_selesai', message: `Jam selesai seharusnya ${normalizedJamSelesaiSeharusnya} (${jumlahSesi} x ${SESSION_DURATION_MINUTES} menit dari ${jamMulaiForCalculation}) (Baris ${rowNumber}, Kolom JAM_SELESAI)` });
+          }
+        }
+      }
+
+      // Validasi kelompok kecil
+      if (!row.kelompok_kecil_id || row.kelompok_kecil_id === 0) {
+        errors.push({ row: rowNumber, field: 'kelompok_kecil_id', message: `Kelompok kecil wajib diisi (Baris ${rowNumber}, Kolom KELOMPOK_KECIL)` });
+      } else {
+        const kelompokKecil = kelompokKecilList.find(k => k.id === row.kelompok_kecil_id);
+        if (!kelompokKecil) {
+          errors.push({ row: rowNumber, field: 'kelompok_kecil_id', message: `Kelompok kecil tidak ditemukan (Baris ${rowNumber}, Kolom KELOMPOK_KECIL)` });
+        }
+      }
+
+      // Validasi topik
+      if (!row.topik) {
+        errors.push({ row: rowNumber, field: 'topik', message: `Topik wajib diisi (Baris ${rowNumber}, Kolom TOPIK)` });
+      }
+
+      // Validasi keahlian/kategori
+      if (!row.kategori_id || row.kategori_id === 0) {
+        errors.push({ row: rowNumber, field: 'kategori_id', message: `Keahlian wajib diisi (Baris ${rowNumber}, Kolom KEAHLIAN)` });
+      } else {
+        const kategori = kategoriList.find(k => k.id === row.kategori_id);
+        if (!kategori) {
+          errors.push({ row: rowNumber, field: 'kategori_id', message: `Keahlian tidak ditemukan (Baris ${rowNumber}, Kolom KEAHLIAN)` });
+        }
+      }
+
+      // Validasi dosen
+      if (!row.dosen_id || row.dosen_id === 0) {
+        errors.push({ row: rowNumber, field: 'dosen_id', message: `Dosen wajib diisi (Baris ${rowNumber}, Kolom DOSEN)` });
+      } else {
+        const dosen = dosenList.find(d => d.id === row.dosen_id);
+        if (!dosen) {
+          errors.push({ row: rowNumber, field: 'dosen_id', message: `Dosen tidak ditemukan (Baris ${rowNumber}, Kolom DOSEN)` });
+        } else {
+          // Validasi keahlian dosen sesuai dengan kategori
+          if (row.kategori_id) {
+            const kategori = kategoriList.find(k => k.id === row.kategori_id);
+            if (kategori && kategori.keahlian_required && !kategori.keahlian_required.includes(dosen.keahlian)) {
+              errors.push({ 
+                row: rowNumber, 
+                field: 'dosen_id', 
+                message: `Dosen "${dosen.name}" tidak memiliki keahlian "${kategori.keahlian_required.join(', ')}" (Baris ${rowNumber}, Kolom DOSEN)` 
+              });
+            }
+          }
+        }
+      }
+
+      // Validasi ruangan
+      if (!row.ruangan_id || row.ruangan_id === 0) {
+        errors.push({ row: rowNumber, field: 'ruangan_id', message: `Ruangan wajib diisi (Baris ${rowNumber}, Kolom RUANGAN)` });
+      } else {
+        const ruangan = ruanganList.find(r => r.id === row.ruangan_id);
+        if (!ruangan) {
+          errors.push({ row: rowNumber, field: 'ruangan_id', message: `Ruangan tidak ditemukan (Baris ${rowNumber}, Kolom RUANGAN)` });
+        }
+      }
+    });
+
+    return { cellErrors: errors };
+  };
+
+  // Fungsi untuk submit import CSR
+  const handleCSRSubmitImport = async () => {
+    try {
+      setIsCSRImporting(true);
+      
+      // Validasi data terlebih dahulu
+      const { cellErrors } = validateCSRExcelData(csrImportData);
+      
+      if (cellErrors.length > 0) {
+        setCSRCellErrors(cellErrors);
+        setIsCSRImporting(false);
+        return;
+      }
+
+      // Transform data untuk API
+      const transformedData = csrImportData.map((row, index) => {
+        // Normalize jam format - pastikan menggunakan format HH.MM
+        let jamMulai = row.jam_mulai;
+        let jamSelesai = row.jam_selesai;
+        
+        
+        if (jamMulai && jamMulai.includes(':')) {
+          jamMulai = jamMulai.replace(':', '.');
+        }
+        if (jamSelesai && jamSelesai.includes(':')) {
+          jamSelesai = jamSelesai.replace(':', '.');
+        }
+        
+        // Pastikan format jam valid sebelum dikirim
+        if (jamMulai && !/^\d{1,2}\.\d{2}$/.test(jamMulai)) {
+          jamMulai = '';
+        }
+        if (jamSelesai && !/^\d{1,2}\.\d{2}$/.test(jamSelesai)) {
+          jamSelesai = '';
+        }
+        
+        const transformedRow = {
+          jenis_csr: row.jenis_csr,
+          tanggal: row.tanggal,
+          jam_mulai: jamMulai,
+          jam_selesai: jamSelesai,
+          jumlah_sesi: row.jumlah_sesi,
+          kelompok_kecil_id: row.kelompok_kecil_id,
+          topik: row.topik,
+          kategori_id: row.kategori_id,
+          dosen_id: row.dosen_id,
+          ruangan_id: row.ruangan_id
+        };
+        
+        
+        return transformedRow;
+      });
+
+      
+      // Kirim ke backend
+      const response = await api.post(`/csr/jadwal/${kode}/import`, {
+        data: transformedData
+      });
+
+      if (response.data.success) {
+        setCSRImportedCount(transformedData.length);
+        setShowCSRImportModal(false);
+        setCSRImportData([]);
+        setCSRCellErrors([]);
+        setCSRImportErrors([]);
+        
+        // Refresh data
+        await fetchBatchData();
+      } else {
+        // Handle error dari response
+        setCSRImportErrors([response.data.message || 'Terjadi kesalahan saat mengimport data']);
+      }
+    } catch (error: any) {
+      // Handle error dari API response
+      if (error.response?.data?.message) {
+        setCSRImportErrors([error.response.data.message]);
+      } else {
+        setCSRImportErrors([handleApiError(error, 'Mengimport data CSR')]);
+      }
+    } finally {
+      setIsCSRImporting(false);
+    }
+  };
+
+  // Handler untuk upload file Excel CSR
+  const handleCSRImportExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      setCSRImportErrors(['File harus berformat Excel (.xlsx atau .xls)']);
+      setShowCSRImportModal(true);
+      return;
+    }
+
+    setCSRImportFile(file);
+    await handleCSRImportExcel(file);
+  };
+
+  // Handler untuk close modal CSR
+  const handleCSRCloseImportModal = () => {
+    setShowCSRImportModal(false);
+    setCSRImportFile(null);
+    setCSRImportData([]);
+    setCSRImportErrors([]);
+    setCSRCellErrors([]);
+    setCSRImportPage(1);
+    setCSREditingCell(null);
+    if (csrFileInputRef.current) {
+      csrFileInputRef.current.value = '';
+    }
+  };
+
+  // Handler untuk edit cell CSR
+  const handleCSREditCell = (rowIndex: number, field: string, value: any) => {
+    setCSRImportData(prev => prev.map((row, index) => 
+      index === rowIndex ? { ...row, [field]: value } : row
+    ));
+    
+    // Re-validate data after edit
+    const updatedData = [...csrImportData];
+    updatedData[rowIndex] = { ...updatedData[rowIndex], [field]: value };
+    const { cellErrors } = validateCSRExcelData(updatedData);
+    setCSRCellErrors(cellErrors);
+  };
+
+  // Fungsi untuk render editable cell
+  const renderCSREditableCell = (field: string, value: any, rowIndex: number, isReadOnly: boolean = false) => {
+    const actualIndex = (csrImportPage - 1) * csrImportPageSize + rowIndex;
+    const isEditing = csrEditingCell?.row === actualIndex && csrEditingCell?.key === field;
+    const hasError = csrCellErrors.find(err => err.row === (actualIndex + 1) && err.field === field);
+    
+    return (
+      <td
+        className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${hasError ? 'bg-red-50 dark:bg-red-900/30' : ''}`}
+        onClick={() => !isReadOnly && setCSREditingCell({ row: actualIndex, key: field })}
+        title={hasError?.message || ''}
+      >
+        {isEditing ? (
+          <input
+            className="w-full px-1 border-none outline-none text-xs md:text-sm"
+            value={value || ""}
+            onChange={e => handleCSREditCell(actualIndex, field, e.target.value)}
+            onBlur={() => setCSREditingCell(null)}
+            autoFocus
+          />
+        ) : (
+          <span className={hasError ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
+            {value || '-'}
+          </span>
+        )}
+      </td>
+    );
+  };
+
+  // Handler untuk edit kelompok kecil
+  const handleCSRKelompokKecilEdit = (rowIndex: number, value: string) => {
+    const kelompokKecil = kelompokKecilList.find(k => k.nama_kelompok === value);
+    
+    // Update data dan validasi sekaligus
+    const updatedData = [...csrImportData];
+    updatedData[rowIndex] = {
+      ...updatedData[rowIndex],
+      kelompok_kecil_id: kelompokKecil?.id || 0,
+      nama_kelompok: value
+    };
+    
+    setCSRImportData(updatedData);
+    
+    // Re-validate
+    const { cellErrors } = validateCSRExcelData(updatedData);
+    setCSRCellErrors(cellErrors);
+  };
+
+  // Handler untuk edit dosen
+  const handleCSRDosenEdit = (rowIndex: number, value: string) => {
+    const dosen = dosenList.find(d => d.name === value);
+    
+    // Update data dan validasi sekaligus
+    const updatedData = [...csrImportData];
+    updatedData[rowIndex] = {
+      ...updatedData[rowIndex],
+      dosen_id: dosen?.id || 0,
+      nama_dosen: value
+    };
+    
+    setCSRImportData(updatedData);
+    
+    // Re-validate
+    const { cellErrors } = validateCSRExcelData(updatedData);
+    setCSRCellErrors(cellErrors);
+  };
+
+  // Handler untuk edit ruangan
+  const handleCSRRuanganEdit = (rowIndex: number, value: string) => {
+    const ruangan = ruanganList.find(r => r.nama === value);
+    
+    // Update data dan validasi sekaligus
+    const updatedData = [...csrImportData];
+    updatedData[rowIndex] = {
+      ...updatedData[rowIndex],
+      ruangan_id: ruangan?.id || 0,
+      nama_ruangan: value
+    };
+    
+    setCSRImportData(updatedData);
+    
+    // Re-validate
+    const { cellErrors } = validateCSRExcelData(updatedData);
+    setCSRCellErrors(cellErrors);
+  };
+
+  // Handler untuk edit keahlian
+  const handleCSRKeahlianEdit = (rowIndex: number, value: string) => {
+    const kategori = kategoriList.find(k => k.keahlian_required?.includes(value));
+    
+    // Update data dan validasi sekaligus
+    const updatedData = [...csrImportData];
+    updatedData[rowIndex] = {
+      ...updatedData[rowIndex],
+      kategori_id: kategori?.id || 0,
+      nama_keahlian: value
+    };
+    
+    setCSRImportData(updatedData);
+    
+    // Re-validate
+    const { cellErrors } = validateCSRExcelData(updatedData);
+    setCSRCellErrors(cellErrors);
+  };
+
   function handleFormChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     const { name, value } = e.target;
     let newForm = { ...form, [name]: value };
     if (name === 'jenis_csr') {
-      newForm.jumlah_sesi = value === 'reguler' ? 3 : value === 'responsi' ? 2 : 3;
+      newForm.jumlah_sesi = value === 'reguler' ? CSR_REGULER_SESSIONS : value === 'responsi' ? CSR_RESPONSI_SESSIONS : CSR_REGULER_SESSIONS;
       newForm.jam_selesai = hitungJamSelesai(newForm.jam_mulai, newForm.jumlah_sesi);
     }
     if (name === 'jam_mulai') {
@@ -183,8 +1057,8 @@ export default function DetailNonBlokCSR() {
     }
     // Validasi tanggal seperti di DetailBlok.tsx
     if (name === 'tanggal' && data && value) {
-      const tglMulai = new Date(data.tanggal_mulai || data.tanggalMulai || '');
-      const tglAkhir = new Date(data.tanggal_akhir || data.tanggalAkhir || '');
+      const tglMulai = new Date(data.tanggal_mulai || '');
+      const tglAkhir = new Date(data.tanggal_akhir || '');
       const tglInput = new Date(value);
       if (tglMulai && tglInput < tglMulai) {
         setErrorForm('Tanggal tidak boleh sebelum tanggal mulai!');
@@ -232,7 +1106,7 @@ export default function DetailNonBlokCSR() {
         jenis_csr: '',
         tanggal: '',
         jam_mulai: '',
-        jumlah_sesi: 3,
+        jumlah_sesi: CSR_REGULER_SESSIONS,
         jam_selesai: '',
         dosen_id: null,
         ruangan_id: null,
@@ -244,8 +1118,6 @@ export default function DetailNonBlokCSR() {
       setSelectedKeahlian(null);
     setEditIndex(null);
     } catch (error: any) {
-      console.error('Error saving jadwal:', error);
-      console.error('Error details:', handleApiError(error, 'Menyimpan jadwal CSR'));
       setErrorBackend(handleApiError(error, 'Menyimpan jadwal CSR'));
     } finally {
       setIsSaving(false);
@@ -329,8 +1201,6 @@ export default function DetailNonBlokCSR() {
       setShowDeleteModal(false);
       setSelectedDeleteIndex(null);
     } catch (error: any) {
-      console.error('Error deleting jadwal:', error);
-      console.error('Error details:', handleApiError(error, 'Menghapus jadwal CSR'));
       setErrorBackend(handleApiError(error, 'Menghapus jadwal CSR'));
     }
   }
@@ -359,11 +1229,102 @@ export default function DetailNonBlokCSR() {
       setJamOptions(batchData.jam_options);
       
     } catch (error: any) {
-      console.error('Error fetching batch data:', error);
-      console.error('Error details:', handleApiError(error, 'Memuat data batch'));
       setError(handleApiError(error, 'Memuat data batch'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fungsi untuk export Excel CSR
+  const exportCSRExcel = async () => {
+    try {
+      if (jadwalCSR.length === 0) {
+        alert('Tidak ada data CSR untuk diekspor');
+        return;
+      }
+
+      // Transform data untuk export
+      const exportData = jadwalCSR.map((row, index) => {
+        const dosen = dosenList.find(d => d.id === row.dosen_id);
+        const ruangan = ruanganList.find(r => r.id === row.ruangan_id);
+        const kelompokKecil = kelompokKecilList.find(k => k.id === row.kelompok_kecil_id);
+        const kategori = kategoriList.find(k => k.id === row.kategori_id);
+
+        return {
+          'No': index + 1,
+          'Tanggal': row.tanggal ? new Date(row.tanggal).toISOString().split('T')[0] : '',
+          'Jam Mulai': row.jam_mulai || '',
+          'Jam Selesai': row.jam_selesai || '',
+          'Jenis CSR': row.jenis_csr === 'reguler' ? 'reguler' : row.jenis_csr === 'responsi' ? 'responsi' : row.jenis_csr,
+          'Sesi': row.jumlah_sesi,
+          'Kelompok Kecil': kelompokKecil?.nama_kelompok || '',
+          'Topik': row.topik,
+          'Keahlian': kategori?.keahlian_required?.join(', ') || '',
+          'Dosen': dosen?.name || '',
+          'Ruangan': ruangan?.nama || ''
+        };
+      });
+
+      // Buat workbook
+      const wb = XLSX.utils.book_new();
+      
+      // Sheet 1: Data CSR
+      const ws = XLSX.utils.json_to_sheet(exportData, {
+        header: ['No', 'Tanggal', 'Jam Mulai', 'Jam Selesai', 'Jenis CSR', 'Sesi', 'Kelompok Kecil', 'Topik', 'Keahlian', 'Dosen', 'Ruangan']
+      });
+      
+      // Set lebar kolom
+      const colWidths = [
+        { wch: 5 },  // No
+        { wch: 12 }, // Tanggal
+        { wch: 10 }, // Jam Mulai
+        { wch: 10 }, // Jam Selesai
+        { wch: 12 }, // Jenis CSR
+        { wch: 6 },  // Sesi
+        { wch: 15 }, // Kelompok Kecil
+        { wch: 30 }, // Topik
+        { wch: 20 }, // Keahlian
+        { wch: 25 }, // Dosen
+        { wch: 20 }  // Ruangan
+      ];
+      ws['!cols'] = colWidths;
+      
+      XLSX.utils.book_append_sheet(wb, ws, 'Data CSR');
+
+      // Sheet 2: Info Mata Kuliah
+      const infoData = [
+        ['INFORMASI MATA KULIAH'],
+        [''],
+        ['Kode Mata Kuliah', data?.kode || ''],
+        ['Nama Mata Kuliah', data?.nama || ''],
+        ['Semester', data?.semester || ''],
+        ['Periode', data?.periode || ''],
+        ['Kurikulum', data?.kurikulum || ''],
+        ['Jenis', data?.jenis || ''],
+        ['Tipe Non-Blok', data?.tipe_non_block || ''],
+        ['Tanggal Mulai', data?.tanggal_mulai ? new Date(data.tanggal_mulai).toISOString().split('T')[0] : ''],
+        ['Tanggal Akhir', data?.tanggal_akhir ? new Date(data.tanggal_akhir).toISOString().split('T')[0] : ''],
+        ['Durasi Minggu', data?.durasi_minggu || ''],
+        [''],
+        ['TOTAL JADWAL CSR', jadwalCSR.length],
+        [''],
+        ['CATATAN:'],
+        ['• File ini berisi data jadwal CSR yang dapat di-import kembali ke aplikasi'],
+        ['• Format tanggal: YYYY-MM-DD'],
+        ['• Format jam: HH.MM atau HH:MM'],
+        ['• Jenis CSR: "reguler" (3 sesi) atau "responsi" (2 sesi)'],
+        ['• Pastikan data dosen, ruangan, kelompok kecil, dan keahlian valid sebelum import']
+      ];
+
+      const infoWs = XLSX.utils.aoa_to_sheet(infoData);
+      infoWs['!cols'] = [{ wch: 30 }, { wch: 50 }];
+      XLSX.utils.book_append_sheet(wb, infoWs, 'Info Mata Kuliah');
+
+      // Download file
+      const fileName = `Export_CSR_${data?.kode || 'MataKuliah'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (error) {
+      alert('Gagal mengekspor data CSR');
     }
   };
 
@@ -381,6 +1342,26 @@ export default function DetailNonBlokCSR() {
       }
     }
   }, [showModal, editIndex, form.dosen_id, dosenList, selectedKeahlian]);
+
+  // Effect untuk auto-hide success message CSR import
+  useEffect(() => {
+    if (csrImportedCount > 0) {
+      const timer = setTimeout(() => {
+        setCSRImportedCount(0);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [csrImportedCount]);
+
+  // Effect untuk auto-hide success message CSR bulk delete
+  useEffect(() => {
+    if (csrSuccess) {
+      const timer = setTimeout(() => {
+        setCSRSuccess(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [csrSuccess]);
 
   // Fungsi untuk membuka modal absensi
   const handleOpenAbsensi = async (jadwal: JadwalCSR) => {
@@ -427,8 +1408,6 @@ export default function DetailNonBlokCSR() {
         setAbsensi(existingAbsensi);
       }
     } catch (error: any) {
-      console.error('Error fetching mahasiswa/absensi:', error);
-      console.error('Error details:', handleApiError(error, 'Memuat data mahasiswa/absensi'));
       setError(handleApiError(error, 'Memuat data mahasiswa/absensi'));
     }
   };
@@ -462,11 +1441,55 @@ export default function DetailNonBlokCSR() {
       setMahasiswaList([]);
       setAbsensi({});
     } catch (error: any) {
-      console.error('Error saving absensi:', error);
-      console.error('Error details:', handleApiError(error, 'Menyimpan absensi'));
       setError(handleApiError(error, 'Menyimpan absensi'));
     } finally {
       setSavingAbsensi(false);
+    }
+  };
+
+  // Fungsi untuk bulk delete CSR
+  const handleCSRBulkDelete = () => {
+    if (selectedCSRItems.length === 0) return;
+    setShowCSRBulkDeleteModal(true);
+  };
+
+  const confirmCSRBulkDelete = async () => {
+    if (selectedCSRItems.length === 0) return;
+    
+    setIsCSRDeleting(true);
+    try {
+      // Delete all selected items
+      await Promise.all(selectedCSRItems.map(id => api.delete(`/csr/jadwal/${kode}/${id}`)));
+      
+      // Set success message
+      setCSRSuccess(`${selectedCSRItems.length} jadwal CSR berhasil dihapus.`);
+      
+      // Clear selections
+      setSelectedCSRItems([]);
+      setShowCSRBulkDeleteModal(false);
+      
+      // Refresh data
+      await fetchBatchData();
+    } catch (error: any) {
+      setError(handleApiError(error, 'Menghapus jadwal CSR'));
+    } finally {
+      setIsCSRDeleting(false);
+    }
+  };
+
+  const handleCSRSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedCSRItems(jadwalCSR.map(jadwal => jadwal.id!));
+    } else {
+      setSelectedCSRItems([]);
+    }
+  };
+
+  const handleCSRSelectItem = (id: number) => {
+    if (selectedCSRItems.includes(id)) {
+      setSelectedCSRItems(selectedCSRItems.filter(itemId => itemId !== id));
+    } else {
+      setSelectedCSRItems([...selectedCSRItems, id]);
     }
   };
 
@@ -626,15 +1649,15 @@ export default function DetailNonBlokCSR() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
           <div className="mb-2 text-gray-500 text-xs font-semibold uppercase">Tanggal Mulai</div>
-          <div className="text-base text-gray-800 dark:text-white">{(data.tanggal_mulai ? new Date(data.tanggal_mulai).toLocaleDateString('id-ID') : data.tanggalMulai ? new Date(data.tanggalMulai).toLocaleDateString('id-ID') : '-' )}</div>
+          <div className="text-base text-gray-800 dark:text-white">{data.tanggal_mulai ? new Date(data.tanggal_mulai).toLocaleDateString('id-ID') : '-'}</div>
         </div>
         <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
           <div className="mb-2 text-gray-500 text-xs font-semibold uppercase">Tanggal Akhir</div>
-          <div className="text-base text-gray-800 dark:text-white">{(data.tanggal_akhir ? new Date(data.tanggal_akhir).toLocaleDateString('id-ID') : data.tanggalAkhir ? new Date(data.tanggalAkhir).toLocaleDateString('id-ID') : '-' )}</div>
+          <div className="text-base text-gray-800 dark:text-white">{data.tanggal_akhir ? new Date(data.tanggal_akhir).toLocaleDateString('id-ID') : '-'}</div>
         </div>
         <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
           <div className="mb-2 text-gray-500 text-xs font-semibold uppercase">Durasi Minggu</div>
-          <div className="text-base text-gray-800 dark:text-white">{data.durasi_minggu || data.durasiMinggu || '-'}</div>
+          <div className="text-base text-gray-800 dark:text-white">{data.durasi_minggu || '-'}</div>
         </div>
       </div>
 
@@ -643,23 +1666,61 @@ export default function DetailNonBlokCSR() {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-bold text-gray-800 dark:text-white">Jadwal CSR</h2>
-          <button
-            onClick={() => {
-              setForm({
-                jenis_csr: '',
-                tanggal: '',
-                jam_mulai: '',
-                jumlah_sesi: 3,
-                jam_selesai: '',
-                dosen_id: null,
-                ruangan_id: null,
-                kelompok_kecil_id: null,
-                kategori_id: null,
-                topik: '',
-              });
-              setSelectedKategoriValue(null);
-              setSelectedKeahlian(null);
-              setEditIndex(null);
+          <div className="flex items-center gap-3">
+            {/* Import Excel Button */}
+            <label className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform cursor-pointer">
+              <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-brand-700 dark:text-brand-200" />
+              Import Excel
+              <input
+                ref={csrFileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleCSRImportExcelUpload}
+                className="hidden"
+              />
+            </label>
+            
+            {/* Download Template Button */}
+            <button
+              onClick={downloadCSRTemplate}
+              className="px-4 py-2 rounded-lg bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 text-sm font-medium shadow-theme-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition flex items-center gap-2"
+            >
+              <FontAwesomeIcon icon={faDownload} className="w-5 h-5" />
+              Download Template Excel
+            </button>
+            
+            {/* Export Excel Button */}
+            <button
+              onClick={exportCSRExcel}
+              disabled={jadwalCSR.length === 0}
+              className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
+                jadwalCSR.length === 0 
+                  ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed' 
+                  : 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800'
+              }`}
+              title={jadwalCSR.length === 0 ? 'Tidak ada data CSR. Silakan tambahkan data jadwal terlebih dahulu untuk melakukan export.' : 'Export data CSR ke Excel'}
+            >
+              <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5" />
+              Export ke Excel
+            </button>
+            
+            <button
+              onClick={() => {
+                setForm({
+                  jenis_csr: '',
+                  tanggal: '',
+                  jam_mulai: '',
+                  jumlah_sesi: CSR_REGULER_SESSIONS,
+                  jam_selesai: '',
+                  dosen_id: null,
+                  ruangan_id: null,
+                  kelompok_kecil_id: null,
+                  kategori_id: null,
+                  topik: '',
+                });
+                setSelectedKategoriValue(null);
+                setSelectedKeahlian(null);
+                setEditIndex(null);
               setShowModal(true);
               setErrorForm('');
               setErrorBackend('');
@@ -668,12 +1729,59 @@ export default function DetailNonBlokCSR() {
           >
             Tambah Jadwal
           </button>
+          </div>
         </div>
+
+        {/* Success Message CSR Import */}
+        <AnimatePresence>
+          {csrImportedCount > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
+            >
+              {csrImportedCount} jadwal CSR berhasil diimpor ke database.
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Success Message CSR Bulk Delete */}
+        <AnimatePresence>
+          {csrSuccess && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
+            >
+              {csrSuccess}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
           <div className="max-w-full overflow-x-auto hide-scroll" >
             <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
               <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                 <tr>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    <button
+                      type="button"
+                      aria-checked={jadwalCSR.length > 0 && jadwalCSR.every(item => selectedCSRItems.includes(item.id!))}
+                      role="checkbox"
+                      onClick={() => handleCSRSelectAll(!(jadwalCSR.length > 0 && jadwalCSR.every(item => selectedCSRItems.includes(item.id!))))}
+                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${jadwalCSR.length > 0 && jadwalCSR.every(item => selectedCSRItems.includes(item.id!)) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                    >
+                      {jadwalCSR.length > 0 && jadwalCSR.every(item => selectedCSRItems.includes(item.id!)) && (
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                          <polyline points="20 7 11 17 4 10" />
+                        </svg>
+                      )}
+                    </button>
+                  </th>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jenis CSR</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Hari/Tanggal</th>
@@ -689,11 +1797,26 @@ export default function DetailNonBlokCSR() {
               <tbody>
                 {jadwalCSR.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="text-center py-6 text-gray-400">Tidak ada data CSR</td>
+                    <td colSpan={11} className="text-center py-6 text-gray-400">Tidak ada data CSR</td>
                   </tr>
                 ) : (
                   jadwalCSR.map((row, i) => (
                     <tr key={row.id || i} className={i % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                      <td className="px-4 py-4 text-center">
+                        <button
+                          type="button"
+                          aria-checked={selectedCSRItems.includes(row.id!)}
+                          role="checkbox"
+                          onClick={() => handleCSRSelectItem(row.id!)}
+                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedCSRItems.includes(row.id!) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                        >
+                          {selectedCSRItems.includes(row.id!) && (
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                              <polyline points="20 7 11 17 4 10" />
+                            </svg>
+                          )}
+                        </button>
+                      </td>
                       <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{i + 1}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.jenis_csr === 'reguler' ? 'CSR Reguler' : 'CSR Responsi'}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
@@ -735,6 +1858,19 @@ export default function DetailNonBlokCSR() {
             </table>
           </div>
         </div>
+
+        {/* Tombol Hapus Terpilih untuk CSR */}
+        {selectedCSRItems.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-4">
+            <button
+              disabled={isCSRDeleting}
+              onClick={handleCSRBulkDelete}
+              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${isCSRDeleting ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-red-500 text-white shadow-theme-xs hover:bg-red-600'}`}
+            >
+              {isCSRDeleting ? 'Menghapus...' : `Hapus Terpilih (${selectedCSRItems.length})`}
+            </button>
+          </div>
+        )}
       </div>
       {/* Modal input jadwal CSR */}
       {showModal && (
@@ -1554,6 +2690,364 @@ export default function DetailNonBlokCSR() {
           </motion.div>
         </div>
       )}
+
+      {/* Modal Import Excel CSR */}
+      <AnimatePresence>
+        {showCSRImportModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={handleCSRCloseImportModal}
+            />
+            {/* Modal Content */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={handleCSRCloseImportModal}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+
+              {/* Header */}
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Import Jadwal CSR</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Preview dan validasi data sebelum import</p>
+              </div>
+
+              {/* File Info */}
+              {csrImportFile && (
+                <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-500" />
+                    <div>
+                      <p className="font-medium text-blue-800 dark:text-blue-200">{csrImportFile.name}</p>
+                      <p className="text-sm text-blue-600 dark:text-blue-300">
+                        {(csrImportFile.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Error Messages dari API */}
+              {csrImportErrors.length > 0 && (
+                <div className="mb-6">
+                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <FontAwesomeIcon icon={faExclamationTriangle} className="w-5 h-5 text-red-500" />
+                      <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                        Error Import
+                      </h3>
+                    </div>
+                    <div className="max-h-40 overflow-y-auto">
+                      {csrImportErrors.map((err, idx) => (
+                        <p key={idx} className="text-sm text-red-600 dark:text-red-400 mb-1">
+                          • {err}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Error Validasi Frontend */}
+              {csrCellErrors.length > 0 && (
+                <div className="mb-6">
+                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <FontAwesomeIcon icon={faExclamationTriangle} className="w-5 h-5 text-red-500" />
+                      <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                        Error Validasi ({csrCellErrors.length} error)
+                      </h3>
+                    </div>
+                    <div className="max-h-40 overflow-y-auto">
+                      {csrCellErrors.map((err, idx) => (
+                        <p key={idx} className="text-sm text-red-600 dark:text-red-400 mb-1">
+                          • {err.message}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Preview Data Table */}
+              {csrImportData.length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                      Preview Data ({csrImportData.length} jadwal)
+                    </h3>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      File: {csrImportFile?.name}
+                    </div>
+                  </div>
+                  
+                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                    <div className="max-w-full overflow-x-auto hide-scroll">
+                      <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                        <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                          <tr>
+                            <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Mulai</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Selesai</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jenis CSR</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Sesi</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Kelompok Kecil</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Topik</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Keahlian</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Dosen</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                        {csrImportData.slice((csrImportPage - 1) * csrImportPageSize, csrImportPage * csrImportPageSize).map((row, index) => {
+                          const actualIndex = (csrImportPage - 1) * csrImportPageSize + index;
+                          const cellError = (field: string) => csrCellErrors.find(err => err.row === (actualIndex + 1) && err.field === field);
+                          
+                          return (
+                            <tr key={actualIndex} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                              <td className="px-4 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap">
+                                {actualIndex + 1}
+                              </td>
+                              {renderCSREditableCell('tanggal', row.tanggal, index)}
+                              {renderCSREditableCell('jam_mulai', row.jam_mulai, index)}
+                              {renderCSREditableCell('jam_selesai', row.jam_selesai, index)}
+                              {renderCSREditableCell('jenis_csr', row.jenis_csr, index)}
+                              {renderCSREditableCell('jumlah_sesi', row.jumlah_sesi, index)}
+                              
+                              {/* Kelompok Kecil - Special handling */}
+                              <td
+                                className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_kelompok' ? 'border-2 border-brand-500' : ''} ${cellError('kelompok_kecil_id') ? 'bg-red-50 dark:bg-red-900/30' : ''}`}
+                                onClick={() => setCSREditingCell({ row: actualIndex, key: 'nama_kelompok' })}
+                                title={cellError('kelompok_kecil_id')?.message || ''}
+                              >
+                                {csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_kelompok' ? (
+                                  <input
+                                    className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                    value={row.nama_kelompok || ""}
+                                    onChange={e => handleCSRKelompokKecilEdit(actualIndex, e.target.value)}
+                                    onBlur={() => setCSREditingCell(null)}
+                                    autoFocus
+                                  />
+                                ) : (
+                                  <span className={cellError('kelompok_kecil_id') ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
+                                    {kelompokKecilList.find(k => k.id === row.kelompok_kecil_id)?.nama_kelompok || row.nama_kelompok || 'Tidak ditemukan'}
+                                  </span>
+                                )}
+                              </td>
+                              
+                              {renderCSREditableCell('topik', row.topik, index)}
+                              {/* Keahlian - Special handling */}
+                              <td
+                                className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_keahlian' ? 'border-2 border-brand-500' : ''} ${cellError('kategori_id') ? 'bg-red-50 dark:bg-red-900/30' : ''}`}
+                                onClick={() => setCSREditingCell({ row: actualIndex, key: 'nama_keahlian' })}
+                                title={cellError('kategori_id')?.message || ''}
+                              >
+                                {csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_keahlian' ? (
+                                  <input
+                                    className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                    value={row.nama_keahlian || ""}
+                                    onChange={e => handleCSRKeahlianEdit(actualIndex, e.target.value)}
+                                    onBlur={() => setCSREditingCell(null)}
+                                    autoFocus
+                                  />
+                                ) : (
+                                  <span className={cellError('kategori_id') ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
+                                    {row.nama_keahlian || '-'}
+                                  </span>
+                                )}
+                              </td>
+                              
+                              {/* Dosen - Special handling */}
+                              <td
+                                className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_dosen' ? 'border-2 border-brand-500' : ''} ${cellError('dosen_id') ? 'bg-red-50 dark:bg-red-900/30' : ''}`}
+                                onClick={() => setCSREditingCell({ row: actualIndex, key: 'nama_dosen' })}
+                                title={cellError('dosen_id')?.message || ''}
+                              >
+                                {csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_dosen' ? (
+                                  <input
+                                    className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                    value={row.nama_dosen || ""}
+                                    onChange={e => handleCSRDosenEdit(actualIndex, e.target.value)}
+                                    onBlur={() => setCSREditingCell(null)}
+                                    autoFocus
+                                  />
+                                ) : (
+                                  <span className={cellError('dosen_id') ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
+                                    {dosenList.find(d => d.id === row.dosen_id)?.name || row.nama_dosen || 'Tidak ditemukan'}
+                                  </span>
+                                )}
+                              </td>
+                              
+                              {/* Ruangan - Special handling */}
+                              <td
+                                className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_ruangan' ? 'border-2 border-brand-500' : ''} ${cellError('ruangan_id') ? 'bg-red-50 dark:bg-red-900/30' : ''}`}
+                                onClick={() => setCSREditingCell({ row: actualIndex, key: 'nama_ruangan' })}
+                                title={cellError('ruangan_id')?.message || ''}
+                              >
+                                {csrEditingCell?.row === actualIndex && csrEditingCell?.key === 'nama_ruangan' ? (
+                                  <input
+                                    className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                    value={row.nama_ruangan || ""}
+                                    onChange={e => handleCSRRuanganEdit(actualIndex, e.target.value)}
+                                    onBlur={() => setCSREditingCell(null)}
+                                    autoFocus
+                                  />
+                                ) : (
+                                  <span className={cellError('ruangan_id') ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
+                                    {ruanganList.find(r => r.id === row.ruangan_id)?.nama || row.nama_ruangan || 'Tidak ditemukan'}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+
+                      {/* Pagination */}
+                      {csrImportData.length > csrImportPageSize && (
+                        <div className="flex items-center justify-between px-6 py-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            Menampilkan {((csrImportPage - 1) * csrImportPageSize) + 1} sampai {Math.min(csrImportPage * csrImportPageSize, csrImportData.length)} dari {csrImportData.length} data
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setCSRImportPage(prev => Math.max(1, prev - 1))}
+                              disabled={csrImportPage === 1}
+                              className="px-3 py-1 text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded border border-gray-300 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-600"
+                            >
+                              Previous
+                            </button>
+                            <span className="px-3 py-1 text-sm text-gray-700 dark:text-gray-300">
+                              {csrImportPage} / {Math.ceil(csrImportData.length / csrImportPageSize)}
+                            </span>
+                            <button
+                              onClick={() => setCSRImportPage(prev => Math.min(Math.ceil(csrImportData.length / csrImportPageSize), prev + 1))}
+                              disabled={csrImportPage >= Math.ceil(csrImportData.length / csrImportPageSize)}
+                              className="px-3 py-1 text-sm bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded border border-gray-300 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-600"
+                            >
+                              Next
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={handleCSRCloseImportModal}
+                  className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                >
+                  Batal
+                </button>
+                {csrImportData.length > 0 && csrCellErrors.length === 0 && (
+                  <button
+                    onClick={handleCSRSubmitImport}
+                    disabled={isCSRImporting}
+                    className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {isCSRImporting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Importing...
+                      </>
+                    ) : (
+                      <>
+                        <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                        Import Data ({csrImportData.length} jadwal)
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Konfirmasi Bulk Delete CSR */}
+      <AnimatePresence>
+        {showCSRBulkDeleteModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            <div
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowCSRBulkDeleteModal(false)}
+            ></div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+            >
+              <div className="flex items-center justify-between pb-6">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">Konfirmasi Hapus Data</h2>
+              </div>
+              <div>
+                <p className="mb-6 text-gray-500 dark:text-gray-400">
+                  Apakah Anda yakin ingin menghapus <span className="font-semibold text-gray-800 dark:text-white">
+                    {selectedCSRItems.length}
+                  </span> jadwal CSR terpilih? Data yang dihapus tidak dapat dikembalikan.
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    onClick={() => setShowCSRBulkDeleteModal(false)}
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={confirmCSRBulkDelete}
+                    className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition flex items-center justify-center"
+                    disabled={isCSRDeleting}
+                  >
+                    {isCSRDeleting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                        Menghapus...
+                      </>
+                    ) : (
+                      'Hapus'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 } 
