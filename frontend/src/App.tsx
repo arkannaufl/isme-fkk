@@ -45,6 +45,7 @@ import PenilaianJurnalPage from "./pages/PenilaianJurnalPage";
 import PenilaianJurnalAntaraPage from "./pages/PenilaianJurnalAntaraPage";
 import DosenRiwayat from "./pages/DosenRiwayat";
 import MataKuliahDosen from "./pages/MataKuliahDosen";
+import MataKuliahDosenDetail from "./pages/MataKuliahDosenDetail";
 import AdminNotifications from "./pages/AdminNotifications";
 import DashboardTimAkademik from "./pages/DashboardTimAkademik";
 import ForumDiskusi from "./pages/ForumDiskusi";
@@ -107,6 +108,11 @@ function AppContent() {
               <Route path="/mata-kuliah-dosen" element={
                 <RequireDosenRole allowedRoles={["dosen"]}>
                   <MataKuliahDosen />
+                </RequireDosenRole>
+              } />
+              <Route path="/mata-kuliah-dosen/:kode" element={
+                <RequireDosenRole allowedRoles={["dosen"]}>
+                  <MataKuliahDosenDetail />
                 </RequireDosenRole>
               } />
               

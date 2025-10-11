@@ -73,6 +73,8 @@ Route::middleware('auth:sanctum')->get('/ruangan/options', [RuanganController::c
 Route::middleware('auth:sanctum')->apiResource('ruangan', RuanganController::class);
 
 Route::middleware('auth:sanctum')->apiResource('mata-kuliah', MataKuliahController::class);
+Route::middleware('auth:sanctum')->get('/mata-kuliah-dosen', [MataKuliahController::class, 'getMataKuliahDosen']);
+Route::middleware('auth:sanctum')->get('/mata-kuliah-dosen/{kode}/jadwal', [MataKuliahController::class, 'getJadwalDosenMataKuliah']);
 Route::middleware('auth:sanctum')->get('/mata-kuliah-with-materi', [MataKuliahController::class, 'getWithMateri']);
 Route::middleware('auth:sanctum')->get('/mata-kuliah-with-materi-all', [MataKuliahController::class, 'getWithMateriAll']);
 Route::middleware('auth:sanctum')->put('/mata-kuliah/{kode}/keahlian', [MataKuliahController::class, 'updateKeahlian']);
@@ -90,6 +92,9 @@ Route::middleware('auth:sanctum')->get('/mata-kuliah/{kode}/materi', [MataKuliah
 Route::middleware('auth:sanctum')->get('/mata-kuliah/{kode}/download-materi', [MataKuliahController::class, 'downloadMateri']);
 Route::middleware('auth:sanctum')->delete('/mata-kuliah/{kode}/delete-materi', [MataKuliahController::class, 'deleteMateri']);
 Route::middleware('auth:sanctum')->put('/mata-kuliah/{kode}/update-materi-judul', [MataKuliahController::class, 'updateMateriJudul']);
+
+// Dosen Permission Routes
+Route::middleware('auth:sanctum')->get('/mata-kuliah/{kode}/dosen-permissions', [MataKuliahController::class, 'getDosenPermissions']);
 
 
 // Reporting routes
@@ -143,8 +148,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware(['auth:sanctum', 'validate.token'])->post('/pbl-generate/reset', [App\Http\Controllers\PBLGenerateController::class, 'resetAssignments']);
     Route::middleware(['auth:sanctum', 'validate.token'])->post('/pbl-generate/get-assignments', [App\Http\Controllers\PBLGenerateController::class, 'getAssignments']);
     Route::middleware(['auth:sanctum', 'validate.token'])->get('/pbl-generate/check-status', [App\Http\Controllers\PBLGenerateController::class, 'checkGenerateStatus']);
-    
-    
+
+
 
     // Admin notification tracking routes (MUST come BEFORE parameterized routes)
     Route::middleware(['auth:sanctum', 'role:super_admin,tim_akademik'])->get('/notifications/admin/all', [App\Http\Controllers\NotificationController::class, 'getAllNotificationsForAdmin']);
@@ -475,7 +480,7 @@ Route::prefix('forum')->group(function () {
         Route::get('/bookmarks/forums/simple', [ForumController::class, 'getUserForumBookmarksSimple']);
         Route::get('/{id}/viewers', [ForumController::class, 'getForumViewers']);
 
-        
+
     });
 
     // Forum detail tanpa auth agar bisa diakses tanpa login

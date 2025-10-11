@@ -7,21 +7,92 @@ use App\Models\MataKuliah;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 
 class MataKuliahController extends Controller
 {
+    /**
+     * Check if dosen has permission for specific role in mata kuliah
+     */
+    private function checkDosenPermission($dosenId, $kodeMataKuliah, $requiredRoles)
+    {
+        // Convert single role to array for consistency
+        if (!is_array($requiredRoles)) {
+            $requiredRoles = [$requiredRoles];
+        }
+
+        // Check if dosen has any of the required roles for this mata kuliah
+        $hasPermission = DB::table('dosen_peran')
+            ->where('user_id', $dosenId)
+            ->where('mata_kuliah_kode', $kodeMataKuliah)
+            ->whereIn('tipe_peran', $requiredRoles)
+            ->exists();
+
+        return $hasPermission;
+    }
+
+    /**
+     * Get dosen permissions for specific mata kuliah
+     */
+    public function getDosenPermissions(Request $request, $kode)
+    {
+        $user = $request->user();
+        $dosenId = $user->id ?? $user['id'] ?? null;
+
+        if (!$dosenId) {
+            return response()->json(['error' => 'User not authenticated'], 401);
+        }
+
+        // Get dosen roles for this mata kuliah
+        $permissions = DB::table('dosen_peran')
+            ->where('user_id', $dosenId)
+            ->where('mata_kuliah_kode', $kode)
+            ->select('tipe_peran', 'peran_kurikulum', 'blok', 'semester')
+            ->get();
+
+        $canUploadRps = $permissions->contains('tipe_peran', 'koordinator');
+        $canUploadMateri = $permissions->whereIn('tipe_peran', ['koordinator', 'tim_blok'])->isNotEmpty();
+
+        return response()->json([
+            'permissions' => $permissions,
+            'can_upload_rps' => $canUploadRps,
+            'can_upload_materi' => $canUploadMateri,
+            'roles' => $permissions->pluck('tipe_peran')->unique()->values()
+        ]);
+    }
     /**
      * Upload RPS file untuk mata kuliah
      */
     public function uploadRps(Request $request)
     {
         $request->validate([
-            'rps_file' => 'required|file|mimes:pdf,doc,docx,xlsx,xls|max:10240', // 10MB max
+            'rps_file' => 'required|file|mimes:pdf,doc,docx,xlsx,xls|max:20480', // 20MB max
             'kode' => 'required|string|exists:mata_kuliah,kode',
+        ], [
+            'rps_file.max' => 'Ukuran file RPS maksimal 20MB. Silakan kompres file atau gunakan format yang lebih kecil.',
+            'rps_file.mimes' => 'File RPS harus berupa PDF, DOC, DOCX, XLSX, atau XLS.',
         ]);
 
-        $file = $request->file('rps_file');
+        $user = $request->user();
+        $dosenId = $user->id ?? $user['id'] ?? null;
         $kode = $request->input('kode');
+
+        if (!$dosenId) {
+            return response()->json(['error' => 'User not authenticated'], 401);
+        }
+
+        // Validasi permission: hanya koordinator yang bisa upload RPS
+        $mataKuliah = MataKuliah::findOrFail($kode);
+        $hasPermission = $this->checkDosenPermission($dosenId, $kode, 'koordinator');
+
+        if (!$hasPermission) {
+            return response()->json([
+                'error' => 'Anda tidak memiliki permission untuk mengupload RPS. Hanya koordinator yang diperbolehkan.'
+            ], 403);
+        }
+
+        $file = $request->file('rps_file');
 
         // Generate unique filename
         $filename = $kode . '_' . time() . '_' . $file->getClientOriginalName();
@@ -30,7 +101,6 @@ class MataKuliahController extends Controller
         $path = Storage::disk('public')->putFileAs('rps', $file, $filename);
 
         // Update database
-        $mataKuliah = MataKuliah::findOrFail($kode);
         $mataKuliah->update(['rps_file' => $filename]);
 
         return response()->json([
@@ -56,7 +126,9 @@ class MataKuliahController extends Controller
             return response()->json(['error' => 'File RPS tidak ditemukan di storage'], 404);
         }
 
-        return Storage::disk('public')->download($filePath, $mataKuliah->rps_file);
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+        $disk = Storage::disk('public');
+        return $disk->download($filePath, $mataKuliah->rps_file);
     }
 
     /**
@@ -91,13 +163,33 @@ class MataKuliahController extends Controller
     public function uploadMateri(Request $request)
     {
         $request->validate([
-            'materi_file' => 'required|file|mimes:pdf,doc,docx,xlsx,xls,ppt,pptx,txt,jpg,jpeg,png,gif,mp4,mp3,wav,zip,rar|max:25600', // 25MB max
+            'materi_file' => 'required|file|mimes:pdf,doc,docx,xlsx,xls,ppt,pptx,txt,jpg,jpeg,png,gif,mp4,mp3,wav,zip,rar|max:30720', // 30MB max
             'kode' => 'required|string|exists:mata_kuliah,kode',
             'judul' => 'required|string|max:255',
+        ], [
+            'materi_file.max' => 'Ukuran file materi maksimal 30MB. Silakan kompres file atau gunakan format yang lebih kecil.',
+            'materi_file.mimes' => 'File materi harus berupa PDF, DOC, DOCX, XLSX, XLS, PPT, PPTX, TXT, JPG, JPEG, PNG, GIF, MP4, MP3, WAV, ZIP, atau RAR.',
         ]);
 
-        $file = $request->file('materi_file');
+        $user = $request->user();
+        $dosenId = $user->id ?? $user['id'] ?? null;
         $kode = $request->input('kode');
+
+        if (!$dosenId) {
+            return response()->json(['error' => 'User not authenticated'], 401);
+        }
+
+        // Validasi permission: koordinator atau tim_blok bisa upload materi
+        $mataKuliah = MataKuliah::findOrFail($kode);
+        $hasPermission = $this->checkDosenPermission($dosenId, $kode, ['koordinator', 'tim_blok']);
+
+        if (!$hasPermission) {
+            return response()->json([
+                'error' => 'Anda tidak memiliki permission untuk mengupload materi. Hanya koordinator atau tim blok yang diperbolehkan.'
+            ], 403);
+        }
+
+        $file = $request->file('materi_file');
         $judul = $request->input('judul');
 
         // Generate unique filename
@@ -160,7 +252,9 @@ class MataKuliahController extends Controller
             return response()->json(['error' => 'File materi tidak ditemukan di storage'], 404);
         }
 
-        return Storage::disk('public')->download($filePath, $materi->judul . '.' . $materi->file_type);
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+        $disk = Storage::disk('public');
+        return $disk->download($filePath, $materi->judul . '.' . $materi->file_type);
     }
 
     /**
@@ -380,6 +474,287 @@ class MataKuliahController extends Controller
     }
 
     /**
+     * Get mata kuliah yang terkait dengan dosen tertentu
+     */
+    public function getMataKuliahDosen(Request $request)
+    {
+        $user = $request->user();
+        $dosenId = $user->id ?? $user['id'] ?? null;
+
+        if (!$dosenId) {
+            return response()->json(['error' => 'User not authenticated'], 401);
+        }
+
+        // Ambil mata kuliah dari DosenPeran (koordinator, tim_blok, dosen_mengajar)
+        $mataKuliahFromPeran = MataKuliah::whereHas('dosenPeran', function($query) use ($dosenId) {
+            $query->where('user_id', $dosenId);
+        })->get();
+
+        // Ambil mata kuliah dari jadwal mengajar (kuliah besar, praktikum, PBL, CSR, dll)
+        $mataKuliahFromJadwal = collect();
+
+        // Jadwal Kuliah Besar
+        $kuliahBesar = DB::table('jadwal_kuliah_besar')
+            ->join('mata_kuliah', 'jadwal_kuliah_besar.mata_kuliah_kode', '=', 'mata_kuliah.kode')
+            ->where('jadwal_kuliah_besar.dosen_id', $dosenId)
+            ->select('mata_kuliah.*')
+            ->get();
+
+        // Jadwal Praktikum
+        $praktikum = DB::table('jadwal_praktikum')
+            ->join('mata_kuliah', 'jadwal_praktikum.mata_kuliah_kode', '=', 'mata_kuliah.kode')
+            ->whereExists(function($query) use ($dosenId) {
+                $query->select(DB::raw(1))
+                    ->from('jadwal_praktikum_dosen')
+                    ->whereRaw('jadwal_praktikum_dosen.jadwal_praktikum_id = jadwal_praktikum.id')
+                    ->where('jadwal_praktikum_dosen.dosen_id', $dosenId);
+            })
+            ->select('mata_kuliah.*')
+            ->get();
+
+        // Jadwal PBL
+        $pbl = DB::table('jadwal_pbl')
+            ->join('mata_kuliah', 'jadwal_pbl.mata_kuliah_kode', '=', 'mata_kuliah.kode')
+            ->where('jadwal_pbl.dosen_id', $dosenId)
+            ->select('mata_kuliah.*')
+            ->get();
+
+        // Jadwal CSR
+        $csr = DB::table('jadwal_csr')
+            ->join('mata_kuliah', 'jadwal_csr.mata_kuliah_kode', '=', 'mata_kuliah.kode')
+            ->where('jadwal_csr.dosen_id', $dosenId)
+            ->select('mata_kuliah.*')
+            ->get();
+
+        // Jadwal Non Blok Non CSR
+        $nonBlokNonCsr = DB::table('jadwal_non_blok_non_csr')
+            ->join('mata_kuliah', 'jadwal_non_blok_non_csr.mata_kuliah_kode', '=', 'mata_kuliah.kode')
+            ->where('jadwal_non_blok_non_csr.dosen_id', $dosenId)
+            ->select('mata_kuliah.*')
+            ->get();
+
+        // Jadwal Jurnal Reading
+        $jurnalReading = DB::table('jadwal_jurnal_reading')
+            ->join('mata_kuliah', 'jadwal_jurnal_reading.mata_kuliah_kode', '=', 'mata_kuliah.kode')
+            ->where('jadwal_jurnal_reading.dosen_id', $dosenId)
+            ->select('mata_kuliah.*')
+            ->get();
+
+        // Gabungkan semua mata kuliah dari jadwal
+        $mataKuliahFromJadwal = $mataKuliahFromJadwal
+            ->merge($kuliahBesar)
+            ->merge($praktikum)
+            ->merge($pbl)
+            ->merge($csr)
+            ->merge($nonBlokNonCsr)
+            ->merge($jurnalReading);
+
+        // Gabungkan dengan mata kuliah dari peran dan hapus duplikat
+        $allMataKuliah = $mataKuliahFromPeran->concat($mataKuliahFromJadwal);
+        $uniqueMataKuliah = $allMataKuliah->unique('kode')->values();
+
+        // Normalize data structure untuk memastikan konsistensi
+        $normalizedMataKuliah = $uniqueMataKuliah->map(function($mk) use ($dosenId) {
+            // Pastikan keahlian_required adalah array
+            if (is_string($mk->keahlian_required)) {
+                $mk->keahlian_required = json_decode($mk->keahlian_required, true) ?? [];
+            }
+            if (!is_array($mk->keahlian_required)) {
+                $mk->keahlian_required = [];
+            }
+
+            // Pastikan peran_dalam_kurikulum adalah array
+            if (is_string($mk->peran_dalam_kurikulum)) {
+                $mk->peran_dalam_kurikulum = json_decode($mk->peran_dalam_kurikulum, true) ?? [];
+            }
+            if (!is_array($mk->peran_dalam_kurikulum)) {
+                $mk->peran_dalam_kurikulum = [];
+            }
+
+            // Tambahkan informasi peran dosen untuk mata kuliah ini
+            $dosenPeran = DB::table('dosen_peran')
+                ->where('user_id', $dosenId)
+                ->where('mata_kuliah_kode', $mk->kode)
+                ->select('tipe_peran', 'peran_kurikulum', 'blok', 'semester')
+                ->get();
+
+            $mk->dosen_peran = $dosenPeran;
+            $mk->can_upload_rps = $dosenPeran->contains('tipe_peran', 'koordinator');
+            $mk->can_upload_materi = $dosenPeran->whereIn('tipe_peran', ['koordinator', 'tim_blok'])->isNotEmpty();
+
+            return $mk;
+        });
+
+        return response()->json($normalizedMataKuliah);
+    }
+
+    /**
+     * Get jadwal dosen untuk mata kuliah tertentu
+     */
+    public function getJadwalDosenMataKuliah(Request $request, $kode)
+    {
+        $user = $request->user();
+        $dosenId = $user->id ?? $user['id'] ?? null;
+
+        if (!$dosenId) {
+            return response()->json(['error' => 'User not authenticated'], 401);
+        }
+
+        $mataKuliah = MataKuliah::findOrFail($kode);
+        $result = [];
+
+        // Selalu ambil jadwal kuliah besar
+        $kuliahBesar = DB::table('jadwal_kuliah_besar')
+            ->join('mata_kuliah', 'jadwal_kuliah_besar.mata_kuliah_kode', '=', 'mata_kuliah.kode')
+            ->leftJoin('users', 'jadwal_kuliah_besar.dosen_id', '=', 'users.id')
+            ->leftJoin('ruangan', 'jadwal_kuliah_besar.ruangan_id', '=', 'ruangan.id')
+            ->where('jadwal_kuliah_besar.dosen_id', $dosenId)
+            ->where('mata_kuliah.kode', $kode)
+            ->select(
+                'jadwal_kuliah_besar.id',
+                'jadwal_kuliah_besar.tanggal',
+                'jadwal_kuliah_besar.jam_mulai',
+                'jadwal_kuliah_besar.jam_selesai',
+                'jadwal_kuliah_besar.materi',
+                'jadwal_kuliah_besar.topik',
+                'users.name as dosen_name',
+                'ruangan.nama as ruangan_name',
+                DB::raw('"Kelompok Besar" as kelompok_name'),
+                'jadwal_kuliah_besar.status_konfirmasi'
+            )
+            ->get();
+
+        $result['kuliah_besar'] = $kuliahBesar;
+
+        // Ambil jadwal berdasarkan jenis mata kuliah
+        if ($mataKuliah->jenis === "Blok") {
+            // Jadwal PBL
+            $pbl = DB::table('jadwal_pbl')
+                ->join('mata_kuliah', 'jadwal_pbl.mata_kuliah_kode', '=', 'mata_kuliah.kode')
+                ->leftJoin('users', 'jadwal_pbl.dosen_id', '=', 'users.id')
+                ->leftJoin('ruangan', 'jadwal_pbl.ruangan_id', '=', 'ruangan.id')
+                ->leftJoin('kelompok_kecil', 'jadwal_pbl.kelompok_kecil_id', '=', 'kelompok_kecil.id')
+                ->where('jadwal_pbl.dosen_id', $dosenId)
+                ->where('mata_kuliah.kode', $kode)
+                ->select(
+                    'jadwal_pbl.id',
+                    'jadwal_pbl.tanggal',
+                    'jadwal_pbl.jam_mulai',
+                    'jadwal_pbl.jam_selesai',
+                    DB::raw('NULL as materi'),
+                    DB::raw('NULL as topik'),
+                    'users.name as dosen_name',
+                    'ruangan.nama as ruangan_name',
+                    'kelompok_kecil.nama_kelompok as kelompok_name',
+                    'jadwal_pbl.status_konfirmasi'
+                )
+                ->get();
+
+            // Jadwal Praktikum
+            $praktikum = DB::table('jadwal_praktikum')
+                ->join('mata_kuliah', 'jadwal_praktikum.mata_kuliah_kode', '=', 'mata_kuliah.kode')
+                ->leftJoin('ruangan', 'jadwal_praktikum.ruangan_id', '=', 'ruangan.id')
+                ->whereExists(function($query) use ($dosenId) {
+                    $query->select(DB::raw(1))
+                        ->from('jadwal_praktikum_dosen')
+                        ->whereRaw('jadwal_praktikum_dosen.jadwal_praktikum_id = jadwal_praktikum.id')
+                        ->where('jadwal_praktikum_dosen.dosen_id', $dosenId);
+                })
+                ->where('mata_kuliah.kode', $kode)
+                ->select(
+                    'jadwal_praktikum.id',
+                    'jadwal_praktikum.tanggal',
+                    'jadwal_praktikum.jam_mulai',
+                    'jadwal_praktikum.jam_selesai',
+                    'jadwal_praktikum.materi',
+                    'jadwal_praktikum.topik',
+                    DB::raw('(SELECT GROUP_CONCAT(u.name) FROM users u JOIN jadwal_praktikum_dosen jpd ON u.id = jpd.dosen_id WHERE jpd.jadwal_praktikum_id = jadwal_praktikum.id) as dosen_name'),
+                    'ruangan.nama as ruangan_name',
+                    'jadwal_praktikum.kelas_praktikum as kelompok_name',
+                    DB::raw('"confirmed" as status_konfirmasi')
+                )
+                ->get();
+
+            // Jadwal Jurnal Reading
+            $jurnalReading = DB::table('jadwal_jurnal_reading')
+                ->join('mata_kuliah', 'jadwal_jurnal_reading.mata_kuliah_kode', '=', 'mata_kuliah.kode')
+                ->leftJoin('users', 'jadwal_jurnal_reading.dosen_id', '=', 'users.id')
+                ->leftJoin('ruangan', 'jadwal_jurnal_reading.ruangan_id', '=', 'ruangan.id')
+                ->leftJoin('kelompok_kecil', 'jadwal_jurnal_reading.kelompok_kecil_id', '=', 'kelompok_kecil.id')
+                ->where('jadwal_jurnal_reading.dosen_id', $dosenId)
+                ->where('mata_kuliah.kode', $kode)
+                ->select(
+                    'jadwal_jurnal_reading.id',
+                    'jadwal_jurnal_reading.tanggal',
+                    'jadwal_jurnal_reading.jam_mulai',
+                    'jadwal_jurnal_reading.jam_selesai',
+                    DB::raw('NULL as materi'),
+                    'jadwal_jurnal_reading.topik',
+                    'users.name as dosen_name',
+                    'ruangan.nama as ruangan_name',
+                    'kelompok_kecil.nama_kelompok as kelompok_name',
+                    'jadwal_jurnal_reading.status_konfirmasi'
+                )
+                ->get();
+
+            $result['pbl'] = $pbl;
+            $result['praktikum'] = $praktikum;
+            $result['jurnal_reading'] = $jurnalReading;
+
+        } else if ($mataKuliah->tipe_non_block === "CSR") {
+            // Jadwal CSR
+            $csr = DB::table('jadwal_csr')
+                ->join('mata_kuliah', 'jadwal_csr.mata_kuliah_kode', '=', 'mata_kuliah.kode')
+                ->leftJoin('users', 'jadwal_csr.dosen_id', '=', 'users.id')
+                ->leftJoin('ruangan', 'jadwal_csr.ruangan_id', '=', 'ruangan.id')
+                ->leftJoin('kelompok_kecil', 'jadwal_csr.kelompok_kecil_id', '=', 'kelompok_kecil.id')
+                ->where('jadwal_csr.dosen_id', $dosenId)
+                ->where('mata_kuliah.kode', $kode)
+                ->select(
+                    'jadwal_csr.id',
+                    'jadwal_csr.tanggal',
+                    'jadwal_csr.jam_mulai',
+                    'jadwal_csr.jam_selesai',
+                    DB::raw('NULL as materi'),
+                    'jadwal_csr.topik',
+                    'users.name as dosen_name',
+                    'ruangan.nama as ruangan_name',
+                    'kelompok_kecil.nama_kelompok as kelompok_name',
+                    'jadwal_csr.status_konfirmasi'
+                )
+                ->get();
+
+            $result['csr'] = $csr;
+
+        } else if ($mataKuliah->tipe_non_block === "Non-CSR") {
+            // Jadwal Non Blok Non CSR
+            $nonBlokNonCsr = DB::table('jadwal_non_blok_non_csr')
+                ->join('mata_kuliah', 'jadwal_non_blok_non_csr.mata_kuliah_kode', '=', 'mata_kuliah.kode')
+                ->leftJoin('users', 'jadwal_non_blok_non_csr.dosen_id', '=', 'users.id')
+                ->leftJoin('ruangan', 'jadwal_non_blok_non_csr.ruangan_id', '=', 'ruangan.id')
+                ->where('jadwal_non_blok_non_csr.dosen_id', $dosenId)
+                ->where('mata_kuliah.kode', $kode)
+                ->select(
+                    'jadwal_non_blok_non_csr.id',
+                    'jadwal_non_blok_non_csr.tanggal',
+                    'jadwal_non_blok_non_csr.jam_mulai',
+                    'jadwal_non_blok_non_csr.jam_selesai',
+                    'jadwal_non_blok_non_csr.materi',
+                    DB::raw('NULL as topik'),
+                    'users.name as dosen_name',
+                    'ruangan.nama as ruangan_name',
+                    DB::raw('"Kelompok Besar" as kelompok_name'),
+                    'jadwal_non_blok_non_csr.status_konfirmasi'
+                )
+                ->get();
+
+            $result['non_blok_non_csr'] = $nonBlokNonCsr;
+        }
+
+        return response()->json($result);
+    }
+
+    /**
      * Menampilkan semua data mata kuliah dengan materi dalam satu request (batch)
      */
     public function getWithMateri(Request $request)
@@ -387,13 +762,13 @@ class MataKuliahController extends Controller
         // Ambil parameter pagination
         $perPage = $request->get('per_page', 50); // Default 50 item per halaman
         $page = $request->get('page', 1);
-        
+
         // Ambil semua mata kuliah dengan pagination
         $mataKuliah = MataKuliah::paginate($perPage, ['*'], 'page', $page);
-        
+
         // Ambil semua materi untuk mata kuliah yang sedang dipaginasi
         $kodeMataKuliah = $mataKuliah->pluck('kode');
-        
+
         if ($kodeMataKuliah->count() > 0) {
             // Optimize query dengan select hanya kolom yang diperlukan
             $allMateri = DB::table('materi_pembelajaran')
@@ -401,17 +776,17 @@ class MataKuliahController extends Controller
                 ->whereIn('kode_mata_kuliah', $kodeMataKuliah)
                 ->orderBy('upload_date', 'desc')
                 ->get();
-            
+
             // Group materi berdasarkan kode mata kuliah
             $materiByKode = $allMateri->groupBy('kode_mata_kuliah');
-            
+
             // Gabungkan mata kuliah dengan materinya
             $mataKuliah->getCollection()->transform(function ($mk) use ($materiByKode) {
                 $mk->materi = $materiByKode->get($mk->kode, collect())->toArray();
                 return $mk;
             });
         }
-        
+
         return response()->json($mataKuliah);
     }
 
@@ -422,23 +797,23 @@ class MataKuliahController extends Controller
     {
         // Ambil semua mata kuliah
         $mataKuliah = MataKuliah::all();
-        
+
         // Ambil semua materi untuk semua mata kuliah dalam satu query yang dioptimasi
         $allMateri = DB::table('materi_pembelajaran')
             ->select('id', 'kode_mata_kuliah', 'filename', 'judul', 'file_type', 'file_size', 'upload_date')
             ->whereIn('kode_mata_kuliah', $mataKuliah->pluck('kode'))
             ->orderBy('upload_date', 'desc')
             ->get();
-        
+
         // Group materi berdasarkan kode mata kuliah
         $materiByKode = $allMateri->groupBy('kode_mata_kuliah');
-        
+
         // Gabungkan mata kuliah dengan materinya
         $mataKuliahWithMateri = $mataKuliah->map(function ($mk) use ($materiByKode) {
             $mk->materi = $materiByKode->get($mk->kode, collect())->toArray();
             return $mk;
         });
-        
+
         return response()->json($mataKuliahWithMateri);
     }
 
@@ -459,7 +834,7 @@ class MataKuliahController extends Controller
     {
         try {
             $data = $request->all();
-            
+
             if (!is_array($data) || empty($data)) {
                 return response()->json([
                     'success' => false,
@@ -475,7 +850,7 @@ class MataKuliahController extends Controller
             foreach ($data as $index => $rowData) {
                 try {
                     // Validasi data per baris
-                    $validator = \Validator::make($rowData, [
+                    $validator = Validator::make($rowData, [
                         'kode' => 'required|string|unique:mata_kuliah,kode|max:255',
                         'nama' => 'required|string',
                         'semester' => 'required',
@@ -642,7 +1017,7 @@ class MataKuliahController extends Controller
             }
 
         } catch (\Exception $e) {
-            \Log::error("Error in bulk import mata kuliah: " . $e->getMessage());
+            Log::error("Error in bulk import mata kuliah: " . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Terjadi kesalahan saat mengimpor data: ' . $e->getMessage(),

@@ -25,16 +25,26 @@ interface MataKuliah {
   durasi_minggu?: number | null;
   keahlian_required?: string[];
   blok?: number | null;
+  dosen_peran?: Array<{
+    tipe_peran: string;
+    peran_kurikulum: string;
+    blok?: number;
+    semester?: string;
+  }>;
+  can_upload_rps?: boolean;
+  can_upload_materi?: boolean;
 }
 
 export default function MataKuliahDosen() {
   const navigate = useNavigate();
   const [mataKuliahList, setMataKuliahList] = useState<MataKuliah[]>([]);
+  const [mataKuliahDosenList, setMataKuliahDosenList] = useState<MataKuliah[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterJenis, setFilterJenis] = useState<string>("semua");
   const [filterSemester, setFilterSemester] = useState<string>("semua");
+  const [activeTab, setActiveTab] = useState<"semua" | "saya">("semua");
 
   // Check if user is dosen
   useEffect(() => {
@@ -52,6 +62,7 @@ export default function MataKuliahDosen() {
 
   useEffect(() => {
     fetchMataKuliah();
+    fetchMataKuliahDosen();
   }, []);
 
   const fetchMataKuliah = async () => {
@@ -66,13 +77,31 @@ export default function MataKuliahDosen() {
     }
   };
 
-  const filteredMataKuliah = mataKuliahList.filter((mk) => {
-    const matchesSearch = mk.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         mk.kode.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesJenis = filterJenis === "semua" || mk.jenis === filterJenis;
-    const matchesSemester = filterSemester === "semua" || mk.semester.toString() === filterSemester;
-    
-    return matchesSearch && matchesJenis && matchesSemester;
+  const fetchMataKuliahDosen = async () => {
+    try {
+      const response = await api.get("/mata-kuliah-dosen");
+      setMataKuliahDosenList(response.data);
+    } catch (error: any) {
+      console.error("Gagal memuat mata kuliah dosen:", error);
+      setError("Gagal memuat mata kuliah dosen: " + (error?.response?.data?.message || error.message));
+    }
+  };
+
+  // Get current data based on active tab
+  const currentData = activeTab === "saya" ? mataKuliahDosenList : mataKuliahList;
+
+  const filteredMataKuliah = currentData.filter((mk) => {
+    try {
+      const matchesSearch = mk.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           mk.kode.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesJenis = filterJenis === "semua" || mk.jenis === filterJenis;
+      const matchesSemester = filterSemester === "semua" || mk.semester.toString() === filterSemester;
+      
+      return matchesSearch && matchesJenis && matchesSemester;
+    } catch (error) {
+      console.error("Error filtering mata kuliah:", error, mk);
+      return false;
+    }
   });
 
   const getJenisBadge = (jenis: string) => {
@@ -185,6 +214,7 @@ export default function MataKuliahDosen() {
     );
   }
 
+
   return (
     <div className="p-6">
       {/* Header */}
@@ -192,9 +222,41 @@ export default function MataKuliahDosen() {
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
           Daftar Mata Kuliah
         </h1>
-        <p className="text-gray-600 dark:text-gray-400">
+        <p className="text-gray-600 dark:text-gray-400 mb-6">
           Lihat informasi mata kuliah yang tersedia
         </p>
+
+        {/* Tabs */}
+        <div className="border-b border-gray-200 dark:border-gray-700">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab("semua")}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === "semua"
+                  ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
+              }`}
+            >
+              Semua Mata Kuliah
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                {mataKuliahList.length}
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveTab("saya")}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === "saya"
+                  ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
+              }`}
+            >
+              Mata Kuliah Saya
+              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                {mataKuliahDosenList.length}
+              </span>
+            </button>
+          </nav>
+        </div>
       </div>
 
       {/* Filters */}
@@ -245,7 +307,7 @@ export default function MataKuliahDosen() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredMataKuliah.map((mk) => (
           <div
-            key={mk.id}
+            key={mk.kode}
             className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow"
           >
             <div className="p-6">
@@ -284,7 +346,7 @@ export default function MataKuliahDosen() {
                   </div>
                 )}
 
-                {mk.keahlian_required && mk.keahlian_required.length > 0 && (
+                {mk.keahlian_required && Array.isArray(mk.keahlian_required) && mk.keahlian_required.length > 0 && (
                   <div>
                     <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Keahlian yang Dibutuhkan:
@@ -301,17 +363,72 @@ export default function MataKuliahDosen() {
                     </div>
                   </div>
                 )}
+
+                {/* Peran Dosen */}
+                <div>
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Peran Anda:
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {mk.dosen_peran && mk.dosen_peran.length > 0 ? (
+                      mk.dosen_peran.map((peran, idx) => (
+                        <span
+                          key={idx}
+                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            peran.tipe_peran === 'koordinator' 
+                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300'
+                              : peran.tipe_peran === 'tim_blok'
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300'
+                              : 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300'
+                          }`}
+                        >
+                          {peran.tipe_peran === 'koordinator' ? 'Koordinator' : 
+                           peran.tipe_peran === 'tim_blok' ? 'Tim Blok' : 
+                           peran.tipe_peran === 'dosen_mengajar' ? 'Dosen Mengajar' : peran.tipe_peran}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                        Tidak ada peran khusus
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Upload Permissions */}
+                <div>
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Akses Upload:
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {mk.can_upload_rps ? (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">
+                        📄 Upload RPS
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-500">
+                        📄 Upload RPS
+                      </span>
+                    )}
+                    
+                    {mk.can_upload_materi ? (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300">
+                        📚 Upload Materi
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-500">
+                        📚 Upload Materi
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Action Button */}
               <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                 <button
                   onClick={() => {
-                    if (mk.jenis === "Blok") {
-                      navigate(`/mata-kuliah/blok/${mk.kode}`);
-                    } else {
-                      navigate(`/mata-kuliah/non-blok-csr/${mk.kode}`);
-                    }
+                    navigate(`/mata-kuliah-dosen/${mk.kode}`);
                   }}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
                 >
@@ -329,10 +446,16 @@ export default function MataKuliahDosen() {
         <div className="text-center py-12">
           <FontAwesomeIcon icon={faBookOpen} className="text-gray-400 text-6xl mb-4" />
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            Tidak ada mata kuliah ditemukan
+            {activeTab === "saya" 
+              ? "Belum ada mata kuliah yang diampu" 
+              : "Tidak ada mata kuliah ditemukan"
+            }
           </h3>
           <p className="text-gray-500 dark:text-gray-400">
-            Coba ubah filter pencarian Anda
+            {activeTab === "saya" 
+              ? "Mata kuliah yang Anda ampu akan muncul di sini. Hubungi tim akademik jika ada masalah."
+              : "Coba ubah filter pencarian Anda"
+            }
           </p>
         </div>
       )}
