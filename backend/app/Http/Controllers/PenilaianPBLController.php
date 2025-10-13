@@ -31,7 +31,7 @@ class PenilaianPBLController extends Controller
         // Jika tidak ditemukan, coba dengan nama_kelompok melalui relasi
         if (!$jadwal) {
             $jadwal = \App\Models\JadwalPBL::where('mata_kuliah_kode', $kode)
-                ->whereHas('kelompokKecil', function($query) use ($kelompok) {
+                ->whereHas('kelompokKecil', function ($query) use ($kelompok) {
                     $query->where('nama_kelompok', $kelompok);
                 })
                 ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
@@ -202,7 +202,7 @@ class PenilaianPBLController extends Controller
         // Decode URL-encoded parameters
         $kelompokDecoded = urldecode($kelompok);
         $pertemuanDecoded = urldecode($pertemuan);
-        
+
         // Ambil id kelompok kecil antara dari nama
         $kelompokId = $kelompokDecoded;
         if (!is_numeric($kelompokDecoded)) {
@@ -379,6 +379,7 @@ class PenilaianPBLController extends Controller
                 'absensi' => 'required|array',
                 'absensi.*.mahasiswa_npm' => 'required|string',
                 'absensi.*.hadir' => 'required|boolean',
+                'absensi.*.catatan' => 'nullable|string',
             ]);
 
             // Hapus data absensi yang lama
@@ -395,6 +396,7 @@ class PenilaianPBLController extends Controller
                     'pertemuan' => $pertemuan,
                     'mahasiswa_npm' => $absen['mahasiswa_npm'],
                     'hadir' => $absen['hadir'],
+                    'catatan' => $absen['catatan'] ?? '',
                 ]);
             }
 
@@ -420,18 +422,24 @@ class PenilaianPBLController extends Controller
     private function updateJadwalPenilaianStatus($kode, $kelompok, $pertemuan)
     {
         try {
-            // Ambil id kelompok kecil dari nama (jika perlu)
-            $kelompokId = $kelompok;
-            if (!is_numeric($kelompok)) {
-                $kelompokObj = \App\Models\KelompokKecil::where('nama_kelompok', $kelompok)->first();
-                $kelompokId = $kelompokObj ? $kelompokObj->id : null;
+            // 1) Coba cari berdasarkan kelompok_kecil_id (jika yang diterima memang ID)
+            $jadwal = null;
+            if (is_numeric($kelompok)) {
+                $jadwal = \App\Models\JadwalPBL::where('mata_kuliah_kode', $kode)
+                    ->where('kelompok_kecil_id', $kelompok)
+                    ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
+                    ->first();
             }
 
-            // Update jadwal PBL
-            $jadwal = \App\Models\JadwalPBL::where('mata_kuliah_kode', $kode)
-                ->where('kelompok_kecil_id', $kelompokId)
-                ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
-                ->first();
+            // 2) Jika belum ketemu ATAU parameter sebenarnya nama kelompok numerik ("2"), cari berdasarkan nama_kelompok
+            if (!$jadwal) {
+                $jadwal = \App\Models\JadwalPBL::where('mata_kuliah_kode', $kode)
+                    ->whereHas('kelompokKecil', function ($q) use ($kelompok) {
+                        $q->where('nama_kelompok', $kelompok);
+                    })
+                    ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
+                    ->first();
+            }
 
             if ($jadwal) {
                 $jadwal->update([
@@ -451,18 +459,24 @@ class PenilaianPBLController extends Controller
     private function updateJadwalPenilaianStatusAntara($kode, $kelompok, $pertemuan)
     {
         try {
-            // Ambil id kelompok kecil antara dari nama (jika perlu)
-            $kelompokId = $kelompok;
-            if (!is_numeric($kelompok)) {
-                $kelompokObj = \App\Models\KelompokKecilAntara::where('nama_kelompok', $kelompok)->first();
-                $kelompokId = $kelompokObj ? $kelompokObj->id : null;
+            // 1) Coba cari berdasarkan kelompok_kecil_antara_id
+            $jadwal = null;
+            if (is_numeric($kelompok)) {
+                $jadwal = \App\Models\JadwalPBL::where('mata_kuliah_kode', $kode)
+                    ->where('kelompok_kecil_antara_id', $kelompok)
+                    ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
+                    ->first();
             }
 
-            // Update jadwal PBL
-            $jadwal = \App\Models\JadwalPBL::where('mata_kuliah_kode', $kode)
-                ->where('kelompok_kecil_antara_id', $kelompokId)
-                ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
-                ->first();
+            // 2) Fallback berdasarkan nama_kelompok antara
+            if (!$jadwal) {
+                $jadwal = \App\Models\JadwalPBL::where('mata_kuliah_kode', $kode)
+                    ->whereHas('kelompokKecilAntara', function ($q) use ($kelompok) {
+                        $q->where('nama_kelompok', $kelompok);
+                    })
+                    ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
+                    ->first();
+            }
 
             if ($jadwal) {
                 $jadwal->update([
@@ -495,7 +509,7 @@ class PenilaianPBLController extends Controller
         // Jika tidak ditemukan, coba dengan nama_kelompok melalui relasi
         if (!$jadwal) {
             $jadwal = \App\Models\JadwalPBL::where('mata_kuliah_kode', $kode)
-                ->whereHas('kelompokKecil', function($query) use ($kelompok) {
+                ->whereHas('kelompokKecil', function ($query) use ($kelompok) {
                     $query->where('nama_kelompok', $kelompok);
                 })
                 ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
@@ -511,16 +525,16 @@ class PenilaianPBLController extends Controller
         $user = auth()->user();
         \Illuminate\Support\Facades\Log::info("Validating access for user {$user->id} with role {$user->role}");
         \Illuminate\Support\Facades\Log::info("Jadwal dosen_ids: " . json_encode($jadwal->dosen_ids));
-        
+
         if ($user->role === 'dosen') {
             // Cek apakah dosen ini ada di daftar dosen_ids
             $dosenIds = is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true);
             \Illuminate\Support\Facades\Log::info("Parsed dosen_ids: " . json_encode($dosenIds));
-            
+
             // Jika dosen_ids kosong atau null, cek konfirmasi dosen
             if (!is_array($dosenIds) || empty($dosenIds)) {
                 \Illuminate\Support\Facades\Log::warning("Jadwal PBL {$kode} - {$kelompok} - {$pertemuan} tidak memiliki dosen_ids, checking confirmation");
-                
+
                 // Check if dosen has confirmed availability for this jadwal
                 if ($this->isDosenConfirmedForJadwal($user->id, $kode, $kelompok, $pertemuan)) {
                     \Illuminate\Support\Facades\Log::info("Dosen {$user->id} is confirmed for jadwal, allowing access");
@@ -531,14 +545,14 @@ class PenilaianPBLController extends Controller
                 }
             } else {
                 \Illuminate\Support\Facades\Log::info("Checking if user {$user->id} is in dosen_ids: " . json_encode($dosenIds));
-                
+
                 // Convert dosen_ids to integers for comparison
                 $dosenIdsInt = array_map('intval', $dosenIds);
                 \Illuminate\Support\Facades\Log::info("Converted dosen_ids to int: " . json_encode($dosenIdsInt));
-                
+
                 if (!in_array((int)$user->id, $dosenIdsInt)) {
                     \Illuminate\Support\Facades\Log::error("User {$user->id} not found in dosen_ids: " . json_encode($dosenIdsInt));
-                    
+
                     // Check if dosen has confirmed availability for this jadwal
                     if ($this->isDosenConfirmedForJadwal($user->id, $kode, $kelompok, $pertemuan)) {
                         \Illuminate\Support\Facades\Log::info("Dosen {$user->id} is confirmed for jadwal, allowing access");
@@ -550,7 +564,7 @@ class PenilaianPBLController extends Controller
             }
         } elseif (!in_array($user->role, ['super_admin', 'tim_akademik'])) {
             // Hanya super_admin dan tim_akademik yang bisa akses selain dosen
-                abort(403, 'Anda tidak memiliki akses untuk menilai jadwal ini');
+            abort(403, 'Anda tidak memiliki akses untuk menilai jadwal ini');
         }
     }
 
@@ -572,7 +586,7 @@ class PenilaianPBLController extends Controller
             $jadwal = \App\Models\JadwalPBL::where('mata_kuliah_kode', $kode)
                 ->where('kelompok_kecil_id', $kelompokId)
                 ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
-                ->where(function($query) use ($dosenId) {
+                ->where(function ($query) use ($dosenId) {
                     $query->where('dosen_id', $dosenId)
                         ->orWhereJsonContains('dosen_ids', $dosenId);
                 })
@@ -581,11 +595,11 @@ class PenilaianPBLController extends Controller
             // Jika tidak ditemukan, coba dengan nama_kelompok melalui relasi
             if (!$jadwal) {
                 $jadwal = \App\Models\JadwalPBL::where('mata_kuliah_kode', $kode)
-                    ->whereHas('kelompokKecil', function($query) use ($kelompok) {
+                    ->whereHas('kelompokKecil', function ($query) use ($kelompok) {
                         $query->where('nama_kelompok', $kelompok);
                     })
                     ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
-                    ->where(function($query) use ($dosenId) {
+                    ->where(function ($query) use ($dosenId) {
                         $query->where('dosen_id', $dosenId)
                             ->orWhereJsonContains('dosen_ids', $dosenId);
                     })
@@ -601,7 +615,7 @@ class PenilaianPBLController extends Controller
 
                 if (!$jadwal) {
                     $jadwal = \App\Models\JadwalPBL::where('mata_kuliah_kode', $kode)
-                        ->whereHas('kelompokKecil', function($query) use ($kelompok) {
+                        ->whereHas('kelompokKecil', function ($query) use ($kelompok) {
                             $query->where('nama_kelompok', $kelompok);
                         })
                         ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
@@ -648,7 +662,6 @@ class PenilaianPBLController extends Controller
 
             \Illuminate\Support\Facades\Log::info("Dosen {$dosenId} is assigned but NOT confirmed for jadwal {$jadwal->id}");
             return false;
-
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error("Error checking dosen confirmation: " . $e->getMessage());
             return false;
@@ -664,7 +677,7 @@ class PenilaianPBLController extends Controller
         try {
             // Decode URL-encoded kelompok name
             $kelompokDecoded = urldecode($kelompok);
-            
+
             // Ambil id kelompok kecil antara dari nama (jika perlu)
             $kelompokId = $kelompokDecoded;
             if (!is_numeric($kelompokDecoded)) {
@@ -676,7 +689,7 @@ class PenilaianPBLController extends Controller
             $jadwal = \App\Models\JadwalPBL::where('mata_kuliah_kode', $kode)
                 ->where('kelompok_kecil_antara_id', $kelompokId)
                 ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
-                ->where(function($query) use ($dosenId) {
+                ->where(function ($query) use ($dosenId) {
                     $query->where('dosen_id', $dosenId)
                         ->orWhereJsonContains('dosen_ids', $dosenId);
                 })
@@ -685,11 +698,11 @@ class PenilaianPBLController extends Controller
             // Jika tidak ditemukan, coba dengan nama_kelompok melalui relasi
             if (!$jadwal) {
                 $jadwal = \App\Models\JadwalPBL::where('mata_kuliah_kode', $kode)
-                    ->whereHas('kelompokKecilAntara', function($query) use ($kelompok) {
+                    ->whereHas('kelompokKecilAntara', function ($query) use ($kelompok) {
                         $query->where('nama_kelompok', $kelompok);
                     })
                     ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
-                    ->where(function($query) use ($dosenId) {
+                    ->where(function ($query) use ($dosenId) {
                         $query->where('dosen_id', $dosenId)
                             ->orWhereJsonContains('dosen_ids', $dosenId);
                     })
@@ -705,7 +718,7 @@ class PenilaianPBLController extends Controller
 
                 if (!$jadwal) {
                     $jadwal = \App\Models\JadwalPBL::where('mata_kuliah_kode', $kode)
-                        ->whereHas('kelompokKecilAntara', function($query) use ($kelompok) {
+                        ->whereHas('kelompokKecilAntara', function ($query) use ($kelompok) {
                             $query->where('nama_kelompok', $kelompok);
                         })
                         ->whereRaw('LOWER(pbl_tipe) = ?', [strtolower($pertemuan)])
@@ -752,7 +765,6 @@ class PenilaianPBLController extends Controller
 
             \Illuminate\Support\Facades\Log::info("Dosen {$dosenId} is assigned but NOT confirmed for jadwal antara {$jadwal->id}");
             return false;
-
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error("Error checking dosen confirmation untuk jadwal antara: " . $e->getMessage());
             return false;
@@ -765,7 +777,7 @@ class PenilaianPBLController extends Controller
         // Decode URL-encoded parameters
         $kelompokDecoded = urldecode($kelompok);
         $pertemuanDecoded = urldecode($pertemuan);
-        
+
         // Ambil id kelompok kecil antara dari nama (jika perlu)
         $kelompokId = $kelompokDecoded;
         if (!is_numeric($kelompokDecoded)) {
@@ -789,11 +801,11 @@ class PenilaianPBLController extends Controller
         if ($user->role === 'dosen') {
             // Cek apakah dosen ini ada di daftar dosen_ids
             $dosenIds = is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true);
-            
+
             // Jika dosen_ids kosong atau null, cek konfirmasi dosen
             if (!is_array($dosenIds) || empty($dosenIds)) {
                 \Illuminate\Support\Facades\Log::warning("Jadwal PBL Antara {$kode} - {$kelompok} - {$pertemuan} tidak memiliki dosen_ids, checking confirmation");
-                
+
                 // Check if dosen has confirmed availability for this jadwal
                 if ($this->isDosenConfirmedForJadwalAntara($user->id, $kode, $kelompok, $pertemuan)) {
                     \Illuminate\Support\Facades\Log::info("Dosen {$user->id} is confirmed for jadwal antara, allowing access");
@@ -805,7 +817,7 @@ class PenilaianPBLController extends Controller
             } else {
                 // Convert dosen_ids to integers for comparison
                 $dosenIdsInt = array_map('intval', $dosenIds);
-                
+
                 if (!in_array((int)$user->id, $dosenIdsInt)) {
                     // Dosen tidak ada di dosen_ids, cek konfirmasi
                     if ($this->isDosenConfirmedForJadwalAntara($user->id, $kode, $kelompok, $pertemuan)) {
@@ -825,7 +837,7 @@ class PenilaianPBLController extends Controller
                             ->where('jadwal_id', $jadwal->id)
                             ->where('status_konfirmasi', 'bisa')
                             ->first();
-                        
+
                         if ($riwayat) {
                             \Illuminate\Support\Facades\Log::info("Dosen {$user->id} has confirmed 'bisa' in riwayat for jadwal antara {$jadwal->id}");
                             // Don't abort - allow access

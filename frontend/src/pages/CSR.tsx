@@ -16,7 +16,7 @@ interface CSR {
   mata_kuliah_kode: string;
   nomor_csr: string;
   nama: string;
-  keahlian_required: string[];
+  keahlian_required: string[] | string;
   tanggal_mulai?: string;
   tanggal_akhir?: string;
   status: "available" | "assigned" | "completed";
@@ -81,8 +81,12 @@ const CSR: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Semester and mapping states
-  const [activeSemesterJenis, setActiveSemesterJenis] = useState<string | null>(null);
-  const [csrMappings, setCsrMappings] = useState<Record<number, Record<string, number>>>({});
+  const [activeSemesterJenis, setActiveSemesterJenis] = useState<string | null>(
+    null
+  );
+  const [csrMappings, setCsrMappings] = useState<
+    Record<number, Record<string, number>>
+  >({});
 
   const navigate = useNavigate();
 
@@ -95,7 +99,7 @@ const CSR: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const response = await api.get("/csr-batch-data");
       const batchData = response.data;
 
@@ -104,7 +108,6 @@ const CSR: React.FC = () => {
       setMataKuliah(batchData.mata_kuliah || []);
       setActiveSemesterJenis(batchData.active_semester_jenis);
       setCsrMappings(batchData.csr_mappings || {});
-
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message);
@@ -166,7 +169,6 @@ const CSR: React.FC = () => {
 
   // Handle form submission
   const handleSubmit = async () => {
-
     setIsSaving(true);
     try {
       if (selectedCSR && selectedCSR.id) {
@@ -205,7 +207,6 @@ const CSR: React.FC = () => {
       }
     } finally {
       setIsSaving(false);
-
     }
   };
 
@@ -246,7 +247,9 @@ const CSR: React.FC = () => {
       mata_kuliah_kode: csr.mata_kuliah_kode,
       nomor_csr: csr.nomor_csr,
       nama: csr.nama,
-      keahlian_required: csr.keahlian_required,
+      keahlian_required: Array.isArray(csr.keahlian_required)
+        ? csr.keahlian_required
+        : [csr.keahlian_required],
       tanggal_mulai: csr.tanggal_mulai || "",
       tanggal_akhir: csr.tanggal_akhir || "",
     });
@@ -284,7 +287,9 @@ const CSR: React.FC = () => {
         mata_kuliah_kode: csr.mata_kuliah_kode,
         nomor_csr: csr.nomor_csr,
         nama: csr.nama,
-        keahlian_required: csr.keahlian_required,
+        keahlian_required: Array.isArray(csr.keahlian_required)
+          ? csr.keahlian_required
+          : [csr.keahlian_required],
         tanggal_mulai: toDateInputValue(csr.tanggal_mulai || ""),
         tanggal_akhir: toDateInputValue(csr.tanggal_akhir || ""),
       });
@@ -453,7 +458,7 @@ const CSR: React.FC = () => {
       </div>
 
       {/* Petunjuk input CSR jika ada CSR yang belum diisi nama */}
-      {csrs.some(csr => !csr.nama || csr.nama.trim() === "") && (
+      {csrs.some((csr) => !csr.nama || csr.nama.trim() === "") && (
         <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
           <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300">
             <div className="w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center">
@@ -462,7 +467,8 @@ const CSR: React.FC = () => {
             <p className="text-sm font-medium">Perhatian</p>
           </div>
           <p className="text-sm text-yellow-700 dark:text-yellow-200 mt-1">
-            Ada mata kuliah CSR yang belum diinput nama dan keahliannya. Silakan lengkapi data CSR agar bisa lanjut ke penugasan dosen.
+            Ada mata kuliah CSR yang belum diinput nama dan keahliannya. Silakan
+            lengkapi data CSR agar bisa lanjut ke penugasan dosen.
           </p>
         </div>
       )}
@@ -661,7 +667,10 @@ const CSR: React.FC = () => {
                               </div>
                               <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
                                 <span className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
-                                  <FontAwesomeIcon icon={faBookOpen} className="w-3 h-3" />
+                                  <FontAwesomeIcon
+                                    icon={faBookOpen}
+                                    className="w-3 h-3"
+                                  />
                                   {csr.nomor_csr} - {csr.nama}
                                 </span>
                                 {csr.tanggal_mulai && csr.tanggal_akhir && (
@@ -682,17 +691,39 @@ const CSR: React.FC = () => {
                               </div>
 
                               <div className="flex flex-wrap gap-2 mt-2">
-                                {csr.keahlian_required.map((k) => (
-                                  <span
-                                    key={k}
-                                    className="bg-brand-100 rounded-lg px-3 py-1 flex items-center gap-2 text-xs font-medium text-brand-700"
-                                  >
-                                    {k}
-                                    {csrMappings[csr.id]?.[k] !== undefined ? (
-                                      <span className="text-xs text-gray-500">({csrMappings[csr.id][k]}) Dosen</span>
-                                    ) : null}
-                                  </span>
-                                ))}
+                                {Array.isArray(csr.keahlian_required)
+                                  ? csr.keahlian_required.map((k) => (
+                                      <span
+                                        key={k}
+                                        className="bg-brand-100 rounded-lg px-3 py-1 flex items-center gap-2 text-xs font-medium text-brand-700"
+                                      >
+                                        {k}
+                                        {csrMappings[csr.id]?.[k] !==
+                                        undefined ? (
+                                          <span className="text-xs text-gray-500">
+                                            ({csrMappings[csr.id][k]}) Dosen
+                                          </span>
+                                        ) : null}
+                                      </span>
+                                    ))
+                                  : csr.keahlian_required && (
+                                      <span className="bg-brand-100 rounded-lg px-3 py-1 flex items-center gap-2 text-xs font-medium text-brand-700">
+                                        {csr.keahlian_required}
+                                        {csrMappings[csr.id]?.[
+                                          csr.keahlian_required
+                                        ] !== undefined ? (
+                                          <span className="text-xs text-gray-500">
+                                            (
+                                            {
+                                              csrMappings[csr.id][
+                                                csr.keahlian_required
+                                              ]
+                                            }
+                                            ) Dosen
+                                          </span>
+                                        ) : null}
+                                      </span>
+                                    )}
                               </div>
                             </div>
 
@@ -746,7 +777,10 @@ const CSR: React.FC = () => {
                               onClick={() => navigate(`/csr/${csr.id}`)}
                               className="flex items-center gap-2 px-5 py-2 bg-brand-500 text-white rounded-lg font-medium text-sm shadow hover:bg-brand-600 transition"
                             >
-                              <FontAwesomeIcon icon={faUsers} className="w-4 h-4" />
+                              <FontAwesomeIcon
+                                icon={faUsers}
+                                className="w-4 h-4"
+                              />
                               Lihat & Tugaskan Dosen
                             </button>
                           </div>
@@ -853,27 +887,27 @@ const CSR: React.FC = () => {
                         required
                         disabled={!form.mata_kuliah_kode || editMode}
                       >
-                                                    {editMode ? (
-                              <option value={form.nomor_csr}>
-                                {form.nomor_csr}
-                              </option>
-                            ) : (
-                              <>
-                                <option value="">Pilih CSR...</option>
-                                {csrs
-                                  .filter(
-                                    (csr: CSR) =>
-                                      !csr.nama ||
-                                      !csr.keahlian_required ||
-                                      csr.keahlian_required.length === 0
-                                  )
-                                  .map((csr: CSR) => (
-                                    <option key={csr.id} value={csr.nomor_csr}>
-                                      {csr.nomor_csr}
-                                    </option>
-                                  ))}
-                              </>
-                            )}
+                        {editMode ? (
+                          <option value={form.nomor_csr}>
+                            {form.nomor_csr}
+                          </option>
+                        ) : (
+                          <>
+                            <option value="">Pilih CSR...</option>
+                            {csrs
+                              .filter(
+                                (csr: CSR) =>
+                                  !csr.nama ||
+                                  !csr.keahlian_required ||
+                                  csr.keahlian_required.length === 0
+                              )
+                              .map((csr: CSR) => (
+                                <option key={csr.id} value={csr.nomor_csr}>
+                                  {csr.nomor_csr}
+                                </option>
+                              ))}
+                          </>
+                        )}
                       </select>
                     </div>
                     {/* Input tanggal mulai & akhir (readonly) */}

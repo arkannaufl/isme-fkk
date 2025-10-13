@@ -7,6 +7,7 @@ use App\Models\PBL;
 use App\Models\KelompokKecil;
 use App\Models\User;
 use App\Models\Ruangan;
+use App\Models\Notification;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Validator;
@@ -150,7 +151,11 @@ class JadwalPBLController extends Controller
                             'pbl_tipe' => $jadwal->pbl_tipe,
                             'dosen_id' => $dosen->id,
                             'dosen_name' => $dosen->name,
-                            'dosen_role' => $dosen->role
+                            'dosen_role' => $dosen->role,
+                            'created_by' => auth()->user()->name ?? 'Admin',
+                            'created_by_role' => auth()->user()->role ?? 'admin',
+                            'sender_name' => auth()->user()->name ?? 'Admin',
+                            'sender_role' => auth()->user()->role ?? 'admin'
                         ]
                     ]);
                 }
@@ -178,11 +183,18 @@ class JadwalPBLController extends Controller
                         'pbl_tipe' => $jadwal->pbl_tipe,
                         'dosen_id' => $dosen->id,
                         'dosen_name' => $dosen->name,
-                        'dosen_role' => $dosen->role
+                        'dosen_role' => $dosen->role,
+                        'created_by' => auth()->user()->name ?? 'Admin',
+                        'created_by_role' => auth()->user()->role ?? 'admin',
+                        'sender_name' => auth()->user()->name ?? 'Admin',
+                        'sender_role' => auth()->user()->role ?? 'admin'
                     ]
                 ]);
             }
         }
+
+        // Send notification to mahasiswa in the kelompok
+        $this->sendNotificationToMahasiswa($jadwal);
 
         return response()->json($jadwal, Response::HTTP_CREATED);
     }
@@ -319,109 +331,159 @@ class JadwalPBLController extends Controller
         return response()->json(['message' => 'Jadwal dan penilaian PBL terkait berhasil dihapus']);
     }
 
-    // Import Excel jadwal PBL
-    public function importExcel(Request $request, $kode)
-    {
-        try {
-            $data = $request->validate([
-                'data' => 'required|array',
-                'data.*.tanggal' => 'required|date',
-                'data.*.jam_mulai' => 'required|string',
-                'data.*.jam_selesai' => 'required|string',
-                'data.*.modul_pbl_id' => 'required|exists:pbls,id',
-                'data.*.kelompok_kecil_id' => 'required|exists:kelompok_kecil,id',
-                'data.*.dosen_id' => 'required|exists:users,id',
-                'data.*.ruangan_id' => 'required|exists:ruangan,id',
-                'data.*.pbl_tipe' => 'required|string|in:PBL 1,PBL 2',
-                'data.*.topik' => 'nullable|string',
-                'data.*.jumlah_sesi' => 'nullable|integer|min:1|max:6',
-            ]);
+     // Import Excel jadwal PBL
+     public function importExcel(Request $request, $kode)
+     {
+         try {
+             $data = $request->validate([
+                 'data' => 'required|array',
+                 'data.*.tanggal' => 'required|date',
+                 'data.*.jam_mulai' => 'required|string',
+                 'data.*.jam_selesai' => 'required|string',
+                 'data.*.modul_pbl_id' => 'required|exists:pbls,id',
+                 'data.*.kelompok_kecil_id' => 'required|exists:kelompok_kecil,id',
+                 'data.*.dosen_id' => 'required|exists:users,id',
+                 'data.*.ruangan_id' => 'required|exists:ruangan,id',
+                 'data.*.pbl_tipe' => 'required|string|in:PBL 1,PBL 2',
+                 'data.*.topik' => 'nullable|string',
+                 'data.*.jumlah_sesi' => 'nullable|integer|min:1|max:6',
+             ]);
 
-            $importedData = [];
-            $errors = [];
+             $importedData = [];
+             $errors = [];
 
-            foreach ($data['data'] as $index => $row) {
-                try {
-                    // Set jumlah_sesi berdasarkan pbl_tipe jika tidak disediakan
-                    if (!isset($row['jumlah_sesi'])) {
-                        $row['jumlah_sesi'] = $row['pbl_tipe'] === 'PBL 2' ? 3 : 2;
-                    }
+             // Validasi semua data terlebih dahulu (all or nothing approach)
+             foreach ($data['data'] as $index => $row) {
+                 // Set jumlah_sesi berdasarkan pbl_tipe jika tidak disediakan
+                 if (!isset($row['jumlah_sesi'])) {
+                     $row['jumlah_sesi'] = $row['pbl_tipe'] === 'PBL 2' ? 3 : 2;
+                 }
 
-                    // Set mata_kuliah_kode dan pbl_id
-                    $row['mata_kuliah_kode'] = $kode;
-                    $row['pbl_id'] = $row['modul_pbl_id'];
+                 // Set mata_kuliah_kode dan pbl_id
+                 $row['mata_kuliah_kode'] = $kode;
+                 $row['pbl_id'] = $row['modul_pbl_id'];
 
-                    // Validasi kapasitas ruangan
-                    $kapasitasMessage = $this->validateRuanganCapacity($row);
-                    if ($kapasitasMessage) {
-                        $errors[] = "Baris " . ($index + 1) . ": " . $kapasitasMessage;
-                        continue;
-                    }
+                 // Validasi kapasitas ruangan
+                 $kapasitasMessage = $this->validateRuanganCapacity($row);
+                 if ($kapasitasMessage) {
+                     $errors[] = "Baris " . ($index + 1) . ": " . $kapasitasMessage;
+                 }
 
-                    // Validasi bentrok
-                    $bentrokMessage = $this->checkBentrokWithDetail($row, null);
-                    if ($bentrokMessage) {
-                        $errors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;
-                        continue;
-                    }
+                 // Validasi bentrok
+                 $bentrokMessage = $this->checkBentrokWithDetail($row, null);
+                 if ($bentrokMessage) {
+                     $errors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;
+                 }
 
-                    // Validasi tanggal dalam rentang mata kuliah
-                    $mataKuliah = \App\Models\MataKuliah::where('kode', $kode)->first();
-                    if ($mataKuliah && $mataKuliah->tanggal_mulai && $mataKuliah->tanggal_akhir) {
-                        $jadwalTanggal = new \DateTime($row['tanggal']);
-                        $tanggalMulai = new \DateTime($mataKuliah->tanggal_mulai);
-                        $tanggalAkhir = new \DateTime($mataKuliah->tanggal_akhir);
-                        
-                        if ($jadwalTanggal < $tanggalMulai || $jadwalTanggal > $tanggalAkhir) {
-                            $errors[] = "Baris " . ($index + 1) . ": Tanggal harus dalam rentang {$mataKuliah->tanggal_mulai} - {$mataKuliah->tanggal_akhir}";
-                            continue;
+                 // Validasi tanggal dalam rentang mata kuliah
+                 $mataKuliah = \App\Models\MataKuliah::where('kode', $kode)->first();
+                 if ($mataKuliah && $mataKuliah->tanggal_mulai && $mataKuliah->tanggal_akhir) {
+                     $jadwalTanggal = new \DateTime($row['tanggal']);
+                     $tanggalMulai = new \DateTime($mataKuliah->tanggal_mulai);
+                     $tanggalAkhir = new \DateTime($mataKuliah->tanggal_akhir);
+
+                     if ($jadwalTanggal < $tanggalMulai || $jadwalTanggal > $tanggalAkhir) {
+                         $errors[] = "Baris " . ($index + 1) . ": Tanggal harus dalam rentang {$mataKuliah->tanggal_mulai} - {$mataKuliah->tanggal_akhir}";
+                     }
+                 }
+             }
+
+             // Jika ada error validasi, return error tanpa import apapun
+             if (count($errors) > 0) {
+                 return response()->json([
+                     'success' => 0,
+                     'total' => count($data['data']),
+                     'errors' => $errors,
+                     'message' => "Gagal mengimport data. Perbaiki error terlebih dahulu."
+                 ], 422);
+             }
+
+             // Jika tidak ada error, import semua data
+             foreach ($data['data'] as $index => $row) {
+                 try {
+                     // Set jumlah_sesi berdasarkan pbl_tipe jika tidak disediakan
+                     if (!isset($row['jumlah_sesi'])) {
+                         $row['jumlah_sesi'] = $row['pbl_tipe'] === 'PBL 2' ? 3 : 2;
+                     }
+
+                     // Set mata_kuliah_kode dan pbl_id
+                     $row['mata_kuliah_kode'] = $kode;
+                     $row['pbl_id'] = $row['modul_pbl_id'];
+
+                     // Buat jadwal PBL
+                     $jadwal = JadwalPBL::create($row);
+                     $importedData[] = $jadwal;
+
+                      // Kirim notifikasi ke dosen yang di-assign
+                    if (isset($row['dosen_id']) && $row['dosen_id']) {
+                        $dosen = \App\Models\User::find($row['dosen_id']);
+                        if ($dosen) {
+                            \App\Models\Notification::create([
+                                'user_id' => $row['dosen_id'],
+                                'title' => 'Jadwal PBL Baru',
+                                'message' => "Anda telah di-assign untuk mengajar PBL {$jadwal->modulPBL->mataKuliah->nama} - {$jadwal->modulPBL->nama_modul} pada tanggal {$jadwal->tanggal} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai} di ruangan {$jadwal->ruangan->nama}. Silakan konfirmasi ketersediaan Anda.",
+                                'type' => 'info',
+                                'data' => [
+                                    'topik' => $jadwal->modulPBL->nama_modul,
+                                    'materi' => $jadwal->modulPBL->nama_modul,
+                                    'ruangan' => $jadwal->ruangan->nama,
+                                    'tanggal' => $jadwal->tanggal,
+                                    'jadwal_id' => $jadwal->id,
+                                    'jam_mulai' => $jadwal->jam_mulai,
+                                    'jadwal_type' => 'pbl',
+                                    'jam_selesai' => $jadwal->jam_selesai,
+                                    'mata_kuliah_kode' => $jadwal->mata_kuliah_kode,
+                                    'mata_kuliah_nama' => $jadwal->modulPBL->mataKuliah->nama,
+                                    'modul_ke' => $jadwal->modulPBL->modul_ke,
+                                    'pbl_tipe' => $jadwal->pbl_tipe,
+                                    'dosen_id' => $dosen->id,
+                                    'dosen_name' => $dosen->name,
+                                    'dosen_role' => $dosen->role
+                                ]
+                            ]);
                         }
                     }
 
-                    // Buat jadwal PBL
-                    $jadwal = JadwalPBL::create($row);
-                    $importedData[] = $jadwal;
+                     // Log activity
+                     activity()
+                         ->performedOn($jadwal)
+                         ->withProperties([
+                             'mata_kuliah_kode' => $kode,
+                             'pbl_id' => $row['modul_pbl_id'],
+                             'tanggal' => $row['tanggal'],
+                             'jam_mulai' => $row['jam_mulai'],
+                             'jam_selesai' => $row['jam_selesai'],
+                             'pbl_tipe' => $row['pbl_tipe']
+                         ])
+                         ->log("Jadwal PBL imported: {$jadwal->modulPBL->nama}");
 
-                    // Log activity
-                    activity()
-                        ->performedOn($jadwal)
-                        ->withProperties([
-                            'mata_kuliah_kode' => $kode,
-                            'pbl_id' => $row['modul_pbl_id'],
-                            'tanggal' => $row['tanggal'],
-                            'jam_mulai' => $row['jam_mulai'],
-                            'jam_selesai' => $row['jam_selesai'],
-                            'pbl_tipe' => $row['pbl_tipe']
-                        ])
-                        ->log("Jadwal PBL imported: {$jadwal->modulPBL->nama}");
+                 } catch (\Exception $e) {
+                     $errors[] = "Baris " . ($index + 1) . ": " . $e->getMessage();
+                 }
+             }
 
-                } catch (\Exception $e) {
-                    $errors[] = "Baris " . ($index + 1) . ": " . $e->getMessage();
-                }
-            }
+             if (count($errors) > 0) {
+                 return response()->json([
+                     'success' => count($importedData),
+                     'total' => count($data['data']),
+                     'errors' => $errors,
+                     'message' => 'Gagal mengimport ' . (count($data['data']) - count($importedData)) . ' dari ' . count($data['data']) . ' jadwal'
+                 ], 422);
+             }
 
-            if (count($errors) > 0) {
-                return response()->json([
-                    'success' => count($importedData),
-                    'total' => count($data['data']),
-                    'errors' => $errors,
-                    'message' => 'Gagal mengimport ' . (count($data['data']) - count($importedData)) . ' dari ' . count($data['data']) . ' jadwal'
-                ], 422);
-            }
+             return response()->json([
+                 'success' => count($importedData),
+                 'total' => count($data['data']),
+                 'message' => 'Berhasil mengimport ' . count($importedData) . ' jadwal PBL'
+             ]);
 
-            return response()->json([
-                'success' => count($importedData),
-                'total' => count($data['data']),
-                'message' => 'Berhasil mengimport ' . count($importedData) . ' jadwal PBL'
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Error importing PBL data: ' . $e->getMessage());
-            return response()->json([
-                'message' => 'Terjadi kesalahan saat mengimport data: ' . $e->getMessage()
-            ], 500);
-        }
-    }
+         } catch (\Exception $e) {
+             Log::error('Error importing PBL data: ' . $e->getMessage());
+             return response()->json([
+                 'message' => 'Terjadi kesalahan saat mengimport data: ' . $e->getMessage()
+             ], 500);
+         }
+     }
 
     // Get jadwal PBL untuk dosen tertentu
     public function getJadwalForDosen($dosenId, Request $request)
@@ -522,7 +584,13 @@ class JadwalPBLController extends Controller
                     'ruangan' => $jadwal->ruangan->nama ?? 'Unknown',
                     'lokasi' => $jadwal->ruangan->nama ?? 'Unknown',
                     'status_konfirmasi' => $jadwal->status_konfirmasi ?? 'belum_konfirmasi',
+                    'alasan_konfirmasi' => $jadwal->alasan_konfirmasi ?? null,
+                    'status_reschedule' => $jadwal->status_reschedule ?? null,
+                    'reschedule_reason' => $jadwal->reschedule_reason ?? null,
                     'semester_type' => $semesterType,
+                    'penilaian_submitted' => (bool)($jadwal->penilaian_submitted ?? false),
+                    'penilaian_submitted_at' => $jadwal->penilaian_submitted_at ?? null,
+                    'penilaian_submitted_by' => $jadwal->penilaian_submitted_by ?? null,
                     'created_at' => $jadwal->created_at,
                 ];
             });
@@ -533,6 +601,73 @@ class JadwalPBLController extends Controller
                 'count' => $mappedJadwal->count()
             ]);
         } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Terjadi kesalahan saat mengambil data jadwal PBL',
+                'error' => $e->getMessage(),
+                'data' => []
+            ], 500);
+        }
+    }
+
+    // Get jadwal PBL for mahasiswa
+    public function getJadwalForMahasiswa($mahasiswaId, Request $request)
+    {
+        try {
+            // Check if user exists and is mahasiswa
+            $mahasiswa = User::where('id', $mahasiswaId)->where('role', 'mahasiswa')->first();
+            if (!$mahasiswa) {
+                return response()->json([
+                    'message' => 'Mahasiswa tidak ditemukan',
+                    'data' => []
+                ], 404);
+            }
+
+            $semesterType = $request->query('semester_type');
+
+            // Get kelompok kecil for this mahasiswa
+            $kelompokKecil = KelompokKecil::where('mahasiswa_id', $mahasiswaId)->first();
+
+            if (!$kelompokKecil) {
+                return response()->json([
+                    'message' => 'Mahasiswa belum memiliki kelompok',
+                    'data' => []
+                ]);
+            }
+
+            $query = JadwalPBL::with([
+                'modulPBL.mataKuliah',
+                'kelompokKecil',
+                'dosen',
+                'ruangan'
+            ])->where('kelompok_kecil_id', $kelompokKecil->id);
+
+            $jadwal = $query->orderBy('tanggal', 'asc')
+                ->orderBy('jam_mulai', 'asc')
+                ->get();
+
+            $mappedJadwal = $jadwal->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'tanggal' => $item->tanggal,
+                    'jam_mulai' => substr($item->jam_mulai, 0, 5),
+                    'jam_selesai' => substr($item->jam_selesai, 0, 5),
+                    'modul' => $item->modulPBL->nama_modul ?? 'N/A',
+                    'topik' => $item->modulPBL->topik ?? 'N/A',
+                    'tipe_pbl' => $item->pbl_tipe ?? 'N/A',
+                    'kelompok' => $item->kelompokKecil->nama_kelompok ?? 'N/A',
+                    'x50' => $item->jumlah_sesi,
+                    'pengampu' => $item->dosen->name ?? 'N/A',
+                    'ruangan' => $item->ruangan->nama ?? 'N/A',
+                    'semester_type' => 'reguler', // Default semester type
+                ];
+            });
+
+            return response()->json([
+                'message' => 'Data jadwal PBL berhasil diambil',
+                'data' => $mappedJadwal
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching jadwal PBL for mahasiswa: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Terjadi kesalahan saat mengambil data jadwal PBL',
                 'error' => $e->getMessage(),
@@ -578,6 +713,73 @@ class JadwalPBLController extends Controller
         ]);
     }
 
+    // Ajukan reschedule jadwal PBL
+    public function reschedule(Request $request, $jadwalId)
+    {
+        $request->validate([
+            'reschedule_reason' => 'required|string|max:1000',
+            'dosen_id' => 'required|exists:users,id'
+        ]);
+
+        $jadwal = JadwalPBL::with(['modulPBL.mataKuliah', 'dosen'])
+            ->where('id', $jadwalId)
+            ->where(function ($query) use ($request) {
+                $query->where('dosen_id', $request->dosen_id)
+                    ->orWhereJsonContains('dosen_ids', $request->dosen_id);
+            })
+            ->firstOrFail();
+
+        // Update status menjadi waiting_reschedule
+        $jadwal->update([
+            'status_konfirmasi' => 'waiting_reschedule',
+            'reschedule_reason' => $request->reschedule_reason,
+            'status_reschedule' => 'waiting'
+        ]);
+
+        // Kirim notifikasi ke admin
+        $this->sendRescheduleNotification($jadwal, $request->reschedule_reason);
+
+        return response()->json([
+            'message' => 'Permintaan reschedule berhasil diajukan',
+            'status' => 'waiting_reschedule'
+        ]);
+    }
+
+    /**
+     * Kirim notifikasi reschedule ke admin
+     */
+    private function sendRescheduleNotification($jadwal, $reason)
+    {
+        try {
+            $dosen = User::find($jadwal->dosen_id);
+
+            // Buat hanya 1 notifikasi yang bisa dilihat oleh semua admin
+            $firstAdmin = User::where('role', 'super_admin')->first() ?? User::where('role', 'tim_akademik')->first();
+
+            if ($firstAdmin) {
+                Notification::create([
+                    'user_id' => $firstAdmin->id,
+                    'title' => 'Permintaan Reschedule Jadwal',
+                    'message' => "Dosen {$jadwal->dosen->name} mengajukan reschedule untuk jadwal PBL. Alasan: {$reason}",
+                    'type' => 'warning',
+                    'is_read' => false,
+                    'data' => [
+                        'jadwal_id' => $jadwal->id,
+                        'jadwal_type' => 'pbl',
+                        'dosen_name' => $jadwal->dosen->name,
+                        'dosen_id' => $jadwal->dosen->id,
+                        'reschedule_reason' => $reason,
+                        'notification_type' => 'reschedule_request'
+                    ]
+                ]);
+            }
+
+            \Log::info("Reschedule notification sent for PBL jadwal ID: {$jadwal->id}");
+        } catch (\Exception $e) {
+            \Log::error("Error sending reschedule notification for PBL jadwal ID: {$jadwal->id}: " . $e->getMessage());
+        }
+    }
+
     /**
      * Update dosen_ids based on confirmation status
      * This ensures dosen_ids reflects actual confirmed dosen
@@ -586,7 +788,7 @@ class JadwalPBLController extends Controller
     {
         try {
             $currentDosenIds = $jadwal->dosen_ids ? (is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true)) : [];
-            
+
             if ($status === 'bisa') {
                 // Add dosen to dosen_ids if not already present
                 if (!in_array($dosenId, $currentDosenIds)) {
@@ -595,7 +797,7 @@ class JadwalPBLController extends Controller
                 }
             } elseif ($status === 'tidak_bisa') {
                 // Remove dosen from dosen_ids
-                $currentDosenIds = array_filter($currentDosenIds, function($id) use ($dosenId) {
+                $currentDosenIds = array_filter($currentDosenIds, function ($id) use ($dosenId) {
                     return $id != $dosenId;
                 });
                 $currentDosenIds = array_values($currentDosenIds); // Re-index array
@@ -604,9 +806,8 @@ class JadwalPBLController extends Controller
 
             // Update jadwal with new dosen_ids
             $jadwal->update(['dosen_ids' => $currentDosenIds]);
-            
+
             \Illuminate\Support\Facades\Log::info("Updated dosen_ids for jadwal {$jadwal->id}: " . json_encode($currentDosenIds));
-            
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error("Error updating dosen_ids for jadwal {$jadwal->id}: " . $e->getMessage());
         }
@@ -981,6 +1182,68 @@ class JadwalPBLController extends Controller
         }
 
         return implode(', ', $reasons);
+    }
+
+    /**
+     * Send notification to mahasiswa in the kelompok
+     */
+    private function sendNotificationToMahasiswa($jadwal)
+    {
+        try {
+            // Get mahasiswa in the kelompok
+            $mahasiswaList = [];
+
+            if ($jadwal->kelompok_kecil_id) {
+                $kelompokKecil = \App\Models\KelompokKecil::find($jadwal->kelompok_kecil_id);
+                if ($kelompokKecil && $kelompokKecil->mahasiswa_id) {
+                    $mahasiswa = \App\Models\User::find($kelompokKecil->mahasiswa_id);
+                    if ($mahasiswa) {
+                        $mahasiswaList[] = $mahasiswa;
+                    }
+                }
+            }
+
+            if ($jadwal->kelompok_kecil_antara_id) {
+                $kelompokKecilAntara = \App\Models\KelompokKecilAntara::find($jadwal->kelompok_kecil_antara_id);
+                if ($kelompokKecilAntara && $kelompokKecilAntara->mahasiswa_id) {
+                    $mahasiswa = \App\Models\User::find($kelompokKecilAntara->mahasiswa_id);
+                    if ($mahasiswa) {
+                        $mahasiswaList[] = $mahasiswa;
+                    }
+                }
+            }
+
+            // Send notification to each mahasiswa
+            foreach ($mahasiswaList as $mahasiswa) {
+                \App\Models\Notification::create([
+                    'user_id' => $mahasiswa->id,
+                    'title' => 'Jadwal PBL Baru',
+                    'message' => "Jadwal PBL baru telah ditambahkan: {$jadwal->modulPBL->mataKuliah->nama} - {$jadwal->modulPBL->nama_modul} pada tanggal {$jadwal->tanggal} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai} di ruangan {$jadwal->ruangan->nama}.",
+                    'type' => 'info',
+                    'is_read' => false,
+                    'data' => [
+                        'jadwal_id' => $jadwal->id,
+                        'jadwal_type' => 'pbl',
+                        'mata_kuliah_kode' => $jadwal->mata_kuliah_kode,
+                        'mata_kuliah_nama' => $jadwal->modulPBL->mataKuliah->nama,
+                        'modul' => $jadwal->modulPBL->nama_modul,
+                        'tanggal' => $jadwal->tanggal,
+                        'jam_mulai' => $jadwal->jam_mulai,
+                        'jam_selesai' => $jadwal->jam_selesai,
+                        'ruangan' => $jadwal->ruangan->nama,
+                        'dosen' => $jadwal->dosen ? $jadwal->dosen->name : 'N/A',
+                        'created_by' => auth()->user()->name ?? 'Admin',
+                        'created_by_role' => auth()->user()->role ?? 'admin',
+                        'sender_name' => auth()->user()->name ?? 'Admin',
+                        'sender_role' => auth()->user()->role ?? 'admin'
+                    ]
+                ]);
+            }
+
+            \Log::info("PBL notifications sent to " . count($mahasiswaList) . " mahasiswa for jadwal ID: {$jadwal->id}");
+        } catch (\Exception $e) {
+            \Log::error("Error sending PBL notifications to mahasiswa: " . $e->getMessage());
+        }
     }
 
     /**

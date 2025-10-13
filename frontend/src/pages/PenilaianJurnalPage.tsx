@@ -17,6 +17,7 @@ interface PenilaianJurnal {
 interface AbsensiJurnal {
   [nim: string]: {
     hadir: boolean;
+    catatan: string;
   };
 }
 
@@ -42,18 +43,20 @@ export default function PenilaianJurnalPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [canEdit, setCanEdit] = useState(true);
+  // Checklist Masukkan ke Laporan
+  const [includeInReport, setIncludeInReport] = useState(false);
 
   // Check user access before loading data
   useEffect(() => {
     const user = getUser();
     if (!user) {
-      navigate('/');
+      navigate("/");
       return;
     }
-    
+
     // Only allow dosen, super_admin, and tim_akademik to access this page
-    if (!['dosen', 'super_admin', 'tim_akademik'].includes(user.role)) {
-      setError('Anda tidak memiliki akses untuk mengakses halaman ini.');
+    if (!["dosen", "super_admin", "tim_akademik"].includes(user.role)) {
+      setError("Anda tidak memiliki akses untuk mengakses halaman ini.");
       setLoading(false);
       return;
     }
@@ -103,6 +106,7 @@ export default function PenilaianJurnalPage() {
             const absen = data.absensi[nim];
             abs[nim] = {
               hadir: absen.hadir || false,
+              catatan: absen.catatan || "",
             };
           });
           setAbsensi(abs);
@@ -114,6 +118,10 @@ export default function PenilaianJurnalPage() {
           setTanggalParaf(data.tutor_data.tanggal_paraf || "");
           setSignatureParaf(data.tutor_data.signature_paraf || null);
         }
+
+        // Prefill status submitted & checkbox dari backend
+        const submittedFlag = Boolean(data.penilaian_submitted);
+        setIncludeInReport(submittedFlag);
 
         // Update canEdit berdasarkan role dan status
         const user = getUser();
@@ -206,7 +214,18 @@ export default function PenilaianJurnalPage() {
     setAbsensi((prev) => ({
       ...prev,
       [nim]: {
+        ...prev[nim],
         hadir: hadir,
+      },
+    }));
+  };
+
+  const handleCatatanChange = (nim: string, catatan: string) => {
+    setAbsensi((prev) => ({
+      ...prev,
+      [nim]: {
+        ...prev[nim],
+        catatan: catatan,
       },
     }));
   };
@@ -219,6 +238,7 @@ export default function PenilaianJurnalPage() {
         absensi: mahasiswa.map((m) => ({
           mahasiswa_nim: m.nim,
           hadir: absensi[m.nim]?.hadir || false,
+          catatan: absensi[m.nim]?.catatan || "",
         })),
       };
 
@@ -242,6 +262,13 @@ export default function PenilaianJurnalPage() {
   const handleSaveAll = async () => {
     if (!kode_blok || !kelompok || !jurnal_id) return;
 
+    if (!includeInReport) {
+      alert(
+        'Centang "Masukkan ke Laporan" untuk menyimpan dan memasukkan realisasi ke PDF.'
+      );
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
@@ -263,6 +290,8 @@ export default function PenilaianJurnalPage() {
         tanggal_paraf: tanggalParaf,
         signature_paraf: signatureParaf,
         nama_tutor: namaTutor,
+        // tandai agar jadwal jurnal reading terhitung di laporan
+        penilaian_submitted: true,
       };
 
       await api.post(
@@ -667,6 +696,9 @@ export default function PenilaianJurnalPage() {
                       <th className="px-2 py-3 text-center">
                         <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-16 mx-auto"></div>
                       </th>
+                      <th className="px-4 py-3 text-center">
+                        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-20 mx-auto"></div>
+                      </th>
                       <th className="px-2 py-3 text-center">
                         <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-16 mx-auto"></div>
                       </th>
@@ -692,6 +724,9 @@ export default function PenilaianJurnalPage() {
                         </td>
                         <td className="px-2 py-2 text-center">
                           <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-12 mx-auto"></div>
+                        </td>
+                        <td className="px-4 py-2 text-center">
+                          <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-20 mx-auto"></div>
                         </td>
                         <td className="px-2 py-2 text-center">
                           <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-12 mx-auto"></div>
@@ -721,6 +756,9 @@ export default function PenilaianJurnalPage() {
                     </th>
                     <th className="px-2 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                       ABSENSI
+                    </th>
+                    <th className="px-4 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      CATATAN
                     </th>
                     <th className="px-2 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                       NILAI KEAKTIFAN
@@ -775,6 +813,22 @@ export default function PenilaianJurnalPage() {
                             </svg>
                           )}
                         </div>
+                      </td>
+                      <td className="px-4 py-2 text-center whitespace-nowrap dark:text-gray-200">
+                        <input
+                          type="text"
+                          value={absensi[m.nim]?.catatan || ""}
+                          onChange={(e) =>
+                            handleCatatanChange(m.nim, e.target.value)
+                          }
+                          disabled={!canEdit}
+                          placeholder="Catatan..."
+                          className={`w-full text-center border rounded-md p-1 text-xs dark:text-gray-100 dark:placeholder-gray-400 ${
+                            canEdit
+                              ? "bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+                              : "bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 cursor-not-allowed"
+                          }`}
+                        />
                       </td>
                       <td className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200">
                         <input
@@ -885,7 +939,7 @@ export default function PenilaianJurnalPage() {
                 </button>
               </div>
             </div>
-            <div className="flex flex-col items-start">
+            <div className="flex flex-col items-start mt-6">
               <span className="text-xs mb-5 dark:text-gray-200">PARAF</span>
               {signatureParaf ? (
                 <div className="relative w-48 h-[100px] bg-white dark:bg-gray-900 border rounded mb-6 flex flex-col justify-end dark:border-gray-600">
@@ -915,7 +969,7 @@ export default function PenilaianJurnalPage() {
                   <div className="border-b-2 border-dotted w-full absolute bottom-2 left-0 dark:border-gray-600" />
                 </div>
               )}
-              <div className="flex gap-2 mb-2">
+              <div className="flex items-end gap-2 mb-1 mt-1">
                 <button
                   type="button"
                   onClick={handleClearParaf}
@@ -940,9 +994,16 @@ export default function PenilaianJurnalPage() {
                   />
                 </label>
               </div>
-              <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                .....................
-              </span>
+              {/* Checklist Masukkan ke Laporan (wajib) - ditempatkan di bawah tombol, seperti PenilaianPBLPage */}
+              <label className="flex items-center gap-2 text-xs mt-3 dark:text-gray-200">
+                <input
+                  type="checkbox"
+                  checked={includeInReport}
+                  onChange={(e) => setIncludeInReport(e.target.checked)}
+                  className="w-4 h-4"
+                />
+                Masukkan ke Laporan (wajib dicentang sebelum submit)
+              </label>
             </div>
           </div>
 

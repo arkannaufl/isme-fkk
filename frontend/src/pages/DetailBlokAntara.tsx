@@ -212,6 +212,17 @@ export default function DetailBlokAntara() {
   // State untuk tab modal kelompok
   const [activeTab, setActiveTab] = useState<'besar' | 'kecil'>('besar');
 
+  // State untuk bulk delete
+  const [selectedKuliahBesarItems, setSelectedKuliahBesarItems] = useState<number[]>([]);
+  const [selectedPraktikumItems, setSelectedPraktikumItems] = useState<number[]>([]);
+  const [selectedAgendaKhususItems, setSelectedAgendaKhususItems] = useState<number[]>([]);
+  const [selectedPBLItems, setSelectedPBLItems] = useState<number[]>([]);
+  const [selectedJurnalReadingItems, setSelectedJurnalReadingItems] = useState<number[]>([]);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [bulkDeleteType, setBulkDeleteType] = useState<'kuliah-besar' | 'praktikum' | 'agenda-khusus' | 'pbl' | 'jurnal-reading'>('kuliah-besar');
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+
   // Hooks untuk PBL dosen options
 
 
@@ -1982,6 +1993,170 @@ export default function DetailBlokAntara() {
     setSelectedDeleteJurnalReadingIndex(null);
   }
 
+  // Fungsi untuk handle bulk delete
+  const handleBulkDelete = (type: 'kuliah-besar' | 'praktikum' | 'agenda-khusus' | 'pbl' | 'jurnal-reading') => {
+    setBulkDeleteType(type);
+    setShowBulkDeleteModal(true);
+  };
+
+  const confirmBulkDelete = async () => {
+    if (!data?.kode) return;
+    
+    setIsBulkDeleting(true);
+    setShowBulkDeleteModal(false);
+    
+    try {
+      let selectedItems: number[] = [];
+      let endpoint = '';
+      let successMessage = '';
+      
+      switch (bulkDeleteType) {
+        case 'kuliah-besar':
+          selectedItems = selectedKuliahBesarItems;
+          endpoint = `/kuliah-besar/jadwal/${data.kode}`;
+          successMessage = `${selectedItems.length} jadwal kuliah besar berhasil dihapus.`;
+          break;
+        case 'praktikum':
+          selectedItems = selectedPraktikumItems;
+          endpoint = `/praktikum/jadwal/${data.kode}`;
+          successMessage = `${selectedItems.length} jadwal praktikum berhasil dihapus.`;
+          break;
+        case 'agenda-khusus':
+          selectedItems = selectedAgendaKhususItems;
+          endpoint = `/agenda-khusus/jadwal/${data.kode}`;
+          successMessage = `${selectedItems.length} jadwal agenda khusus berhasil dihapus.`;
+          break;
+        case 'pbl':
+          selectedItems = selectedPBLItems;
+          endpoint = `/mata-kuliah/${data.kode}/jadwal-pbl`;
+          successMessage = `${selectedItems.length} jadwal PBL berhasil dihapus.`;
+          break;
+        case 'jurnal-reading':
+          selectedItems = selectedJurnalReadingItems;
+          endpoint = `/jurnal-reading/jadwal/${data.kode}`;
+          successMessage = `${selectedItems.length} jadwal jurnal reading berhasil dihapus.`;
+          break;
+      }
+      
+      // Delete all selected items
+      await Promise.all(selectedItems.map(id => api.delete(`${endpoint}/${id}`)));
+      
+      // Clear selected items
+      switch (bulkDeleteType) {
+        case 'kuliah-besar':
+          setSelectedKuliahBesarItems([]);
+          break;
+        case 'praktikum':
+          setSelectedPraktikumItems([]);
+          break;
+        case 'agenda-khusus':
+          setSelectedAgendaKhususItems([]);
+          break;
+        case 'pbl':
+          setSelectedPBLItems([]);
+          break;
+        case 'jurnal-reading':
+          setSelectedJurnalReadingItems([]);
+          break;
+      }
+      
+      // Show success message first
+      setSuccessMessage(successMessage);
+      setTimeout(() => setSuccessMessage(''), 3000);
+      
+      // Refresh data after setting success message
+      await fetchBatchData();
+      
+    } catch (error) {
+      console.error('Error bulk deleting:', error);
+      setErrorBackend('Gagal menghapus jadwal yang dipilih');
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
+  const handleSelectAll = (type: 'kuliah-besar' | 'praktikum' | 'agenda-khusus' | 'pbl' | 'jurnal-reading', allItems: any[]) => {
+    const allIds = allItems.map(item => item.id).filter(id => id !== undefined);
+    
+    switch (type) {
+      case 'kuliah-besar':
+        if (selectedKuliahBesarItems.length === allIds.length) {
+          setSelectedKuliahBesarItems([]);
+        } else {
+          setSelectedKuliahBesarItems(allIds);
+        }
+        break;
+      case 'praktikum':
+        if (selectedPraktikumItems.length === allIds.length) {
+          setSelectedPraktikumItems([]);
+        } else {
+          setSelectedPraktikumItems(allIds);
+        }
+        break;
+      case 'agenda-khusus':
+        if (selectedAgendaKhususItems.length === allIds.length) {
+          setSelectedAgendaKhususItems([]);
+        } else {
+          setSelectedAgendaKhususItems(allIds);
+        }
+        break;
+      case 'pbl':
+        if (selectedPBLItems.length === allIds.length) {
+          setSelectedPBLItems([]);
+        } else {
+          setSelectedPBLItems(allIds);
+        }
+        break;
+      case 'jurnal-reading':
+        if (selectedJurnalReadingItems.length === allIds.length) {
+          setSelectedJurnalReadingItems([]);
+        } else {
+          setSelectedJurnalReadingItems(allIds);
+        }
+        break;
+    }
+  };
+
+  const handleSelectItem = (type: 'kuliah-besar' | 'praktikum' | 'agenda-khusus' | 'pbl' | 'jurnal-reading', itemId: number) => {
+    switch (type) {
+      case 'kuliah-besar':
+        if (selectedKuliahBesarItems.includes(itemId)) {
+          setSelectedKuliahBesarItems(selectedKuliahBesarItems.filter(id => id !== itemId));
+        } else {
+          setSelectedKuliahBesarItems([...selectedKuliahBesarItems, itemId]);
+        }
+        break;
+      case 'praktikum':
+        if (selectedPraktikumItems.includes(itemId)) {
+          setSelectedPraktikumItems(selectedPraktikumItems.filter(id => id !== itemId));
+        } else {
+          setSelectedPraktikumItems([...selectedPraktikumItems, itemId]);
+        }
+        break;
+      case 'agenda-khusus':
+        if (selectedAgendaKhususItems.includes(itemId)) {
+          setSelectedAgendaKhususItems(selectedAgendaKhususItems.filter(id => id !== itemId));
+        } else {
+          setSelectedAgendaKhususItems([...selectedAgendaKhususItems, itemId]);
+        }
+        break;
+      case 'pbl':
+        if (selectedPBLItems.includes(itemId)) {
+          setSelectedPBLItems(selectedPBLItems.filter(id => id !== itemId));
+        } else {
+          setSelectedPBLItems([...selectedPBLItems, itemId]);
+        }
+        break;
+      case 'jurnal-reading':
+        if (selectedJurnalReadingItems.includes(itemId)) {
+          setSelectedJurnalReadingItems(selectedJurnalReadingItems.filter(id => id !== itemId));
+        } else {
+          setSelectedJurnalReadingItems([...selectedJurnalReadingItems, itemId]);
+        }
+        break;
+    }
+  };
+
 
 
   return (
@@ -2117,11 +2292,42 @@ export default function DetailBlokAntara() {
             Tambah Jadwal
           </button>
         </div>
+
+        {/* Success Message untuk Kuliah Besar */}
+        <AnimatePresence>
+          {successMessage && bulkDeleteType === 'kuliah-besar' && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
+            >
+              {successMessage}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
           <div className="max-w-full overflow-x-auto hide-scroll">
             <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
               <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                 <tr>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    <button
+                      type="button"
+                      aria-checked={jadwalKuliahBesar.length > 0 && jadwalKuliahBesar.every(item => selectedKuliahBesarItems.includes(item.id!))}
+                      role="checkbox"
+                      onClick={() => handleSelectAll('kuliah-besar', jadwalKuliahBesar)}
+                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${jadwalKuliahBesar.length > 0 && jadwalKuliahBesar.every(item => selectedKuliahBesarItems.includes(item.id!)) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                    >
+                      {jadwalKuliahBesar.length > 0 && jadwalKuliahBesar.every(item => selectedKuliahBesarItems.includes(item.id!)) && (
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                          <polyline points="20 7 11 17 4 10" />
+                        </svg>
+                      )}
+                    </button>
+                  </th>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Hari/Tanggal</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pukul</th>
@@ -2137,7 +2343,7 @@ export default function DetailBlokAntara() {
               <tbody>
                 {jadwalKuliahBesar.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="text-center py-6 text-gray-400">Tidak ada data Kuliah Besar</td>
+                      <td colSpan={10} className="text-center py-6 text-gray-400">Tidak ada data Kuliah Besar</td>
                   </tr>
                 ) : (
                     jadwalKuliahBesar.map((row, i) => {
@@ -2145,6 +2351,21 @@ export default function DetailBlokAntara() {
                       const ruangan = allRuanganList.find(r => r.id === row.ruangan_id);
                     return (
                       <tr key={row.id} className={i % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                        <td className="px-4 py-4 text-center">
+                          <button
+                            type="button"
+                            aria-checked={selectedKuliahBesarItems.includes(row.id!)}
+                            role="checkbox"
+                            onClick={() => handleSelectItem('kuliah-besar', row.id!)}
+                            className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedKuliahBesarItems.includes(row.id!) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                          >
+                            {selectedKuliahBesarItems.includes(row.id!) && (
+                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                                <polyline points="20 7 11 17 4 10" />
+                              </svg>
+                            )}
+                          </button>
+                        </td>
                         <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{i + 1}</td>
                         <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                           {row.tanggal ? formatTanggalKonsisten(row.tanggal) : ''}
@@ -2195,6 +2416,19 @@ export default function DetailBlokAntara() {
             </table>
           </div>
         </div>
+
+        {/* Tombol Hapus Terpilih untuk Kuliah Besar */}
+        {selectedKuliahBesarItems.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-4">
+            <button
+              disabled={isBulkDeleting}
+              onClick={() => handleBulkDelete('kuliah-besar')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${isBulkDeleting ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-red-500 text-white shadow-theme-xs hover:bg-red-600'}`}
+            >
+              {isBulkDeleting ? 'Menghapus...' : `Hapus Terpilih (${selectedKuliahBesarItems.length})`}
+            </button>
+          </div>
+        )}
       </div>
       {/* Section Praktikum - Not applicable for semester antara */}
       {false && (
@@ -2335,11 +2569,42 @@ export default function DetailBlokAntara() {
             Tambah Jadwal
           </button>
         </div>
+
+        {/* Success Message untuk Agenda Khusus */}
+        <AnimatePresence>
+          {successMessage && bulkDeleteType === 'agenda-khusus' && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
+            >
+              {successMessage}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
           <div className="max-w-full overflow-x-auto hide-scroll" >
             <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
               <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                 <tr>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    <button
+                      type="button"
+                      aria-checked={jadwalAgendaKhusus.length > 0 && jadwalAgendaKhusus.every(item => selectedAgendaKhususItems.includes(item.id!))}
+                      role="checkbox"
+                      onClick={() => handleSelectAll('agenda-khusus', jadwalAgendaKhusus)}
+                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${jadwalAgendaKhusus.length > 0 && jadwalAgendaKhusus.every(item => selectedAgendaKhususItems.includes(item.id!)) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                    >
+                      {jadwalAgendaKhusus.length > 0 && jadwalAgendaKhusus.every(item => selectedAgendaKhususItems.includes(item.id!)) && (
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                          <polyline points="20 7 11 17 4 10" />
+                        </svg>
+                      )}
+                    </button>
+                  </th>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Hari/Tanggal</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pukul</th>
@@ -2353,11 +2618,26 @@ export default function DetailBlokAntara() {
               <tbody>
                 {jadwalAgendaKhusus.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-6 text-gray-400">Tidak ada data Agenda Khusus</td>
+                    <td colSpan={9} className="text-center py-6 text-gray-400">Tidak ada data Agenda Khusus</td>
                   </tr>
                 ) : (
                   jadwalAgendaKhusus.map((row: any, i: number) => (
                     <tr key={row.id} className={i % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                      <td className="px-4 py-4 text-center">
+                        <button
+                          type="button"
+                          aria-checked={selectedAgendaKhususItems.includes(row.id!)}
+                          role="checkbox"
+                          onClick={() => handleSelectItem('agenda-khusus', row.id!)}
+                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedAgendaKhususItems.includes(row.id!) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                        >
+                          {selectedAgendaKhususItems.includes(row.id!) && (
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                              <polyline points="20 7 11 17 4 10" />
+                            </svg>
+                          )}
+                        </button>
+                      </td>
                       <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{i + 1}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {formatTanggalKonsisten(row.tanggal)}
@@ -2390,6 +2670,19 @@ export default function DetailBlokAntara() {
             </table>
           </div>
         </div>
+
+        {/* Tombol Hapus Terpilih untuk Agenda Khusus */}
+        {selectedAgendaKhususItems.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-4">
+            <button
+              disabled={isBulkDeleting}
+              onClick={() => handleBulkDelete('agenda-khusus')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${isBulkDeleting ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-red-500 text-white shadow-theme-xs hover:bg-red-600'}`}
+            >
+              {isBulkDeleting ? 'Menghapus...' : `Hapus Terpilih (${selectedAgendaKhususItems.length})`}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Modal input jadwal materi */}
@@ -5251,11 +5544,42 @@ export default function DetailBlokAntara() {
             Tambah Jadwal
           </button>
         </div>
+
+        {/* Success Message untuk PBL */}
+        <AnimatePresence>
+          {successMessage && bulkDeleteType === 'pbl' && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
+            >
+              {successMessage}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
           <div className="max-w-full overflow-x-auto hide-scroll" >
             <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
               <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                 <tr>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    <button
+                      type="button"
+                      aria-checked={jadwalPBL.length > 0 && jadwalPBL.every(item => selectedPBLItems.includes(item.id!))}
+                      role="checkbox"
+                      onClick={() => handleSelectAll('pbl', jadwalPBL)}
+                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${jadwalPBL.length > 0 && jadwalPBL.every(item => selectedPBLItems.includes(item.id!)) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                    >
+                      {jadwalPBL.length > 0 && jadwalPBL.every(item => selectedPBLItems.includes(item.id!)) && (
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                          <polyline points="20 7 11 17 4 10" />
+                        </svg>
+                      )}
+                    </button>
+                  </th>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Hari/Tanggal</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tipe PBL</th>
@@ -5311,7 +5635,7 @@ export default function DetailBlokAntara() {
                   ))
                 ) : jadwalPBL.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="text-center py-6 text-gray-400">Tidak ada data PBL</td>
+                    <td colSpan={11} className="text-center py-6 text-gray-400">Tidak ada data PBL</td>
                   </tr>
                 ) : (
                   jadwalPBL
@@ -5323,6 +5647,21 @@ export default function DetailBlokAntara() {
                   })
                   .map((row: JadwalPBLType, i: number) => (
                     <tr key={row.id} className={i % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                      <td className="px-4 py-4 text-center">
+                        <button
+                          type="button"
+                          aria-checked={selectedPBLItems.includes(row.id!)}
+                          role="checkbox"
+                          onClick={() => handleSelectItem('pbl', row.id!)}
+                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedPBLItems.includes(row.id!) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                        >
+                          {selectedPBLItems.includes(row.id!) && (
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                              <polyline points="20 7 11 17 4 10" />
+                            </svg>
+                          )}
+                        </button>
+                      </td>
                       <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{i + 1}</td>
                         <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {row.tanggal ? formatTanggalKonsisten(row.tanggal) : ''}
@@ -5371,6 +5710,19 @@ export default function DetailBlokAntara() {
             </table>
           </div>
         </div>
+
+        {/* Tombol Hapus Terpilih untuk PBL */}
+        {selectedPBLItems.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-4">
+            <button
+              disabled={isBulkDeleting}
+              onClick={() => handleBulkDelete('pbl')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${isBulkDeleting ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-red-500 text-white shadow-theme-xs hover:bg-red-600'}`}
+            >
+              {isBulkDeleting ? 'Menghapus...' : `Hapus Terpilih (${selectedPBLItems.length})`}
+            </button>
+          </div>
+        )}
       </div>
       {/* Section Jurnal Reading */}
       <div className="mb-8">
@@ -5407,11 +5759,42 @@ export default function DetailBlokAntara() {
             Tambah Jadwal
           </button>
         </div>
+
+        {/* Success Message untuk Jurnal Reading */}
+        <AnimatePresence>
+          {successMessage && bulkDeleteType === 'jurnal-reading' && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
+            >
+              {successMessage}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
           <div className="max-w-full overflow-x-auto hide-scroll" >
             <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
               <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                 <tr>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    <button
+                      type="button"
+                      aria-checked={jadwalJurnalReading.length > 0 && jadwalJurnalReading.every(item => selectedJurnalReadingItems.includes(item.id!))}
+                      role="checkbox"
+                      onClick={() => handleSelectAll('jurnal-reading', jadwalJurnalReading)}
+                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${jadwalJurnalReading.length > 0 && jadwalJurnalReading.every(item => selectedJurnalReadingItems.includes(item.id!)) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                    >
+                      {jadwalJurnalReading.length > 0 && jadwalJurnalReading.every(item => selectedJurnalReadingItems.includes(item.id!)) && (
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                          <polyline points="20 7 11 17 4 10" />
+                        </svg>
+                      )}
+                    </button>
+                  </th>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Hari/Tanggal</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pukul</th>
@@ -5467,11 +5850,26 @@ export default function DetailBlokAntara() {
                   ))
                 ) : jadwalJurnalReading.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="text-center py-6 text-gray-400">Tidak ada data Jurnal Reading</td>
+                    <td colSpan={11} className="text-center py-6 text-gray-400">Tidak ada data Jurnal Reading</td>
                   </tr>
                 ) : (
                   jadwalJurnalReading.map((row: any, i: number) => (
                     <tr key={row.id} className={i % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                      <td className="px-4 py-4 text-center">
+                        <button
+                          type="button"
+                          aria-checked={selectedJurnalReadingItems.includes(row.id!)}
+                          role="checkbox"
+                          onClick={() => handleSelectItem('jurnal-reading', row.id!)}
+                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedJurnalReadingItems.includes(row.id!) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                        >
+                          {selectedJurnalReadingItems.includes(row.id!) && (
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                              <polyline points="20 7 11 17 4 10" />
+                            </svg>
+                          )}
+                        </button>
+                      </td>
                       <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{i + 1}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {row.tanggal ? formatTanggalKonsisten(row.tanggal) : ''}
@@ -5567,6 +5965,19 @@ export default function DetailBlokAntara() {
             </table>
           </div>
         </div>
+
+        {/* Tombol Hapus Terpilih untuk Jurnal Reading */}
+        {selectedJurnalReadingItems.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-4">
+            <button
+              disabled={isBulkDeleting}
+              onClick={() => handleBulkDelete('jurnal-reading')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${isBulkDeleting ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-red-500 text-white shadow-theme-xs hover:bg-red-600'}`}
+            >
+              {isBulkDeleting ? 'Menghapus...' : `Hapus Terpilih (${selectedJurnalReadingItems.length})`}
+            </button>
+          </div>
+        )}
       </div>
       <AnimatePresence>
         {showDeleteModal && (
@@ -6399,6 +6810,59 @@ export default function DetailBlokAntara() {
             </motion.div>
           </div>
         )}
+
+        {/* Modal Konfirmasi Bulk Delete */}
+        <AnimatePresence>
+          {showBulkDeleteModal && (
+            <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+              <div
+                className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+                onClick={() => setShowBulkDeleteModal(false)}
+              ></div>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+              >
+                <div className="flex items-center justify-between pb-6">
+                  <h2 className="text-xl font-bold text-gray-800 dark:text-white">Konfirmasi Hapus Data</h2>
+                </div>
+                <div>
+                  <p className="mb-6 text-gray-500 dark:text-gray-400">
+                    Apakah Anda yakin ingin menghapus <span className="font-semibold text-gray-800 dark:text-white">
+                      {bulkDeleteType === 'kuliah-besar' && selectedKuliahBesarItems.length}
+                      {bulkDeleteType === 'praktikum' && selectedPraktikumItems.length}
+                      {bulkDeleteType === 'agenda-khusus' && selectedAgendaKhususItems.length}
+                      {bulkDeleteType === 'pbl' && selectedPBLItems.length}
+                      {bulkDeleteType === 'jurnal-reading' && selectedJurnalReadingItems.length}
+                    </span> jadwal {bulkDeleteType === 'kuliah-besar' && 'kuliah besar'}
+                    {bulkDeleteType === 'praktikum' && 'praktikum'}
+                    {bulkDeleteType === 'agenda-khusus' && 'agenda khusus'}
+                    {bulkDeleteType === 'pbl' && 'PBL'}
+                    {bulkDeleteType === 'jurnal-reading' && 'jurnal reading'} terpilih? Data yang dihapus tidak dapat dikembalikan.
+                  </p>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      onClick={() => setShowBulkDeleteModal(false)}
+                      className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      onClick={confirmBulkDelete}
+                      className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition flex items-center justify-center"
+                      disabled={isBulkDeleting}
+                    >
+                      {isBulkDeleting ? 'Menghapus...' : 'Hapus'}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </AnimatePresence>
     </div>
   );

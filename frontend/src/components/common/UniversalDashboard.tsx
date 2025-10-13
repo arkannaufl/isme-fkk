@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import DashboardSuperAdmin from '../../pages/DashboardSuperAdmin';
-import DashboardDosen from '../../pages/DashboardDosen';
-import DashboardTimAkademik from '../../pages/DashboardTimAkademik';
+import React, { useEffect, useState } from "react";
+import DashboardSuperAdmin from "../../pages/DashboardSuperAdmin";
+import DashboardDosen from "../../pages/DashboardDosen";
+import DashboardTimAkademik from "../../pages/DashboardTimAkademik";
+import DashboardMahasiswa from "../../pages/DashboardMahasiswa";
 
 export default function UniversalDashboard() {
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -35,17 +36,21 @@ export default function UniversalDashboard() {
   }
 
   // Render dashboard based on user role
-  if (userRole === 'super_admin') {
+  if (userRole === "super_admin") {
     return <DashboardSuperAdmin />;
-  } else if (userRole === 'dosen') {
+  } else if (userRole === "dosen") {
     return <DashboardDosen />;
-  } else if (userRole === 'tim_akademik') {
+  } else if (userRole === "tim_akademik") {
     return <DashboardTimAkademik />;
+  } else if (userRole === "mahasiswa") {
+    return <DashboardMahasiswa />;
   } else {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <p className="text-gray-600 dark:text-gray-400">Role tidak dikenali</p>
+          <p className="text-gray-600 dark:text-gray-400">
+            Role tidak dikenali
+          </p>
         </div>
       </div>
     );

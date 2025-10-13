@@ -21,17 +21,39 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'name', 'username', 'email', 'password', 'avatar',
-        'nip', 'nid', 'nidn', 'nuptk', 'nim', 'gender', 'ipk', 'status', 'angkatan',
-        'telp', 'ket', 'role',
+        'name',
+        'username',
+        'email',
+        'password',
+        'avatar',
+        'nip',
+        'nid',
+        'nidn',
+        'nuptk',
+        'nim',
+        'gender',
+        'ipk',
+        'status',
+        'angkatan',
+        'telp',
+        'ket',
+        'role',
         'kompetensi',
         'keahlian',
         'is_logged_in',
         'current_token',
         'semester',
-        'tahun_ajaran_masuk_id', 'semester_masuk',
-        'matkul_ketua_id', 'matkul_anggota_id', 'peran_kurikulum_mengajar','peran_utama',
-        'is_veteran', 'veteran_notes', 'veteran_set_at', 'veteran_set_by', 'veteran_semester',
+        'tahun_ajaran_masuk_id',
+        'semester_masuk',
+        'matkul_ketua_id',
+        'matkul_anggota_id',
+        'peran_kurikulum_mengajar',
+        'peran_utama',
+        'is_veteran',
+        'veteran_notes',
+        'veteran_set_at',
+        'veteran_set_by',
+        'veteran_semester',
     ];
 
     /**
@@ -131,5 +153,21 @@ class User extends Authenticatable
     public function veteranSetBy()
     {
         return $this->belongsTo(User::class, 'veteran_set_by');
+    }
+
+    /**
+     * Get the kelompok kecil for this mahasiswa
+     */
+    public function kelompokKecil()
+    {
+        return $this->belongsTo(KelompokKecil::class, 'kelompok_kecil_id');
+    }
+
+    /**
+     * Get the kelompok besar for this mahasiswa
+     */
+    public function kelompokBesar()
+    {
+        return $this->belongsTo(KelompokBesar::class, 'kelompok_besar_id');
     }
 }

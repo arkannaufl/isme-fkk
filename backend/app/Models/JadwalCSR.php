@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class JadwalCSR extends Model
 {
     protected $table = 'jadwal_csr';
-    
+
     protected $fillable = [
         'mata_kuliah_kode',
         'tanggal',
@@ -23,8 +23,12 @@ class JadwalCSR extends Model
         'kelompok_kecil_id',
         'kategori_id',
         'topik',
+        'penilaian_submitted',
         'status_konfirmasi',
         'alasan_konfirmasi',
+        'status_reschedule',
+        'reschedule_reason',
+        'created_by',
     ];
 
     protected $casts = [
@@ -32,6 +36,7 @@ class JadwalCSR extends Model
         'jam_mulai' => 'string',
         'jam_selesai' => 'string',
         'jumlah_sesi' => 'integer',
+        'penilaian_submitted' => 'boolean',
     ];
 
     public function mataKuliah(): BelongsTo
@@ -57,6 +62,11 @@ class JadwalCSR extends Model
     public function kategori(): BelongsTo
     {
         return $this->belongsTo(CSR::class, 'kategori_id');
+    }
+
+    public function createdBy()
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     public function getActivitylogOptions(): LogOptions

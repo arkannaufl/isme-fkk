@@ -1,12 +1,33 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import api, { handleApiError } from '../utils/api';
 import { ChevronLeftIcon } from '../icons';
 import { AnimatePresence, motion } from 'framer-motion';
 import Select from 'react-select';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPenToSquare, faTrash } from '@fortawesome/free-solid-svg-icons';
+import { faPenToSquare, faTrash, faFileExcel, faDownload, faUpload, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 import { getRuanganOptions } from '../utils/ruanganHelper';
+import * as XLSX from 'xlsx';
+
+// Constants
+const SESSION_DURATION_MINUTES = 50;
+const MAX_SESSIONS = 6;
+const MIN_SESSIONS = 1;
+const TEMPLATE_DISPLAY_LIMIT = 10;
+const DEFAULT_PAGE_SIZE = 10;
+const EXCEL_COLUMN_WIDTHS = {
+  TANGGAL: 12,
+  JAM_MULAI: 10,
+  JAM_SELESAI: 10,
+  JENIS_BARIS: 12,
+  SESI: 6,
+  KELOMPOK_BESAR: 15,
+  DOSEN: 20,
+  MATERI: 25,
+  RUANGAN: 15,
+  AGENDA: 20,
+  INFO_COLUMN: 50
+};
 
 interface MataKuliah {
   kode: string;
@@ -18,10 +39,7 @@ interface MataKuliah {
   tipe_non_block?: string;
   tanggal_mulai?: string;
   tanggal_akhir?: string;
-  tanggalMulai?: string;
-  tanggalAkhir?: string;
   durasi_minggu?: number | null;
-  durasiMinggu?: number | null;
 }
 
 interface JadwalNonBlokNonCSR {
@@ -64,6 +82,23 @@ interface RuanganOption {
   gedung?: string;
 }
 
+interface JadwalNonBlokNonCSRType {
+  tanggal: string;
+  jam_mulai: string;
+  jam_selesai: string;
+  jenis_baris: 'materi' | 'agenda';
+  jumlah_sesi: number;
+  kelompok_besar_id: number | null;
+  nama_kelompok_besar?: string;
+  dosen_id: number | null;
+  nama_dosen?: string;
+  materi?: string;
+  ruangan_id: number | null;
+  nama_ruangan?: string;
+  agenda?: string;
+  use_ruangan?: boolean;
+}
+
 export default function DetailNonBlokNonCSR() {
   const { kode } = useParams();
   const navigate = useNavigate();
@@ -101,6 +136,25 @@ export default function DetailNonBlokNonCSR() {
   const [kelompokBesarAgendaOptions, setKelompokBesarAgendaOptions] = useState<{id: string | number, label: string, jumlah_mahasiswa: number}[]>([]);
   const [kelompokBesarMateriOptions, setKelompokBesarMateriOptions] = useState<{id: string | number, label: string, jumlah_mahasiswa: number}[]>([]);
 
+  // State untuk import Excel Non-Blok Non-CSR
+  const [showNonBlokImportModal, setShowNonBlokImportModal] = useState(false);
+  const [nonBlokImportFile, setNonBlokImportFile] = useState<File | null>(null);
+  const [nonBlokImportData, setNonBlokImportData] = useState<JadwalNonBlokNonCSRType[]>([]);
+  const [nonBlokImportErrors, setNonBlokImportErrors] = useState<string[]>([]);
+  const [nonBlokCellErrors, setNonBlokCellErrors] = useState<{ row: number, field: string, message: string }[]>([]);
+  const [nonBlokEditingCell, setNonBlokEditingCell] = useState<{ row: number, key: string } | null>(null);
+  const [nonBlokImportPage, setNonBlokImportPage] = useState(1);
+  const [nonBlokImportPageSize, setNonBlokImportPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [nonBlokImportedCount, setNonBlokImportedCount] = useState(0);
+  const nonBlokFileInputRef = useRef<HTMLInputElement>(null);
+  const [isNonBlokImporting, setIsNonBlokImporting] = useState(false);
+
+  // State untuk bulk delete Non Blok Non CSR
+  const [selectedNonBlokItems, setSelectedNonBlokItems] = useState<number[]>([]);
+  const [showNonBlokBulkDeleteModal, setShowNonBlokBulkDeleteModal] = useState(false);
+  const [isNonBlokDeleting, setIsNonBlokDeleting] = useState(false);
+  const [nonBlokSuccess, setNonBlokSuccess] = useState<string | null>(null);
+
   // Reset form function
   const resetForm = () => {
     setForm({
@@ -121,29 +175,6 @@ export default function DetailNonBlokNonCSR() {
     setErrorBackend('');
   };
 
-  // Fetch kelompok besar options untuk agenda khusus
-  const fetchKelompokBesarAgendaOptions = async () => {
-    if (!data) return;
-    try {
-      const res = await api.get(`/non-blok-non-csr/kelompok-besar?semester=${data.semester}`);
-      
-      setKelompokBesarAgendaOptions(Array.isArray(res.data) ? res.data : []);
-    } catch (err) {
-      console.error('Error fetching kelompok besar agenda:', err);
-    }
-  };
-
-  // Fetch kelompok besar options untuk materi
-  const fetchKelompokBesarMateriOptions = async () => {
-    if (!data) return;
-    try {
-      const res = await api.get(`/non-blok-non-csr/kelompok-besar?semester=${data.semester}`);
-      
-      setKelompokBesarMateriOptions(Array.isArray(res.data) ? res.data : []);
-    } catch (err) {
-      console.error('Error fetching kelompok besar materi:', err);
-    }
-  };
 
   // Fetch batch data untuk optimasi performa
   const fetchBatchData = async () => {
@@ -165,10 +196,10 @@ export default function DetailNonBlokNonCSR() {
       setDosenList(batchData.dosen_list);
       setRuanganList(batchData.ruangan_list);
       setJamOptions(batchData.jam_options);
+      setKelompokBesarAgendaOptions(batchData.kelompok_besar_agenda_options || []);
+      setKelompokBesarMateriOptions(batchData.kelompok_besar_materi_options || []);
       
     } catch (error: any) {
-      console.error('Error fetching batch data:', error);
-      console.error('Error details:', handleApiError(error, 'Memuat data batch'));
       setError(handleApiError(error, 'Memuat data batch'));
     } finally {
       setLoading(false);
@@ -213,11 +244,525 @@ export default function DetailNonBlokNonCSR() {
     const jam = Number(jamStr);
     const menit = Number(menitStr);
     if (isNaN(jam) || isNaN(menit)) return '';
-    const totalMenit = jam * 60 + menit + jumlahKali * 50;
+    const totalMenit = jam * 60 + menit + jumlahKali * SESSION_DURATION_MINUTES;
     const jamAkhir = Math.floor(totalMenit / 60).toString().padStart(2, '0');
     const menitAkhir = (totalMenit % 60).toString().padStart(2, '0');
     return `${jamAkhir}.${menitAkhir}`;
   }
+
+  // Download template Excel untuk Non-Blok Non-CSR
+  const downloadNonBlokTemplate = async () => {
+    if (!data) return;
+
+    try {
+      // Generate example dates within mata kuliah date range
+        const startDate = new Date(data.tanggal_mulai || '');
+        const endDate = new Date(data.tanggal_akhir || '');
+      const exampleDate1 = new Date(startDate.getTime() + (1 * 24 * 60 * 60 * 1000)); // +1 day
+      const exampleDate2 = new Date(startDate.getTime() + (2 * 24 * 60 * 60 * 1000)); // +2 days
+
+      // Template data
+      const templateData = [
+        ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Jenis Baris', 'Sesi', 'Kelompok Besar', 'Dosen', 'Materi', 'Ruangan', 'Keterangan Agenda'],
+        [
+          exampleDate1.toISOString().split('T')[0],
+          '07.20',
+          '08.10',
+          'materi',
+          '1',
+          '1',
+          dosenList[0]?.name || 'Dosen 1',
+          'Pengantar Mata Kuliah',
+          ruanganList[0]?.nama || 'Ruang 1'
+        ],
+        [
+          exampleDate2.toISOString().split('T')[0],
+          '08.20',
+          '09.10',
+          'agenda',
+          '1',
+          '1',
+          '',
+          '',
+          '',
+          'UTS AIK 1'
+        ]
+      ];
+
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      
+      // Add template sheet
+      const ws = XLSX.utils.aoa_to_sheet(templateData);
+      
+      // Set column widths
+      const colWidths = [
+        { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
+        { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
+        { wch: EXCEL_COLUMN_WIDTHS.JAM_SELESAI },
+        { wch: EXCEL_COLUMN_WIDTHS.JENIS_BARIS },
+        { wch: EXCEL_COLUMN_WIDTHS.SESI },
+        { wch: EXCEL_COLUMN_WIDTHS.KELOMPOK_BESAR },
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
+        { wch: EXCEL_COLUMN_WIDTHS.MATERI },
+        { wch: EXCEL_COLUMN_WIDTHS.RUANGAN },
+        { wch: EXCEL_COLUMN_WIDTHS.AGENDA }
+      ];
+      ws['!cols'] = colWidths;
+
+      XLSX.utils.book_append_sheet(wb, ws, 'Template Non-Blok Non-CSR');
+
+      // Add Tips dan Info sheet
+      const infoData = [
+        ['TIPS DAN INFORMASI IMPORT JADWAL NON-BLOK NON-CSR'],
+        [''],
+        ['📋 CARA UPLOAD FILE:'],
+        ['1. Download template ini dan isi dengan data jadwal non-blok non-CSR'],
+        ['2. Pastikan semua kolom wajib diisi dengan benar'],
+        ['3. Upload file Excel yang sudah diisi ke sistem'],
+        ['4. Periksa preview data dan perbaiki error jika ada'],
+        ['5. Klik "Import Data" untuk menyimpan jadwal'],
+        [''],
+        ['✏️ CARA EDIT DATA:'],
+        ['1. Klik pada kolom yang ingin diedit di tabel preview'],
+        ['2. Ketik atau paste data yang benar'],
+        ['3. Sistem akan otomatis validasi dan update error'],
+        ['4. Pastikan tidak ada error sebelum import'],
+        [''],
+        ['📊 KETERSEDIAAN DATA:'],
+        [''],
+        ['⏰ JAM YANG TERSEDIA:'],
+        ...jamOptions.slice(0, TEMPLATE_DISPLAY_LIMIT).map(jam => [`• ${jam}`]),
+        [''],
+        ['👥 KELOMPOK BESAR YANG TERSEDIA:'],
+        ...(kelompokBesarAgendaOptions.length > 0 ? 
+          kelompokBesarAgendaOptions.slice(0, TEMPLATE_DISPLAY_LIMIT).map(kb => [`• ${kb.label}`]) :
+          [['• Belum ada data kelompok besar']]
+        ),
+        [''],
+        ['👨‍🏫 DOSEN YANG TERSEDIA:'],
+        ...(dosenList.length > 0 ? 
+          dosenList.slice(0, TEMPLATE_DISPLAY_LIMIT).map(dosen => [`• ${dosen.name} (${dosen.nid})`]) :
+          [['• Belum ada data dosen']]
+        ),
+        [''],
+        ['🏢 RUANGAN YANG TERSEDIA:'],
+        ...(ruanganList.length > 0 ? 
+          ruanganList.slice(0, TEMPLATE_DISPLAY_LIMIT).map(ruangan => [`• ${ruangan.nama} (Kapasitas: ${ruangan.kapasitas || 'N/A'})`]) :
+          [['• Belum ada data ruangan']]
+        ),
+        [''],
+        ['⚠️ VALIDASI SISTEM:'],
+        [''],
+        ['📅 VALIDASI TANGGAL:'],
+        ['• Format: YYYY-MM-DD (contoh: 2024-01-15)'],
+        ['• Wajib dalam rentang mata kuliah:'],
+        [`  - Mulai: ${startDate.toLocaleDateString('id-ID')}`],
+        [`  - Akhir: ${endDate.toLocaleDateString('id-ID')}`],
+        [''],
+        ['⏰ VALIDASI JAM:'],
+        ['• Format: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
+        ['• Jam mulai harus sesuai opsi yang tersedia'],
+        ['• Jam selesai akan divalidasi berdasarkan perhitungan:'],
+        ['  Jam selesai = Jam mulai + (Jumlah sesi x 50 menit)'],
+        ['  Contoh: 07:20 + (2 x 50 menit) = 09:00'],
+        [''],
+        ['📝 VALIDASI JENIS BARIS:'],
+        ['• Jenis baris: materi atau agenda'],
+        ['• materi: Untuk jadwal materi kuliah (wajib isi Dosen, Materi, Ruangan)'],
+        ['• agenda: Untuk agenda khusus (wajib isi Keterangan Agenda, Ruangan opsional)'],
+        [''],
+        ['🔢 VALIDASI SESI:'],
+        [`• Jumlah sesi: ${MIN_SESSIONS}-${MAX_SESSIONS}`],
+        ['• Digunakan untuk menghitung jam selesai'],
+        ['• 1 sesi = 50 menit'],
+        [''],
+        ['👨‍🏫 VALIDASI DOSEN:'],
+        ['• Dosen wajib diisi untuk jenis baris "materi"'],
+        ['• Nama dosen harus ada di database'],
+        ['• Pastikan dosen tersedia untuk jadwal tersebut'],
+        [''],
+        ['🏢 VALIDASI RUANGAN:'],
+        ['• Ruangan wajib diisi untuk jenis baris "materi"'],
+        ['• Ruangan opsional untuk jenis baris "agenda"'],
+        ['• Nama ruangan harus ada di database'],
+        ['• Kapasitas ruangan harus mencukupi jumlah mahasiswa'],
+        [''],
+        ['👥 VALIDASI KELOMPOK BESAR:'],
+        ['• Kelompok besar wajib diisi'],
+        ['• Nama kelompok besar harus ada di database'],
+        ['• Harus sesuai dengan semester mata kuliah'],
+        [''],
+        ['💡 TIPS PENTING:'],
+        ['• Gunakan data yang ada di list ketersediaan di atas'],
+        ['• Periksa preview sebelum import'],
+        ['• Edit langsung di tabel preview jika ada error'],
+        ['• Sistem akan highlight error dengan warna merah'],
+        ['• Tooltip akan menampilkan pesan error detail']
+      ];
+
+      const infoWs = XLSX.utils.aoa_to_sheet(infoData);
+      infoWs['!cols'] = [{ wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN }];
+      XLSX.utils.book_append_sheet(wb, infoWs, 'Tips dan Info');
+
+      // Download file
+      XLSX.writeFile(wb, `Template_Non_Blok_Non_CSR_${data.kode}.xlsx`);
+    } catch (error) {
+      // Error downloading template
+    }
+  };
+
+  // Read Excel file untuk Non-Blok Non-CSR
+  const readNonBlokExcelFile = (file: File): Promise<{ headers: string[], data: any[][] }> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          
+          if (jsonData.length < 2) {
+            reject(new Error('File Excel harus memiliki minimal 2 baris (header dan data)'));
+            return;
+          }
+          
+          const headers = jsonData[0] as string[];
+          const dataRows = jsonData.slice(1) as any[][];
+          
+          resolve({ headers, data: dataRows });
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = () => reject(new Error('Gagal membaca file Excel'));
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  // Validasi data Excel Non-Blok Non-CSR
+  const validateNonBlokExcelData = (importData: JadwalNonBlokNonCSRType[]): { row: number, field: string, message: string }[] => {
+    const errors: { row: number, field: string, message: string }[] = [];
+    
+    if (!importData) return errors;
+
+    importData.forEach((row, index) => {
+      const rowNum = index + 1;
+
+      // Validasi tanggal
+      if (!row.tanggal) {
+        errors.push({ row: rowNum, field: 'tanggal', message: `Tanggal wajib diisi (Baris ${rowNum}, Kolom Tanggal)` });
+      } else if (!/^\d{4}-\d{2}-\d{2}$/.test(row.tanggal)) {
+        errors.push({ row: rowNum, field: 'tanggal', message: `Format tanggal tidak valid (Baris ${rowNum}, Kolom Tanggal)` });
+      } else {
+        // Validasi tanggal yang valid (misal: 2026-02-30 tidak valid)
+        const dateObj = new Date(row.tanggal);
+        if (isNaN(dateObj.getTime()) || row.tanggal !== dateObj.toISOString().split('T')[0]) {
+          errors.push({ row: rowNum, field: 'tanggal', message: `Tanggal tidak valid (Baris ${rowNum}, Kolom Tanggal)` });
+        } else if (data && data.tanggal_mulai && data.tanggal_akhir) {
+        const startDate = new Date(data.tanggal_mulai || '');
+        const endDate = new Date(data.tanggal_akhir || '');
+          const inputDate = new Date(row.tanggal);
+          
+          if (inputDate < startDate || inputDate > endDate) {
+            errors.push({ row: rowNum, field: 'tanggal', message: `Tanggal di luar rentang mata kuliah (Baris ${rowNum}, Kolom Tanggal)` });
+          }
+        }
+      }
+
+      // Validasi jam mulai
+      if (!row.jam_mulai) {
+        errors.push({ row: rowNum, field: 'jam_mulai', message: `Jam mulai wajib diisi (Baris ${rowNum}, Kolom Jam Mulai)` });
+      } else if (!/^\d{1,2}[.:]\d{2}$/.test(row.jam_mulai)) {
+        errors.push({ row: rowNum, field: 'jam_mulai', message: `Format jam tidak valid (Baris ${rowNum}, Kolom Jam Mulai)` });
+      } else {
+        const jamMulaiInput = row.jam_mulai.replace(':', '.');
+        if (!jamOptions.includes(jamMulaiInput)) {
+          errors.push({ row: rowNum, field: 'jam_mulai', message: `Jam mulai "${jamMulaiInput}" tidak valid. Jam yang tersedia: ${jamOptions.join(', ')} (Baris ${rowNum}, Kolom Jam Mulai)` });
+        }
+      }
+
+      // Validasi jam selesai
+      if (!row.jam_selesai) {
+        errors.push({ row: rowNum, field: 'jam_selesai', message: `Jam selesai wajib diisi (Baris ${rowNum}, Kolom Jam Selesai)` });
+      } else if (!/^\d{1,2}[.:]\d{2}$/.test(row.jam_selesai)) {
+        errors.push({ row: rowNum, field: 'jam_selesai', message: `Format jam tidak valid (Baris ${rowNum}, Kolom Jam Selesai)` });
+      } else {
+        const jamSelesaiInput = row.jam_selesai.replace(':', '.');
+        const expectedJamSelesai = hitungJamSelesai(row.jam_mulai, row.jumlah_sesi);
+        if (jamSelesaiInput !== expectedJamSelesai) {
+          errors.push({ row: rowNum, field: 'jam_selesai', message: `Jam selesai tidak sesuai perhitungan sesi. Seharusnya: ${expectedJamSelesai} (Baris ${rowNum}, Kolom Jam Selesai)` });
+        }
+      }
+
+      // Validasi jenis baris
+      if (!row.jenis_baris) {
+        errors.push({ row: rowNum, field: 'jenis_baris', message: `Jenis baris wajib diisi (Baris ${rowNum}, Kolom Jenis Baris)` });
+      } else if (!['materi', 'agenda'].includes(row.jenis_baris)) {
+        errors.push({ row: rowNum, field: 'jenis_baris', message: `Jenis baris harus "materi" atau "agenda" (Baris ${rowNum}, Kolom Jenis Baris)` });
+      }
+
+      // Validasi sesi
+      if (!row.jumlah_sesi) {
+        errors.push({ row: rowNum, field: 'jumlah_sesi', message: `Sesi wajib diisi (Baris ${rowNum}, Kolom Sesi)` });
+      } else       if (row.jumlah_sesi < MIN_SESSIONS || row.jumlah_sesi > MAX_SESSIONS) {
+        errors.push({ row: rowNum, field: 'jumlah_sesi', message: `Sesi harus ${MIN_SESSIONS}-${MAX_SESSIONS} (Baris ${rowNum}, Kolom Sesi)` });
+      }
+
+      // Validasi kelompok besar
+      if (row.kelompok_besar_id && row.kelompok_besar_id !== null) {
+        const validKelompokBesarIds = kelompokBesarAgendaOptions.map(kb => Number(kb.id));
+        if (!validKelompokBesarIds.includes(row.kelompok_besar_id)) {
+          const availableIds = kelompokBesarAgendaOptions.map(kb => kb.id).join(', ');
+          errors.push({ row: rowNum, field: 'kelompok_besar_id', message: `Kelompok besar ID ${row.kelompok_besar_id} tidak ditemukan. ID yang tersedia: ${availableIds} (Baris ${rowNum}, Kolom Kelompok Besar)` });
+        } else if (data && data.semester) {
+          const mataKuliahSemester = parseInt(data.semester.toString());
+          if (typeof mataKuliahSemester === 'number' && mataKuliahSemester > 0 && row.kelompok_besar_id !== mataKuliahSemester) {
+            errors.push({ row: rowNum, field: 'kelompok_besar_id', message: `Kelompok besar ID ${row.kelompok_besar_id} tidak sesuai dengan semester mata kuliah (${mataKuliahSemester}). Hanya boleh menggunakan kelompok besar semester ${mataKuliahSemester}. (Baris ${rowNum}, Kolom Kelompok Besar)` });
+          }
+        }
+      }
+
+      // Validasi khusus untuk jenis materi
+      if (row.jenis_baris === 'materi') {
+        // Validasi dosen
+        if (!row.dosen_id || row.dosen_id === null) {
+          errors.push({ row: rowNum, field: 'dosen_id', message: `Dosen wajib diisi untuk jenis materi (Baris ${rowNum}, Kolom Dosen)` });
+        } else {
+          const validDosenIds = dosenList.map(d => d.id);
+          if (!validDosenIds.includes(row.dosen_id)) {
+            errors.push({ row: rowNum, field: 'dosen_id', message: `Dosen tidak ditemukan (Baris ${rowNum}, Kolom Dosen)` });
+          }
+        }
+
+        // Validasi materi
+        if (!row.materi || row.materi.trim() === '') {
+          errors.push({ row: rowNum, field: 'materi', message: `Materi wajib diisi untuk jenis materi (Baris ${rowNum}, Kolom Materi)` });
+        }
+
+        // Validasi ruangan
+        if (!row.ruangan_id || row.ruangan_id === null) {
+          errors.push({ row: rowNum, field: 'ruangan_id', message: `Ruangan wajib diisi untuk jenis materi (Baris ${rowNum}, Kolom Ruangan)` });
+        } else {
+          const validRuanganIds = ruanganList.map(r => r.id);
+          if (!validRuanganIds.includes(row.ruangan_id)) {
+            errors.push({ row: rowNum, field: 'ruangan_id', message: `Ruangan tidak ditemukan (Baris ${rowNum}, Kolom Ruangan)` });
+          }
+        }
+      }
+
+      // Validasi khusus untuk jenis agenda
+      if (row.jenis_baris === 'agenda') {
+        // Validasi keterangan agenda
+        if (!row.agenda || row.agenda.trim() === '') {
+          errors.push({ row: rowNum, field: 'agenda', message: `Keterangan agenda wajib diisi untuk jenis agenda (Baris ${rowNum}, Kolom Keterangan Agenda)` });
+        }
+
+        // Validasi ruangan (opsional untuk agenda)
+        if (row.ruangan_id && row.ruangan_id !== null) {
+          const validRuanganIds = ruanganList.map(r => r.id);
+          if (!validRuanganIds.includes(row.ruangan_id)) {
+            errors.push({ row: rowNum, field: 'ruangan_id', message: `Ruangan tidak ditemukan (Baris ${rowNum}, Kolom Ruangan)` });
+          }
+        }
+      }
+    });
+
+    return errors;
+  };
+
+  // Handle import Excel untuk Non-Blok Non-CSR
+  const handleNonBlokImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+
+    // Reset states
+    setNonBlokImportErrors([]);
+    setNonBlokCellErrors([]);
+    setNonBlokImportData([]);
+
+    try {
+      // Validate file type
+      if (!file.name.toLowerCase().endsWith('.xlsx') && !file.name.toLowerCase().endsWith('.xls')) {
+        setNonBlokImportErrors(['Format file Excel tidak dikenali. Harap gunakan file .xlsx atau .xls']);
+        return;
+      }
+
+      // Read Excel file
+      const { headers, data: excelData } = await readNonBlokExcelFile(file);
+      
+      
+      // Validate headers
+      const expectedHeaders = ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Jenis Baris', 'Sesi', 'Kelompok Besar', 'Dosen', 'Materi', 'Ruangan', 'Keterangan Agenda'];
+      
+      const headerMatch = expectedHeaders.every(header => headers.includes(header));
+      
+      if (!headerMatch) {
+        const missingHeaders = expectedHeaders.filter(header => !headers.includes(header));
+        setNonBlokImportErrors([`Format file Excel tidak dikenali. Kolom yang hilang: ${missingHeaders.join(', ')}. Pastikan kolom sesuai dengan template yang didownload`]);
+        return;
+      }
+
+      // Convert Excel data to our format
+      const convertedData = excelData.map((row, index) => {
+        const rowNum = index + 1;
+        
+        
+        // Parse kelompok besar ID
+        let kelompokBesarId = null;
+        if (row[5] && row[5] !== '') {
+          const kelompokBesarOption = kelompokBesarAgendaOptions.find(kb => kb.label === row[5].toString() || kb.label.includes(row[5].toString()) || kb.id.toString() === row[5].toString() || kb.label.includes(`Semester ${row[5]}`) || kb.label.includes(`Kelompok Besar Semester ${row[5]}`) || kb.label.includes(`Kelompok Besar ${row[5]}`) || kb.label.includes(`Kelompok ${row[5]}`) || kb.label.includes(`Kelompok Besar ${row[5]} (${kb.jumlah_mahasiswa} mahasiswa)`));
+          kelompokBesarId = kelompokBesarOption ? Number(kelompokBesarOption.id) : null;
+        }
+
+        // Parse dosen ID
+        let dosenId = null;
+        if (row[6] && row[6] !== '') {
+          const dosenOption = dosenList.find(d => d.name === row[6] || `${d.name} (${d.nid})` === row[6] || d.name.includes(row[6]) || d.nid === row[6]);
+          dosenId = dosenOption ? dosenOption.id : null;
+        }
+
+        // Parse ruangan ID
+        let ruanganId = null;
+        if (row[8] && row[8] !== '') {
+          const ruanganOption = ruanganList.find(r => r.nama === row[8] || r.nama.includes(row[8]) || r.id.toString() === row[8]);
+          ruanganId = ruanganOption ? ruanganOption.id : null;
+        }
+
+        // Parse dan validasi tanggal
+        let tanggal = '';
+        if (row[0]) {
+          if (typeof row[0] === 'number') {
+            tanggal = XLSX.SSF.format('yyyy-mm-dd', row[0]);
+          } else {
+            tanggal = row[0].toString();
+          }
+          
+          // Validasi tanggal
+          const dateObj = new Date(tanggal);
+          if (isNaN(dateObj.getTime()) || tanggal !== dateObj.toISOString().split('T')[0]) {
+            tanggal = ''; // Set empty jika tanggal tidak valid
+          }
+        }
+
+        const convertedRow = {
+          tanggal: tanggal,
+          jam_mulai: row[1] || '',
+          jam_selesai: row[2] || '',
+          jenis_baris: row[3] || '',
+          jumlah_sesi: parseInt(row[4]) || 0,
+          kelompok_besar_id: kelompokBesarId,
+          nama_kelompok_besar: row[5] || '',
+          dosen_id: dosenId,
+          nama_dosen: row[6] || '',
+          materi: row[7] || '',
+          ruangan_id: ruanganId,
+          nama_ruangan: row[8] || '',
+          agenda: row[9] || '',
+          use_ruangan: row[8] && row[8] !== '' ? true : false
+        };
+        
+        return convertedRow;
+      });
+
+
+      // Validate data
+      const validationErrors = validateNonBlokExcelData(convertedData);
+      setNonBlokCellErrors(validationErrors);
+
+      // Set data and open modal
+      setNonBlokImportData(convertedData);
+      setNonBlokImportFile(file);
+      setShowNonBlokImportModal(true);
+      
+
+    } catch (error: any) {
+      setNonBlokImportErrors([error.message || 'Terjadi kesalahan saat membaca file Excel']);
+    }
+  };
+
+  // Submit import Excel untuk Non-Blok Non-CSR
+  const handleNonBlokSubmitImport = async () => {
+    if (!kode || nonBlokImportData.length === 0) return;
+
+    setIsNonBlokImporting(true);
+    setNonBlokImportErrors([]);
+
+    try {
+      // Final validation
+      const validationErrors = validateNonBlokExcelData(nonBlokImportData);
+      if (validationErrors.length > 0) {
+        setNonBlokCellErrors(validationErrors);
+        setIsNonBlokImporting(false);
+        return;
+      }
+
+      // Transform data for API
+      const apiData = nonBlokImportData.map(row => ({
+        tanggal: row.tanggal,
+        jam_mulai: row.jam_mulai,
+        jam_selesai: row.jam_selesai,
+        jenis_baris: row.jenis_baris,
+        jumlah_sesi: row.jumlah_sesi,
+        kelompok_besar_id: row.kelompok_besar_id,
+        dosen_id: row.dosen_id,
+        materi: row.materi,
+        ruangan_id: row.ruangan_id,
+        agenda: row.agenda,
+        use_ruangan: row.use_ruangan
+      }));
+
+      // Send to API
+      const response = await api.post(`/non-blok-non-csr/jadwal/${kode}/import`, {
+        data: apiData
+      });
+
+      if (response.data.success) {
+        setNonBlokImportedCount(nonBlokImportData.length);
+        setShowNonBlokImportModal(false);
+        await fetchBatchData(); // Refresh data
+      } else {
+        setNonBlokImportErrors([response.data.message || 'Terjadi kesalahan saat mengimport data']);
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || 'Terjadi kesalahan saat mengimport data';
+      setNonBlokImportErrors([errorMessage]);
+    } finally {
+      setIsNonBlokImporting(false);
+    }
+  };
+
+  // Close import modal untuk Non-Blok Non-CSR
+  const handleNonBlokCloseImportModal = () => {
+    setShowNonBlokImportModal(false);
+    setNonBlokImportData([]);
+    setNonBlokImportErrors([]);
+    setNonBlokCellErrors([]);
+    setNonBlokEditingCell(null);
+    setNonBlokImportPage(1);
+    if (nonBlokFileInputRef.current) {
+      nonBlokFileInputRef.current.value = '';
+    }
+  };
+
+  // Edit cell untuk Non-Blok Non-CSR
+  const handleNonBlokEditCell = (rowIndex: number, field: string, value: any) => {
+    const updatedData = [...nonBlokImportData];
+    updatedData[rowIndex] = { ...updatedData[rowIndex], [field]: value };
+    setNonBlokImportData(updatedData);
+    
+    // Re-validate
+    const validationErrors = validateNonBlokExcelData(updatedData);
+    setNonBlokCellErrors(validationErrors);
+  };
+
+  // Finish editing cell
+  const handleNonBlokFinishEdit = () => {
+    setNonBlokEditingCell(null);
+  };
 
   // Update jam selesai saat jam mulai/jumlah kali berubah
   function handleFormChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
@@ -229,8 +774,8 @@ export default function DetailNonBlokNonCSR() {
     }
     // Validasi tanggal harus dalam rentang tanggal mulai & akhir
     if (name === 'hariTanggal' && data && value) {
-      const tglMulai = new Date(data.tanggal_mulai || data.tanggalMulai || '');
-      const tglAkhir = new Date(data.tanggal_akhir || data.tanggalAkhir || '');
+      const tglMulai = new Date(data.tanggal_mulai || '');
+      const tglAkhir = new Date(data.tanggal_akhir || '');
       const tglInput = new Date(value);
       if (tglMulai && tglInput < tglMulai) {
         setErrorForm('Tanggal tidak boleh sebelum tanggal mulai!');
@@ -299,8 +844,6 @@ export default function DetailNonBlokNonCSR() {
       setShowDeleteModal(false);
       setSelectedDeleteIndex(null);
     } catch (error: any) {
-      console.error('Error deleting jadwal:', error);
-      console.error('Error details:', handleApiError(error, 'Menghapus jadwal'));
       setErrorBackend(handleApiError(error, 'Menghapus jadwal'));
     }
   }
@@ -342,32 +885,163 @@ export default function DetailNonBlokNonCSR() {
       setShowModal(false);
       resetForm();
     } catch (error: any) {
-      console.error('Error saving jadwal:', error);
-      console.error('Error details:', handleApiError(error, 'Menyimpan jadwal'));
       setErrorBackend(handleApiError(error, 'Menyimpan jadwal'));
     } finally {
       setIsSaving(false);
     }
   }
 
+  // Fungsi untuk export Excel Non-Blok Non-CSR
+  const exportNonBlokNonCSRExcel = async () => {
+    try {
+      if (jadwalMateri.length === 0) {
+        alert('Tidak ada data Non-Blok Non-CSR untuk diekspor');
+        return;
+      }
+
+      // Transform data untuk export
+      const exportData = jadwalMateri.map((row, index) => {
+        const dosen = dosenList.find(d => d.id === row.dosen_id);
+        const ruangan = ruanganList.find(r => r.id === row.ruangan_id);
+
+        return {
+          'Tanggal': row.tanggal ? new Date(row.tanggal).toISOString().split('T')[0] : '',
+          'Jam Mulai': row.jam_mulai,
+          'Jam Selesai': row.jam_selesai,
+          'Jenis Baris': row.jenis_baris,
+          'Sesi': row.jumlah_sesi,
+          'Kelompok Besar': row.kelompok_besar_id || '',
+          'Dosen': dosen?.name || '',
+          'Materi': row.materi || '',
+          'Ruangan': ruangan?.nama || '',
+          'Keterangan Agenda': row.agenda || ''
+        };
+      });
+
+      // Buat workbook
+      const wb = XLSX.utils.book_new();
+      
+      // Sheet 1: Data Non-Blok Non-CSR
+      const ws = XLSX.utils.json_to_sheet(exportData, {
+        header: ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Jenis Baris', 'Sesi', 'Kelompok Besar', 'Dosen', 'Materi', 'Ruangan', 'Keterangan Agenda']
+      });
+      
+      // Set lebar kolom
+      const colWidths = [
+        { wch: 12 }, // Tanggal
+        { wch: 10 }, // Jam Mulai
+        { wch: 10 }, // Jam Selesai
+        { wch: 12 }, // Jenis Baris
+        { wch: 6 },  // Sesi
+        { wch: 15 }, // Kelompok Besar
+        { wch: 25 }, // Dosen
+        { wch: 30 }, // Materi
+        { wch: 20 }, // Ruangan
+        { wch: 20 }  // Keterangan Agenda
+      ];
+      ws['!cols'] = colWidths;
+      
+      XLSX.utils.book_append_sheet(wb, ws, 'Data Non-Blok Non-CSR');
+
+      // Sheet 2: Info Mata Kuliah
+      const infoData = [
+        ['INFORMASI MATA KULIAH'],
+        [''],
+        ['Kode Mata Kuliah', data?.kode || ''],
+        ['Nama Mata Kuliah', data?.nama || ''],
+        ['Semester', data?.semester || ''],
+        ['Periode', data?.periode || ''],
+        ['Kurikulum', data?.kurikulum || ''],
+        ['Jenis', data?.jenis || ''],
+        ['Tipe Non-Blok', data?.tipe_non_block || ''],
+        ['Tanggal Mulai', data?.tanggal_mulai ? new Date(data.tanggal_mulai).toISOString().split('T')[0] : ''],
+        ['Tanggal Akhir', data?.tanggal_akhir ? new Date(data.tanggal_akhir).toISOString().split('T')[0] : ''],
+        ['Durasi Minggu', data?.durasi_minggu || ''],
+        [''],
+        ['TOTAL JADWAL NON-BLOK NON-CSR', jadwalMateri.length],
+        [''],
+        ['CATATAN:'],
+        ['• File ini berisi data jadwal Non-Blok Non-CSR yang dapat di-import kembali ke aplikasi'],
+        ['• Format tanggal: YYYY-MM-DD'],
+        ['• Format jam: HH.MM atau HH:MM'],
+        ['• Sesi: 1-6 (1 sesi = 50 menit)'],
+        ['• Jenis: Jadwal Materi atau Agenda Khusus'],
+        ['• Ruangan dapat dikosongkan jika tidak menggunakan ruangan'],
+        ['• Pastikan data dosen, ruangan, dan kelompok besar valid sebelum import']
+      ];
+
+      const infoWs = XLSX.utils.aoa_to_sheet(infoData);
+      infoWs['!cols'] = [{ wch: 30 }, { wch: 50 }];
+      XLSX.utils.book_append_sheet(wb, infoWs, 'Info Mata Kuliah');
+
+      // Download file
+      const fileName = `Export_Non_Blok_Non_CSR_${data?.kode || 'MataKuliah'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (error) {
+      alert('Gagal mengekspor data Non-Blok Non-CSR');
+    }
+  };
+
   // Fetch batch data on component mount
   useEffect(() => {
     fetchBatchData();
   }, [kode]);
 
-  // Fetch kelompok besar options saat modal agenda khusus dibuka
+  // Effect untuk auto-hide success message Non Blok bulk delete
   useEffect(() => {
-    if (showModal && form.jenisBaris === 'agenda') {
-      fetchKelompokBesarAgendaOptions();
+    if (nonBlokSuccess) {
+      const timer = setTimeout(() => {
+        setNonBlokSuccess(null);
+      }, 5000);
+      return () => clearTimeout(timer);
     }
-  }, [showModal, form.jenisBaris]);
+  }, [nonBlokSuccess]);
 
-  // Fetch kelompok besar options saat modal materi dibuka
-  useEffect(() => {
-    if (showModal && form.jenisBaris === 'materi') {
-      fetchKelompokBesarMateriOptions();
+  // Fungsi untuk bulk delete Non Blok Non CSR
+  const handleNonBlokBulkDelete = () => {
+    if (selectedNonBlokItems.length === 0) return;
+    setShowNonBlokBulkDeleteModal(true);
+  };
+
+  const confirmNonBlokBulkDelete = async () => {
+    if (selectedNonBlokItems.length === 0) return;
+    
+    setIsNonBlokDeleting(true);
+    try {
+      // Delete all selected items
+      await Promise.all(selectedNonBlokItems.map(id => api.delete(`/non-blok-non-csr/jadwal/${kode}/${id}`)));
+      
+      // Set success message
+      setNonBlokSuccess(`${selectedNonBlokItems.length} jadwal Non-Blok Non-CSR berhasil dihapus.`);
+      
+      // Clear selections
+      setSelectedNonBlokItems([]);
+      setShowNonBlokBulkDeleteModal(false);
+      
+      // Refresh data
+      await fetchBatchData();
+    } catch (error: any) {
+      setError(handleApiError(error, 'Menghapus jadwal Non-Blok Non-CSR'));
+    } finally {
+      setIsNonBlokDeleting(false);
     }
-  }, [showModal, form.jenisBaris]);
+  };
+
+  const handleNonBlokSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedNonBlokItems(jadwalMateri.map(jadwal => jadwal.id!));
+    } else {
+      setSelectedNonBlokItems([]);
+    }
+  };
+
+  const handleNonBlokSelectItem = (id: number) => {
+    if (selectedNonBlokItems.includes(id)) {
+      setSelectedNonBlokItems(selectedNonBlokItems.filter(itemId => itemId !== id));
+    } else {
+      setSelectedNonBlokItems([...selectedNonBlokItems, id]);
+    }
+  };
 
   if (loading) return (
     <div className="w-full mx-auto">
@@ -399,9 +1073,13 @@ export default function DetailNonBlokNonCSR() {
       
       {/* Jadwal Non-Blok Non-CSR skeleton */}
       <div className="mb-8">
-        <div className="flex items-center justify-between mb-2">
-          <div className="h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-          <div className="h-8 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+        <div className="flex items-center justify-start mb-2">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+            <div className="h-8 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+            <div className="h-8 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+            <div className="h-8 w-28 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          </div>
         </div>
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
           <div className="max-w-full overflow-x-auto hide-scroll">
@@ -465,7 +1143,7 @@ export default function DetailNonBlokNonCSR() {
       {/* Header */}
       <div className="pt-6 pb-2">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/mata-kuliah')}
           className="flex items-center gap-2 text-brand-500 font-medium hover:text-brand-600 transition px-0 py-0 bg-transparent shadow-none"
         >
           <ChevronLeftIcon className="w-5 h-5" />
@@ -513,20 +1191,51 @@ export default function DetailNonBlokNonCSR() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
           <div className="mb-2 text-gray-500 text-xs font-semibold uppercase">Tanggal Mulai</div>
-          <div className="text-base text-gray-800 dark:text-white">{(data.tanggal_mulai ? new Date(data.tanggal_mulai).toLocaleDateString('id-ID') : data.tanggalMulai ? new Date(data.tanggalMulai).toLocaleDateString('id-ID') : '-' )}</div>
+          <div className="text-base text-gray-800 dark:text-white">{data.tanggal_mulai ? new Date(data.tanggal_mulai).toLocaleDateString('id-ID') : '-'}</div>
         </div>
         <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
           <div className="mb-2 text-gray-500 text-xs font-semibold uppercase">Tanggal Akhir</div>
-          <div className="text-base text-gray-800 dark:text-white">{(data.tanggal_akhir ? new Date(data.tanggal_akhir).toLocaleDateString('id-ID') : data.tanggalAkhir ? new Date(data.tanggalAkhir).toLocaleDateString('id-ID') : '-' )}</div>
+          <div className="text-base text-gray-800 dark:text-white">{data.tanggal_akhir ? new Date(data.tanggal_akhir).toLocaleDateString('id-ID') : '-'}</div>
         </div>
         <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
           <div className="mb-2 text-gray-500 text-xs font-semibold uppercase">Durasi Minggu</div>
-          <div className="text-base text-gray-800 dark:text-white">{data.durasi_minggu || data.durasiMinggu || '-'}</div>
+          <div className="text-base text-gray-800 dark:text-white">{data.durasi_minggu || '-'}</div>
         </div>
       </div>
 
       {/* TOMBOL TAMBAH JADWAL MATERI */}
-      <div className="flex justify-end mb-4">
+      <div className="flex gap-2 items-center mb-4">
+        <label className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform cursor-pointer">
+          <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-brand-700 dark:text-brand-200" />
+          Import Excel
+          <input
+            ref={nonBlokFileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            onChange={handleNonBlokImportExcel}
+            className="hidden"
+          />
+        </label>
+        <button
+          onClick={downloadNonBlokTemplate}
+          className="px-4 py-2 rounded-lg bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 text-sm font-medium shadow-theme-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition flex items-center gap-2"
+        >
+          <FontAwesomeIcon icon={faDownload} className="w-5 h-5" />
+          Download Template Excel
+        </button>
+        <button
+          onClick={exportNonBlokNonCSRExcel}
+          disabled={jadwalMateri.length === 0}
+          className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
+            jadwalMateri.length === 0 
+              ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed' 
+              : 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800'
+          }`}
+          title={jadwalMateri.length === 0 ? 'Tidak ada data Non-Blok Non-CSR. Silakan tambahkan data jadwal terlebih dahulu untuk melakukan export.' : 'Export data Non-Blok Non-CSR ke Excel'}
+        >
+          <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5" />
+          Export ke Excel
+        </button>
         <button
           onClick={() => {
             resetForm();
@@ -536,9 +1245,44 @@ export default function DetailNonBlokNonCSR() {
           }}
           className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition-all duration-300"
         >
-          Tambah Jadwal Kuliah
+          Tambah Jadwal
         </button>
       </div>
+
+
+      {/* Success Message */}
+      <AnimatePresence>
+        {nonBlokImportedCount > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
+            onAnimationComplete={() => {
+              setTimeout(() => {
+                setNonBlokImportedCount(0);
+              }, 5000);
+            }}
+          >
+            {nonBlokImportedCount} jadwal Non-Blok Non-CSR berhasil diimpor ke database.
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Success Message Non Blok Bulk Delete */}
+      <AnimatePresence>
+        {nonBlokSuccess && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
+          >
+            {nonBlokSuccess}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Tabel Jadwal Materi */}
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03] mt-8">
@@ -546,6 +1290,21 @@ export default function DetailNonBlokNonCSR() {
           <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
             <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
               <tr>
+                <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                  <button
+                    type="button"
+                    aria-checked={jadwalMateri.length > 0 && jadwalMateri.every(item => selectedNonBlokItems.includes(item.id!))}
+                    role="checkbox"
+                    onClick={() => handleNonBlokSelectAll(!(jadwalMateri.length > 0 && jadwalMateri.every(item => selectedNonBlokItems.includes(item.id!))))}
+                    className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${jadwalMateri.length > 0 && jadwalMateri.every(item => selectedNonBlokItems.includes(item.id!)) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                  >
+                    {jadwalMateri.length > 0 && jadwalMateri.every(item => selectedNonBlokItems.includes(item.id!)) && (
+                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                        <polyline points="20 7 11 17 4 10" />
+                      </svg>
+                    )}
+                  </button>
+                </th>
                 <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Hari/Tanggal</th>
                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pukul</th>
@@ -560,7 +1319,7 @@ export default function DetailNonBlokNonCSR() {
             <tbody>
               {jadwalMateri.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-6 text-gray-400">Tidak ada data jadwal</td>
+                  <td colSpan={10} className="text-center py-6 text-gray-400">Tidak ada data jadwal</td>
                 </tr>
               ) : (
                 jadwalMateri
@@ -572,6 +1331,21 @@ export default function DetailNonBlokNonCSR() {
                 })
                 .map((row, idx) => (
                     <tr key={row.id} className={row.jenis_baris === 'agenda' ? 'bg-yellow-50 dark:bg-yellow-900/20' : (idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : '')}>
+                      <td className="px-4 py-4 text-center">
+                        <button
+                          type="button"
+                          aria-checked={selectedNonBlokItems.includes(row.id!)}
+                          role="checkbox"
+                          onClick={() => handleNonBlokSelectItem(row.id!)}
+                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedNonBlokItems.includes(row.id!) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                        >
+                          {selectedNonBlokItems.includes(row.id!) && (
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                              <polyline points="20 7 11 17 4 10" />
+                            </svg>
+                          )}
+                        </button>
+                      </td>
                       <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{idx + 1}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatTanggalKonsisten(row.tanggal)}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatJamTanpaDetik(row.jam_mulai)}–{formatJamTanpaDetik(row.jam_selesai)}</td>
@@ -615,6 +1389,19 @@ export default function DetailNonBlokNonCSR() {
           </table>
         </div>
       </div>
+
+        {/* Tombol Hapus Terpilih untuk Non Blok Non CSR */}
+        {selectedNonBlokItems.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-4">
+            <button
+              disabled={isNonBlokDeleting}
+              onClick={handleNonBlokBulkDelete}
+              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${isNonBlokDeleting ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-red-500 text-white shadow-theme-xs hover:bg-red-600'}`}
+            >
+              {isNonBlokDeleting ? 'Menghapus...' : `Hapus Terpilih (${selectedNonBlokItems.length})`}
+            </button>
+          </div>
+        )}
 
       {/* MODAL INPUT JADWAL MATERI */}
       <AnimatePresence>
@@ -1194,6 +1981,352 @@ export default function DetailNonBlokNonCSR() {
               <div className="flex justify-end gap-2">
                 <button onClick={() => setShowDeleteModal(false)} className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition">Batal</button>
                 <button onClick={() => { if (selectedDeleteIndex !== null) { handleDeleteJadwal(selectedDeleteIndex); setShowDeleteModal(false); setSelectedDeleteIndex(null); } }} className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition">Hapus</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+       {/* MODAL IMPORT EXCEL NON-BLOK NON-CSR */}
+       <AnimatePresence>
+         {showNonBlokImportModal && (
+           <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+             {/* Overlay */}
+             <motion.div 
+               initial={{ opacity: 0 }}
+               animate={{ opacity: 1 }}
+               exit={{ opacity: 0 }}
+               className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+               onClick={handleNonBlokCloseImportModal}
+             />
+             {/* Modal Content */}
+             <motion.div 
+               initial={{ opacity: 0, scale: 0.95 }}
+               animate={{ opacity: 1, scale: 1 }}
+               exit={{ opacity: 0, scale: 0.95 }}
+               transition={{ duration: 0.2 }}
+               className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+             >
+               {/* Close Button */}
+               <button
+                 onClick={handleNonBlokCloseImportModal}
+                 className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+               >
+                 <svg
+                   width="20"
+                   height="20"
+                   fill="none"
+                   viewBox="0 0 24 24"
+                   className="w-6 h-6"
+                 >
+                   <path
+                     fillRule="evenodd"
+                     clipRule="evenodd"
+                     d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                     fill="currentColor"
+                   />
+                 </svg>
+               </button>
+
+               {/* Header */}
+               <div className="mb-6">
+                 <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Import Jadwal Non-Blok Non-CSR</h2>
+                 <p className="text-sm text-gray-500 dark:text-gray-400">Preview dan validasi data sebelum import</p>
+               </div>
+
+              {/* File Info */}
+              {nonBlokImportFile && (
+                <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-500" />
+                    <div className="flex-1">
+                      <p className="font-medium text-blue-800 dark:text-blue-200">{nonBlokImportFile.name}</p>
+                      <p className="text-sm text-blue-600 dark:text-blue-300">
+                        {(nonBlokImportFile.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Error Messages */}
+              {(nonBlokImportErrors.length > 0 || nonBlokCellErrors.length > 0) && (
+                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0">
+                      <FontAwesomeIcon icon={faExclamationTriangle} className="w-5 h-5 text-red-500" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                        Error Validasi ({nonBlokImportErrors.length + nonBlokCellErrors.length} error)
+                      </h3>
+                      <div className="max-h-40 overflow-y-auto">
+                        {/* Error dari API response */}
+                        {nonBlokImportErrors.map((err, idx) => (
+                          <p key={idx} className="text-sm text-red-600 dark:text-red-400 mb-1">• {err}</p>
+                        ))}
+                        {/* Error cell/detail */}
+                        {nonBlokCellErrors.map((err, idx) => (
+                          <p key={idx} className="text-sm text-red-600 dark:text-red-400 mb-1">
+                            • {err.message} (Baris {err.row}, Kolom {err.field.toUpperCase()})
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Preview Table */}
+              {nonBlokImportData.length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                      Preview Data ({nonBlokImportData.length} jadwal)
+                    </h3>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      File: {nonBlokImportFile?.name}
+                    </div>
+                  </div>
+                  
+                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                    <div className="max-w-full overflow-x-auto hide-scroll">
+                      <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                        <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                          <tr>
+                            <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Mulai</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Selesai</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jenis Baris</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Sesi</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Kelompok Besar</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Dosen</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Materi</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Keterangan Agenda</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                        {nonBlokImportData
+                          .slice((nonBlokImportPage - 1) * nonBlokImportPageSize, nonBlokImportPage * nonBlokImportPageSize)
+                          .map((row, index) => {
+                            const actualIndex = (nonBlokImportPage - 1) * nonBlokImportPageSize + index;
+                            
+                            const renderEditableCell = (field: string, value: any, isNumeric = false) => {
+                              const isEditing = nonBlokEditingCell?.row === actualIndex && nonBlokEditingCell?.key === field;
+                              const cellError = nonBlokCellErrors.find(err => err.row === actualIndex + 1 && err.field === field);
+                              
+                              return (
+                                <td
+                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
+                                  onClick={() => setNonBlokEditingCell({ row: actualIndex, key: field })}
+                                  title={cellError ? cellError.message : ''}
+                                >
+                                  {isEditing ? (
+                                    <input
+                                      className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
+                                      type={isNumeric ? "number" : "text"}
+                                      value={value || ""}
+                                      onChange={e => handleNonBlokEditCell(actualIndex, field, isNumeric ? parseInt(e.target.value) : e.target.value)}
+                                      onBlur={handleNonBlokFinishEdit}
+                                      onKeyDown={e => {
+                                        if (e.key === 'Enter') {
+                                          handleNonBlokFinishEdit();
+                                        }
+                                        if (e.key === 'Escape') {
+                                          handleNonBlokFinishEdit();
+                                        }
+                                      }}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <span className={cellError ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>{value || '-'}</span>
+                                  )}
+                                </td>
+                              );
+                            };
+                            
+                            return (
+                              <tr 
+                                key={actualIndex} 
+                                className={`${index % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}`}
+                              >
+                                <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{actualIndex + 1}</td>
+                                {renderEditableCell('tanggal', row.tanggal)}
+                                {renderEditableCell('jam_mulai', row.jam_mulai)}
+                                {renderEditableCell('jam_selesai', row.jam_selesai)}
+                                {renderEditableCell('jenis_baris', row.jenis_baris)}
+                                {renderEditableCell('jumlah_sesi', row.jumlah_sesi, true)}
+                                {(() => {
+                                  const field = 'kelompok_besar_id';
+                                  const isEditing = nonBlokEditingCell?.row === actualIndex && nonBlokEditingCell?.key === field;
+                                  const cellError = nonBlokCellErrors.find(err => err.row === actualIndex + 1 && err.field === field);
+                                  const kelompokBesar = kelompokBesarAgendaOptions.find(kb => Number(kb.id) === row.kelompok_besar_id);
+                                  
+                                  return (
+                                    <td
+                                      className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
+                                      onClick={() => setNonBlokEditingCell({ row: actualIndex, key: field })}
+                                      title={cellError ? cellError.message : ''}
+                                    >
+                                      {isEditing ? (
+                                        <input
+                                          className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
+                                          type="number"
+                                          value={row.kelompok_besar_id || ""}
+                                          onChange={e => handleNonBlokEditCell(actualIndex, field, parseInt(e.target.value))}
+                                          onBlur={handleNonBlokFinishEdit}
+                                          onKeyDown={e => {
+                                            if (e.key === 'Enter') {
+                                              handleNonBlokFinishEdit();
+                                            }
+                                            if (e.key === 'Escape') {
+                                              handleNonBlokFinishEdit();
+                                            }
+                                          }}
+                                          autoFocus
+                                        />
+                                      ) : (
+                                        <span className={cellError ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
+                                          {kelompokBesar ? kelompokBesar.label : (row.kelompok_besar_id && row.kelompok_besar_id !== 0 ? row.kelompok_besar_id : 'Tidak ditemukan')}
+                                        </span>
+                                      )}
+                                    </td>
+                                  );
+                                })()}
+                                {renderEditableCell('nama_dosen', row.nama_dosen || '')}
+                                {renderEditableCell('materi', row.materi || '')}
+                                {renderEditableCell('nama_ruangan', row.nama_ruangan || '')}
+                                {renderEditableCell('agenda', row.agenda || '')}
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                  </table>
+                </div>
+              </div>
+              
+              {/* Pagination untuk Import Preview */}
+              {nonBlokImportData.length > nonBlokImportPageSize && (
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center gap-4">
+                    <select
+                      value={nonBlokImportPageSize}
+                      onChange={e => { setNonBlokImportPageSize(Number(e.target.value)); setNonBlokImportPage(1); }}
+                      className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                    >
+                      <option value={5}>5 per halaman</option>
+                      <option value={10}>10 per halaman</option>
+                      <option value={20}>20 per halaman</option>
+                      <option value={50}>50 per halaman</option>
+                    </select>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      Menampilkan {((nonBlokImportPage - 1) * nonBlokImportPageSize) + 1}-{Math.min(nonBlokImportPage * nonBlokImportPageSize, nonBlokImportData.length)} dari {nonBlokImportData.length} jadwal
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setNonBlokImportPage(p => Math.max(1, p - 1))}
+                      disabled={nonBlokImportPage === 1}
+                      className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                    >
+                      Prev
+                    </button>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      Halaman {nonBlokImportPage} dari {Math.ceil(nonBlokImportData.length / nonBlokImportPageSize)}
+                    </span>
+                    <button
+                      onClick={() => setNonBlokImportPage(p => Math.min(Math.ceil(nonBlokImportData.length / nonBlokImportPageSize), p + 1))}
+                      disabled={nonBlokImportPage >= Math.ceil(nonBlokImportData.length / nonBlokImportPageSize)}
+                      className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-2 pt-6">
+                <button
+                  onClick={handleNonBlokCloseImportModal}
+                  className="px-6 py-3 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handleNonBlokSubmitImport}
+                  disabled={nonBlokImportData.length === 0 || nonBlokCellErrors.length > 0 || isNonBlokImporting}
+                  className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isNonBlokImporting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Importing...
+                    </>
+                  ) : (
+                    <>
+                      <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                      Import Data ({nonBlokImportData.length} jadwal)
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Konfirmasi Bulk Delete Non Blok Non CSR */}
+      <AnimatePresence>
+        {showNonBlokBulkDeleteModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            <div
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowNonBlokBulkDeleteModal(false)}
+            ></div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+            >
+              <div className="flex items-center justify-between pb-6">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">Konfirmasi Hapus Data</h2>
+              </div>
+              <div>
+                <p className="mb-6 text-gray-500 dark:text-gray-400">
+                  Apakah Anda yakin ingin menghapus <span className="font-semibold text-gray-800 dark:text-white">
+                    {selectedNonBlokItems.length}
+                  </span> jadwal Non-Blok Non-CSR terpilih? Data yang dihapus tidak dapat dikembalikan.
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    onClick={() => setShowNonBlokBulkDeleteModal(false)}
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={confirmNonBlokBulkDelete}
+                    className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition flex items-center justify-center"
+                    disabled={isNonBlokDeleting}
+                  >
+                    {isNonBlokDeleting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                        Menghapus...
+                      </>
+                    ) : (
+                      'Hapus'
+                    )}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>

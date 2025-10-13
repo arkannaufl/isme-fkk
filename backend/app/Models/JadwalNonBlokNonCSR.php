@@ -30,6 +30,9 @@ class JadwalNonBlokNonCSR extends Model
         'use_ruangan',
         'status_konfirmasi',
         'alasan_konfirmasi',
+        'status_reschedule',
+        'reschedule_reason',
+        'created_by',
     ];
 
     protected $casts = [
@@ -65,6 +68,11 @@ class JadwalNonBlokNonCSR extends Model
         return $this->belongsTo(KelompokBesarAntara::class, 'kelompok_besar_antara_id');
     }
 
+    public function createdBy()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
     /**
      * Get multiple dosen names
      */
@@ -87,4 +95,4 @@ class JadwalNonBlokNonCSR extends Model
             ->logOnlyDirty()
             ->setDescriptionForEvent(fn(string $eventName) => "Jadwal Non Blok Non CSR telah di-{$eventName}");
     }
-} 
+}

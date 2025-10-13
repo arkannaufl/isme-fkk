@@ -53,6 +53,11 @@ class MataKuliah extends Model
         return $this->hasMany(PBL::class, 'mata_kuliah_kode', 'kode');
     }
 
+    public function dosenPeran()
+    {
+        return $this->hasMany(DosenPeran::class, 'mata_kuliah_kode', 'kode');
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()

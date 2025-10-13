@@ -24,6 +24,7 @@ interface Penilaian {
 interface AbsensiPBL {
   [npm: string]: {
     hadir: boolean;
+    catatan: string;
   };
 }
 
@@ -60,21 +61,27 @@ export default function PenilaianPBLPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [semester, setSemester] = useState<number | null>(null);
   const [modulPBLList, setModulPBLList] = useState<any[]>([]);
-  const [namaModul, setNamaModul] = useState('');
+  const [namaModul, setNamaModul] = useState("");
   const [modulPBLId, setModulPBLId] = useState<number | null>(null);
   const [isPBL2, setIsPBL2] = useState(false);
-  
+  const [includeInReport, setIncludeInReport] = useState(false);
+
   // Permission and status states
-  const [userRole, setUserRole] = useState<string>('');
+  const [userRole, setUserRole] = useState<string>("");
   const [penilaianSubmitted, setPenilaianSubmitted] = useState<boolean>(false);
   const [canEdit, setCanEdit] = useState<boolean>(true);
 
-  const [isDark, setIsDark] = useState(document.documentElement.classList.contains('dark'));
+  const [isDark, setIsDark] = useState(
+    document.documentElement.classList.contains("dark")
+  );
   useEffect(() => {
     const observer = new MutationObserver(() => {
-      setIsDark(document.documentElement.classList.contains('dark'));
+      setIsDark(document.documentElement.classList.contains("dark"));
     });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
     return () => observer.disconnect();
   }, []);
 
@@ -82,60 +89,70 @@ export default function PenilaianPBLPage() {
   useEffect(() => {
     const user = getUser();
     if (!user) {
-      navigate('/');
+      navigate("/");
       return;
     }
-    
+
     // Only allow dosen, super_admin, and tim_akademik to access this page
-    if (!['dosen', 'super_admin', 'tim_akademik'].includes(user.role)) {
-      setError('Anda tidak memiliki akses untuk mengakses halaman ini.');
+    if (!["dosen", "super_admin", "tim_akademik"].includes(user.role)) {
+      setError("Anda tidak memiliki akses untuk mengakses halaman ini.");
       setLoading(false);
       return;
     }
-    
-    setUserRole(user.role || '');
+
+    setUserRole(user.role || "");
   }, [navigate]);
 
   // Check penilaian status from URL params or API
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const submitted = urlParams.get('penilaian_submitted') === 'true';
-    
-    // Hanya set dari URL jika belum ada data dari API
+    const submitted = urlParams.get("penilaian_submitted") === "true";
+    // Prefill sementara dari URL kalau ada
     if (submitted) {
       setPenilaianSubmitted(true);
+      setIncludeInReport(true);
     }
   }, []);
 
   // Fetch data blok untuk dapatkan semester
   useEffect(() => {
     if (!kode_blok) return;
-    api.get(`/mata-kuliah/${kode_blok}`).then(res => {
+    api.get(`/mata-kuliah/${kode_blok}`).then((res) => {
       setSemester(res.data.semester);
-        setNamaBlok(res.data.nama || "");
-        setKodeBlok(res.data.kode || kode_blok);
+      setNamaBlok(res.data.nama || "");
+      setKodeBlok(res.data.kode || kode_blok);
     });
   }, [kode_blok]);
 
   // Fetch mahasiswa kelompok kecil dari backend (pakai semester dari data blok)
   useEffect(() => {
     if (!kelompok || !semester) return;
-    console.log('Fetching mahasiswa for kelompok:', kelompok, 'semester:', semester);
-    api.get(`/kelompok-kecil/by-nama?nama_kelompok=${encodeURIComponent(kelompok)}&semester=${semester}`)
-      .then(res => {
-        console.log('Mahasiswa response:', res.data);
+    console.log(
+      "Fetching mahasiswa for kelompok:",
+      kelompok,
+      "semester:",
+      semester
+    );
+    api
+      .get(
+        `/kelompok-kecil/by-nama?nama_kelompok=${encodeURIComponent(
+          kelompok
+        )}&semester=${semester}`
+      )
+      .then((res) => {
+        console.log("Mahasiswa response:", res.data);
         const mhs = (res.data || [])
           .map((item: any) => item.mahasiswa)
           .filter((m: any) => m)
-          .map((m: any) => ({ npm: m.nim, nama: m.name ?? m.nama ?? '' }));
-        console.log('Processed mahasiswa:', mhs);
+          .map((m: any) => ({ npm: m.nim, nama: m.name ?? m.nama ?? "" }));
+        console.log("Processed mahasiswa:", mhs);
         setMahasiswa(mhs);
       })
       .catch((error: any) => {
-        console.error('Error fetching mahasiswa:', error);
-        console.error('Error response:', error.response);
+        console.error("Error fetching mahasiswa:", error);
+        console.error("Error response:", error.response);
         // Jangan set error global, hanya log saja karena ini tidak critical
-        console.warn('Mahasiswa fetch failed, but continuing...');
+        console.warn("Mahasiswa fetch failed, but continuing...");
       });
   }, [kelompok, semester]);
 
@@ -144,116 +161,149 @@ export default function PenilaianPBLPage() {
     if (!kode_blok || !kelompok || !pertemuan) return;
     setLoading(true);
     setError(null);
-    
+
     // Fetch penilaian dan absensi secara bersamaan
     Promise.all([
-      api.get(`/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/penilaian-pbl`),
-      api.get(`/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/absensi-pbl`).catch(err => {
-        // Jika absensi gagal, return empty data
-        console.warn('Absensi fetch failed, using empty data:', err);
-        return { data: { absensi: [] } };
-      })
+      api.get(
+        `/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/penilaian-pbl`
+      ),
+      api
+        .get(
+          `/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/absensi-pbl`
+        )
+        .catch((err) => {
+          // Jika absensi gagal, return empty data
+          console.warn("Absensi fetch failed, using empty data:", err);
+          return { data: { absensi: [] } };
+        }),
     ])
-    .then(([penilaianRes, absensiRes]) => {
-      // Process penilaian data
-      const data = penilaianRes.data.penilaian || [];
-      const pen: Penilaian = {};
-      data.forEach((row: any) => {
-        pen[row.mahasiswa_npm] = {
-          A: row.nilai_a,
-          B: row.nilai_b,
-          C: row.nilai_c,
-          D: row.nilai_d,
-          E: row.nilai_e,
-          F: row.nilai_f,
-          G: row.nilai_g,
-          petaKonsep: row.peta_konsep || 0,
-        };
-        if (row.tanggal_paraf) setTanggalParaf(row.tanggal_paraf);
-        if (row.signature_paraf) setSignatureParaf(row.signature_paraf);
-        if (row.nama_tutor) setNamaTutor(row.nama_tutor);
-      });
-      setPenilaian(pen);
-      setNamaModul(penilaianRes.data.nama_modul || ''); // Ambil nama modul dari response API
-      setIsPBL2(penilaianRes.data.is_pbl_2 || false); // Set status PBL 2 dari backend
-      
-      // Cek status penilaian_submitted dari backend
-      // Selalu update berdasarkan response dari backend
-      setPenilaianSubmitted(penilaianRes.data.penilaian_submitted || false);
-      
-      // Update canEdit berdasarkan role dan status
-      const user = getUser();
-      if (user) {
-        const isAdmin = user.role === 'super_admin' || user.role === 'tim_akademik';
-        setCanEdit(isAdmin || !(penilaianRes.data.penilaian_submitted || false));
-      }
-      
-      // Jika PBL type berubah, reset petaKonsep untuk semua mahasiswa
-      if (penilaianRes.data.is_pbl_2 && !isPBL2) {
-        // PBL 1 → PBL 2: tambah petaKonsep dengan nilai 0
-        const updatedPenilaian = { ...penilaian };
-        Object.keys(updatedPenilaian).forEach(npm => {
-          if (updatedPenilaian[npm].petaKonsep === undefined) {
-            updatedPenilaian[npm].petaKonsep = 0;
-          }
-        });
-        setPenilaian(updatedPenilaian);
-      } else if (!penilaianRes.data.is_pbl_2 && isPBL2) {
-        // PBL 2 → PBL 1: hapus petaKonsep
-        const updatedPenilaian = { ...penilaian };
-        Object.keys(updatedPenilaian).forEach(npm => {
-          delete updatedPenilaian[npm].petaKonsep;
-        });
-        setPenilaian(updatedPenilaian);
-      }
-
-      // Process absensi data
-      const absensiData = absensiRes.data.absensi || [];
-      console.log('Absensi response:', absensiRes.data);
-      console.log('Absensi data:', absensiData);
-      console.log('Is array?', Array.isArray(absensiData));
-      
-      const abs: AbsensiPBL = {};
-      if (Array.isArray(absensiData)) {
-        absensiData.forEach((row: any) => {
-          abs[row.mahasiswa_npm] = {
-            hadir: row.hadir || false,
+      .then(([penilaianRes, absensiRes]) => {
+        // Process penilaian data
+        const data = penilaianRes.data.penilaian || [];
+        const pen: Penilaian = {};
+        data.forEach((row: any) => {
+          pen[row.mahasiswa_npm] = {
+            A: row.nilai_a,
+            B: row.nilai_b,
+            C: row.nilai_c,
+            D: row.nilai_d,
+            E: row.nilai_e,
+            F: row.nilai_f,
+            G: row.nilai_g,
+            petaKonsep: row.peta_konsep || 0,
           };
+          if (row.tanggal_paraf) setTanggalParaf(row.tanggal_paraf);
+          if (row.signature_paraf) setSignatureParaf(row.signature_paraf);
+          if (row.nama_tutor) setNamaTutor(row.nama_tutor);
         });
-      } else {
-        console.warn('Absensi data is not an array:', absensiData);
-      }
-      setAbsensi(abs);
-    })
-    .catch((error: any) => {
-      console.error('Error fetching data:', error);
-      console.error('Error response:', error.response);
-      console.error('Error status:', error.response?.status);
-      console.error('Error data:', error.response?.data);
-      
-      if (error.response?.status === 403) {
-        setError('Anda tidak memiliki akses untuk menilai jadwal ini. Hanya dosen yang ditugaskan dan telah mengkonfirmasi ketersediaan yang dapat mengakses halaman ini.');
-      } else if (error.response?.status === 404) {
-        setError('Jadwal tidak ditemukan. Pastikan jadwal yang Anda akses sudah benar.');
-      } else {
-        setError('Gagal memuat data penilaian. Silakan coba lagi.');
-      }
-    })
-    .finally(() => setLoading(false));
+        setPenilaian(pen);
+        setNamaModul(penilaianRes.data.nama_modul || ""); // Ambil nama modul dari response API
+        setIsPBL2(penilaianRes.data.is_pbl_2 || false); // Set status PBL 2 dari backend
+
+        // Sinkron status submitted & checkbox dari backend
+        const submittedFlag = Boolean(penilaianRes.data.penilaian_submitted);
+        setPenilaianSubmitted(submittedFlag);
+        setIncludeInReport(submittedFlag);
+
+        // Update canEdit berdasarkan role dan status
+        const user = getUser();
+        if (user) {
+          const isAdmin =
+            user.role === "super_admin" || user.role === "tim_akademik";
+          setCanEdit(
+            isAdmin || !(penilaianRes.data.penilaian_submitted || false)
+          );
+        }
+
+        // Jika PBL type berubah, reset petaKonsep untuk semua mahasiswa
+        if (penilaianRes.data.is_pbl_2 && !isPBL2) {
+          // PBL 1 → PBL 2: tambah petaKonsep dengan nilai 0
+          const updatedPenilaian = { ...penilaian };
+          Object.keys(updatedPenilaian).forEach((npm) => {
+            if (updatedPenilaian[npm].petaKonsep === undefined) {
+              updatedPenilaian[npm].petaKonsep = 0;
+            }
+          });
+          setPenilaian(updatedPenilaian);
+        } else if (!penilaianRes.data.is_pbl_2 && isPBL2) {
+          // PBL 2 → PBL 1: hapus petaKonsep
+          const updatedPenilaian = { ...penilaian };
+          Object.keys(updatedPenilaian).forEach((npm) => {
+            delete updatedPenilaian[npm].petaKonsep;
+          });
+          setPenilaian(updatedPenilaian);
+        }
+
+        // Process absensi data
+        const absensiData = absensiRes.data.absensi || {};
+        console.log("Absensi response:", absensiRes.data);
+        console.log("Absensi data:", absensiData);
+
+        const abs: AbsensiPBL = {};
+        // Handle both array and object formats
+        if (Array.isArray(absensiData)) {
+          absensiData.forEach((row: any) => {
+            abs[row.mahasiswa_npm] = {
+              hadir: Boolean(row.hadir), // Convert 1/0 to true/false
+              catatan: row.catatan || "",
+            };
+          });
+        } else if (typeof absensiData === "object" && absensiData !== null) {
+          // Handle object format (keyBy result)
+          Object.keys(absensiData).forEach((npm) => {
+            const row = absensiData[npm];
+            abs[npm] = {
+              hadir: Boolean(row.hadir), // Convert 1/0 to true/false
+              catatan: row.catatan || "",
+            };
+          });
+        } else {
+          console.warn("Absensi data is not in expected format:", absensiData);
+        }
+        console.log("Processed absensi state:", abs);
+        setAbsensi(abs);
+      })
+      .catch((error: any) => {
+        console.error("Error fetching data:", error);
+        console.error("Error response:", error.response);
+        console.error("Error status:", error.response?.status);
+        console.error("Error data:", error.response?.data);
+
+        if (error.response?.status === 403) {
+          setError(
+            "Anda tidak memiliki akses untuk menilai jadwal ini. Hanya dosen yang ditugaskan dan telah mengkonfirmasi ketersediaan yang dapat mengakses halaman ini."
+          );
+        } else if (error.response?.status === 404) {
+          setError(
+            "Jadwal tidak ditemukan. Pastikan jadwal yang Anda akses sudah benar."
+          );
+        } else {
+          setError("Gagal memuat data penilaian. Silakan coba lagi.");
+        }
+      })
+      .finally(() => setLoading(false));
   }, [kode_blok, kelompok, pertemuan]);
 
   // Fetch modul PBL list
   useEffect(() => {
     if (!kode_blok) return;
-    api.get(`/mata-kuliah/${kode_blok}/pbls`).then(res => setModulPBLList(res.data || []));
+    api
+      .get(`/mata-kuliah/${kode_blok}/pbls`)
+      .then((res) => setModulPBLList(res.data || []));
   }, [kode_blok]);
 
   // Fungsi simpan ke backend
   const handleSaveAll = async () => {
     if (!kode_blok || !kelompok || !pertemuan) return;
-    
+    if (!includeInReport) {
+      alert(
+        'Centang "Masukkan ke Laporan" untuk menyimpan dan memasukkan realisasi ke PDF.'
+      );
+      return;
+    }
+
     // Peta Konsep tidak wajib diisi - optional untuk PBL 2
-    
+
     setSaving(true);
     setError(null);
     try {
@@ -263,10 +313,10 @@ export default function PenilaianPBLPage() {
         setSaving(false);
         return;
       }
-      
+
       // Kemudian simpan penilaian
       const payload = {
-        penilaian: mahasiswa.map(m => ({
+        penilaian: mahasiswa.map((m) => ({
           mahasiswa_npm: m.npm,
           nilai_a: penilaian[m.npm]?.A || 0,
           nilai_b: penilaian[m.npm]?.B || 0,
@@ -275,26 +325,36 @@ export default function PenilaianPBLPage() {
           nilai_e: penilaian[m.npm]?.E || 0,
           nilai_f: penilaian[m.npm]?.F || 0,
           nilai_g: penilaian[m.npm]?.G || 0,
-          peta_konsep: isPBL2 ? (penilaian[m.npm]?.petaKonsep || 0) : null,
+          peta_konsep: isPBL2 ? penilaian[m.npm]?.petaKonsep || 0 : null,
         })),
         tanggal_paraf: tanggalParaf,
         signature_paraf: signatureParaf,
         nama_tutor: namaTutor,
+        // Flag agar backend bisa menandai jadwal terhitung ke laporan
+        penilaian_submitted: true,
       };
-      await api.post(`/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/penilaian-pbl`, payload);
-      
+      await api.post(
+        `/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/penilaian-pbl`,
+        payload
+      );
+
       // Update penilaian submitted status for dosen
       const user = getUser();
-      if (user && user.role === 'dosen') {
+      if (user && user.role === "dosen") {
         setPenilaianSubmitted(true);
         setCanEdit(false);
       }
-      
-      setSuccess(`Absensi dan penilaian ${isPBL2 ? 'PBL 2' : 'PBL 1'} berhasil disimpan!`);
+
+      setSuccess(
+        `Absensi dan penilaian ${isPBL2 ? "PBL 2" : "PBL 1"} berhasil disimpan!`
+      );
     } catch (error: any) {
-      console.error('Error saving penilaian:', error);
-      console.error('Error details:', handleApiError(error, 'Menyimpan penilaian'));
-      setError(handleApiError(error, 'Menyimpan penilaian'));
+      console.error("Error saving penilaian:", error);
+      console.error(
+        "Error details:",
+        handleApiError(error, "Menyimpan penilaian")
+      );
+      setError(handleApiError(error, "Menyimpan penilaian"));
     } finally {
       setSaving(false);
       setTimeout(() => setSuccess(null), 3000);
@@ -326,7 +386,7 @@ export default function PenilaianPBLPage() {
   const hitungJumlah = (npm: string) => {
     const nilai = penilaian[npm];
     if (!nilai) return 0;
-    
+
     const A = nilai.A || 0;
     const B = nilai.B || 0;
     const C = nilai.C || 0;
@@ -334,7 +394,7 @@ export default function PenilaianPBLPage() {
     const E = nilai.E || 0;
     const F = nilai.F || 0;
     const G = nilai.G || 0;
-    
+
     return A + B + C + D + E + F + G;
   };
 
@@ -364,27 +424,45 @@ export default function PenilaianPBLPage() {
     setAbsensi((prev) => ({
       ...prev,
       [npm]: {
+        ...prev[npm],
         hadir: hadir,
+      },
+    }));
+  };
+
+  const handleCatatanChange = (npm: string, catatan: string) => {
+    setAbsensi((prev) => ({
+      ...prev,
+      [npm]: {
+        ...prev[npm],
+        catatan: catatan,
       },
     }));
   };
 
   const handleSaveAbsensi = async () => {
     if (!kode_blok || !kelompok || !pertemuan) return;
-    
+
     try {
       const payload = {
-        absensi: mahasiswa.map(m => ({
+        absensi: mahasiswa.map((m) => ({
           mahasiswa_npm: m.npm,
           hadir: absensi[m.npm]?.hadir || false,
+          catatan: absensi[m.npm]?.catatan || "",
         })),
       };
-      await api.post(`/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/absensi-pbl`, payload);
+      await api.post(
+        `/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/absensi-pbl`,
+        payload
+      );
       return true;
     } catch (error: any) {
-      console.error('Error saving absensi:', error);
-      console.error('Error details:', handleApiError(error, 'Menyimpan absensi'));
-      setError(handleApiError(error, 'Menyimpan absensi'));
+      console.error("Error saving absensi:", error);
+      console.error(
+        "Error details:",
+        handleApiError(error, "Menyimpan absensi")
+      );
+      setError(handleApiError(error, "Menyimpan absensi"));
       return false;
     }
   };
@@ -407,9 +485,7 @@ export default function PenilaianPBLPage() {
   };
 
   // Fungsi untuk handle upload file gambar tanda tangan (hanya untuk paraf)
-  const handleUploadSignature = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleUploadSignature = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
@@ -430,7 +506,10 @@ export default function PenilaianPBLPage() {
       sheet.mergeCells("A1:K1");
       sheet.getCell("A1").value = "LEMBAR PENILAIAN MAHASISWA OLEH TUTOR";
       sheet.getCell("A1").font = { bold: true, size: 16 };
-      sheet.getCell("A1").alignment = { vertical: "middle", horizontal: "center" };
+      sheet.getCell("A1").alignment = {
+        vertical: "middle",
+        horizontal: "center",
+      };
 
       // Baris kosong (spasi)
       sheet.addRow([]);
@@ -438,35 +517,60 @@ export default function PenilaianPBLPage() {
       // Header info mulai dari baris 3
       sheet.getCell("A3").value = `KODE MATA KULIAH BLOK: ${kodeBlok || ""}`;
       sheet.getCell("A3").font = { bold: true };
-      sheet.getCell("A3").alignment = { vertical: "middle", horizontal: "left" };
+      sheet.getCell("A3").alignment = {
+        vertical: "middle",
+        horizontal: "left",
+      };
       sheet.getCell("K3").value = `KELOMPOK: ${kelompok || ""}`;
       sheet.getCell("K3").font = { bold: true };
-      sheet.getCell("K3").alignment = { vertical: "middle", horizontal: "right" };
+      sheet.getCell("K3").alignment = {
+        vertical: "middle",
+        horizontal: "right",
+      };
 
       sheet.getCell("A4").value = `NAMA MATA KULIAH BLOK: ${namaBlok || ""}`;
       sheet.getCell("A4").font = { bold: true };
-      sheet.getCell("A4").alignment = { vertical: "middle", horizontal: "left" };
+      sheet.getCell("A4").alignment = {
+        vertical: "middle",
+        horizontal: "left",
+      };
       sheet.getCell("K4").value = `PERTEMUAN KE: ${pertemuan || ""}`;
       sheet.getCell("K4").font = { bold: true };
-      sheet.getCell("K4").alignment = { vertical: "middle", horizontal: "right" };
+      sheet.getCell("K4").alignment = {
+        vertical: "middle",
+        horizontal: "right",
+      };
 
-      sheet.getCell("A5").value = `MODUL: ${namaModul || '-'}`;
+      sheet.getCell("A5").value = `MODUL: ${namaModul || "-"}`;
       sheet.getCell("A5").font = { bold: true };
-      sheet.getCell("A5").alignment = { vertical: "middle", horizontal: "left" };
+      sheet.getCell("A5").alignment = {
+        vertical: "middle",
+        horizontal: "left",
+      };
 
       // Spasi
       sheet.addRow([]);
 
-    // Table header
-    const tableHeader = [
-        "NO", "NPM", "NAMA", "A", "B", "C", "D", "E", "F", "G", "Jumlah",
+      // Table header
+      const tableHeader = [
+        "NO",
+        "NPM",
+        "NAMA",
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "F",
+        "G",
+        "Jumlah",
         "Total Nilai",
         ...(isPBL2 ? ["Peta Konsep (0-100)"] : []), // Peta Konsep di paling kanan
       ];
       const headerRow = sheet.addRow(tableHeader);
       headerRow.font = { bold: true };
       headerRow.alignment = { horizontal: "center", vertical: "middle" };
-      headerRow.eachCell(cell => {
+      headerRow.eachCell((cell) => {
         cell.fill = {
           type: "pattern",
           pattern: "solid",
@@ -480,13 +584,13 @@ export default function PenilaianPBLPage() {
         };
       });
 
-    // Table body
+      // Table body
       mahasiswa.forEach((m, idx) => {
-      const nilai = penilaian[m.npm] || {} as Penilaian[string];
-      const row = [
-        idx + 1,
-        m.npm,
-        m.nama,
+        const nilai = penilaian[m.npm] || ({} as Penilaian[string]);
+        const row = [
+          idx + 1,
+          m.npm,
+          m.nama,
           nilai.A ?? "",
           nilai.B ?? "",
           nilai.C ?? "",
@@ -494,14 +598,17 @@ export default function PenilaianPBLPage() {
           nilai.E ?? "",
           nilai.F ?? "",
           nilai.G ?? "",
-        hitungJumlah(m.npm),
-        hitungTotalNilai(m.npm),
-      ];
-      if (isPBL2) row.push(nilai.petaKonsep ?? "");
+          hitungJumlah(m.npm),
+          hitungTotalNilai(m.npm),
+        ];
+        if (isPBL2) row.push(nilai.petaKonsep ?? "");
         const dataRow = sheet.addRow(row);
         dataRow.alignment = { vertical: "middle", horizontal: "center" };
-        dataRow.getCell(3).alignment = { vertical: "middle", horizontal: "left" }; // NAMA kiri
-        dataRow.eachCell(cell => {
+        dataRow.getCell(3).alignment = {
+          vertical: "middle",
+          horizontal: "left",
+        }; // NAMA kiri
+        dataRow.eachCell((cell) => {
           cell.border = {
             top: { style: "thin" },
             left: { style: "thin" },
@@ -521,15 +628,24 @@ export default function PenilaianPBLPage() {
       const keteranganCell = sheet.getCell(`A${startRow}`);
       keteranganCell.value =
         `KETERANGAN:\n` +
-        Object.entries(KRITERIA).map(([k, v]) => `${k}: ${v}`).join("\n");
-      keteranganCell.alignment = { vertical: "top", horizontal: "left", wrapText: true };
+        Object.entries(KRITERIA)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join("\n");
+      keteranganCell.alignment = {
+        vertical: "top",
+        horizontal: "left",
+        wrapText: true,
+      };
       keteranganCell.font = { size: 11 };
       // Skoring kanan (G - K)
       sheet.mergeCells(`G${startRow}:K${startRow + 7}`);
       const skoringCell = sheet.getCell(`G${startRow}`);
-      skoringCell.value =
-        `SKORING:\n1 = SANGAT KURANG\n2 = KURANG\n3 = CUKUP\n4 = BAIK\n5 = SANGAT BAIK`;
-      skoringCell.alignment = { vertical: "top", horizontal: "left", wrapText: true };
+      skoringCell.value = `SKORING:\n1 = SANGAT KURANG\n2 = KURANG\n3 = CUKUP\n4 = BAIK\n5 = SANGAT BAIK`;
+      skoringCell.alignment = {
+        vertical: "top",
+        horizontal: "left",
+        wrapText: true,
+      };
       skoringCell.font = { size: 11 };
 
       // Spasi
@@ -556,7 +672,7 @@ export default function PenilaianPBLPage() {
 
       // Insert signature images di tengah kotak
       function base64ToBuffer(dataUrl: string) {
-        const base64 = dataUrl.split(',')[1];
+        const base64 = dataUrl.split(",")[1];
         const binary = atob(base64);
         const len = binary.length;
         const buffer = new Uint8Array(len);
@@ -566,14 +682,17 @@ export default function PenilaianPBLPage() {
       // Nama Tutor
       if (namaTutor) {
         sheet.getCell(`A${ttdBoxRow}`).value = namaTutor;
-        sheet.getCell(`A${ttdBoxRow}`).alignment = { vertical: "middle", horizontal: "center" };
+        sheet.getCell(`A${ttdBoxRow}`).alignment = {
+          vertical: "middle",
+          horizontal: "center",
+        };
         sheet.getCell(`A${ttdBoxRow}`).font = { bold: true, size: 12 };
       }
       // Tanda tangan Paraf
       if (signatureParaf) {
         const imageId = workbook.addImage({
           buffer: base64ToBuffer(signatureParaf) as any,
-          extension: 'png',
+          extension: "png",
         });
         // Center di kotak G-K ttdBoxRow
         sheet.addImage(imageId, {
@@ -584,13 +703,17 @@ export default function PenilaianPBLPage() {
 
       // Tanggal paraf di bawah kiri
       const tglRow = ttdBoxRow + 2;
-      sheet.getCell(`A${tglRow}`).value = `Jakarta, ${tanggalParaf || "...................."}`;
+      sheet.getCell(`A${tglRow}`).value = `Jakarta, ${
+        tanggalParaf || "...................."
+      }`;
       sheet.getCell(`A${tglRow}`).alignment = { horizontal: "left" };
       sheet.getCell(`A${tglRow}`).font = { italic: true };
 
       // Save file
       const buffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -625,14 +748,14 @@ export default function PenilaianPBLPage() {
         .info-col h3 { font-size: 13px; font-weight: bold; margin-bottom: 6px; color: #222; }
       </style>
     `;
-    
+
     // Header dengan layout yang mirip UI
     const htmlHeader = `
       <div class="header-row">
         <div class="header-col left">
           <div><strong>KODE MATA KULIAH BLOK:</strong> ${kodeBlok || ""}</div>
           <div><strong>NAMA MATA KULIAH BLOK:</strong> ${namaBlok || ""}</div>
-          <div><strong>MODUL:</strong> ${namaModul || '-'}</div>
+          <div><strong>MODUL:</strong> ${namaModul || "-"}</div>
         </div>
         <div class="header-col right">
           <div><strong>KELOMPOK:</strong> ${kelompok || ""}</div>
@@ -640,7 +763,7 @@ export default function PenilaianPBLPage() {
         </div>
       </div>
     `;
-    
+
     // Table header
     const htmlTableHeader = `
       <tr>
@@ -655,7 +778,7 @@ export default function PenilaianPBLPage() {
         ${isPBL2 ? "<th>Peta Konsep (0-100)</th>" : ""}
       </tr>
     `;
-    
+
     // Table body
     const htmlTableBody = mahasiswa
       .map((m, idx) => {
@@ -669,11 +792,15 @@ export default function PenilaianPBLPage() {
           .join("")}
         <td>${hitungJumlah(m.npm)}</td>
         <td><strong>${hitungTotalNilai(m.npm)}</strong></td>
-        ${isPBL2 ? `<td>${(nilai as Record<string, number>)?.petaKonsep ?? ""}</td>` : ""}
+        ${
+          isPBL2
+            ? `<td>${(nilai as Record<string, number>)?.petaKonsep ?? ""}</td>`
+            : ""
+        }
       </tr>`;
       })
       .join("");
-    
+
     // Keterangan & Skoring dengan layout yang mirip UI
     const htmlKeterangan = `
       <div class="info-section">
@@ -695,14 +822,18 @@ export default function PenilaianPBLPage() {
         </div>
       </div>
     `;
-    
+
     // Paraf section dengan layout yang mirip UI
     const htmlParaf = `
       <div style="width:420px; margin:48px 0 0 auto; display:flex; justify-content:flex-end; align-items:flex-start; gap:32px;">
         <div style="width:200px;">
-          <div style="margin-bottom:8px;">Jakarta, ${tanggalParaf || "...................."}</div>
+          <div style="margin-bottom:8px;">Jakarta, ${
+            tanggalParaf || "...................."
+          }</div>
           <div style="font-weight:normal; margin-top:5px; margin-bottom:20px;">TUTOR</div>
-          <div style="width:100%; text-align:center; font-size:14px; font-weight:normal; min-height:24px; margin-top:8px;">${namaTutor || ""}</div>
+          <div style="width:100%; text-align:center; font-size:14px; font-weight:normal; min-height:24px; margin-top:8px;">${
+            namaTutor || ""
+          }</div>
           <div style="width:100%; border-bottom:2px dotted #ccc; margin:0 0 8px 0;"></div>
         </div>
         <div style="width:160px;">
@@ -719,7 +850,7 @@ export default function PenilaianPBLPage() {
         </div>
       </div>
     `;
-    
+
     // Gabungkan semua
     const html = `
       <html><head><meta charset="UTF-8">${style}</head><body>
@@ -733,7 +864,7 @@ export default function PenilaianPBLPage() {
         ${htmlParaf}
       </body></html>
     `;
-    
+
     // Download file
     const blob = new Blob([html], { type: "text/html" });
     const url = URL.createObjectURL(blob);
@@ -750,474 +881,571 @@ export default function PenilaianPBLPage() {
     <div className="container mx-auto dark:bg-gray-900 min-h-screen">
       {/* Only show header if no error */}
       {!error && (
-      <div className="pb-2 flex justify-between items-center">
-        <button                                                                                                                                             
-          onClick={() => {
-            const user = getUser();
-            if (user?.role === 'dosen') {
-              navigate('/dashboard-dosen');
-            } else {
-              navigate(-1);
-            }
-          }} 
-          className="flex items-center gap-2 text-brand-500 font-medium hover:text-brand-600 transition px-0 py-0 bg-transparent shadow-none dark:text-green-400 dark:hover:text-green-300"
-        >
-          <ChevronLeftIcon className="w-5 h-5" />
-          {getUser()?.role === 'dosen' ? 'Kembali ke Dashboard' : 'Kembali ke Detail Blok'}
-        </button>
-        <div className="flex items-center">
+        <div className="pb-2 flex justify-between items-center">
           <button
-            onClick={exportExcel}
-            className="px-4 py-2 rounded-lg bg-green-500 text-white text-sm font-medium shadow-theme-xs hover:bg-green-600 transition dark:bg-green-600 dark:hover:bg-green-500"
+            onClick={() => {
+              const user = getUser();
+              if (user?.role === "dosen") {
+                navigate("/dashboard-dosen");
+              } else {
+                navigate(-1);
+              }
+            }}
+            className="flex items-center gap-2 text-brand-500 font-medium hover:text-brand-600 transition px-0 py-0 bg-transparent shadow-none dark:text-green-400 dark:hover:text-green-300"
           >
-            Export Excel
+            <ChevronLeftIcon className="w-5 h-5" />
+            {getUser()?.role === "dosen"
+              ? "Kembali ke Dashboard"
+              : "Kembali ke Detail Blok"}
           </button>
-          <button
-            onClick={exportHtml}
-            className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium shadow-theme-xs hover:bg-blue-600 transition ml-2 dark:bg-blue-600 dark:hover:bg-blue-500"
-          >
-            Export HTML
-          </button>
-        </div>
-      </div>
-      )}
-              {/* Success Messages */}
-              <AnimatePresence>
-          {success && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-              className="mt-4 p-3 rounded-lg bg-green-100 text-green-700"
+          <div className="flex items-center">
+            <button
+              onClick={exportExcel}
+              className="px-4 py-2 rounded-lg bg-green-500 text-white text-sm font-medium shadow-theme-xs hover:bg-green-600 transition dark:bg-green-600 dark:hover:bg-green-500"
             >
-              {success}
-            </motion.div>
-          )}
-        </AnimatePresence>
-        
-        {/* Error Messages - Centered */}
-        {error && (
-          <div className="flex items-center justify-center min-h-[60vh]">
-            <div className="max-w-md w-full p-6 rounded-lg bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700 text-center">
-              <div className="flex justify-center mb-4">
-                <svg className="h-12 w-12 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-medium text-red-800 dark:text-red-200 mb-3">
-                Akses Ditolak
-              </h3>
-              <div className="text-sm text-red-700 dark:text-red-300 mb-6">
-                {error}
-              </div>
-              <button
-                onClick={() => window.history.back()}
-                className="inline-flex items-center px-4 py-2 border border-red-300 dark:border-red-600 text-sm leading-4 font-medium rounded-md text-red-700 dark:text-red-300 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                Kembali
-              </button>
-            </div>
+              Export Excel
+            </button>
+            <button
+              onClick={exportHtml}
+              className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium shadow-theme-xs hover:bg-blue-600 transition ml-2 dark:bg-blue-600 dark:hover:bg-blue-500"
+            >
+              Export HTML
+            </button>
           </div>
+        </div>
+      )}
+      {/* Success Messages */}
+      <AnimatePresence>
+        {success && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="mt-4 p-3 rounded-lg bg-green-100 text-green-700"
+          >
+            {success}
+          </motion.div>
         )}
-      
+      </AnimatePresence>
+
+      {/* Error Messages - Centered */}
+      {error && (
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="max-w-md w-full p-6 rounded-lg bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700 text-center">
+            <div className="flex justify-center mb-4">
+              <svg
+                className="h-12 w-12 text-red-400"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium text-red-800 dark:text-red-200 mb-3">
+              Akses Ditolak
+            </h3>
+            <div className="text-sm text-red-700 dark:text-red-300 mb-6">
+              {error}
+            </div>
+            <button
+              onClick={() => window.history.back()}
+              className="inline-flex items-center px-4 py-2 border border-red-300 dark:border-red-600 text-sm leading-4 font-medium rounded-md text-red-700 dark:text-red-300 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+            >
+              <svg
+                className="w-4 h-4 mr-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                />
+              </svg>
+              Kembali
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Only show form if no error */}
       {!error && (
-      <div className="bg-white dark:bg-gray-800 mt-6 shadow-md rounded-lg p-6">
-        <h1 className="text-xl font-bold text-center text-gray-900 dark:text-white mb-2">
-          LEMBAR PENILAIAN MAHASISWA OLEH TUTOR
-        </h1>
-        <div className="text-center mb-4">
-          <div className="flex justify-center gap-2 mb-2">
-            <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-              isPBL2 
-                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
-                : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-            }`}>
-              {isPBL2 ? 'PBL 2 (Dengan Peta Konsep)' : 'PBL 1 (Tanpa Peta Konsep)'}
-            </span>
-            {penilaianSubmitted && (
-              <span className="inline-block px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
-                Penilaian Sudah Disubmit
+        <div className="bg-white dark:bg-gray-800 mt-6 shadow-md rounded-lg p-6">
+          <h1 className="text-xl font-bold text-center text-gray-900 dark:text-white mb-2">
+            LEMBAR PENILAIAN MAHASISWA OLEH TUTOR
+          </h1>
+          <div className="text-center mb-4">
+            <div className="flex justify-center gap-2 mb-2">
+              <span
+                className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+                  isPBL2
+                    ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                    : "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                }`}
+              >
+                {isPBL2
+                  ? "PBL 2 (Dengan Peta Konsep)"
+                  : "PBL 1 (Tanpa Peta Konsep)"}
               </span>
-            )}
-            {!canEdit && userRole === 'dosen' && (
-              <span className="inline-block px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                View Only Mode
-              </span>
-            )}
+              {penilaianSubmitted && (
+                <span className="inline-block px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                  Penilaian Sudah Disubmit
+                </span>
+              )}
+              {!canEdit && userRole === "dosen" && (
+                <span className="inline-block px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                  View Only Mode
+                </span>
+              )}
+            </div>
           </div>
-        </div>
-        <div className="flex justify-between items-center mb-4 text-sm text-gray-700 dark:text-gray-300">
-          <div>
-            <p>
-              <strong>KODE MATA KULIAH BLOK:</strong> {kodeBlok}
-            </p>
-            <p>
-              <strong>NAMA MATA KULIAH BLOK:</strong> {namaBlok}
-            </p>
-            <p>
-              <strong>MODUL:</strong> {namaModul || '-'}
-            </p>
+          <div className="flex justify-between items-center mb-4 text-sm text-gray-700 dark:text-gray-300">
+            <div>
+              <p>
+                <strong>KODE MATA KULIAH BLOK:</strong> {kodeBlok}
+              </p>
+              <p>
+                <strong>NAMA MATA KULIAH BLOK:</strong> {namaBlok}
+              </p>
+              <p>
+                <strong>MODUL:</strong> {namaModul || "-"}
+              </p>
+            </div>
+            <div>
+              <p>
+                <strong>KELOMPOK:</strong> {kelompok}
+              </p>
+              <p>
+                <strong>PERTEMUAN KE:</strong> {pertemuan}
+              </p>
+            </div>
           </div>
-          <div>
-            <p>
-              <strong>KELOMPOK:</strong> {kelompok}
-            </p>
-            <p>
-              <strong>PERTEMUAN KE:</strong> {pertemuan}
-            </p>
-          </div>
-        </div>
 
-        {loading && (
-          <div className="animate-pulse">
-            {/* Skeleton untuk tabel */}
+          {loading && (
+            <div className="animate-pulse">
+              {/* Skeleton untuk tabel */}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-xs">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                      <th className="px-2 py-3 text-left">
+                        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-4"></div>
+                      </th>
+                      <th className="px-4 py-3 text-left">
+                        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-8"></div>
+                      </th>
+                      <th className="px-4 py-3 text-left">
+                        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-12"></div>
+                      </th>
+                      <th className="px-2 py-3 text-center">
+                        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-16 mx-auto"></div>
+                      </th>
+                      <th className="px-4 py-3 text-center">
+                        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-20 mx-auto"></div>
+                      </th>
+                      {Object.keys(KRITERIA).map((key) => (
+                        <th key={key} className="px-2 py-3 text-center">
+                          <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-4 mx-auto"></div>
+                        </th>
+                      ))}
+                      <th className="px-2 py-3 text-center">
+                        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-16 mx-auto"></div>
+                      </th>
+                      {isPBL2 && (
+                        <th className="px-2 py-3 text-center">
+                          <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-20 mx-auto"></div>
+                        </th>
+                      )}
+                      <th className="px-2 py-3 text-center">
+                        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-16 mx-auto"></div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                    {[...Array(5)].map((_, index) => (
+                      <tr
+                        key={index}
+                        className="hover:bg-gray-50 dark:hover:bg-gray-800"
+                      >
+                        <td className="px-2 py-2">
+                          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-4"></div>
+                        </td>
+                        <td className="px-4 py-2">
+                          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-16"></div>
+                        </td>
+                        <td className="px-4 py-2">
+                          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32"></div>
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-8 mx-auto"></div>
+                        </td>
+                        <td className="px-4 py-2 text-center">
+                          <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-20 mx-auto"></div>
+                        </td>
+                        {Object.keys(KRITERIA).map((key) => (
+                          <td key={key} className="px-2 py-2 text-center">
+                            <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-12 mx-auto"></div>
+                          </td>
+                        ))}
+                        <td className="px-2 py-2 text-center">
+                          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-8 mx-auto"></div>
+                        </td>
+                        {isPBL2 && (
+                          <td className="px-2 py-2 text-center">
+                            <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-16 mx-auto"></div>
+                          </td>
+                        )}
+                        <td className="px-2 py-2 text-center">
+                          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-12 mx-auto"></div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {!loading && (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-xs">
                 <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
-                    <th className="px-2 py-3 text-left">
-                      <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-4"></div>
+                    <th className="px-2 py-3 text-left font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      NO
                     </th>
-                    <th className="px-4 py-3 text-left">
-                      <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-8"></div>
+                    <th className="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      NPM
                     </th>
-                    <th className="px-4 py-3 text-left">
-                      <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-12"></div>
+                    <th className="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      NAMA
+                    </th>
+                    <th className="px-2 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      ABSENSI
+                    </th>
+                    <th className="px-4 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      CATATAN
                     </th>
                     {Object.keys(KRITERIA).map((key) => (
-                      <th key={key} className="px-2 py-3 text-center">
-                        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-4 mx-auto"></div>
+                      <th
+                        key={key}
+                        className="px-2 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                        title={KRITERIA[key as keyof typeof KRITERIA]}
+                      >
+                        {key}
                       </th>
                     ))}
-                    <th className="px-2 py-3 text-center">
-                      <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-16 mx-auto"></div>
+                    <th className="px-2 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Jumlah
+                    </th>
+                    <th className="px-2 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Total Nilai
                     </th>
                     {isPBL2 && (
-                      <th className="px-2 py-3 text-center">
-                        <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-20 mx-auto"></div>
+                      <th className="px-2 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        Peta Konsep (0-100) - Optional
                       </th>
                     )}
-                    <th className="px-2 py-3 text-center">
-                      <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-16 mx-auto"></div>
-                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                  {[...Array(5)].map((_, index) => (
-                    <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                      <td className="px-2 py-2">
-                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-4"></div>
+                  {mahasiswa.map((m, index) => (
+                    <tr
+                      key={m.npm}
+                      className="hover:bg-gray-50 dark:hover:bg-gray-800"
+                    >
+                      <td className="px-2 py-2 whitespace-nowrap dark:text-gray-200">
+                        {index + 1}
                       </td>
-                      <td className="px-4 py-2">
-                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-16"></div>
+                      <td className="px-4 py-2 whitespace-nowrap dark:text-gray-200">
+                        {m.npm}
                       </td>
-                      <td className="px-4 py-2">
-                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32"></div>
+                      <td className="px-4 py-2 whitespace-nowrap dark:text-gray-200">
+                        {m.nama}
+                      </td>
+                      <td className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200">
+                        <div className="relative flex items-center justify-center">
+                          <input
+                            type="checkbox"
+                            checked={absensi[m.npm]?.hadir || false}
+                            onChange={(e) =>
+                              handleAbsensiChange(m.npm, e.target.checked)
+                            }
+                            className={`w-5 h-5 appearance-none rounded-md border-2 ${
+                              absensi[m.npm]?.hadir
+                                ? "border-brand-500 bg-brand-500"
+                                : "border-brand-500 bg-transparent"
+                            } transition-colors duration-150 focus:ring-2 focus:ring-brand-300 dark:focus:ring-brand-600 relative`}
+                            style={{ outline: "none" }}
+                          />
+                          {absensi[m.npm]?.hadir && (
+                            <svg
+                              className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none"
+                              viewBox="0 0 20 20"
+                              fill="none"
+                              stroke="white"
+                              strokeWidth="2.5"
+                            >
+                              <polyline points="5 11 9 15 15 7" />
+                            </svg>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-center whitespace-nowrap dark:text-gray-200">
+                        <input
+                          type="text"
+                          value={absensi[m.npm]?.catatan || ""}
+                          onChange={(e) =>
+                            handleCatatanChange(m.npm, e.target.value)
+                          }
+                          disabled={!canEdit}
+                          placeholder="Catatan..."
+                          className={`w-full text-center border rounded-md p-1 text-xs dark:text-gray-100 dark:placeholder-gray-400 ${
+                            canEdit
+                              ? "bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+                              : "bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 cursor-not-allowed"
+                          }`}
+                        />
                       </td>
                       {Object.keys(KRITERIA).map((key) => (
-                        <td key={key} className="px-2 py-2 text-center">
-                          <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-12 mx-auto"></div>
+                        <td
+                          key={key}
+                          className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200"
+                        >
+                          <input
+                            type="number"
+                            min="0"
+                            max="5"
+                            value={
+                              penilaian[m.npm]?.[
+                                key as keyof typeof KRITERIA
+                              ] || ""
+                            }
+                            onChange={(e) =>
+                              handleInputChange(
+                                m.npm,
+                                key as keyof typeof KRITERIA,
+                                e.target.value
+                              )
+                            }
+                            disabled={!canEdit}
+                            className={`w-12 text-center border rounded-md p-1 dark:text-gray-100 dark:placeholder-gray-400 ${
+                              canEdit
+                                ? "bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+                                : "bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 cursor-not-allowed"
+                            }`}
+                          />
                         </td>
                       ))}
-                      <td className="px-2 py-2 text-center">
-                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-8 mx-auto"></div>
+                      <td className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200">
+                        {hitungJumlah(m.npm)}
+                      </td>
+                      <td className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200 font-medium">
+                        <span
+                          className={`px-2 py-1 rounded text-xs ${
+                            hitungTotalNilai(m.npm) > 0
+                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                              : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                          }`}
+                        >
+                          {hitungTotalNilai(m.npm)}
+                        </span>
                       </td>
                       {isPBL2 && (
-                        <td className="px-2 py-2 text-center">
-                          <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-16 mx-auto"></div>
+                        <td className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={penilaian[m.npm]?.petaKonsep || ""}
+                            onChange={(e) =>
+                              handleInputChange(
+                                m.npm,
+                                "petaKonsep",
+                                e.target.value
+                              )
+                            }
+                            disabled={!canEdit}
+                            className={`w-20 text-center border rounded-md p-1 dark:text-gray-100 dark:placeholder-gray-400 ${
+                              !canEdit
+                                ? "bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 cursor-not-allowed"
+                                : "bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+                            }`}
+                            placeholder="0-100 (Optional)"
+                          />
                         </td>
                       )}
-                      <td className="px-2 py-2 text-center">
-                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-12 mx-auto"></div>
-                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
-        )}
+          )}
 
-        {!loading && (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-xs">
-            <thead className="bg-gray-50 dark:bg-gray-700">
-              <tr>
-                <th className="px-2 py-3 text-left font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  NO
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  NPM
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  NAMA
-                </th>
-                <th className="px-2 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  ABSENSI
-                </th>
-                {Object.keys(KRITERIA).map((key) => (
-                  <th
-                    key={key}
-                    className="px-2 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
-                    title={KRITERIA[key as keyof typeof KRITERIA]}
-                  >
-                    {key}
-                  </th>
+          <div className="flex flex-row gap-16 mt-6">
+            <div className="text-xs dark:text-gray-200">
+              <h3 className="font-bold mb-2">KETERANGAN</h3>
+              <ul className="list-disc list-inside">
+                {Object.entries(KRITERIA).map(([key, value]) => (
+                  <li key={key}>
+                    <strong>{key}:</strong> {value}
+                  </li>
                 ))}
-                <th className="px-2 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Jumlah
-                </th>
-                <th className="px-2 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Total Nilai
-                </th>
-                {isPBL2 && (
-                  <th className="px-2 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Peta Konsep (0-100) - Optional
-                  </th>
-                )}
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-              {mahasiswa.map((m, index) => (
-                <tr key={m.npm} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <td className="px-2 py-2 whitespace-nowrap dark:text-gray-200">{index + 1}</td>
-                  <td className="px-4 py-2 whitespace-nowrap dark:text-gray-200">{m.npm}</td>
-                  <td className="px-4 py-2 whitespace-nowrap dark:text-gray-200">{m.nama}</td>
-                  <td className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200">
-                    <div className="relative flex items-center justify-center">
-                      <input
-                        type="checkbox"
-                        checked={absensi[m.npm]?.hadir || false}
-                        onChange={(e) => handleAbsensiChange(m.npm, e.target.checked)}
-                        className={`w-5 h-5 appearance-none rounded-md border-2 ${
-                          absensi[m.npm]?.hadir 
-                            ? 'border-brand-500 bg-brand-500' 
-                            : 'border-brand-500 bg-transparent'
-                        } transition-colors duration-150 focus:ring-2 focus:ring-brand-300 dark:focus:ring-brand-600 relative`}
-                        style={{ outline: 'none' }}
-                      />
-                      {absensi[m.npm]?.hadir && (
-                        <svg
-                          className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none"
-                          viewBox="0 0 20 20"
-                          fill="none"
-                          stroke="white"
-                          strokeWidth="2.5"
-                        >
-                          <polyline points="5 11 9 15 15 7" />
-                        </svg>
-                      )}
-                    </div>
-                  </td>
-                  {Object.keys(KRITERIA).map((key) => (
-                    <td
-                      key={key}
-                      className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200"
-                    >
-                      <input
-                        type="number"
-                        min="0"
-                        max="5"
-                        value={
-                          penilaian[m.npm]?.[key as keyof typeof KRITERIA] || ""
-                        }
-                        onChange={(e) =>
-                          handleInputChange(
-                            m.npm,
-                            key as keyof typeof KRITERIA,
-                            e.target.value
-                          )
-                        }
-                        disabled={!canEdit}
-                        className={`w-12 text-center border rounded-md p-1 dark:text-gray-100 dark:placeholder-gray-400 ${
-                          canEdit 
-                            ? 'bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600' 
-                            : 'bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 cursor-not-allowed'
-                        }`}
-                      />
-                    </td>
-                  ))}
-                  <td className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200">
-                    {hitungJumlah(m.npm)}
-                  </td>
-                  <td className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200 font-medium">
-                    <span className={`px-2 py-1 rounded text-xs ${
-                      hitungTotalNilai(m.npm) > 0 
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
-                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
-                    }`}>
-                      {hitungTotalNilai(m.npm)}
-                    </span>
-                  </td>
-                  {isPBL2 && (
-                    <td className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200">
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={penilaian[m.npm]?.petaKonsep || ""}
-                        onChange={(e) =>
-                          handleInputChange(m.npm, "petaKonsep", e.target.value)
-                        }
-                        disabled={!canEdit}
-                        className={`w-20 text-center border rounded-md p-1 dark:text-gray-100 dark:placeholder-gray-400 ${
-                          !canEdit
-                            ? 'bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 cursor-not-allowed'
-                            : 'bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600'
-                        }`}
-                        placeholder="0-100 (Optional)"
-                      />
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        )}
-
-        <div className="flex flex-row gap-16 mt-6">
-          <div className="text-xs dark:text-gray-200">
-            <h3 className="font-bold mb-2">KETERANGAN</h3>
-            <ul className="list-disc list-inside">
-              {Object.entries(KRITERIA).map(([key, value]) => (
-                <li key={key}>
-                  <strong>{key}:</strong> {value}
-                </li>
-              ))}
-            </ul>
-            {isPBL2 && (
-              <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded border-l-4 border-blue-400">
-                <p className="font-medium text-blue-800 dark:text-blue-200">PBL 2:</p>
-                <p className="text-blue-700 dark:text-blue-300">Nilai Peta Konsep (0-100) wajib diisi untuk semua mahasiswa</p>
+              </ul>
+              {isPBL2 && (
+                <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded border-l-4 border-blue-400">
+                  <p className="font-medium text-blue-800 dark:text-blue-200">
+                    PBL 2:
+                  </p>
+                  <p className="text-blue-700 dark:text-blue-300">
+                    Nilai Peta Konsep (0-100) wajib diisi untuk semua mahasiswa
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="text-xs dark:text-gray-200">
+              <h3 className="font-bold mb-2">SKORING</h3>
+              <p>1 = SANGAT KURANG</p>
+              <p>2 = KURANG</p>
+              <p>3 = CUKUP</p>
+              <p>4 = BAIK</p>
+              <p>5 = SANGAT BAIK</p>
+              {isPBL2 && (
+                <div className="mt-3">
+                  <p className="font-medium">Peta Konsep:</p>
+                  <p>0-100 (Nilai persentase)</p>
+                </div>
+              )}
+              <div className="mt-3 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border-l-4 border-yellow-400">
+                <p className="font-medium text-yellow-800 dark:text-yellow-200">
+                  Maksimal Nilai:
+                </p>
+                <p className="text-yellow-700 dark:text-yellow-300">
+                  {isPBL2
+                    ? "35 (Kriteria A-G) + 100 (Peta Konsep) = 135"
+                    : "35 (Kriteria A-G)"}
+                </p>
               </div>
-            )}
-          </div>
-          <div className="text-xs dark:text-gray-200">
-            <h3 className="font-bold mb-2">SKORING</h3>
-            <p>1 = SANGAT KURANG</p>
-            <p>2 = KURANG</p>
-            <p>3 = CUKUP</p>
-            <p>4 = BAIK</p>
-            <p>5 = SANGAT BAIK</p>
-            {isPBL2 && (
-              <div className="mt-3">
-                <p className="font-medium">Peta Konsep:</p>
-                <p>0-100 (Nilai persentase)</p>
-              </div>
-            )}
-            <div className="mt-3 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border-l-4 border-yellow-400">
-              <p className="font-medium text-yellow-800 dark:text-yellow-200">Maksimal Nilai:</p>
-              <p className="text-yellow-700 dark:text-yellow-300">
-                {isPBL2 ? '35 (Kriteria A-G) + 100 (Peta Konsep) = 135' : '35 (Kriteria A-G)'}
-              </p>
             </div>
           </div>
-        </div>
-        {/* Paraf section below Skoring, horizontal row, both on the right */}
-        <div className="flex justify-end items-end gap-16 mt-12">
-          <div className="flex flex-col items-start">
-            <span className="text-xs mb-1 dark:text-gray-200">
-              Jakarta,{" "}
-              <input
-                type="date"
-                value={tanggalParaf}
-                onChange={(e) => setTanggalParaf(e.target.value)}
-                className="border rounded px-2 py-1 text-xs dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600"
-              />
-            </span>
-            <span className="text-xs mb-5 dark:text-gray-200">TUTOR</span>
-            <div className="w-48 h-[100px] bg-white dark:bg-gray-900 border rounded mb-6 flex flex-col justify-center dark:border-gray-600">
-              <input
-                type="text"
-                value={namaTutor}
-                onChange={e => setNamaTutor(e.target.value)}
-                placeholder="Masukkan nama tutor"
-                className="w-full h-full px-3 py-2 text-center bg-transparent border-none outline-none dark:text-gray-100 placeholder-gray-400"
-              />
-            </div>
-            <div className="flex gap-2 mb-2">
-              <button
-                type="button"
-                onClick={() => setNamaTutor("")}
-                className="text-xs px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100 dark:border-gray-600"
-              >
-                Clear
-              </button>
-            </div>
-          </div>
-          <div className="flex flex-col items-start">
-            <span className="text-xs mb-5 dark:text-gray-200">PARAF</span>
-            {signatureParaf ? (
-              <div className="relative w-48 h-[100px] bg-white dark:bg-gray-900 border rounded mb-6 flex flex-col justify-end dark:border-gray-600">
-                <img
-                  src={signatureParaf}
-                  alt="Tanda Tangan Paraf"
-                  className="w-full h-[80px] object-contain"
+          {/* Paraf section below Skoring, horizontal row, both on the right */}
+          <div className="flex justify-end items-end gap-16 mt-12">
+            <div className="flex flex-col items-start">
+              <span className="text-xs mb-1 dark:text-gray-200">
+                Jakarta,{" "}
+                <input
+                  type="date"
+                  value={tanggalParaf}
+                  onChange={(e) => setTanggalParaf(e.target.value)}
+                  className="border rounded px-2 py-1 text-xs dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600"
                 />
-                <div className="border-b-2 border-dotted w-full absolute bottom-2 left-0 dark:border-gray-600" />
+              </span>
+              <span className="text-xs mb-5 dark:text-gray-200">TUTOR</span>
+              <div className="w-48 h-[100px] bg-white dark:bg-gray-900 border rounded mb-6 flex flex-col justify-center dark:border-gray-600">
+                <input
+                  type="text"
+                  value={namaTutor}
+                  onChange={(e) => setNamaTutor(e.target.value)}
+                  placeholder="Masukkan nama tutor"
+                  className="w-full h-full px-3 py-2 text-center bg-transparent border-none outline-none dark:text-gray-100 placeholder-gray-400"
+                />
               </div>
-            ) : (
-              <div className="relative w-48 h-[100px] bg-white dark:bg-gray-900 border rounded mb-6 flex flex-col justify-end dark:border-gray-600">
-                <SignaturePad
-                  ref={sigPadParaf}
-                  penColor={isDark ? '#000' : 'black'}
-                  canvasProps={{
-                    width: 192,
-                    height: 100,
-                    className:
-                      isDark
+              <div className="flex gap-2 mb-2">
+                <button
+                  type="button"
+                  onClick={() => setNamaTutor("")}
+                  className="text-xs px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100 dark:border-gray-600"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-col items-start">
+              <span className="text-xs mb-5 dark:text-gray-200">PARAF</span>
+              {signatureParaf ? (
+                <div className="relative w-48 h-[100px] bg-white dark:bg-gray-900 border rounded mb-6 flex flex-col justify-end dark:border-gray-600">
+                  <img
+                    src={signatureParaf}
+                    alt="Tanda Tangan Paraf"
+                    className="w-full h-[80px] object-contain"
+                  />
+                  <div className="border-b-2 border-dotted w-full absolute bottom-2 left-0 dark:border-gray-600" />
+                </div>
+              ) : (
+                <div className="relative w-48 h-[100px] bg-white dark:bg-gray-900 border rounded mb-6 flex flex-col justify-end dark:border-gray-600">
+                  <SignaturePad
+                    ref={sigPadParaf}
+                    penColor={isDark ? "#000" : "black"}
+                    canvasProps={{
+                      width: 192,
+                      height: 100,
+                      className: isDark
                         ? "absolute top-0 left-0 w-full h-full bg-gray-900 rounded"
                         : "absolute top-0 left-0 w-full h-full bg-white rounded",
-                  }}
-                />
-                <div className="border-b-2 border-dotted w-full absolute bottom-2 left-0 dark:border-gray-600" />
+                    }}
+                  />
+                  <div className="border-b-2 border-dotted w-full absolute bottom-2 left-0 dark:border-gray-600" />
+                </div>
+              )}
+              <div className="flex gap-2 mb-2">
+                <button
+                  type="button"
+                  onClick={handleClearParaf}
+                  className="text-xs px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100 dark:border-gray-600"
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveParaf}
+                  className="text-xs px-2 py-1 border rounded bg-blue-100 hover:bg-blue-200 dark:bg-blue-700 dark:hover:bg-blue-600 dark:text-gray-100 dark:border-gray-600"
+                >
+                  Simpan
+                </button>
+                <label className="text-xs px-2 py-1 border rounded bg-green-100 hover:bg-green-200 dark:bg-green-700 dark:hover:bg-green-600 dark:text-gray-100 dark:border-gray-600 cursor-pointer">
+                  Upload TTD
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleUploadSignature(e)}
+                    className="hidden"
+                  />
+                </label>
               </div>
-            )}
-            <div className="flex gap-2 mb-2">
-              <button
-                type="button"
-                onClick={handleClearParaf}
-                className="text-xs px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100 dark:border-gray-600"
-              >
-                Clear
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveParaf}
-                className="text-xs px-2 py-1 border rounded bg-blue-100 hover:bg-blue-200 dark:bg-blue-700 dark:hover:bg-blue-600 dark:text-gray-100 dark:border-gray-600"
-              >
-                Simpan
-              </button>
-              <label className="text-xs px-2 py-1 border rounded bg-green-100 hover:bg-green-200 dark:bg-green-700 dark:hover:bg-green-600 dark:text-gray-100 dark:border-gray-600 cursor-pointer">
-                Upload TTD
+              {/* Checklist Masukkan ke Laporan */}
+              <label className="flex items-center gap-2 text-xs mt-1 dark:text-gray-200">
                 <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleUploadSignature(e)}
-                  className="hidden"
+                  type="checkbox"
+                  checked={includeInReport}
+                  onChange={(e) => setIncludeInReport(e.target.checked)}
+                  className="w-4 h-4"
                 />
+                Masukkan ke Laporan (wajib dicentang sebelum submit)
               </label>
             </div>
           </div>
+          {/* Tambahkan tombol simpan di bawah tabel */}
+          <div className="mt-6 flex gap-4">
+            <button
+              onClick={handleSaveAll}
+              disabled={saving || loading || !canEdit}
+              className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium shadow-theme-xs hover:bg-blue-600 transition dark:bg-blue-600 dark:hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving
+                ? "Menyimpan..."
+                : canEdit
+                ? "Simpan Absensi & Penilaian"
+                : "Penilaian Sudah Disubmit"}
+            </button>
+          </div>
         </div>
-        {/* Tambahkan tombol simpan di bawah tabel */}
-        <div className="mt-6 flex gap-4">
-          <button 
-            onClick={handleSaveAll} 
-            disabled={saving || loading || !canEdit} 
-            className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium shadow-theme-xs hover:bg-blue-600 transition dark:bg-blue-600 dark:hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving ? 'Menyimpan...' : canEdit ? 'Simpan Absensi & Penilaian' : 'Penilaian Sudah Disubmit'}
-        </button>
-        </div>
-        
-      </div>
       )}
     </div>
   );

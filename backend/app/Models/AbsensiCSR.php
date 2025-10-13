@@ -17,6 +17,7 @@ class AbsensiCSR extends Model
         'jadwal_csr_id',
         'mahasiswa_npm',
         'hadir',
+        'catatan',
     ];
 
     protected $casts = [

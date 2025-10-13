@@ -27,9 +27,13 @@ class JadwalPBL extends Model
         'jumlah_sesi',
         'pbl_tipe',
         'status_konfirmasi',
+        'alasan_konfirmasi',
+        'status_reschedule',
+        'reschedule_reason',
         'penilaian_submitted',
         'penilaian_submitted_by',
         'penilaian_submitted_at',
+        'created_by',
     ];
 
     protected $casts = [
@@ -39,19 +43,45 @@ class JadwalPBL extends Model
     ];
 
     // Relasi
-    public function mataKuliah() { return $this->belongsTo(MataKuliah::class, 'mata_kuliah_kode', 'kode'); }
-    public function modulPBL() { return $this->belongsTo(PBL::class, 'pbl_id'); }
-    public function kelompokKecil() { return $this->belongsTo(KelompokKecil::class, 'kelompok_kecil_id'); }
-    public function kelompokKecilAntara() { return $this->belongsTo(KelompokKecilAntara::class, 'kelompok_kecil_antara_id'); }
-    public function dosen() { return $this->belongsTo(User::class, 'dosen_id'); }
-    public function ruangan() { return $this->belongsTo(Ruangan::class, 'ruangan_id'); }
-    public function penilaianSubmittedBy() { return $this->belongsTo(User::class, 'penilaian_submitted_by'); }
+    public function mataKuliah()
+    {
+        return $this->belongsTo(MataKuliah::class, 'mata_kuliah_kode', 'kode');
+    }
+    public function modulPBL()
+    {
+        return $this->belongsTo(PBL::class, 'pbl_id');
+    }
+    public function kelompokKecil()
+    {
+        return $this->belongsTo(KelompokKecil::class, 'kelompok_kecil_id');
+    }
+    public function kelompokKecilAntara()
+    {
+        return $this->belongsTo(KelompokKecilAntara::class, 'kelompok_kecil_antara_id');
+    }
+    public function dosen()
+    {
+        return $this->belongsTo(User::class, 'dosen_id');
+    }
+    public function ruangan()
+    {
+        return $this->belongsTo(Ruangan::class, 'ruangan_id');
+    }
+
+    public function createdBy()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+    public function penilaianSubmittedBy()
+    {
+        return $this->belongsTo(User::class, 'penilaian_submitted_by');
+    }
 
     // Relationship untuk penilaian PBL
     public function penilaianPBL()
     {
         return $this->hasMany(PenilaianPBL::class, 'mata_kuliah_kode', 'mata_kuliah_kode')
-                    ->where('kelompok', $this->kelompok_kecil_id ?? '');
+            ->where('kelompok', $this->kelompok_kecil_id ?? '');
     }
 
     /**

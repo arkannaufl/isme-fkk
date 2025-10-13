@@ -6,6 +6,7 @@ use App\Models\MataKuliah;
 use App\Models\JadwalNonBlokNonCSR;
 use App\Models\User;
 use App\Models\Ruangan;
+use App\Models\KelompokBesar;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -44,9 +45,31 @@ class DetailNonBlokNonCSRController extends Controller
 
             // Get jam options (hardcoded for now, can be moved to config)
             $jamOptions = [
-                '07.20', '08.10', '09.00', '09.50', '10.40', '11.30', '12.35', 
+                '07.20', '08.10', '09.00', '09.50', '10.40', '11.30', '12.35',
                 '13.25', '14.15', '15.05', '15.35', '16.25', '17.15'
             ];
+
+            // Get kelompok besar options untuk agenda dan materi - hanya semester yang sesuai dengan mata kuliah
+            $kelompokBesarAgendaOptions = [];
+            $kelompokBesarMateriOptions = [];
+            
+            // Hanya ambil kelompok besar yang sesuai dengan semester mata kuliah
+            $semesterMataKuliah = $mataKuliah->semester;
+            $jumlahMahasiswa = KelompokBesar::where('semester', $semesterMataKuliah)->count();
+
+            if ($jumlahMahasiswa > 0) {
+                $kelompokBesarAgendaOptions[] = [
+                    'id' => $semesterMataKuliah, // Gunakan semester sebagai ID
+                    'label' => "Kelompok Besar Semester {$semesterMataKuliah} ({$jumlahMahasiswa} mahasiswa)",
+                    'jumlah_mahasiswa' => $jumlahMahasiswa
+                ];
+                
+                $kelompokBesarMateriOptions[] = [
+                    'id' => $semesterMataKuliah, // Gunakan semester sebagai ID
+                    'label' => "Kelompok Besar Semester {$semesterMataKuliah} ({$jumlahMahasiswa} mahasiswa)",
+                    'jumlah_mahasiswa' => $jumlahMahasiswa
+                ];
+            }
 
             return response()->json([
                 'mata_kuliah' => $mataKuliah,
@@ -54,6 +77,8 @@ class DetailNonBlokNonCSRController extends Controller
                 'dosen_list' => $dosenList,
                 'ruangan_list' => $ruanganList,
                 'jam_options' => $jamOptions,
+                'kelompok_besar_agenda_options' => $kelompokBesarAgendaOptions,
+                'kelompok_besar_materi_options' => $kelompokBesarMateriOptions,
             ]);
 
         } catch (\Exception $e) {

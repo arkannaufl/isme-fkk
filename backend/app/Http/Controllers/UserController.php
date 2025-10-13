@@ -237,7 +237,7 @@ class UserController extends Controller
         if ($request->has('dosen_peran') && is_array($request->dosen_peran)) {
             // Hapus semua dosen_peran yang ada untuk user ini
             DosenPeran::where('user_id', $user->id)->delete();
-            
+
             // Tambahkan dosen_peran yang baru
             foreach ($request->dosen_peran as $peran) {
                 DosenPeran::create([
@@ -463,7 +463,7 @@ class UserController extends Controller
                 $kuliahBesarData = $kuliahBesarResponse->getData();
 
                 if (isset($kuliahBesarData->data)) {
-                    $jadwalKuliahBesar = collect($kuliahBesarData->data)->map(function($item) {
+                    $jadwalKuliahBesar = collect($kuliahBesarData->data)->map(function ($item) {
                         return (object) [
                             'id' => $item->id,
                             'mata_kuliah_kode' => $item->mata_kuliah_kode,
@@ -477,7 +477,12 @@ class UserController extends Controller
                             'jumlah_sesi' => $item->jumlah_sesi,
                             'semester' => $item->mata_kuliah->semester ?? '',
                             'blok' => $item->mata_kuliah->blok ?? null,
-                            'kelompok_kecil' => $item->kelompok_besar_antara->nama_kelompok ?? 'Semester ' . $item->kelompok_besar_id
+                            'kelompok_kecil' => $item->kelompok_besar_antara->nama_kelompok ?? 'Semester ' . $item->kelompok_besar_id,
+                            'kelompok_besar_id' => $item->kelompok_besar_id,
+                            'status_konfirmasi' => $item->status_konfirmasi ?? 'belum_konfirmasi',
+                            'alasan_konfirmasi' => $item->alasan_konfirmasi ?? null,
+                            'status_reschedule' => $item->status_reschedule ?? null,
+                            'reschedule_reason' => $item->reschedule_reason ?? null
                         ];
                     });
                     $jadwalMengajar = $jadwalMengajar->concat($jadwalKuliahBesar);
@@ -495,7 +500,7 @@ class UserController extends Controller
                 $praktikumData = $praktikumResponse->getData();
 
                 if (isset($praktikumData->data)) {
-                    $jadwalPraktikum = collect($praktikumData->data)->map(function($item) {
+                    $jadwalPraktikum = collect($praktikumData->data)->map(function ($item) {
                         return (object) [
                             'id' => $item->id,
                             'mata_kuliah_kode' => $item->mata_kuliah_kode,
@@ -509,7 +514,11 @@ class UserController extends Controller
                             'jumlah_sesi' => $item->jumlah_sesi,
                             'semester' => $item->mata_kuliah->semester ?? '',
                             'blok' => $item->mata_kuliah->blok ?? null,
-                            'kelompok_kecil' => $item->kelas_praktikum
+                            'kelompok_kecil' => $item->kelas_praktikum,
+                            'status_konfirmasi' => $item->status_konfirmasi ?? 'belum_konfirmasi',
+                            'alasan_konfirmasi' => $item->alasan_konfirmasi ?? null,
+                            'status_reschedule' => $item->status_reschedule ?? null,
+                            'reschedule_reason' => $item->reschedule_reason ?? null
                         ];
                     });
                     $jadwalMengajar = $jadwalMengajar->concat($jadwalPraktikum);
@@ -527,7 +536,7 @@ class UserController extends Controller
                 $jurnalData = $jurnalResponse->getData();
 
                 if (isset($jurnalData->data)) {
-                    $jadwalJurnal = collect($jurnalData->data)->map(function($item) {
+                    $jadwalJurnal = collect($jurnalData->data)->map(function ($item) {
                         return (object) [
                             'id' => $item->id,
                             'mata_kuliah_kode' => $item->mata_kuliah_kode,
@@ -541,7 +550,12 @@ class UserController extends Controller
                             'jumlah_sesi' => $item->jumlah_sesi,
                             'semester' => $item->mata_kuliah->semester ?? '',
                             'blok' => $item->mata_kuliah->blok ?? null,
-                            'kelompok_kecil' => $item->kelompok_kecil->nama ?? $item->kelompok_kecil_antara->nama_kelompok ?? ''
+                            'kelompok_kecil' => $item->kelompok_kecil->nama ?? $item->kelompok_kecil_antara->nama_kelompok ?? '',
+                            'penilaian_submitted' => (bool)($item->penilaian_submitted ?? false),
+                            'status_konfirmasi' => $item->status_konfirmasi ?? 'belum_konfirmasi',
+                            'alasan_konfirmasi' => $item->alasan_konfirmasi ?? null,
+                            'status_reschedule' => $item->status_reschedule ?? null,
+                            'reschedule_reason' => $item->reschedule_reason ?? null
                         ];
                     });
                     $jadwalMengajar = $jadwalMengajar->concat($jadwalJurnal);
@@ -560,7 +574,7 @@ class UserController extends Controller
 
                 if (isset($pblData->data)) {
                     Log::info("PBL data found: " . count($pblData->data) . " records for semester_type: {$semesterType}");
-                    $jadwalPBL = collect($pblData->data)->map(function($item) {
+                    $jadwalPBL = collect($pblData->data)->map(function ($item) {
                         // Handle both array and object data
                         $isArray = is_array($item);
 
@@ -579,7 +593,12 @@ class UserController extends Controller
                             'semester' => $isArray ? ($item['semester'] ?? '') : ($item->semester ?? ''),
                             'blok' => $isArray ? ($item['blok'] ?? null) : ($item->blok ?? null),
                             'kelompok_kecil' => $isArray ? ($item['kelompok'] ?? '') : ($item->kelompok ?? ''),
-                            'semester_type' => $isArray ? ($item['semester_type'] ?? 'reguler') : ($item->semester_type ?? 'reguler')
+                            'semester_type' => $isArray ? ($item['semester_type'] ?? 'reguler') : ($item->semester_type ?? 'reguler'),
+                            'penilaian_submitted' => $isArray ? (bool)($item['penilaian_submitted'] ?? false) : (bool)($item->penilaian_submitted ?? false),
+                            'status_konfirmasi' => $isArray ? ($item['status_konfirmasi'] ?? 'belum_konfirmasi') : ($item->status_konfirmasi ?? 'belum_konfirmasi'),
+                            'alasan_konfirmasi' => $isArray ? ($item['alasan_konfirmasi'] ?? null) : ($item->alasan_konfirmasi ?? null),
+                            'status_reschedule' => $isArray ? ($item['status_reschedule'] ?? null) : ($item->status_reschedule ?? null),
+                            'reschedule_reason' => $isArray ? ($item['reschedule_reason'] ?? null) : ($item->reschedule_reason ?? null)
                         ];
                     });
                     $jadwalMengajar = $jadwalMengajar->concat($jadwalPBL);
@@ -598,7 +617,7 @@ class UserController extends Controller
                 $csrData = $csrResponse->getData();
 
                 if (isset($csrData->data)) {
-                    $jadwalCSR = collect($csrData->data)->map(function($item) {
+                    $jadwalCSR = collect($csrData->data)->map(function ($item) {
                         // Handle both array and object data
                         $isArray = is_array($item);
 
@@ -613,11 +632,17 @@ class UserController extends Controller
                             'topik' => $isArray ? $item['topik'] : $item->topik,
                             'kategori_csr' => $isArray ? ($item['kategori']['nama'] ?? '') : ($item->kategori->nama ?? ''),
                             'jenis_csr' => $isArray ? $item['jenis_csr'] : $item->jenis_csr,
+                            'nomor_csr' => $isArray ? ($item['nomor_csr'] ?? '') : ($item->nomor_csr ?? ''),
                             'ruangan_nama' => $isArray ? ($item['ruangan']['nama'] ?? '') : ($item->ruangan->nama ?? ''),
                             'jumlah_sesi' => $isArray ? $item['jumlah_sesi'] : $item->jumlah_sesi,
                             'semester' => '',
                             'blok' => null,
-                            'kelompok_kecil' => $isArray ? ($item['kelompok_kecil']['nama'] ?? '') : ($item->kelompok_kecil->nama ?? '')
+                            'kelompok_kecil' => $isArray ? ($item['kelompok_kecil']['nama'] ?? '') : ($item->kelompok_kecil->nama ?? ''),
+                            'status_konfirmasi' => $isArray ? ($item['status_konfirmasi'] ?? 'belum_konfirmasi') : ($item->status_konfirmasi ?? 'belum_konfirmasi'),
+                            'alasan_konfirmasi' => $isArray ? ($item['alasan_konfirmasi'] ?? null) : ($item->alasan_konfirmasi ?? null),
+                            'status_reschedule' => $isArray ? ($item['status_reschedule'] ?? null) : ($item->status_reschedule ?? null),
+                            'reschedule_reason' => $isArray ? ($item['reschedule_reason'] ?? null) : ($item->reschedule_reason ?? null),
+                            'penilaian_submitted' => $isArray ? ($item['penilaian_submitted'] ?? false) : ($item->penilaian_submitted ?? false)
                         ];
                     });
                     $jadwalMengajar = $jadwalMengajar->concat($jadwalCSR);
@@ -635,7 +660,7 @@ class UserController extends Controller
                 $nonBlokData = $nonBlokResponse->getData();
 
                 if (isset($nonBlokData->data)) {
-                    $jadwalNonBlok = collect($nonBlokData->data)->map(function($item) {
+                    $jadwalNonBlok = collect($nonBlokData->data)->map(function ($item) {
                         // Handle both array and object data
                         $isArray = is_array($item);
 
@@ -654,8 +679,11 @@ class UserController extends Controller
                             'semester' => '',
                             'blok' => null,
                             'kelompok_kecil' => $isArray ?
-                                ($item['kelompok_besar']['semester'] ?? $item['kelompok_besar_antara']['nama_kelompok'] ?? '') :
-                                ($item->kelompok_besar->semester ?? $item->kelompok_besar_antara->nama_kelompok ?? '')
+                                ($item['kelompok_besar']['semester'] ?? $item['kelompok_besar_antara']['nama_kelompok'] ?? '') : ($item->kelompok_besar->semester ?? $item->kelompok_besar_antara->nama_kelompok ?? ''),
+                            'status_konfirmasi' => $isArray ? ($item['status_konfirmasi'] ?? 'belum_konfirmasi') : ($item->status_konfirmasi ?? 'belum_konfirmasi'),
+                            'alasan_konfirmasi' => $isArray ? ($item['alasan_konfirmasi'] ?? null) : ($item->alasan_konfirmasi ?? null),
+                            'status_reschedule' => $isArray ? ($item['status_reschedule'] ?? null) : ($item->status_reschedule ?? null),
+                            'reschedule_reason' => $isArray ? ($item['reschedule_reason'] ?? null) : ($item->reschedule_reason ?? null)
                         ];
                     });
                     $jadwalMengajar = $jadwalMengajar->concat($jadwalNonBlok);
@@ -675,7 +703,6 @@ class UserController extends Controller
             Log::info("Total jadwal mengajar: " . $jadwalMengajar->count());
 
             return response()->json($jadwalMengajar->values());
-
         } catch (\Exception $e) {
             Log::error("Error in getJadwalMengajar: " . $e->getMessage());
             return response()->json([
@@ -684,37 +711,37 @@ class UserController extends Controller
             ], 500);
         }
     }
-     // GET /users/search?q=query
-     public function search(Request $request)
-     {
-         try {
-             $query = $request->get('q');
+    // GET /users/search?q=query
+    public function search(Request $request)
+    {
+        try {
+            $query = $request->get('q');
 
-             if (!$query || strlen($query) < 2) {
-                 return response()->json([
-                     'success' => true,
-                     'data' => []
-                 ]);
-             }
+            if (!$query || strlen($query) < 2) {
+                return response()->json([
+                    'success' => true,
+                    'data' => []
+                ]);
+            }
 
-             $users = User::where('name', 'like', "%{$query}%")
-                 ->orWhere('username', 'like', "%{$query}%")
-                 ->orWhere('email', 'like', "%{$query}%")
-                 ->select(['id', 'name', 'username', 'email', 'role'])
-                 ->limit(20)
-                 ->get();
+            $users = User::where('name', 'like', "%{$query}%")
+                ->orWhere('username', 'like', "%{$query}%")
+                ->orWhere('email', 'like', "%{$query}%")
+                ->select(['id', 'name', 'username', 'email', 'role'])
+                ->limit(20)
+                ->get();
 
-             return response()->json([
-                 'success' => true,
-                 'data' => $users
-             ]);
-         } catch (\Exception $e) {
-             Log::error("Error in user search: " . $e->getMessage());
-             return response()->json([
-                 'success' => false,
-                 'message' => 'Gagal mencari user',
-                 'error' => $e->getMessage()
-             ], 500);
-         }
-     }
+            return response()->json([
+                'success' => true,
+                'data' => $users
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error in user search: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mencari user',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

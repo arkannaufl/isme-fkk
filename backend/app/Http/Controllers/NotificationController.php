@@ -16,19 +16,19 @@ class NotificationController extends Controller
     public function getUserNotifications($userId)
     {
         $user = Auth::user();
-        
+
         // Users can only access their own notifications
-        if ($user->id != $userId && $user->role !== 'super_admin') {
+        if (!$user || ($user->id != $userId && $user->role !== 'super_admin')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         // Get both personal notifications and public notifications
-        $notifications = Notification::where(function($query) use ($userId) {
+        $notifications = Notification::where(function ($query) use ($userId) {
             $query->where('user_id', $userId)
-                  ->orWhere('user_id', null); // Public notifications
+                ->orWhere('user_id', null); // Public notifications
         })
-        ->orderBy('created_at', 'desc')
-        ->get();
+            ->orderBy('created_at', 'desc')
+            ->get();
 
         return response()->json($notifications);
     }
@@ -39,19 +39,19 @@ class NotificationController extends Controller
     public function getAdminNotifications($userId)
     {
         $user = User::findOrFail($userId);
-        
+
         // Only super_admin can access admin notifications
         if ($user->role !== 'super_admin') {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         // Get both personal notifications and public notifications
-        $notifications = Notification::where(function($query) use ($userId) {
+        $notifications = Notification::where(function ($query) use ($userId) {
             $query->where('user_id', $userId)
-                  ->orWhere('user_id', null); // Public notifications
+                ->orWhere('user_id', null); // Public notifications
         })
-        ->orderBy('created_at', 'desc')
-        ->get();
+            ->orderBy('created_at', 'desc')
+            ->get();
 
         return response()->json($notifications);
     }
@@ -63,7 +63,7 @@ class NotificationController extends Controller
     {
         $notification = Notification::findOrFail($notificationId);
         $user = Auth::user();
-        
+
         // Super admin can mark any notification as read
         if ($user->role === 'super_admin') {
             $notification->update([
@@ -80,10 +80,10 @@ class NotificationController extends Controller
                     'type' => $notification->type
                 ])
                 ->log('Notification marked as read: ' . $notification->title);
-                
+
             return response()->json(['message' => 'Notification marked as read']);
         }
-        
+
         // All authenticated users can mark any notification as read
         // This allows all roles (dosen, mahasiswa, tim_akademik, admin) to mark notifications as read
         $notification->update([
@@ -110,7 +110,7 @@ class NotificationController extends Controller
     public function markAllAsRead($userId)
     {
         $user = Auth::user();
-        
+
         // Super admin can mark all notifications as read
         if ($user->role === 'super_admin') {
             Notification::where('is_read', false)
@@ -120,7 +120,7 @@ class NotificationController extends Controller
                 ]);
             return response()->json(['message' => 'All notifications marked as read']);
         }
-        
+
         // Regular users can only mark their own notifications as read
         if ($userId != $user->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
@@ -142,7 +142,7 @@ class NotificationController extends Controller
     public function createPBLAssignmentNotification($userId, $pblData)
     {
         $user = User::findOrFail($userId);
-        
+
         $notification = Notification::create([
             'user_id' => $userId,
             'title' => 'Jadwal PBL Baru',
@@ -168,7 +168,7 @@ class NotificationController extends Controller
     public function createPBLBlockAssignmentNotification($userId, $blockData)
     {
         $user = User::findOrFail($userId);
-        
+
         // Format message yang lebih informatif
         // Semester disimpan sebagai integer: 1 = Ganjil, 2 = Genap
         $semesterText = '';
@@ -178,7 +178,7 @@ class NotificationController extends Controller
             // Fallback untuk string (jika ada yang masih menggunakan format lama)
             $semesterText = $blockData['semester'] === 'ganjil' ? 'Semester Ganjil' : 'Semester Genap';
         }
-        
+
         // Log untuk debugging
         \Log::info("Notification semester mapping", [
             'raw_semester' => $blockData['semester'],
@@ -186,10 +186,10 @@ class NotificationController extends Controller
             'semester_text' => $semesterText,
             'is_numeric' => is_numeric($blockData['semester'])
         ]);
-        
+
         $modulCount = count($blockData['moduls']);
         $kelompokCount = $blockData['total_kelompok'] ?? 0;
-        
+
         $notification = Notification::create([
             'user_id' => $userId,
             'title' => "🎯 Assignment PBL Baru - Blok {$blockData['blok']} {$semesterText}",
@@ -216,12 +216,12 @@ class NotificationController extends Controller
      */
     public function getUnreadCount($userId)
     {
-        $count = Notification::where(function($query) use ($userId) {
+        $count = Notification::where(function ($query) use ($userId) {
             $query->where('user_id', $userId)
-                  ->orWhere('user_id', null); // Include public notifications
+                ->orWhere('user_id', null); // Include public notifications
         })
-        ->where('is_read', false)
-        ->count();
+            ->where('is_read', false)
+            ->count();
 
         return response()->json(['count' => $count]);
     }
@@ -239,36 +239,30 @@ class NotificationController extends Controller
         // Get search query
         $search = $request->get('search', '');
         $userType = $request->get('user_type', 'all'); // all, dosen, mahasiswa
-        
+
         // Build query with search and user type filter
         $query = Notification::with('user');
-        
-        // Filter by user type - include public notifications for all types
-        if ($userType === 'dosen') {
-            $query->where(function($q) {
-                $q->whereHas('user', function($userQuery) {
-                    $userQuery->whereIn('role', ['dosen', 'koordinator', 'tim_blok', 'dosen_mengajar']);
-                })->orWhere('user_id', null); // Include public notifications
-            });
-        } elseif ($userType === 'mahasiswa') {
-            $query->where(function($q) {
-                $q->whereHas('user', function($userQuery) {
-                    $userQuery->where('role', 'mahasiswa');
-                })->orWhere('user_id', null); // Include public notifications
-            });
-        }
-        
+
+        // Untuk admin, tampilkan semua notifikasi yang dibuat untuk admin lain juga
+        $currentUser = Auth::user();
+        $adminIds = User::whereIn('role', ['admin', 'super_admin', 'tim_akademik'])->pluck('id')->toArray();
+
+        $query->where(function ($q) use ($adminIds) {
+            $q->whereIn('user_id', $adminIds)
+                ->orWhere('user_id', null); // Include public notifications
+        });
+
         // Apply search filter
         if ($search) {
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', "%{$search}%")
-                  ->orWhere('message', 'like', "%{$search}%")
-                  ->orWhereHas('user', function($userQuery) use ($search) {
-                      $userQuery->where('name', 'like', "%{$search}%");
-                  });
+                    ->orWhere('message', 'like', "%{$search}%")
+                    ->orWhereHas('user', function ($userQuery) use ($search) {
+                        $userQuery->where('name', 'like', "%{$search}%");
+                    });
             });
         }
-        
+
         $notifications = $query->orderBy('created_at', 'desc')->get()
             ->map(function ($notification) {
                 // Handle public notifications (user_id = null)
@@ -293,15 +287,37 @@ class NotificationController extends Controller
                         'data' => $notification->data
                     ];
                 }
-                
+
                 // Handle regular notifications
                 $userRole = $notification->user->role ?? 'unknown';
-                $isDosen = in_array($userRole, ['dosen', 'koordinator', 'tim_blok', 'dosen_mengajar']);
-                $userTypeLabel = $isDosen ? 'Dosen' : 'Mahasiswa';
-                
+
+                // For admin notifications, show the actual actor (from data) or fallback to notification user
+                $displayName = $notification->data['approved_by'] ??
+                    $notification->data['rejected_by'] ??
+                    $notification->data['sender_name'] ??
+                    $notification->data['dosen_name'] ??
+                    $notification->user->name ??
+                    'Sistem';
+
+                // Determine user type based on the actual actor
+                // For admin actions (approve/reject), check if admin info exists
+                if (isset($notification->data['approved_by']) || isset($notification->data['rejected_by'])) {
+                    // This is an admin action, so actor is admin
+                    $actorRole = 'super_admin'; // Default to super_admin for admin actions
+                } else {
+                    // Regular notification, check sender or dosen role
+                    $actorRole = $notification->data['sender_role'] ??
+                        $notification->data['dosen_role'] ??
+                        $userRole;
+                }
+
+                $isDosen = in_array($actorRole, ['dosen', 'koordinator', 'tim_blok', 'dosen_mengajar']);
+                $isAdmin = in_array($actorRole, ['super_admin', 'admin', 'tim_akademik']);
+                $userTypeLabel = $isAdmin ? 'Admin' : ($isDosen ? 'Dosen' : 'Mahasiswa');
+
                 return [
                     'id' => $notification->id,
-                    'user_name' => $notification->user->name ?? 'Unknown User',
+                    'user_name' => $displayName,
                     'user_id' => $notification->user_id,
                     'user_role' => $userRole,
                     'user_type' => $userTypeLabel,
@@ -335,45 +351,45 @@ class NotificationController extends Controller
 
         // Get user type filter
         $userType = $request->get('user_type', 'all');
-        
+
         // Build base query
         $baseQuery = Notification::query();
-        
+
         // Apply user type filter
         if ($userType === 'dosen') {
-            $baseQuery->whereHas('user', function($q) {
+            $baseQuery->whereHas('user', function ($q) {
                 $q->whereIn('role', ['dosen', 'koordinator', 'tim_blok', 'dosen_mengajar']);
             });
         } elseif ($userType === 'mahasiswa') {
-            $baseQuery->whereHas('user', function($q) {
+            $baseQuery->whereHas('user', function ($q) {
                 $q->where('role', 'mahasiswa');
             });
         }
-        
+
         // Clone queries for different counts
         $totalQuery = clone $baseQuery;
         $readQuery = clone $baseQuery;
         $unreadQuery = clone $baseQuery;
         $recentQuery = clone $baseQuery;
         $recentReadsQuery = clone $baseQuery;
-        
+
         $totalNotifications = $totalQuery->count();
         $readNotifications = $readQuery->where('is_read', true)->count();
         $unreadNotifications = $unreadQuery->where('is_read', false)->count();
-        
+
         // Get read rate percentage
         $readRate = $totalNotifications > 0 ? round(($readNotifications / $totalNotifications) * 100, 1) : 0;
-        
+
         // Get recent activity (last 7 days)
         $recentNotifications = $recentQuery->where('created_at', '>=', now()->subDays(7))->count();
         $recentReads = $recentReadsQuery->where('read_at', '>=', now()->subDays(7))->count();
-        
+
         // Get breakdown by user type
-        $dosenNotifications = Notification::whereHas('user', function($q) {
+        $dosenNotifications = Notification::whereHas('user', function ($q) {
             $q->whereIn('role', ['dosen', 'koordinator', 'tim_blok', 'dosen_mengajar']);
         })->count();
-        
-        $mahasiswaNotifications = Notification::whereHas('user', function($q) {
+
+        $mahasiswaNotifications = Notification::whereHas('user', function ($q) {
             $q->where('role', 'mahasiswa');
         })->count();
 
@@ -450,7 +466,7 @@ class NotificationController extends Controller
     public function deleteNotification($notificationId)
     {
         $notification = Notification::findOrFail($notificationId);
-        
+
         // Check if user owns this notification
         if ($notification->user_id !== Auth::id()) {
             return response()->json(['message' => 'Unauthorized'], 403);
@@ -495,7 +511,7 @@ class NotificationController extends Controller
 
         try {
             $notification = Notification::findOrFail($request->notification_id);
-            
+
             // Update notification status to pending
             $notification->update([
                 'is_read' => false,
@@ -503,32 +519,32 @@ class NotificationController extends Controller
             ]);
 
 
-        // Log activity
+            // Log activity
 
-        activity()
+            activity()
 
-            ->log('Notification deleted');
-
-
-        // Log activity
-
-        activity()
-
-            ->log('Notification updated');
+                ->log('Notification deleted');
 
 
-        // Log activity
+            // Log activity
 
-        activity()
+            activity()
 
-            ->log('Notification created');
+                ->log('Notification updated');
+
+
+            // Log activity
+
+            activity()
+
+                ->log('Notification created');
 
             // Determine jadwal_type from notification data or request
             $jadwalType = $request->jadwal_type;
             if (!$jadwalType && isset($notification->data['jadwal_type'])) {
                 $jadwalType = $notification->data['jadwal_type'];
             }
-            
+
             // If still no jadwal_type, try to determine from notification title/message
             if (!$jadwalType) {
                 $title = strtolower($notification->title);
@@ -546,7 +562,7 @@ class NotificationController extends Controller
                     $jadwalType = 'non_blok_non_csr';
                 }
             }
-            
+
             if (!$jadwalType) {
                 return response()->json([
                     'message' => 'Jenis jadwal tidak dapat ditentukan',
@@ -592,7 +608,6 @@ class NotificationController extends Controller
                 'message' => 'Dosen diminta untuk konfirmasi ulang',
                 'notification' => $newNotification
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Gagal meminta dosen konfirmasi ulang',
@@ -610,34 +625,34 @@ class NotificationController extends Controller
             switch ($jadwalType) {
                 case 'pbl':
                     $jadwal = \App\Models\JadwalPBL::find($jadwalId);
-                    
+
                     if ($jadwal) {
                         // Untuk reassignment, kita tidak perlu cek akses karena superadmin yang meminta
                         // Langsung reset status dan tambahkan dosen ke dosen_ids
-                        
+
                         // Log current state before reset
                         \Log::info("Before reset PBL jadwal ID: {$jadwalId}, user ID: {$userId}", [
                             'current_status' => $jadwal->status_konfirmasi,
                             'current_dosen_ids' => $jadwal->dosen_ids,
                             'current_dosen_id' => $jadwal->dosen_id
                         ]);
-                        
+
                         // Reset status konfirmasi
                         $jadwal->update([
                             'status_konfirmasi' => 'belum_konfirmasi',
                             'alasan_konfirmasi' => null
                         ]);
-                        
+
                         // Pastikan dosen ada di dosen_ids untuk memungkinkan konfirmasi ulang
                         $currentDosenIds = $jadwal->dosen_ids ? (is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true)) : [];
-                        
+
                         // Jika dosen tidak ada di dosen_ids, tambahkan kembali
                         if (!in_array($userId, $currentDosenIds)) {
                             $currentDosenIds[] = $userId;
                             $jadwal->update(['dosen_ids' => $currentDosenIds]);
                             \Log::info("Re-added dosen {$userId} to dosen_ids for PBL jadwal ID: {$jadwalId}");
                         }
-                        
+
                         // Log final state after reset
                         $jadwal->refresh(); // Reload from database
                         \Log::info("After reset PBL jadwal ID: {$jadwalId}, user ID: {$userId}", [
@@ -649,15 +664,15 @@ class NotificationController extends Controller
                         \Log::warning("PBL jadwal ID: {$jadwalId} not found");
                     }
                     break;
-                    
+
                 case 'kuliah_besar':
                     $jadwal = \App\Models\JadwalKuliahBesar::where('id', $jadwalId)
-                        ->where(function($query) use ($userId) {
+                        ->where(function ($query) use ($userId) {
                             $query->where('dosen_id', $userId)
-                                  ->orWhereJsonContains('dosen_ids', $userId);
+                                ->orWhereJsonContains('dosen_ids', $userId);
                         })
                         ->first();
-                    
+
                     if ($jadwal) {
                         $jadwal->update([
                             'status_konfirmasi' => 'belum_konfirmasi',
@@ -665,10 +680,10 @@ class NotificationController extends Controller
                         ]);
                     }
                     break;
-                    
+
                 case 'non_blok_non_csr':
                     $jadwal = \App\Models\JadwalNonBlokNonCSR::find($jadwalId);
-                    
+
                     if ($jadwal) {
                         // Cek apakah dosen memiliki akses
                         $hasAccess = false;
@@ -677,7 +692,7 @@ class NotificationController extends Controller
                         } elseif ($jadwal->dosen_ids && is_array($jadwal->dosen_ids) && !empty($jadwal->dosen_ids)) {
                             $hasAccess = in_array($userId, $jadwal->dosen_ids);
                         }
-                        
+
                         if ($hasAccess) {
                             $jadwal->update([
                                 'status_konfirmasi' => 'belum_konfirmasi',
@@ -691,12 +706,12 @@ class NotificationController extends Controller
                         \Log::warning("Non Blok Non CSR jadwal ID: {$jadwalId} not found");
                     }
                     break;
-                    
+
                 case 'csr':
                     $jadwal = \App\Models\JadwalCSR::where('id', $jadwalId)
                         ->where('dosen_id', $userId)
                         ->first();
-                    
+
                     if ($jadwal) {
                         $jadwal->update([
                             'status_konfirmasi' => 'belum_konfirmasi',
@@ -704,12 +719,12 @@ class NotificationController extends Controller
                         ]);
                     }
                     break;
-                    
+
                 case 'praktikum':
                     $jadwal = \App\Models\JadwalPraktikum::where('id', $jadwalId)
                         ->where('dosen_id', $userId)
                         ->first();
-                    
+
                     if ($jadwal) {
                         $jadwal->update([
                             'status_konfirmasi' => 'belum_konfirmasi',
@@ -717,30 +732,30 @@ class NotificationController extends Controller
                         ]);
                     }
                     break;
-                    
+
                 case 'jurnal_reading':
                     $jadwal = \App\Models\JadwalJurnalReading::find($jadwalId);
-                    
+
                     if ($jadwal) {
                         // Untuk reassignment, kita tidak perlu cek akses karena superadmin yang meminta
                         // Langsung reset status dan tambahkan dosen ke dosen_ids
-                        
+
                         // Reset status konfirmasi
                         $jadwal->update([
                             'status_konfirmasi' => 'belum_konfirmasi',
                             'alasan_konfirmasi' => null
                         ]);
-                        
+
                         // Pastikan dosen ada di dosen_ids untuk memungkinkan konfirmasi ulang
                         $currentDosenIds = $jadwal->dosen_ids ? (is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true)) : [];
-                        
+
                         // Jika dosen tidak ada di dosen_ids, tambahkan kembali
                         if (!in_array($userId, $currentDosenIds)) {
                             $currentDosenIds[] = $userId;
                             $jadwal->update(['dosen_ids' => $currentDosenIds]);
                             \Log::info("Re-added dosen {$userId} to dosen_ids for Jurnal Reading jadwal ID: {$jadwalId}");
                         }
-                        
+
                         \Log::info("Reset Jurnal Reading confirmation status for jadwal ID: {$jadwalId}, user ID: {$userId}");
                     } else {
                         \Log::warning("Jurnal Reading jadwal ID: {$jadwalId} not found");
@@ -767,10 +782,10 @@ class NotificationController extends Controller
         try {
             $notification = Notification::findOrFail($request->notification_id);
             $newDosen = User::findOrFail($request->new_dosen_id);
-            
+
             // Check if new dosen is available (no conflict)
             $isAvailable = $this->checkDosenAvailabilityPrivate($request->jadwal_id, $request->jadwal_type, $request->new_dosen_id);
-            
+
             if (!$isAvailable) {
                 return response()->json([
                     'message' => 'Dosen pengganti tidak tersedia pada waktu tersebut',
@@ -848,7 +863,6 @@ class NotificationController extends Controller
                 'new_dosen' => $newDosen,
                 'notification' => $newNotification
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Gagal mengganti dosen',
@@ -869,8 +883,8 @@ class NotificationController extends Controller
         ]);
 
         $isAvailable = $this->checkDosenAvailabilityPrivate(
-            $request->jadwal_id, 
-            $request->jadwal_type, 
+            $request->jadwal_id,
+            $request->jadwal_type,
             $request->dosen_id
         );
 
@@ -887,10 +901,10 @@ class NotificationController extends Controller
     {
         // This is a simplified check - in real implementation, you would check against actual schedules
         // For now, we'll assume all dosen are available (you can implement proper conflict checking)
-        
+
         // TODO: Implement proper schedule conflict checking
         // Check if dosen has any conflicting schedules at the same time
-        
+
         return true; // Placeholder - always return true for now
     }
 
@@ -908,7 +922,7 @@ class NotificationController extends Controller
                     $oldPBLType = $jadwal->pbl_tipe;
                     $jadwal->resetPenilaianSubmitted();
                     $jadwal->update(['dosen_id' => $newDosenId]);
-                    
+
                     // Update penilaian data jika PBL type berubah
                     if ($oldPBLType !== $jadwal->pbl_tipe) {
                         $jadwal->updatePenilaianForPBLTypeChange($oldPBLType, $jadwal->pbl_tipe);
@@ -938,6 +952,234 @@ class NotificationController extends Controller
             case 'non_blok_non_csr':
                 // Update Non Blok Non CSR schedule
                 \DB::table('jadwal_non_blok_non_csr')->where('id', $jadwalId)->update(['dosen_id' => $newDosenId]);
+                break;
+        }
+    }
+
+    /**
+     * Approve reschedule request
+     */
+    public function approveReschedule(Request $request)
+    {
+        $request->validate([
+            'notification_id' => 'required|exists:notifications,id',
+            'jadwal_id' => 'required|integer',
+            'jadwal_type' => 'required|string',
+            'new_tanggal' => 'required|date',
+            'new_jam_mulai' => 'required|string',
+            'new_jam_selesai' => 'required|string',
+            'new_ruangan_id' => 'nullable|exists:ruangan,id',
+            'new_jumlah_sesi' => 'nullable|integer|min:1|max:6'
+        ]);
+
+        try {
+            $notification = Notification::findOrFail($request->notification_id);
+            $jadwalId = $request->jadwal_id;
+            $jadwalType = $request->jadwal_type;
+
+            // Update jadwal dengan data baru
+            $this->updateScheduleWithNewTime($jadwalType, $jadwalId, $request);
+
+            // Update status konfirmasi menjadi 'belum_konfirmasi' (dosen harus konfirmasi ulang untuk jadwal baru)
+            $this->updateScheduleStatus($jadwalType, $jadwalId, 'belum_konfirmasi', 'approved');
+
+            // Update notifikasi admin menjadi "Disetujui"
+            $adminName = auth()->user()->name ?? 'Admin';
+            $notification->update([
+                'title' => 'Reschedule Disetujui',
+                'message' => "Permintaan reschedule dari {$notification->data['dosen_name']} telah disetujui oleh {$adminName} dan jadwal telah diubah.",
+                'type' => 'success',
+                'data' => array_merge($notification->data, [
+                    'notification_type' => 'reschedule_approved',
+                    'approved_by' => $adminName,
+                    'approved_by_id' => auth()->id(),
+                    'new_tanggal' => $request->new_tanggal,
+                    'new_jam_mulai' => $request->new_jam_mulai,
+                    'new_jam_selesai' => $request->new_jam_selesai
+                ])
+            ]);
+
+            // Kirim notifikasi ke dosen bahwa reschedule disetujui dan perlu konfirmasi ulang
+            $dosenId = $notification->data['dosen_id'] ?? null;
+            if ($dosenId) {
+                Notification::create([
+                    'user_id' => $dosenId,
+                    'title' => 'Reschedule Disetujui',
+                    'message' => "Permintaan reschedule Anda telah disetujui oleh {$adminName}. Jadwal telah diubah dan Anda perlu mengkonfirmasi ketersediaan kembali untuk jadwal yang baru.",
+                    'type' => 'success',
+                    'is_read' => false,
+                    'data' => [
+                        'jadwal_id' => $jadwalId,
+                        'jadwal_type' => $jadwalType,
+                        'notification_type' => 'reschedule_approved',
+                        'approved_by' => $adminName,
+                        'approved_by_id' => auth()->id(),
+                        'new_tanggal' => $request->new_tanggal,
+                        'new_jam_mulai' => $request->new_jam_mulai,
+                        'new_jam_selesai' => $request->new_jam_selesai,
+                        'created_by' => $adminName,
+                        'created_by_role' => auth()->user()->role ?? 'admin',
+                        'sender_name' => $adminName,
+                        'sender_role' => auth()->user()->role ?? 'admin'
+                    ]
+                ]);
+            }
+
+            return response()->json([
+                'message' => 'Reschedule berhasil disetujui dan jadwal telah diubah'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error approving reschedule: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Gagal menyetujui reschedule',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Reject reschedule request
+     */
+    public function rejectReschedule(Request $request)
+    {
+        $request->validate([
+            'notification_id' => 'required|exists:notifications,id',
+            'jadwal_id' => 'required|integer',
+            'jadwal_type' => 'required|string'
+        ]);
+
+        try {
+            $notification = Notification::findOrFail($request->notification_id);
+            $jadwalId = $request->jadwal_id;
+            $jadwalType = $request->jadwal_type;
+
+            // Update status konfirmasi menjadi 'belum_konfirmasi' (kembali ke awal)
+            $this->updateScheduleStatus($jadwalType, $jadwalId, 'belum_konfirmasi', 'rejected');
+
+            // Update notifikasi admin menjadi "Ditolak"
+            $adminName = auth()->user()->name ?? 'Admin';
+            $notification->update([
+                'title' => 'Reschedule Ditolak',
+                'message' => "Permintaan reschedule dari {$notification->data['dosen_name']} telah ditolak oleh {$adminName}.",
+                'type' => 'warning',
+                'data' => array_merge($notification->data, [
+                    'notification_type' => 'reschedule_rejected',
+                    'rejected_by' => $adminName,
+                    'rejected_by_id' => auth()->id()
+                ])
+            ]);
+
+            // Kirim notifikasi ke dosen bahwa reschedule ditolak
+            $dosenId = $notification->data['dosen_id'] ?? null;
+            if ($dosenId) {
+                Notification::create([
+                    'user_id' => $dosenId,
+                    'title' => 'Reschedule Ditolak',
+                    'message' => "Permintaan reschedule Anda ditolak oleh {$adminName}. Silakan konfirmasi ketersediaan untuk jadwal yang ada.",
+                    'type' => 'warning',
+                    'is_read' => false,
+                    'data' => [
+                        'jadwal_id' => $jadwalId,
+                        'jadwal_type' => $jadwalType,
+                        'notification_type' => 'reschedule_rejected',
+                        'rejected_by' => $adminName,
+                        'rejected_by_id' => auth()->id(),
+                        'created_by' => $adminName,
+                        'created_by_role' => auth()->user()->role ?? 'admin',
+                        'sender_name' => $adminName,
+                        'sender_role' => auth()->user()->role ?? 'admin'
+                    ]
+                ]);
+            }
+
+            return response()->json([
+                'message' => 'Reschedule ditolak dan status dikembalikan ke awal'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error rejecting reschedule: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Gagal menolak reschedule',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update schedule with new time and date
+     */
+    private function updateScheduleWithNewTime($jadwalType, $jadwalId, $request)
+    {
+        $updateData = [
+            'tanggal' => $request->new_tanggal,
+            'jam_mulai' => $request->new_jam_mulai,
+            'jam_selesai' => $request->new_jam_selesai
+        ];
+
+        if ($request->new_ruangan_id) {
+            $updateData['ruangan_id'] = $request->new_ruangan_id;
+        }
+
+        // Update jumlah_sesi jika ada
+        if ($request->new_jumlah_sesi) {
+            $updateData['jumlah_sesi'] = $request->new_jumlah_sesi;
+        }
+
+        switch ($jadwalType) {
+            case 'pbl':
+                \DB::table('jadwal_pbl')->where('id', $jadwalId)->update($updateData);
+                break;
+            case 'kuliah_besar':
+                \DB::table('jadwal_kuliah_besar')->where('id', $jadwalId)->update($updateData);
+                break;
+            case 'praktikum':
+                \DB::table('jadwal_praktikum')->where('id', $jadwalId)->update($updateData);
+                break;
+            case 'jurnal_reading':
+                \DB::table('jadwal_jurnal_reading')->where('id', $jadwalId)->update($updateData);
+                break;
+            case 'csr':
+                \DB::table('jadwal_csr')->where('id', $jadwalId)->update($updateData);
+                break;
+            case 'non_blok_non_csr':
+                \DB::table('jadwal_non_blok_non_csr')->where('id', $jadwalId)->update($updateData);
+                break;
+        }
+    }
+
+    /**
+     * Update schedule status
+     */
+    private function updateScheduleStatus($jadwalType, $jadwalId, $status, $statusReschedule = null)
+    {
+        $updateData = [
+            'status_konfirmasi' => $status,
+            'status_reschedule' => $statusReschedule,
+            'reschedule_reason' => null
+        ];
+
+        switch ($jadwalType) {
+            case 'pbl':
+                \DB::table('jadwal_pbl')->where('id', $jadwalId)->update($updateData);
+                break;
+            case 'kuliah_besar':
+                \DB::table('jadwal_kuliah_besar')->where('id', $jadwalId)->update($updateData);
+                break;
+            case 'praktikum':
+                // For praktikum, update pivot table
+                \DB::table('jadwal_praktikum_dosen')->where('jadwal_praktikum_id', $jadwalId)->update([
+                    'status_konfirmasi' => $status,
+                    'status_reschedule' => $statusReschedule,
+                    'reschedule_reason' => null
+                ]);
+                break;
+            case 'jurnal_reading':
+                \DB::table('jadwal_jurnal_reading')->where('id', $jadwalId)->update($updateData);
+                break;
+            case 'csr':
+                \DB::table('jadwal_csr')->where('id', $jadwalId)->update($updateData);
+                break;
+            case 'non_blok_non_csr':
+                \DB::table('jadwal_non_blok_non_csr')->where('id', $jadwalId)->update($updateData);
                 break;
         }
     }

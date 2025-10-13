@@ -97,6 +97,12 @@ export default function DetailNonBlokNonCSR() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedDeleteIndex, setSelectedDeleteIndex] = useState<number | null>(null);
   
+  // State untuk bulk delete
+  const [selectedItems, setSelectedItems] = useState<number[]>([]);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  
   // State untuk dropdown options
   const [dosenList, setDosenList] = useState<DosenOption[]>([]);
   const [ruanganList, setRuanganList] = useState<RuanganOption[]>([]);
@@ -466,6 +472,57 @@ export default function DetailNonBlokNonCSR() {
     }
   }
 
+  // Fungsi untuk handle bulk delete
+  const handleBulkDelete = () => {
+    setShowBulkDeleteModal(true);
+  };
+
+  const confirmBulkDelete = async () => {
+    if (!kode) return;
+    
+    setIsBulkDeleting(true);
+    setShowBulkDeleteModal(false);
+    
+    try {
+      // Delete all selected items
+      await Promise.all(selectedItems.map(id => api.delete(`/non-blok-non-csr/jadwal/${kode}/${id}`)));
+      
+      // Clear selected items
+      setSelectedItems([]);
+      
+      // Refresh data
+      await fetchBatchData();
+      
+      // Show success message
+      setSuccessMessage(`${selectedItems.length} jadwal berhasil dihapus.`);
+      setTimeout(() => setSuccessMessage(''), 3000);
+      
+    } catch (error) {
+      console.error('Error bulk deleting:', error);
+      setErrorBackend('Gagal menghapus jadwal yang dipilih');
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
+  const handleSelectAll = (allItems: any[]) => {
+    const allIds = allItems.map(item => item.id).filter(id => id !== undefined);
+    
+    if (selectedItems.length === allIds.length) {
+      setSelectedItems([]);
+    } else {
+      setSelectedItems(allIds);
+    }
+  };
+
+  const handleSelectItem = (itemId: number) => {
+    if (selectedItems.includes(itemId)) {
+      setSelectedItems(selectedItems.filter(id => id !== itemId));
+    } else {
+      setSelectedItems([...selectedItems, itemId]);
+    }
+  };
+
   async function handleTambahJadwal() {
     setErrorForm('');
     setErrorBackend('');
@@ -637,7 +694,7 @@ export default function DetailNonBlokNonCSR() {
       {/* Header */}
       <div className="pt-6 pb-2">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/mata-kuliah')}
           className="flex items-center gap-2 text-brand-500 font-medium hover:text-brand-600 transition px-0 py-0 bg-transparent shadow-none"
         >
           <ChevronLeftIcon className="w-5 h-5" />
@@ -742,12 +799,42 @@ export default function DetailNonBlokNonCSR() {
         </button>
       </div>
 
+      {/* Success Message */}
+      <AnimatePresence>
+        {successMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
+          >
+            {successMessage}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Tabel Jadwal Materi */}
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03] mt-8">
         <div className="max-w-full overflow-x-auto hide-scroll">
           <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
             <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
               <tr>
+                <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                  <button
+                    type="button"
+                    aria-checked={jadwalMateri.length > 0 && jadwalMateri.every(item => selectedItems.includes(item.id!))}
+                    role="checkbox"
+                    onClick={() => handleSelectAll(jadwalMateri)}
+                    className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${jadwalMateri.length > 0 && jadwalMateri.every(item => selectedItems.includes(item.id!)) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                  >
+                    {jadwalMateri.length > 0 && jadwalMateri.every(item => selectedItems.includes(item.id!)) && (
+                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                        <polyline points="20 7 11 17 4 10" />
+                      </svg>
+                    )}
+                  </button>
+                </th>
                 <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Hari/Tanggal</th>
                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pukul</th>
@@ -762,7 +849,7 @@ export default function DetailNonBlokNonCSR() {
             <tbody>
               {jadwalMateri.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="text-center py-6 text-gray-400">Tidak ada data jadwal</td>
+                  <td colSpan={10} className="text-center py-6 text-gray-400">Tidak ada data jadwal</td>
                 </tr>
               ) : (
                 jadwalMateri
@@ -774,6 +861,21 @@ export default function DetailNonBlokNonCSR() {
                 })
                 .map((row, idx) => (
                     <tr key={row.id} className={row.jenis_baris === 'agenda' ? 'bg-yellow-50 dark:bg-yellow-900/20' : (idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : '')}>
+                      <td className="px-4 py-4 text-center">
+                        <button
+                          type="button"
+                          aria-checked={selectedItems.includes(row.id!)}
+                          role="checkbox"
+                          onClick={() => handleSelectItem(row.id!)}
+                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedItems.includes(row.id!) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                        >
+                          {selectedItems.includes(row.id!) && (
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                              <polyline points="20 7 11 17 4 10" />
+                            </svg>
+                          )}
+                        </button>
+                      </td>
                       <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{idx + 1}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatTanggalKonsisten(row.tanggal)}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatJamTanpaDetik(row.jam_mulai)}–{formatJamTanpaDetik(row.jam_selesai)}</td>
@@ -819,6 +921,19 @@ export default function DetailNonBlokNonCSR() {
           </table>
         </div>
       </div>
+
+      {/* Bulk Delete Button */}
+      {selectedItems.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-4">
+          <button
+            disabled={isBulkDeleting}
+            onClick={handleBulkDelete}
+            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${isBulkDeleting ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-red-500 text-white shadow-theme-xs hover:bg-red-600'}`}
+          >
+            {isBulkDeleting ? 'Menghapus...' : `Hapus Terpilih (${selectedItems.length})`}
+          </button>
+        </div>
+      )}
 
       {/* MODAL INPUT JADWAL MATERI */}
       <AnimatePresence>
@@ -2182,6 +2297,51 @@ export default function DetailNonBlokNonCSR() {
                 </div>
               </>
             )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Konfirmasi Bulk Delete */}
+      <AnimatePresence>
+        {showBulkDeleteModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            <div
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowBulkDeleteModal(false)}
+            ></div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+            >
+              <div className="flex items-center justify-between pb-6">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">Konfirmasi Hapus Data</h2>
+              </div>
+              <div>
+                <p className="mb-6 text-gray-500 dark:text-gray-400">
+                  Apakah Anda yakin ingin menghapus <span className="font-semibold text-gray-800 dark:text-white">
+                    {selectedItems.length}
+                  </span> jadwal terpilih? Data yang dihapus tidak dapat dikembalikan.
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    onClick={() => setShowBulkDeleteModal(false)}
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={confirmBulkDelete}
+                    className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition flex items-center justify-center"
+                    disabled={isBulkDeleting}
+                  >
+                    {isBulkDeleting ? 'Menghapus...' : 'Hapus'}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>

@@ -12,13 +12,14 @@ class AbsensiPBL extends Model
     use HasFactory, LogsActivity;
 
     protected $table = 'absensi_pbl';
-    
+
     protected $fillable = [
         'mata_kuliah_kode',
         'kelompok',
         'pertemuan',
         'mahasiswa_npm',
-        'hadir'
+        'hadir',
+        'catatan'
     ];
 
     protected $casts = [

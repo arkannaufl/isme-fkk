@@ -974,6 +974,27 @@ export default function MataKuliah() {
     }
   };
 
+  // Fungsi untuk generate kode mata kuliah otomatis
+  const generateKodeMataKuliah = (semester: number | string, jenis: "Blok" | "Non Blok", blok: number | null = null): string => {
+    if (semester === "Antara") {
+      // Semester Antara
+      if (jenis === "Blok" && blok) {
+        return `MKA00${blok}`;
+      } else if (jenis === "Non Blok") {
+        return "MKA005";
+      }
+    } else {
+      // Semester Reguler (1-7)
+      const semesterNum = Number(semester);
+      if (jenis === "Blok" && blok) {
+        return `MKB${semesterNum}0${blok}`;
+      } else if (jenis === "Non Blok") {
+        return `MKU00${semesterNum}`;
+      }
+    }
+    return "";
+  };
+
   // Reset modal state
   const handleCloseModal = () => {
     setShowModal(false);
@@ -1014,6 +1035,29 @@ export default function MataKuliah() {
   const handleOpenModal = () => {
     setShowModal(true);
     setEditMode(false);
+    
+    // Auto-generate kode awal berdasarkan form default
+    const defaultForm = {
+      kode: "",
+      nama: "",
+      semester: 1 as number | string,
+      periode: getPeriodeBySemester(1),
+      jenis: "Blok" as "Blok" | "Non Blok",
+      kurikulum: new Date().getFullYear(),
+      tanggalMulai: "",
+      tanggalAkhir: "",
+      blok: null,
+      durasiMinggu: null,
+      tipe_non_block: 'Non-CSR' as 'CSR' | 'Non-CSR',
+      peran_dalam_kurikulum: [],
+      keahlian_required: [],
+      rps_file: undefined,
+    };
+    
+    // Generate kode awal
+    defaultForm.kode = generateKodeMataKuliah(defaultForm.semester, defaultForm.jenis, defaultForm.blok);
+    
+    setForm(defaultForm);
   };
 
   // Semester options berdasarkan semester aktif
@@ -2935,27 +2979,25 @@ export default function MataKuliah() {
                 <div className="mb-3 sm:mb-4">
                   <label htmlFor="kode" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Kode Mata Kuliah
+                    {!editMode && <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">(Auto-generated)</span>}
                   </label>
                   <input
                     type="text"
                     id="kode"
                     name="kode"
                     value={form.kode}
-                    onChange={(e) => {
-                      const updatedForm = { ...form, kode: e.target.value };
-                      setForm(updatedForm);
-                    }}
-                    disabled={editMode}
-                    maxLength={255}
-                    className={`w-full px-3 py-2 rounded-lg border ${
-                      'border-gray-300 dark:border-gray-700'
-                     } bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-brand-500 dark:focus:bg-gray-800`}
-                    placeholder="Masukkan kode mata kuliah (bisa huruf saja, angka saja, atau kombinasi)"
+                    readOnly={!editMode}
+                    onChange={editMode ? (e) => setForm({ ...form, kode: e.target.value }) : undefined}
+                    className={`w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 font-normal text-sm sm:text-base ${
+                      editMode 
+                        ? 'bg-white dark:bg-gray-800 text-gray-800 dark:text-white' 
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 cursor-not-allowed'
+                    }`}
+                    placeholder={editMode ? "Masukkan kode mata kuliah" : "Kode akan otomatis terisi berdasarkan semester, jenis, dan blok"}
                   />
-                  {/* ALERT: Kode sudah ada di database */}
-                  {!editMode && form.kode.trim() && data.some(mk => mk.kode === form.kode.trim()) && (
-                    <div className="text-sm text-red-500 bg-red-100 rounded p-2 mt-4">
-                      Kode sudah terdaftar di database. Silakan gunakan kode lain.
+                  {!editMode && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Kode otomatis berdasarkan: {form.semester === "Antara" ? "Semester Antara" : `Semester ${form.semester}`} - {form.jenis} {form.jenis === "Blok" && form.blok ? `Blok ${form.blok}` : ""}
                     </div>
                   )}
                 </div>
@@ -2988,7 +3030,7 @@ export default function MataKuliah() {
                     value={form.semester}
                     onChange={(e) => {
                       const semester = e.target.value === "Antara" ? "Antara" : Number(e.target.value);
-                      setForm({
+                      const updatedForm = {
                         ...form,
                         semester,
                         periode: getPeriodeBySemester(semester),
@@ -2997,7 +3039,14 @@ export default function MataKuliah() {
                         keahlian_required: semester === "Antara" ? [] : form.keahlian_required,
                         // Otomatis set tipe_non_block menjadi Non-CSR jika semester Antara
                         tipe_non_block: semester === "Antara" ? 'Non-CSR' : form.tipe_non_block,
-                      });
+                      };
+                      
+                      // Auto-generate kode berdasarkan semester, jenis, dan blok
+                      if (!editMode) {
+                        updatedForm.kode = generateKodeMataKuliah(semester, updatedForm.jenis, updatedForm.blok);
+                      }
+                      
+                      setForm(updatedForm);
                     }}
                     className={`w-full px-3 py-2 rounded-lg border ${'border-gray-300 dark:border-gray-700'} bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-brand-500`}
                   >
@@ -3017,7 +3066,14 @@ export default function MataKuliah() {
                     name="jenis"
                     value={form.jenis}
                     onChange={(e) => {
-                      const updatedForm = { ...form, jenis: e.target.value as "Blok" | "Non Blok" };
+                      const jenis = e.target.value as "Blok" | "Non Blok";
+                      const updatedForm = { ...form, jenis };
+                      
+                      // Auto-generate kode berdasarkan semester, jenis, dan blok
+                      if (!editMode) {
+                        updatedForm.kode = generateKodeMataKuliah(updatedForm.semester, jenis, updatedForm.blok);
+                      }
+                      
                       setForm(updatedForm);
                     }}
                     className={`w-full px-3 py-2 rounded-lg border ${
@@ -3038,7 +3094,17 @@ export default function MataKuliah() {
                           <button
                             key={opt}
                             type="button"
-                            onClick={() => setForm(f => ({ ...f, tipe_non_block: opt as 'CSR' | 'Non-CSR' }))}
+                            onClick={() => {
+                              const tipe_non_block = opt as 'CSR' | 'Non-CSR';
+                              const updatedForm = { ...form, tipe_non_block };
+                              
+                              // Auto-generate kode berdasarkan semester, jenis, dan blok
+                              if (!editMode) {
+                                updatedForm.kode = generateKodeMataKuliah(updatedForm.semester, updatedForm.jenis, updatedForm.blok);
+                              }
+                              
+                              setForm(updatedForm);
+                            }}
                             className={
                               `px-5 py-2 rounded-lg border text-sm font-semibold transition ` +
                               (form.tipe_non_block === opt
@@ -3183,21 +3249,29 @@ export default function MataKuliah() {
                     <label htmlFor="blok" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Blok ke-
                     </label>
-                    <input
-                      type="number"
+                    <select
                       id="blok"
                       name="blok"
                       value={form.blok || ''}
-                      min="1"
-                      step="1"
                       onChange={(e) => {
                         const value = e.target.value ? parseInt(e.target.value, 10) : null;
                         const updatedForm = { ...form, blok: value };
+                        
+                        // Auto-generate kode berdasarkan semester, jenis, dan blok
+                        if (!editMode) {
+                          updatedForm.kode = generateKodeMataKuliah(updatedForm.semester, updatedForm.jenis, value);
+                        }
+                        
                         setForm(updatedForm);
                       }}
                       className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
-                      placeholder="Masukkan nomor blok (contoh: 1, 2, 3, dst.)"
-                    />
+                    >
+                      <option value="">Pilih Blok</option>
+                      <option value="1">Blok 1</option>
+                      <option value="2">Blok 2</option>
+                      <option value="3">Blok 3</option>
+                      <option value="4">Blok 4</option>
+                    </select>
                   </div>
                 )}
                 <div className="mb-3 sm:mb-4">

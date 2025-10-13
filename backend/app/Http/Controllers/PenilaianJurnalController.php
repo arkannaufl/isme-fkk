@@ -205,7 +205,7 @@ class PenilaianJurnalController extends Controller
         try {
             // Decode URL-encoded kelompok name
             $kelompokDecoded = urldecode($kelompok);
-            
+
             // Validasi akses dosen untuk semester antara
             $this->validateDosenAccessJurnalAntara($kode_blok, $jurnal_id);
             // Ambil data jurnal reading
@@ -220,7 +220,7 @@ class PenilaianJurnalController extends Controller
 
             // Ambil data mahasiswa dari kelompok kecil antara
             $kelompokKecilAntara = \App\Models\KelompokKecilAntara::where('nama_kelompok', $kelompokDecoded)->first();
-            
+
             if (!$kelompokKecilAntara) {
                 return response()->json(['message' => 'Kelompok kecil antara tidak ditemukan'], 404);
             }
@@ -276,7 +276,7 @@ class PenilaianJurnalController extends Controller
         try {
             // Decode URL-encoded kelompok name
             $kelompokDecoded = urldecode($kelompok);
-            
+
             // Validasi akses dosen untuk semester antara
             $this->validateDosenAccessJurnalAntara($kode_blok, $jurnal_id);
             $request->validate([
@@ -322,7 +322,7 @@ class PenilaianJurnalController extends Controller
         try {
             // Decode URL-encoded kelompok name
             $kelompokDecoded = urldecode($kelompok);
-            
+
             // Validasi akses dosen untuk semester antara
             $this->validateDosenAccessJurnalAntara($kode_blok, $jurnal_id);
             // Ambil data jurnal reading
@@ -337,7 +337,7 @@ class PenilaianJurnalController extends Controller
 
             // Ambil data mahasiswa dari kelompok kecil antara
             $kelompokKecilAntara = \App\Models\KelompokKecilAntara::where('nama_kelompok', $kelompok)->first();
-            
+
             if (!$kelompokKecilAntara) {
                 return response()->json(['message' => 'Kelompok kecil antara tidak ditemukan'], 404);
             }
@@ -408,6 +408,7 @@ class PenilaianJurnalController extends Controller
                 'absensi' => 'required|array',
                 'absensi.*.mahasiswa_nim' => 'required|string',
                 'absensi.*.hadir' => 'required|boolean',
+                'absensi.*.catatan' => 'nullable|string',
             ]);
 
             // Hapus data absensi yang lama
@@ -419,6 +420,7 @@ class PenilaianJurnalController extends Controller
                     'jadwal_jurnal_reading_id' => $jurnal_id,
                     'mahasiswa_nim' => $absen['mahasiswa_nim'],
                     'hadir' => $absen['hadir'],
+                    'catatan' => $absen['catatan'] ?? '',
                 ]);
             }
 
@@ -456,6 +458,7 @@ class PenilaianJurnalController extends Controller
                 'absensi' => 'required|array',
                 'absensi.*.mahasiswa_nim' => 'required|string',
                 'absensi.*.hadir' => 'required|boolean',
+                'absensi.*.catatan' => 'nullable|string',
             ]);
 
             // Hapus data absensi yang lama
@@ -467,6 +470,7 @@ class PenilaianJurnalController extends Controller
                     'jadwal_jurnal_reading_id' => $jurnal_id,
                     'mahasiswa_nim' => $absen['mahasiswa_nim'],
                     'hadir' => $absen['hadir'],
+                    'catatan' => $absen['catatan'] ?? '',
                 ]);
             }
 
@@ -511,16 +515,16 @@ class PenilaianJurnalController extends Controller
         $user = auth()->user();
         \Illuminate\Support\Facades\Log::info("Validating jurnal access for user {$user->id} with role {$user->role}");
         \Illuminate\Support\Facades\Log::info("Jurnal dosen_ids: " . json_encode($jurnalReading->dosen_ids));
-        
+
         if ($user->role === 'dosen') {
             // Cek apakah dosen ini ada di daftar dosen_ids
             $dosenIds = is_array($jurnalReading->dosen_ids) ? $jurnalReading->dosen_ids : json_decode($jurnalReading->dosen_ids, true);
             \Illuminate\Support\Facades\Log::info("Parsed dosen_ids: " . json_encode($dosenIds));
-            
+
             // Jika dosen_ids kosong atau null, cek konfirmasi dosen
             if (!is_array($dosenIds) || empty($dosenIds)) {
                 \Illuminate\Support\Facades\Log::warning("Jurnal reading {$kode_blok} - {$jurnal_id} tidak memiliki dosen_ids, checking confirmation");
-                
+
                 // Check if dosen has confirmed availability for this jurnal
                 if ($this->isDosenConfirmedForJurnal($user->id, $kode_blok, $jurnal_id)) {
                     \Illuminate\Support\Facades\Log::info("Dosen {$user->id} is confirmed for jurnal, allowing access");
@@ -531,14 +535,14 @@ class PenilaianJurnalController extends Controller
                 }
             } else {
                 \Illuminate\Support\Facades\Log::info("Checking if user {$user->id} is in dosen_ids: " . json_encode($dosenIds));
-                
+
                 // Convert dosen_ids to integers for comparison
                 $dosenIdsInt = array_map('intval', $dosenIds);
                 \Illuminate\Support\Facades\Log::info("Converted dosen_ids to int: " . json_encode($dosenIdsInt));
-                
+
                 if (!in_array((int)$user->id, $dosenIdsInt)) {
                     \Illuminate\Support\Facades\Log::error("User {$user->id} not found in dosen_ids: " . json_encode($dosenIdsInt));
-                    
+
                     // Check if dosen has confirmed availability for this jurnal
                     if ($this->isDosenConfirmedForJurnal($user->id, $kode_blok, $jurnal_id)) {
                         \Illuminate\Support\Facades\Log::info("Dosen {$user->id} is confirmed for jurnal, allowing access");
@@ -570,16 +574,16 @@ class PenilaianJurnalController extends Controller
         $user = auth()->user();
         \Illuminate\Support\Facades\Log::info("Validating jurnal antara access for user {$user->id} with role {$user->role}");
         \Illuminate\Support\Facades\Log::info("Jurnal dosen_ids: " . json_encode($jurnalReading->dosen_ids));
-        
+
         if ($user->role === 'dosen') {
             // Cek apakah dosen ini ada di daftar dosen_ids
             $dosenIds = is_array($jurnalReading->dosen_ids) ? $jurnalReading->dosen_ids : json_decode($jurnalReading->dosen_ids, true);
             \Illuminate\Support\Facades\Log::info("Parsed dosen_ids: " . json_encode($dosenIds));
-            
+
             // Jika dosen_ids kosong atau null, cek konfirmasi dosen
             if (!is_array($dosenIds) || empty($dosenIds)) {
                 \Illuminate\Support\Facades\Log::warning("Jurnal reading antara {$kode_blok} - {$jurnal_id} tidak memiliki dosen_ids, checking confirmation");
-                
+
                 // Check if dosen has confirmed availability for this jurnal
                 if ($this->isDosenConfirmedForJurnalAntara($user->id, $kode_blok, $jurnal_id)) {
                     \Illuminate\Support\Facades\Log::info("Dosen {$user->id} is confirmed for jurnal antara, allowing access");
@@ -590,14 +594,14 @@ class PenilaianJurnalController extends Controller
                 }
             } else {
                 \Illuminate\Support\Facades\Log::info("Checking if user {$user->id} is in dosen_ids: " . json_encode($dosenIds));
-                
+
                 // Convert dosen_ids to integers for comparison
                 $dosenIdsInt = array_map('intval', $dosenIds);
                 \Illuminate\Support\Facades\Log::info("Converted dosen_ids to int: " . json_encode($dosenIdsInt));
-                
+
                 if (!in_array((int)$user->id, $dosenIdsInt)) {
                     \Illuminate\Support\Facades\Log::error("User {$user->id} not found in dosen_ids: " . json_encode($dosenIdsInt));
-                    
+
                     // Check if dosen has confirmed availability for this jurnal
                     if ($this->isDosenConfirmedForJurnalAntara($user->id, $kode_blok, $jurnal_id)) {
                         \Illuminate\Support\Facades\Log::info("Dosen {$user->id} is confirmed for jurnal antara, allowing access");
@@ -664,7 +668,6 @@ class PenilaianJurnalController extends Controller
 
             \Illuminate\Support\Facades\Log::info("Dosen {$dosenId} is assigned but NOT confirmed for jurnal {$jurnalReading->id}");
             return false;
-
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error("Error checking dosen confirmation for jurnal: " . $e->getMessage());
             return false;
@@ -723,7 +726,6 @@ class PenilaianJurnalController extends Controller
 
             \Illuminate\Support\Facades\Log::info("Dosen {$dosenId} is assigned but NOT confirmed for jurnal antara {$jurnalReading->id}");
             return false;
-
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error("Error checking dosen confirmation for jurnal antara: " . $e->getMessage());
             return false;

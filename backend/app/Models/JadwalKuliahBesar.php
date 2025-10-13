@@ -28,6 +28,9 @@ class JadwalKuliahBesar extends Model
         'jumlah_sesi',
         'status_konfirmasi',
         'alasan_konfirmasi',
+        'status_reschedule',
+        'reschedule_reason',
+        'created_by',
     ];
 
     protected $casts = [
@@ -35,10 +38,19 @@ class JadwalKuliahBesar extends Model
     ];
 
     // Relasi
-    public function mataKuliah() { return $this->belongsTo(MataKuliah::class, 'mata_kuliah_kode', 'kode'); }
-    public function dosen() { return $this->belongsTo(User::class, 'dosen_id'); }
-    public function ruangan() { return $this->belongsTo(Ruangan::class, 'ruangan_id'); }
-    
+    public function mataKuliah()
+    {
+        return $this->belongsTo(MataKuliah::class, 'mata_kuliah_kode', 'kode');
+    }
+    public function dosen()
+    {
+        return $this->belongsTo(User::class, 'dosen_id');
+    }
+    public function ruangan()
+    {
+        return $this->belongsTo(Ruangan::class, 'ruangan_id');
+    }
+
     /**
      * Relasi ke kelompok besar berdasarkan semester
      */
@@ -53,6 +65,11 @@ class JadwalKuliahBesar extends Model
     public function kelompokBesarAntara()
     {
         return $this->belongsTo(KelompokBesarAntara::class, 'kelompok_besar_antara_id');
+    }
+
+    public function createdBy()
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     /**

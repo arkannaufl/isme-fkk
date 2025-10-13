@@ -23,12 +23,27 @@ class JadwalPraktikum extends Model
         'jam_mulai',
         'jam_selesai',
         'jumlah_sesi',
+        'created_by',
     ];
 
     // Relasi
-    public function mataKuliah() { return $this->belongsTo(MataKuliah::class, 'mata_kuliah_kode', 'kode'); }
-    public function ruangan() { return $this->belongsTo(Ruangan::class, 'ruangan_id'); }
-    public function dosen() { return $this->belongsToMany(User::class, 'jadwal_praktikum_dosen', 'jadwal_praktikum_id', 'dosen_id'); }
+    public function mataKuliah()
+    {
+        return $this->belongsTo(MataKuliah::class, 'mata_kuliah_kode', 'kode');
+    }
+    public function ruangan()
+    {
+        return $this->belongsTo(Ruangan::class, 'ruangan_id');
+    }
+    public function dosen()
+    {
+        return $this->belongsToMany(User::class, 'jadwal_praktikum_dosen', 'jadwal_praktikum_id', 'dosen_id');
+    }
+
+    public function createdBy()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
 
     public function getActivitylogOptions(): LogOptions
     {

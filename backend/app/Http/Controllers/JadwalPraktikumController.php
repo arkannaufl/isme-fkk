@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class JadwalPraktikumController extends Controller
 {
@@ -39,6 +40,7 @@ class JadwalPraktikumController extends Controller
             'dosen_ids.*' => 'exists:users,id',
         ]);
         $data['mata_kuliah_kode'] = $kode;
+        $data['created_by'] = $request->input('created_by', auth()->id());
 
         // Validasi kapasitas ruangan
         $kapasitasMessage = $this->validateRuanganCapacity($data);
@@ -95,6 +97,9 @@ class JadwalPraktikumController extends Controller
         // Load relasi untuk response
         $jadwal->load(['mataKuliah', 'ruangan', 'dosen']);
 
+        // Send notification to mahasiswa
+        $this->sendNotificationToMahasiswa($jadwal);
+
         return response()->json($jadwal, Response::HTTP_CREATED);
     }
 
@@ -115,6 +120,7 @@ class JadwalPraktikumController extends Controller
             'dosen_ids.*' => 'exists:users,id',
         ]);
         $data['mata_kuliah_kode'] = $kode;
+        $data['created_by'] = $request->input('created_by', auth()->id());
 
         // Validasi kapasitas ruangan
         $kapasitasMessage = $this->validateRuanganCapacity($data);
@@ -207,7 +213,7 @@ class JadwalPraktikumController extends Controller
         try {
             // Ambil dosen yang sudah dikelompokkan di blok & semester
             $dosen = User::where('role', 'dosen')
-                ->whereHas('dosenPeran', function($q) use ($blok, $semester) {
+                ->whereHas('dosenPeran', function ($q) use ($blok, $semester) {
                     if ($blok) $q->where('blok', $blok);
                     if ($semester) $q->where('semester', $semester);
                 })
@@ -234,13 +240,13 @@ class JadwalPraktikumController extends Controller
     {
         try {
             $dosen = User::where('role', 'dosen')
-                ->whereHas('dosenPeran', function($q) use ($blok, $semester) {
+                ->whereHas('dosenPeran', function ($q) use ($blok, $semester) {
                     if ($blok) $q->where('blok', $blok);
                     if ($semester) $q->where('semester', $semester);
                 })
                 ->get();
 
-            $filtered = $dosen->filter(function($d) use ($keahlian) {
+            $filtered = $dosen->filter(function ($d) use ($keahlian) {
                 $arr = is_array($d->keahlian) ? $d->keahlian : (is_string($d->keahlian) ? explode(',', $d->keahlian) : []);
                 return in_array($keahlian, array_map('trim', $arr));
             })->values();
@@ -258,11 +264,11 @@ class JadwalPraktikumController extends Controller
         $praktikumBentrok = JadwalPraktikum::where('tanggal', $data['tanggal'])
             ->where(function ($q) use ($data) {
                 $q->where('kelas_praktikum', $data['kelas_praktikum'])
-                  ->orWhere('ruangan_id', $data['ruangan_id']);
+                    ->orWhere('ruangan_id', $data['ruangan_id']);
             })
             ->where(function ($q) use ($data) {
                 $q->where('jam_mulai', '<', $data['jam_selesai'])
-                        ->where('jam_selesai', '>', $data['jam_mulai']);
+                    ->where('jam_selesai', '>', $data['jam_mulai']);
             });
         if ($ignoreId) {
             $praktikumBentrok->where('id', '!=', $ignoreId);
@@ -273,39 +279,39 @@ class JadwalPraktikumController extends Controller
             ->where('ruangan_id', $data['ruangan_id'])
             ->where(function ($q) use ($data) {
                 $q->where('jam_mulai', '<', $data['jam_selesai'])
-                   ->where('jam_selesai', '>', $data['jam_mulai']);
+                    ->where('jam_selesai', '>', $data['jam_mulai']);
             });
-            
+
         // Cek bentrok dengan jadwal Kuliah Besar
         $kuliahBesarBentrok = \App\Models\JadwalKuliahBesar::where('tanggal', $data['tanggal'])
             ->where('ruangan_id', $data['ruangan_id'])
             ->where(function ($q) use ($data) {
                 $q->where('jam_mulai', '<', $data['jam_selesai'])
-                   ->where('jam_selesai', '>', $data['jam_mulai']);
+                    ->where('jam_selesai', '>', $data['jam_mulai']);
             });
-            
+
         // Cek bentrok dengan jadwal Agenda Khusus
         $agendaKhususBentrok = \App\Models\JadwalAgendaKhusus::where('tanggal', $data['tanggal'])
             ->where('ruangan_id', $data['ruangan_id'])
             ->where(function ($q) use ($data) {
                 $q->where('jam_mulai', '<', $data['jam_selesai'])
-                   ->where('jam_selesai', '>', $data['jam_mulai']);
+                    ->where('jam_selesai', '>', $data['jam_mulai']);
             });
-            
+
         // Cek bentrok dengan jadwal Jurnal Reading
         $jurnalBentrok = \App\Models\JadwalJurnalReading::where('tanggal', $data['tanggal'])
             ->where('ruangan_id', $data['ruangan_id'])
-            ->where(function($q) use ($data) {
+            ->where(function ($q) use ($data) {
                 $q->where('jam_mulai', '<', $data['jam_selesai'])
-                   ->where('jam_selesai', '>', $data['jam_mulai']);
+                    ->where('jam_selesai', '>', $data['jam_mulai']);
             });
 
         // Cek bentrok dengan kelompok besar (jika ada kelompok_besar_id di jadwal lain)
         $kelompokBesarBentrok = $this->checkKelompokBesarBentrok($data, $ignoreId);
-            
-        return $praktikumBentrok->exists() || $pblBentrok->exists() || 
-               $kuliahBesarBentrok->exists() || $agendaKhususBentrok->exists() || 
-               $jurnalBentrok->exists() || $kelompokBesarBentrok;
+
+        return $praktikumBentrok->exists() || $pblBentrok->exists() ||
+            $kuliahBesarBentrok->exists() || $agendaKhususBentrok->exists() ||
+            $jurnalBentrok->exists() || $kelompokBesarBentrok;
     }
 
     private function checkBentrokWithDetail($data, $ignoreId = null): ?string
@@ -314,11 +320,11 @@ class JadwalPraktikumController extends Controller
         $praktikumBentrok = JadwalPraktikum::where('tanggal', $data['tanggal'])
             ->where(function ($q) use ($data) {
                 $q->where('kelas_praktikum', $data['kelas_praktikum'])
-                  ->orWhere('ruangan_id', $data['ruangan_id']);
+                    ->orWhere('ruangan_id', $data['ruangan_id']);
             })
             ->where(function ($q) use ($data) {
                 $q->where('jam_mulai', '<', $data['jam_selesai'])
-                        ->where('jam_selesai', '>', $data['jam_mulai']);
+                    ->where('jam_selesai', '>', $data['jam_mulai']);
             });
         if ($ignoreId) {
             $praktikumBentrok->where('id', '!=', $ignoreId);
@@ -329,9 +335,9 @@ class JadwalPraktikumController extends Controller
             $jamMulaiFormatted = str_replace(':', '.', $jadwalBentrokPraktikum->jam_mulai);
             $jamSelesaiFormatted = str_replace(':', '.', $jadwalBentrokPraktikum->jam_selesai);
             $bentrokReason = $this->getBentrokReason($data, $jadwalBentrokPraktikum);
-            return "Jadwal bentrok dengan Jadwal Praktikum pada tanggal " . 
-                   date('d/m/Y', strtotime($data['tanggal'])) . " jam " . 
-                   $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
+            return "Jadwal bentrok dengan Jadwal Praktikum pada tanggal " .
+                date('d/m/Y', strtotime($data['tanggal'])) . " jam " .
+                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
         }
 
         // Cek bentrok dengan jadwal PBL
@@ -339,71 +345,71 @@ class JadwalPraktikumController extends Controller
             ->where('ruangan_id', $data['ruangan_id'])
             ->where(function ($q) use ($data) {
                 $q->where('jam_mulai', '<', $data['jam_selesai'])
-                   ->where('jam_selesai', '>', $data['jam_mulai']);
+                    ->where('jam_selesai', '>', $data['jam_mulai']);
             })
             ->first();
-            
+
         if ($pblBentrok) {
             $jamMulaiFormatted = str_replace(':', '.', $pblBentrok->jam_mulai);
             $jamSelesaiFormatted = str_replace(':', '.', $pblBentrok->jam_selesai);
             $bentrokReason = $this->getBentrokReason($data, $pblBentrok);
-            return "Jadwal bentrok dengan Jadwal PBL pada tanggal " . 
-                   date('d/m/Y', strtotime($data['tanggal'])) . " jam " . 
-                   $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
+            return "Jadwal bentrok dengan Jadwal PBL pada tanggal " .
+                date('d/m/Y', strtotime($data['tanggal'])) . " jam " .
+                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
         }
-        
+
         // Cek bentrok dengan jadwal Kuliah Besar
         $kuliahBesarBentrok = \App\Models\JadwalKuliahBesar::where('tanggal', $data['tanggal'])
             ->where('ruangan_id', $data['ruangan_id'])
             ->where(function ($q) use ($data) {
                 $q->where('jam_mulai', '<', $data['jam_selesai'])
-                   ->where('jam_selesai', '>', $data['jam_mulai']);
+                    ->where('jam_selesai', '>', $data['jam_mulai']);
             })
             ->first();
-            
+
         if ($kuliahBesarBentrok) {
             $jamMulaiFormatted = str_replace(':', '.', $kuliahBesarBentrok->jam_mulai);
             $jamSelesaiFormatted = str_replace(':', '.', $kuliahBesarBentrok->jam_selesai);
             $bentrokReason = $this->getBentrokReason($data, $kuliahBesarBentrok);
-            return "Jadwal bentrok dengan Jadwal Kuliah Besar pada tanggal " . 
-                   date('d/m/Y', strtotime($data['tanggal'])) . " jam " . 
-                   $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
+            return "Jadwal bentrok dengan Jadwal Kuliah Besar pada tanggal " .
+                date('d/m/Y', strtotime($data['tanggal'])) . " jam " .
+                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
         }
-        
+
         // Cek bentrok dengan jadwal Agenda Khusus
         $agendaKhususBentrok = \App\Models\JadwalAgendaKhusus::where('tanggal', $data['tanggal'])
             ->where('ruangan_id', $data['ruangan_id'])
             ->where(function ($q) use ($data) {
                 $q->where('jam_mulai', '<', $data['jam_selesai'])
-                   ->where('jam_selesai', '>', $data['jam_mulai']);
+                    ->where('jam_selesai', '>', $data['jam_mulai']);
             })
             ->first();
-            
+
         if ($agendaKhususBentrok) {
             $jamMulaiFormatted = str_replace(':', '.', $agendaKhususBentrok->jam_mulai);
             $jamSelesaiFormatted = str_replace(':', '.', $agendaKhususBentrok->jam_selesai);
             $bentrokReason = $this->getBentrokReason($data, $agendaKhususBentrok);
-            return "Jadwal bentrok dengan Jadwal Agenda Khusus pada tanggal " . 
-                   date('d/m/Y', strtotime($data['tanggal'])) . " jam " . 
-                   $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
+            return "Jadwal bentrok dengan Jadwal Agenda Khusus pada tanggal " .
+                date('d/m/Y', strtotime($data['tanggal'])) . " jam " .
+                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
         }
-        
+
         // Cek bentrok dengan jadwal Jurnal Reading
         $jurnalBentrok = \App\Models\JadwalJurnalReading::where('tanggal', $data['tanggal'])
             ->where('ruangan_id', $data['ruangan_id'])
             ->where(function ($q) use ($data) {
                 $q->where('jam_mulai', '<', $data['jam_selesai'])
-                   ->where('jam_selesai', '>', $data['jam_mulai']);
+                    ->where('jam_selesai', '>', $data['jam_mulai']);
             })
             ->first();
-            
+
         if ($jurnalBentrok) {
             $jamMulaiFormatted = str_replace(':', '.', $jurnalBentrok->jam_mulai);
             $jamSelesaiFormatted = str_replace(':', '.', $jurnalBentrok->jam_selesai);
             $bentrokReason = $this->getBentrokReason($data, $jurnalBentrok);
-            return "Jadwal bentrok dengan Jadwal Jurnal Reading pada tanggal " . 
-                   date('d/m/Y', strtotime($data['tanggal'])) . " jam " . 
-                   $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
+            return "Jadwal bentrok dengan Jadwal Jurnal Reading pada tanggal " .
+                date('d/m/Y', strtotime($data['tanggal'])) . " jam " .
+                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
         }
 
         return null; // Tidak ada bentrok
@@ -415,18 +421,18 @@ class JadwalPraktikumController extends Controller
     private function getBentrokReason($data, $jadwalBentrok): string
     {
         $reasons = [];
-        
+
         // Cek bentrok ruangan
         if (isset($data['ruangan_id']) && isset($jadwalBentrok->ruangan_id) && $data['ruangan_id'] == $jadwalBentrok->ruangan_id) {
             $ruangan = \App\Models\Ruangan::find($data['ruangan_id']);
             $reasons[] = "Ruangan: " . ($ruangan ? $ruangan->nama : 'Tidak diketahui');
         }
-        
+
         // Cek bentrok kelas praktikum
         if (isset($data['kelas_praktikum']) && isset($jadwalBentrok->kelas_praktikum) && $data['kelas_praktikum'] == $jadwalBentrok->kelas_praktikum) {
             $reasons[] = "Kelas Praktikum: " . $data['kelas_praktikum'];
         }
-        
+
         return implode(', ', $reasons);
     }
 
@@ -443,11 +449,11 @@ class JadwalPraktikumController extends Controller
 
         // Untuk praktikum, hitung mahasiswa berdasarkan semester kelas praktikum
         $semester = $this->getMataKuliahSemester($data['mata_kuliah_kode']);
-        
+
         // Ambil semester dari kelas praktikum
         $kelasPraktikum = \App\Models\Kelas::where('nama_kelas', $data['kelas_praktikum'])->first();
         $semesterKelas = $kelasPraktikum ? $kelasPraktikum->semester : $semester;
-        
+
         // Hitung mahasiswa yang HANYA ada di kelas praktikum ini
         $jumlahMahasiswa = 0;
         if ($kelasPraktikum) {
@@ -456,7 +462,7 @@ class JadwalPraktikumController extends Controller
                 ->where('kelas_id', $kelasPraktikum->id)
                 ->pluck('nama_kelompok')
                 ->toArray();
-            
+
             // Hitung mahasiswa yang ada di kelompok tersebut
             $jumlahMahasiswa = \App\Models\KelompokKecil::where('semester', $semesterKelas)
                 ->whereIn('nama_kelompok', $kelompokIds)
@@ -491,6 +497,94 @@ class JadwalPraktikumController extends Controller
         return null; // Kapasitas mencukupi
     }
 
+    // Get jadwal Praktikum for mahasiswa
+    public function getJadwalForMahasiswa($mahasiswaId, Request $request)
+    {
+        try {
+            $mahasiswa = User::where('id', $mahasiswaId)->where('role', 'mahasiswa')->first();
+            if (!$mahasiswa) {
+                return response()->json(['message' => 'Mahasiswa tidak ditemukan', 'data' => []], 404);
+            }
+
+            // Get jadwal praktikum for mahasiswa's semester
+            // Praktikum is linked to mata kuliah, so we filter by semester via mata kuliah
+            $jadwal = JadwalPraktikum::with(['mataKuliah', 'dosen', 'ruangan'])
+                ->whereHas('mataKuliah', function ($query) use ($mahasiswa) {
+                    $query->where('semester', $mahasiswa->semester);
+                })
+                ->orderBy('tanggal', 'asc')
+                ->orderBy('jam_mulai', 'asc')
+                ->get();
+
+            $mappedJadwal = $jadwal->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'tanggal' => $item->tanggal,
+                    'jam_mulai' => substr($item->jam_mulai, 0, 5),
+                    'jam_selesai' => substr($item->jam_selesai, 0, 5),
+                    'materi' => $item->materi ?? 'N/A',
+                    'topik' => $item->topik ?? 'N/A',
+                    'kelas_praktikum' => $item->kelas_praktikum ?? 'N/A',
+                    'dosen' => $item->dosen->map(fn($d) => ['id' => $d->id, 'name' => $d->name])->toArray(),
+                    'ruangan' => $item->ruangan ? ['id' => $item->ruangan->id, 'nama' => $item->ruangan->nama] : null,
+                    'jumlah_sesi' => $item->jumlah_sesi ?? 2,
+                    'semester_type' => 'reguler',
+                ];
+            });
+
+            return response()->json(['message' => 'Data jadwal Praktikum berhasil diambil', 'data' => $mappedJadwal]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching jadwal Praktikum for mahasiswa: ' . $e->getMessage());
+            return response()->json(['message' => 'Terjadi kesalahan', 'error' => $e->getMessage(), 'data' => []], 500);
+        }
+    }
+
+    /**
+     * Send notification to mahasiswa in the semester
+     */
+    private function sendNotificationToMahasiswa($jadwal)
+    {
+        try {
+            // Get all mahasiswa in the same semester
+            $mahasiswaList = \App\Models\User::where('role', 'mahasiswa')
+                ->where('semester', $jadwal->mataKuliah->semester)
+                ->get();
+
+            // Send notification to each mahasiswa
+            foreach ($mahasiswaList as $mahasiswa) {
+                \App\Models\Notification::create([
+                    'user_id' => $mahasiswa->id,
+                    'title' => 'Jadwal Praktikum Baru',
+                    'message' => "Jadwal Praktikum baru telah ditambahkan: {$jadwal->mataKuliah->nama} - {$jadwal->materi} pada tanggal {$jadwal->tanggal} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai} di ruangan {$jadwal->ruangan->nama}.",
+                    'type' => 'info',
+                    'is_read' => false,
+                    'data' => [
+                        'jadwal_id' => $jadwal->id,
+                        'jadwal_type' => 'praktikum',
+                        'mata_kuliah_kode' => $jadwal->mata_kuliah_kode,
+                        'mata_kuliah_nama' => $jadwal->mataKuliah->nama,
+                        'materi' => $jadwal->materi,
+                        'topik' => $jadwal->topik,
+                        'kelas_praktikum' => $jadwal->kelas_praktikum,
+                        'tanggal' => $jadwal->tanggal,
+                        'jam_mulai' => $jadwal->jam_mulai,
+                        'jam_selesai' => $jadwal->jam_selesai,
+                        'ruangan' => $jadwal->ruangan->nama,
+                        'dosen' => $jadwal->dosen->map(fn($d) => $d->name)->join(', '),
+                        'created_by' => $jadwal->created_by ? \App\Models\User::find($jadwal->created_by)->name ?? 'Admin' : 'Admin',
+                        'created_by_role' => $jadwal->created_by ? \App\Models\User::find($jadwal->created_by)->role ?? 'admin' : 'admin',
+                        'sender_name' => $jadwal->created_by ? \App\Models\User::find($jadwal->created_by)->name ?? 'Admin' : 'Admin',
+                        'sender_role' => $jadwal->created_by ? \App\Models\User::find($jadwal->created_by)->role ?? 'admin' : 'admin'
+                    ]
+                ]);
+            }
+
+            \Log::info("Praktikum notifications sent to " . count($mahasiswaList) . " mahasiswa for jadwal ID: {$jadwal->id}");
+        } catch (\Exception $e) {
+            \Log::error("Error sending Praktikum notifications to mahasiswa: " . $e->getMessage());
+        }
+    }
+
     /**
      * Cek bentrok dengan kelompok besar
      */
@@ -516,11 +610,11 @@ class JadwalPraktikumController extends Controller
     {
         $ruangan = Ruangan::find($data['ruangan_id']);
         $semester = $this->getMataKuliahSemester($data['mata_kuliah_kode']);
-        
+
         // Hitung jumlah mahasiswa berdasarkan kelas praktikum
         $jumlahMahasiswa = \App\Models\KelompokKecil::where('nama_kelompok', $data['kelas_praktikum'])
-                                                    ->where('semester', $semester)
-                                                    ->count();
+            ->where('semester', $semester)
+            ->count();
 
         // Hitung jumlah dosen yang dipilih
         $jumlahDosen = count($data['dosen_ids']);
@@ -555,14 +649,14 @@ class JadwalPraktikumController extends Controller
 
             $mataKuliah = $jadwal->mataKuliah;
             $ruangan = $jadwal->ruangan;
-            
+
             \App\Models\Notification::create([
                 'user_id' => $dosenId,
                 'title' => 'Jadwal Praktikum Baru',
-                'message' => "Anda telah di-assign untuk mengajar Praktikum {$mataKuliah->nama} pada tanggal " . 
-                           date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " . 
-                           str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) . 
-                           " di ruangan {$ruangan->nama} untuk kelas {$jadwal->kelas_praktikum}. Silakan konfirmasi ketersediaan Anda.",
+                'message' => "Anda telah di-assign untuk mengajar Praktikum {$mataKuliah->nama} pada tanggal " .
+                    date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                    str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                    " di ruangan {$ruangan->nama} untuk kelas {$jadwal->kelas_praktikum}. Silakan konfirmasi ketersediaan Anda.",
                 'type' => 'info',
                 'is_read' => false,
                 'data' => [
@@ -579,7 +673,11 @@ class JadwalPraktikumController extends Controller
                     'topik' => $jadwal->topik,
                     'dosen_id' => $dosen->id,
                     'dosen_name' => $dosen->name,
-                    'dosen_role' => $dosen->role
+                    'dosen_role' => $dosen->role,
+                    'created_by' => auth()->user()->name ?? 'Admin',
+                    'created_by_role' => auth()->user()->role ?? 'admin',
+                    'sender_name' => auth()->user()->name ?? 'Admin',
+                    'sender_role' => auth()->user()->role ?? 'admin'
                 ]
             ]);
 
@@ -598,17 +696,17 @@ class JadwalPraktikumController extends Controller
         try {
             $semesterType = $request->query('semester_type');
 
-            $query = JadwalPraktikum::with(['mataKuliah', 'ruangan', 'dosen' => function($query) use ($dosenId) {
-                    $query->where('dosen_id', $dosenId)->withPivot('status_konfirmasi', 'alasan_konfirmasi');
-                }])
-                ->whereHas('dosen', function($query) use ($dosenId) {
+            $query = JadwalPraktikum::with(['mataKuliah', 'ruangan', 'dosen' => function ($query) use ($dosenId) {
+                $query->where('dosen_id', $dosenId)->withPivot('status_konfirmasi', 'alasan_konfirmasi', 'status_reschedule', 'reschedule_reason');
+            }])
+                ->whereHas('dosen', function ($query) use ($dosenId) {
                     $query->where('dosen_id', $dosenId);
                 });
 
             // Filter berdasarkan semester type jika ada
             if ($semesterType && $semesterType !== 'all') {
                 if ($semesterType === 'reguler') {
-                    $query->whereHas('mataKuliah', function($q) {
+                    $query->whereHas('mataKuliah', function ($q) {
                         $q->where('semester', '!=', 'Antara');
                     });
                 } elseif ($semesterType === 'antara') {
@@ -629,7 +727,7 @@ class JadwalPraktikumController extends Controller
                 // Ambil status_konfirmasi dari pivot table
                 $pivotData = $item->dosen->where('id', $dosenId)->first();
                 $statusKonfirmasi = $pivotData && $pivotData->pivot ? $pivotData->pivot->status_konfirmasi ?? 'belum_konfirmasi' : 'belum_konfirmasi';
-                
+
                 return (object) [
                     'id' => $item->id,
                     'tanggal' => $item->tanggal,
@@ -638,6 +736,9 @@ class JadwalPraktikumController extends Controller
                     'materi' => $item->materi,
                     'topik' => $item->topik,
                     'status_konfirmasi' => $statusKonfirmasi,
+                    'alasan_konfirmasi' => $pivotData && $pivotData->pivot ? $pivotData->pivot->alasan_konfirmasi ?? null : null,
+                    'status_reschedule' => $pivotData && $pivotData->pivot ? $pivotData->pivot->status_reschedule ?? null : null,
+                    'reschedule_reason' => $pivotData && $pivotData->pivot ? $pivotData->pivot->reschedule_reason ?? null : null,
                     'mata_kuliah_kode' => $item->mata_kuliah_kode,
                     'mata_kuliah' => (object) [
                         'kode' => $item->mataKuliah->kode ?? '',
@@ -645,7 +746,7 @@ class JadwalPraktikumController extends Controller
                         'semester' => $item->mataKuliah->semester ?? ''
                     ],
                     'kelas_praktikum' => $item->kelas_praktikum,
-                    'dosen' => $item->dosen->map(function($d) {
+                    'dosen' => $item->dosen->map(function ($d) {
                         return (object) [
                             'id' => $d->id,
                             'name' => $d->name
@@ -686,7 +787,7 @@ class JadwalPraktikumController extends Controller
         ]);
 
         $jadwal = JadwalPraktikum::findOrFail($id);
-        
+
         // Update pivot table untuk konfirmasi dosen
         $jadwal->dosen()->updateExistingPivot($request->dosen_id, [
             'status_konfirmasi' => $request->status,
@@ -705,6 +806,201 @@ class JadwalPraktikumController extends Controller
         ]);
     }
 
+     /**
+     * Import Excel jadwal praktikum
+     */
+    public function importExcel(Request $request, $kode)
+    {
+        try {
+        $data = $request->validate([
+            'data' => 'required|array',
+            'data.*.tanggal' => 'required|date',
+            'data.*.jam_mulai' => 'required|string',
+            'data.*.jam_selesai' => 'required|string',
+            'data.*.sesi' => 'required|integer|min:1|max:6',
+            'data.*.materi' => 'required|string',
+            'data.*.topik' => 'required|string',
+            'data.*.kelas_praktikum' => 'required|string',
+            'data.*.dosen_id' => 'required|exists:users,id',
+            'data.*.ruangan_id' => 'required|exists:ruangan,id',
+            'data.*.jumlah_sesi' => 'nullable|integer|min:1|max:6',
+        ]);
+
+            $importedData = [];
+            $errors = [];
+
+            // Validasi semua data terlebih dahulu (all or nothing approach)
+            foreach ($data['data'] as $index => $row) {
+                // Set jumlah_sesi dari kolom sesi Excel
+                $row['jumlah_sesi'] = $row['sesi'] ?? 2; // Gunakan sesi dari Excel, default 2
+
+                // Set mata_kuliah_kode
+                $row['mata_kuliah_kode'] = $kode;
+
+                // Materi sudah ada di $row['materi'] dari input Excel
+
+                // Validasi tanggal dalam range mata kuliah
+                $mataKuliah = \App\Models\MataKuliah::where('kode', $kode)->first();
+                if ($mataKuliah && $mataKuliah->tanggal_mulai && $mataKuliah->tanggal_akhir) {
+                    $jadwalTanggal = new \DateTime($row['tanggal']);
+                    $tanggalMulai = new \DateTime($mataKuliah->tanggal_mulai);
+                    $tanggalAkhir = new \DateTime($mataKuliah->tanggal_akhir);
+                    if ($jadwalTanggal < $tanggalMulai || $jadwalTanggal > $tanggalAkhir) {
+                        $errors[] = "Baris " . ($index + 1) . ": Tanggal harus dalam rentang {$mataKuliah->tanggal_mulai} - {$mataKuliah->tanggal_akhir}";
+                    }
+                }
+
+                // Konversi dosen_id ke dosen_ids untuk validasi kapasitas ruangan
+                $rowForValidation = $row;
+                $rowForValidation['dosen_ids'] = [$row['dosen_id']];
+
+                // Validasi kapasitas ruangan
+                $kapasitasMessage = $this->validateRuanganCapacity($rowForValidation);
+                if ($kapasitasMessage) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . $kapasitasMessage;
+                }
+
+                // Validasi bentrok
+                $bentrokMessage = $this->checkBentrokWithDetail($row, null);
+                if ($bentrokMessage) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;
+                }
+            }
+
+            // Jika ada error validasi, return error tanpa import apapun
+            if (count($errors) > 0) {
+                return response()->json([
+                    'success' => 0,
+                    'total' => count($data['data']),
+                    'errors' => $errors,
+                    'message' => "Gagal mengimport data. Perbaiki error terlebih dahulu."
+                ], 422);
+            }
+
+            // Jika tidak ada error, import semua data
+            foreach ($data['data'] as $index => $row) {
+                try {
+                    // Set jumlah_sesi dari kolom sesi Excel
+                    $row['jumlah_sesi'] = $row['sesi'] ?? 2; // Gunakan sesi dari Excel, default 2
+
+                    // Set mata_kuliah_kode
+                    $row['mata_kuliah_kode'] = $kode;
+
+                    // Buat jadwal praktikum
+                    $jadwal = JadwalPraktikum::create($row);
+
+                    // Attach dosen (praktikum menggunakan single dosen, bukan multiple)
+                    $jadwal->dosen()->attach($row['dosen_id']);
+
+                    // Kirim notifikasi ke dosen
+                    $this->sendAssignmentNotification($jadwal, $row['dosen_id']);
+
+                    $importedData[] = $jadwal;
+
+                    // Log activity
+                    activity()
+                        ->performedOn($jadwal)
+                        ->withProperties([
+                            'mata_kuliah_kode' => $kode,
+                            'tanggal' => $row['tanggal'],
+                            'jam_mulai' => $row['jam_mulai'],
+                            'jam_selesai' => $row['jam_selesai'],
+                            'materi' => $row['materi'],
+                            'topik' => $row['topik'],
+                            'kelas_praktikum' => $row['kelas_praktikum']
+                        ])
+                        ->log("Jadwal Praktikum imported: {$row['materi']} - {$row['topik']}");
+
+                } catch (\Exception $e) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . $e->getMessage();
+                }
+            }
+
+            if (count($errors) > 0) {
+                return response()->json([
+                    'success' => count($importedData),
+                    'total' => count($data['data']),
+                    'errors' => $errors,
+                    'message' => 'Gagal mengimport ' . (count($data['data']) - count($importedData)) . ' dari ' . count($data['data']) . ' jadwal'
+                ], 422);
+            }
+
+            return response()->json([
+                'success' => count($importedData),
+                'total' => count($data['data']),
+                'message' => 'Berhasil mengimport ' . count($importedData) . ' jadwal praktikum'
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error importing praktikum data: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Terjadi kesalahan saat mengimport data: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // Ajukan reschedule jadwal Praktikum
+    public function reschedule(Request $request, $id)
+    {
+        $request->validate([
+            'reschedule_reason' => 'required|string|max:1000',
+            'dosen_id' => 'required|exists:users,id'
+        ]);
+
+        $jadwal = JadwalPraktikum::findOrFail($id);
+
+        // Update pivot table untuk reschedule
+        $jadwal->dosen()->updateExistingPivot($request->dosen_id, [
+            'status_konfirmasi' => 'waiting_reschedule',
+            'reschedule_reason' => $request->reschedule_reason,
+            'status_reschedule' => 'waiting',
+            'updated_at' => now()
+        ]);
+
+        // Kirim notifikasi ke admin
+        $this->sendRescheduleNotification($jadwal, $request->dosen_id, $request->reschedule_reason);
+
+        return response()->json([
+            'message' => 'Permintaan reschedule berhasil diajukan',
+            'status' => 'waiting_reschedule'
+        ]);
+    }
+
+    /**
+     * Kirim notifikasi reschedule ke admin
+     */
+    private function sendRescheduleNotification($jadwal, $dosenId, $reason)
+    {
+        try {
+            $dosen = \App\Models\User::find($dosenId);
+
+            // Buat hanya 1 notifikasi yang bisa dilihat oleh semua admin
+            $firstAdmin = \App\Models\User::where('role', 'super_admin')->first() ?? \App\Models\User::where('role', 'tim_akademik')->first();
+
+            if ($firstAdmin) {
+                \App\Models\Notification::create([
+                    'user_id' => $firstAdmin->id,
+                    'title' => 'Permintaan Reschedule Jadwal',
+                    'message' => "Dosen {$dosen->name} mengajukan reschedule untuk jadwal Praktikum. Alasan: {$reason}",
+                    'type' => 'warning',
+                    'is_read' => false,
+                    'data' => [
+                        'jadwal_id' => $jadwal->id,
+                        'jadwal_type' => 'praktikum',
+                        'dosen_name' => $dosen->name,
+                        'dosen_id' => $dosen->id,
+                        'reschedule_reason' => $reason,
+                        'notification_type' => 'reschedule_request'
+                    ]
+                ]);
+            }
+
+            \Log::info("Reschedule notification sent for Praktikum jadwal ID: {$jadwal->id}");
+        } catch (\Exception $e) {
+            \Log::error("Error sending reschedule notification for Praktikum jadwal ID: {$jadwal->id}: " . $e->getMessage());
+        }
+    }
+
     /**
      * Kirim notifikasi replacement ke super admin
      */
@@ -719,10 +1015,10 @@ class JadwalPraktikumController extends Controller
                 \App\Models\Notification::create([
                     'user_id' => $dosenId,
                     'title' => 'Dosen Tidak Bisa Mengajar - Praktikum',
-                    'message' => "Dosen {$dosen->name} tidak bisa mengajar pada jadwal Praktikum {$jadwal->mataKuliah->nama} pada tanggal " . 
-                               date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " . 
-                               str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) . 
-                               " untuk kelas {$jadwal->kelas_praktikum} di ruangan {$jadwal->ruangan->nama}.{$alasanText}",
+                    'message' => "Dosen {$dosen->name} tidak bisa mengajar pada jadwal Praktikum {$jadwal->mataKuliah->nama} pada tanggal " .
+                        date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                        str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                        " untuk kelas {$jadwal->kelas_praktikum} di ruangan {$jadwal->ruangan->nama}.{$alasanText}",
                     'type' => 'warning',
                     'is_read' => false,
                     'data' => [
@@ -744,5 +1040,4 @@ class JadwalPraktikumController extends Controller
             \Log::error("Gagal mengirim notifikasi replacement untuk jadwal praktikum ID {$jadwal->id}: " . $e->getMessage());
         }
     }
-
 }

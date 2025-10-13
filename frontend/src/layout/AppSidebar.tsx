@@ -18,15 +18,35 @@ import {
 
 // Dashboard icon component
 const DashboardIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+  <svg
+    className="w-5 h-5"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={1.5}
+      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+    />
   </svg>
 );
 
 // History icon component
 const HistoryIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+  <svg
+    className="w-5 h-5"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={1.5}
+      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+    />
   </svg>
 );
 import { useSidebar } from "../context/SidebarContext";
@@ -43,8 +63,8 @@ type NavItem = {
     pro?: boolean;
     new?: boolean;
     roles?: string[];
-    subItems?: { 
-      name: string; 
+    subItems?: {
+      name: string;
       path: string;
       pro?: boolean;
       new?: boolean;
@@ -56,96 +76,154 @@ type NavItem = {
 // Menu items berdasarkan role
 const getNavItems = (userRole?: string): NavItem[] => {
   const allItems: NavItem[] = [
-  {
-    icon: <DashboardIcon />,
-    name: "Dashboard",
-    path: "/dashboard",
-    roles: ["super_admin", "dosen", "tim_akademik"],
-  },
-  {
-    icon: <ListIcon />,
-    name: "Tahun Ajaran",
-    path: "/tahun-ajaran",
+    {
+      icon: <DashboardIcon />,
+      name: "Dashboard",
+      path: "/dashboard",
+      roles: ["super_admin", "dosen", "tim_akademik", "mahasiswa"],
+    },
+    {
+      icon: <ListIcon />,
+      name: "Tahun Ajaran",
+      path: "/tahun-ajaran",
       roles: ["super_admin"],
-  },
-  {
-    icon: <TableIcon />,
-    name: "Akademik",
-    subItems: [
-        { name: "Mata Kuliah", path: "/mata-kuliah", roles: ["super_admin", "tim_akademik"] },
-        { name: "Mata Kuliah (Dosen)", path: "/mata-kuliah-dosen", roles: ["dosen"] },
+    },
+    {
+      icon: <TableIcon />,
+      name: "Akademik",
+      subItems: [
+        {
+          name: "Mata Kuliah",
+          path: "/mata-kuliah",
+          roles: ["super_admin", "tim_akademik"],
+        },
+        {
+          name: "Mata Kuliah (Dosen)",
+          path: "/mata-kuliah-dosen",
+          roles: ["dosen"],
+        },
         { name: "PBL", path: "/pbl", roles: ["super_admin", "tim_akademik"] },
         { name: "CSR", path: "/csr", roles: ["super_admin", "tim_akademik"] },
-        { name: "Peta Akademik", path: "/peta-akademik", roles: ["super_admin", "dosen", "tim_akademik"] },
-        { name: "Peta Blok", path: "/peta-blok", roles: ["super_admin", "dosen", "tim_akademik"] },
-    ],
+        {
+          name: "Peta Akademik",
+          path: "/peta-akademik",
+          roles: ["super_admin", "dosen", "tim_akademik"],
+        },
+        {
+          name: "Peta Blok",
+          path: "/peta-blok",
+          roles: ["super_admin", "dosen", "tim_akademik"],
+        },
+      ],
       roles: ["super_admin", "dosen", "tim_akademik"],
-  },
-  {
-    icon: <PlusIcon />,
-    name: "Generate Mahasiswa",
-    subItems: [
-        { name: "Kelompok", path: "/generate/kelompok", roles: ["super_admin", "tim_akademik", "dosen"] },
-        { name: "Kelas", path: "/generate/kelas", roles: ["super_admin", "tim_akademik", "dosen"] },
-        { name: "Mahasiswa Veteran", path: "/generate/mahasiswa-veteran", roles: ["super_admin", "tim_akademik", "dosen"] },
-    ],
-      roles: ["super_admin", "tim_akademik", "dosen"],
-  },
-  {
-    icon: <GroupIcon />,
-    name: "Tim Akademik",
-    path: "/tim-akademik",
-      roles: ["super_admin"],
-  },
-  {
-    icon: <UserIcon />,
-    name: "Dosen",
-    path: "/dosen",
-      roles: ["super_admin", "tim_akademik"],
-  },
-  {
-    icon: <UserIcon />,
-    name: "Mahasiswa",
-    path: "/mahasiswa",
-      roles: ["super_admin", "tim_akademik", "dosen"],
-  },
-  {
-    icon: <BoxCubeIcon />,
-    name: "Ruangan",
-    path: "/ruangan",
-      roles: ["super_admin", "tim_akademik", "dosen"],
-  },
-  {
-    icon: <HistoryIcon />,
-    name: "Detail Riwayat Penugasan",
-    path: "/dosen-riwayat",
-    roles: ["dosen"],
-  },
-  {
-    icon: <ChatIcon />,
-    name: "Forum Diskusi",
-    path: "/forum-diskusi",
-    roles: ["super_admin", "dosen", "mahasiswa", "tim_akademik"],
-    new: true,
-  },
-  {
-    icon: <PieChartIcon />,
-    name: "Reporting",
-    subItems: [
-        { name: "Reporting Dosen", path: "/reporting/dosen", roles: ["super_admin", "tim_akademik"] },
-        { name: "History Aplikasi", path: "/reporting/histori", roles: ["super_admin"] },
+    },
+    {
+      icon: <PlusIcon />,
+      name: "Generate Mahasiswa",
+      subItems: [
+        {
+          name: "Kelompok",
+          path: "/generate/kelompok",
+          roles: ["super_admin", "tim_akademik"],
+        },
+        {
+          name: "Kelas",
+          path: "/generate/kelas",
+          roles: ["super_admin", "tim_akademik"],
+        },
+        {
+          name: "Mahasiswa Veteran",
+          path: "/generate/mahasiswa-veteran",
+          roles: ["super_admin", "tim_akademik"],
+        },
       ],
       roles: ["super_admin", "tim_akademik"],
-  },
-
-  {
-    icon: <PieChartIcon />,
-    name: "Service Center",
-    path: "/support-center",
-    roles: ["super_admin", "dosen", "mahasiswa", "tim_akademik"],
-  },
-
-];
+    },
+    {
+      icon: <GroupIcon />,
+      name: "Tim Akademik",
+      path: "/tim-akademik",
+      roles: ["super_admin"],
+    },
+    {
+      icon: <UserIcon />,
+      name: "Dosen",
+      path: "/dosen",
+      roles: ["super_admin", "tim_akademik"],
+    },
+    {
+      icon: <UserIcon />,
+      name: "Mahasiswa",
+      path: "/mahasiswa",
+      roles: ["super_admin", "tim_akademik"],
+    },
+    {
+      icon: <BoxCubeIcon />,
+      name: "Ruangan",
+      path: "/ruangan",
+      roles: ["super_admin", "tim_akademik"],
+    },
+    {
+      icon: <HistoryIcon />,
+      name: "Detail Riwayat Penugasan",
+      path: "/dosen-riwayat",
+      roles: ["dosen"],
+    },
+    {
+      icon: <ChatIcon />,
+      name: "Forum Diskusi",
+      path: "/forum-diskusi",
+      roles: ["super_admin", "dosen", "mahasiswa", "tim_akademik"],
+      new: true,
+    },
+    {
+      icon: <PieChartIcon />,
+      name: "Reporting",
+      subItems: [
+        {
+          name: "Reporting Dosen",
+          path: "/reporting/dosen",
+          roles: ["super_admin", "tim_akademik"],
+        },
+        {
+          name: "History Aplikasi",
+          path: "/reporting/histori",
+          roles: ["super_admin"],
+        },
+      ],
+      roles: ["super_admin", "tim_akademik"],
+    },
+    {
+      icon: <ListIcon />,
+      name: "Mata Kuliah",
+      path: "/mata-kuliah-mahasiswa",
+      roles: ["mahasiswa"],
+    },
+    {
+      icon: <TableIcon />,
+      name: "Peta Akademik",
+      path: "/peta-akademik",
+      roles: ["mahasiswa"],
+    },
+    {
+      icon: <TableIcon />,
+      name: "Peta Blok",
+      path: "/peta-blok",
+      roles: ["mahasiswa"],
+    },
+    {
+      icon: <PieChartIcon />,
+      name: "Detail Keabsenan",
+      path: "/detail-mahasiswa-keabsenan",
+      roles: ["mahasiswa"],
+    },
+    {
+      icon: <PieChartIcon />,
+      name: "Service Center",
+      path: "/support-center",
+      roles: ["super_admin", "dosen", "mahasiswa", "tim_akademik"],
+    },
+  ];
 
   // Filter menu berdasarkan role
   if (!userRole) {
@@ -202,12 +280,12 @@ const othersItems: NavItem[] = [
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const location = useLocation();
-  
+
   // Get menu items berdasarkan role
   const getUser = () => {
     return JSON.parse(localStorage.getItem("user") || "{}");
   };
-  
+
   const user = getUser();
   const navItems = getNavItems(user?.role);
 
@@ -225,7 +303,10 @@ const AppSidebar: React.FC = () => {
 
   const isActive = useCallback(
     (path: string) => {
-      if ((path === "/tahun-ajaran" && (location.pathname === "/" || location.pathname === "/tahun-ajaran"))) {
+      if (
+        path === "/tahun-ajaran" &&
+        (location.pathname === "/" || location.pathname === "/tahun-ajaran")
+      ) {
         return true;
       }
       return location.pathname === path;
@@ -321,7 +402,10 @@ const AppSidebar: React.FC = () => {
     });
   };
 
-  const renderNestedSubMenuItems = (subItems: NavItem['subItems'], parentKey: string) => (
+  const renderNestedSubMenuItems = (
+    subItems: NavItem["subItems"],
+    parentKey: string
+  ) => (
     <ul className="mt-2 space-y-1 ml-9">
       {subItems?.map((subItem, index) => (
         <li key={subItem.name}>

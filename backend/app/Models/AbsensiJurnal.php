@@ -12,11 +12,12 @@ class AbsensiJurnal extends Model
     use HasFactory, LogsActivity;
 
     protected $table = 'absensi_jurnal';
-    
+
     protected $fillable = [
         'jadwal_jurnal_reading_id',
         'mahasiswa_nim',
-        'hadir'
+        'hadir',
+        'catatan'
     ];
 
     protected $casts = [

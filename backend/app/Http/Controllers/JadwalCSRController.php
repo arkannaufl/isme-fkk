@@ -9,6 +9,7 @@ use App\Models\Ruangan;
 use App\Models\KelompokKecil;
 use App\Models\CSR;
 use App\Models\AbsensiCSR;
+use App\Models\Notification;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
@@ -58,7 +59,7 @@ class JadwalCSRController extends Controller
     {
         try {
             \Log::info('JadwalCSR store request received', $request->all());
-            
+
             $request->validate([
                 'tanggal' => 'required|date',
                 'jam_mulai' => 'required|string',
@@ -87,9 +88,10 @@ class JadwalCSRController extends Controller
             // Konversi format jam dari "07.20" ke "07:20"
             $jamMulai = str_replace('.', ':', $request->jam_mulai);
             $jamSelesai = str_replace('.', ':', $request->jam_selesai);
-            
+
             $jadwalCSR = JadwalCSR::create([
                 'mata_kuliah_kode' => $kode,
+                'created_by' => auth()->id(),
                 'tanggal' => $request->tanggal,
                 'jam_mulai' => $jamMulai,
                 'jam_selesai' => $jamSelesai,
@@ -103,37 +105,37 @@ class JadwalCSRController extends Controller
             ]);
 
 
-            
+
             // Log activity
 
-            
+
             activity()
 
-            
+
                 ->log('Jadwal CSR deleted');
 
 
-            
+
             // Log activity
 
-            
+
             activity()
 
-            
+
                 ->log('Jadwal CSR updated');
 
 
-            
+
             // Log activity
 
-            
+
             activity()
 
-            
+
                 ->log('Jadwal CSR created');
 
             $jadwalCSR = $jadwalCSR->load(['dosen', 'ruangan', 'kelompokKecil', 'kategori']);
-            
+
             // Konversi format jam dari HH:MM ke HH.MM untuk frontend (tanpa detik)
             if ($jadwalCSR->jam_mulai) {
                 $jamMulai = str_replace(':', '.', $jadwalCSR->jam_mulai);
@@ -153,7 +155,13 @@ class JadwalCSRController extends Controller
                 }
                 $jadwalCSR->jam_selesai = $jamSelesai;
             }
-            
+
+            // Send notification to dosen
+            $this->sendAssignmentNotification($jadwalCSR, $request->dosen_id);
+
+            // Send notification to mahasiswa
+            $this->sendNotificationToMahasiswa($jadwalCSR);
+
             return response()->json($jadwalCSR, 201);
         } catch (\Exception $e) {
             \Log::error('Error saving JadwalCSR: ' . $e->getMessage());
@@ -166,7 +174,7 @@ class JadwalCSRController extends Controller
     {
         try {
             \Log::info('JadwalCSR update request received', $request->all());
-            
+
             $request->validate([
                 'tanggal' => 'required|date',
                 'jam_mulai' => 'required|string',
@@ -197,8 +205,8 @@ class JadwalCSRController extends Controller
             // Konversi format jam dari "07.20" ke "07:20"
             $jamMulai = str_replace('.', ':', $request->jam_mulai);
             $jamSelesai = str_replace('.', ':', $request->jam_selesai);
-            
-            $jadwalCSR->update([
+
+            $updateData = [
                 'tanggal' => $request->tanggal,
                 'jam_mulai' => $jamMulai,
                 'jam_selesai' => $jamSelesai,
@@ -209,10 +217,12 @@ class JadwalCSRController extends Controller
                 'kelompok_kecil_id' => $request->kelompok_kecil_id,
                 'kategori_id' => $request->kategori_id,
                 'topik' => $request->topik,
-            ]);
+            ];
+
+            $jadwalCSR->update($updateData);
 
             $jadwalCSR = $jadwalCSR->load(['dosen', 'ruangan', 'kelompokKecil', 'kategori']);
-            
+
             // Konversi format jam dari HH:MM ke HH.MM untuk frontend (tanpa detik)
             if ($jadwalCSR->jam_mulai) {
                 $jamMulai = str_replace(':', '.', $jadwalCSR->jam_mulai);
@@ -232,7 +242,7 @@ class JadwalCSRController extends Controller
                 }
                 $jadwalCSR->jam_selesai = $jamSelesai;
             }
-            
+
             return response()->json($jadwalCSR);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Gagal mengupdate jadwal CSR'], 500);
@@ -296,7 +306,7 @@ class JadwalCSRController extends Controller
     {
         try {
             $mataKuliahKode = $request->query('mata_kuliah_kode');
-            
+
             if ($mataKuliahKode) {
                 // Filter kategori berdasarkan mata kuliah
                 $kategori = CSR::where('mata_kuliah_kode', $mataKuliahKode)
@@ -320,8 +330,19 @@ class JadwalCSRController extends Controller
     {
         try {
             $jamOptions = [
-                '07.20', '08.10', '09.00', '09.50', '10.40', '11.30', '12.35', 
-                '13.25', '14.15', '15.05', '15.35', '16.25', '17.15'
+                '07.20',
+                '08.10',
+                '09.00',
+                '09.50',
+                '10.40',
+                '11.30',
+                '12.35',
+                '13.25',
+                '14.15',
+                '15.05',
+                '15.35',
+                '16.25',
+                '17.15'
             ];
 
             return response()->json($jamOptions);
@@ -335,7 +356,7 @@ class JadwalCSRController extends Controller
         // Konversi format waktu dari frontend (dot) ke format database (colon)
         $jamMulai = str_replace('.', ':', $request->jam_mulai);
         $jamSelesai = str_replace('.', ':', $request->jam_selesai);
-        
+
         \Log::info('Checking bentrok for CSR', [
             'tanggal' => $request->tanggal,
             'jam_mulai_request' => $request->jam_mulai,
@@ -477,7 +498,7 @@ class JadwalCSRController extends Controller
         $bentrokKelompokBesar = $this->checkKelompokBesarBentrok($request, $excludeId);
 
         $totalBentrok = $bentrokCSRExists || $bentrokPBL || $bentrokKuliahBesar || $bentrokAgendaKhusus || $bentrokPraktikum || $bentrokJurnalReading || $bentrokKelompokBesar;
-        
+
         \Log::info('Total bentrok check result', [
             'csr_bentrok' => $bentrokCSRExists,
             'pbl_bentrok' => $bentrokPBL,
@@ -527,9 +548,9 @@ class JadwalCSRController extends Controller
             $jamMulaiFormatted = str_replace(':', '.', $jadwalBentrokCSR->jam_mulai);
             $jamSelesaiFormatted = str_replace(':', '.', $jadwalBentrokCSR->jam_selesai);
             $bentrokReason = $this->getBentrokReason($request, $jadwalBentrokCSR);
-            return "Jadwal bentrok dengan Jadwal CSR pada tanggal " . 
-                   date('d/m/Y', strtotime($request->tanggal)) . " jam " . 
-                   $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
+            return "Jadwal bentrok dengan Jadwal CSR pada tanggal " .
+                date('d/m/Y', strtotime($request->tanggal)) . " jam " .
+                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
         }
 
         // Cek bentrok dengan jadwal PBL
@@ -558,9 +579,9 @@ class JadwalCSRController extends Controller
             $jamMulaiFormatted = str_replace(':', '.', $bentrokPBL->jam_mulai);
             $jamSelesaiFormatted = str_replace(':', '.', $bentrokPBL->jam_selesai);
             $bentrokReason = $this->getBentrokReason($request, $bentrokPBL);
-            return "Jadwal bentrok dengan Jadwal PBL pada tanggal " . 
-                   date('d/m/Y', strtotime($request->tanggal)) . " jam " . 
-                   $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
+            return "Jadwal bentrok dengan Jadwal PBL pada tanggal " .
+                date('d/m/Y', strtotime($request->tanggal)) . " jam " .
+                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
         }
 
         // Cek bentrok dengan jadwal Kuliah Besar
@@ -588,9 +609,9 @@ class JadwalCSRController extends Controller
             $jamMulaiFormatted = str_replace(':', '.', $bentrokKuliahBesar->jam_mulai);
             $jamSelesaiFormatted = str_replace(':', '.', $bentrokKuliahBesar->jam_selesai);
             $bentrokReason = $this->getBentrokReason($request, $bentrokKuliahBesar);
-            return "Jadwal bentrok dengan Jadwal Kuliah Besar pada tanggal " . 
-                   date('d/m/Y', strtotime($request->tanggal)) . " jam " . 
-                   $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
+            return "Jadwal bentrok dengan Jadwal Kuliah Besar pada tanggal " .
+                date('d/m/Y', strtotime($request->tanggal)) . " jam " .
+                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
         }
 
         // Cek bentrok dengan jadwal Agenda Khusus
@@ -616,9 +637,9 @@ class JadwalCSRController extends Controller
             $jamMulaiFormatted = str_replace(':', '.', $bentrokAgendaKhusus->jam_mulai);
             $jamSelesaiFormatted = str_replace(':', '.', $bentrokAgendaKhusus->jam_selesai);
             $bentrokReason = $this->getBentrokReason($request, $bentrokAgendaKhusus);
-            return "Jadwal bentrok dengan Jadwal Agenda Khusus pada tanggal " . 
-                   date('d/m/Y', strtotime($request->tanggal)) . " jam " . 
-                   $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
+            return "Jadwal bentrok dengan Jadwal Agenda Khusus pada tanggal " .
+                date('d/m/Y', strtotime($request->tanggal)) . " jam " .
+                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
         }
 
         // Cek bentrok dengan jadwal Praktikum
@@ -643,9 +664,9 @@ class JadwalCSRController extends Controller
             $jamMulaiFormatted = str_replace(':', '.', $bentrokPraktikum->jam_mulai);
             $jamSelesaiFormatted = str_replace(':', '.', $bentrokPraktikum->jam_selesai);
             $bentrokReason = $this->getBentrokReason($request, $bentrokPraktikum);
-            return "Jadwal bentrok dengan Jadwal Praktikum pada tanggal " . 
-                   date('d/m/Y', strtotime($request->tanggal)) . " jam " . 
-                   $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
+            return "Jadwal bentrok dengan Jadwal Praktikum pada tanggal " .
+                date('d/m/Y', strtotime($request->tanggal)) . " jam " .
+                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
         }
 
         // Cek bentrok dengan jadwal Jurnal Reading
@@ -674,9 +695,9 @@ class JadwalCSRController extends Controller
             $jamMulaiFormatted = str_replace(':', '.', $bentrokJurnalReading->jam_mulai);
             $jamSelesaiFormatted = str_replace(':', '.', $bentrokJurnalReading->jam_selesai);
             $bentrokReason = $this->getBentrokReason($request, $bentrokJurnalReading);
-            return "Jadwal bentrok dengan Jadwal Jurnal Reading pada tanggal " . 
-                   date('d/m/Y', strtotime($request->tanggal)) . " jam " . 
-                   $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
+            return "Jadwal bentrok dengan Jadwal Jurnal Reading pada tanggal " .
+                date('d/m/Y', strtotime($request->tanggal)) . " jam " .
+                $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
         }
 
         return null; // Tidak ada bentrok
@@ -688,25 +709,25 @@ class JadwalCSRController extends Controller
     private function getBentrokReason($request, $jadwalBentrok): string
     {
         $reasons = [];
-        
+
         // Cek bentrok dosen
         if (isset($request->dosen_id) && isset($jadwalBentrok->dosen_id) && $request->dosen_id == $jadwalBentrok->dosen_id) {
             $dosen = \App\Models\User::find($request->dosen_id);
             $reasons[] = "Dosen: " . ($dosen ? $dosen->name : 'Tidak diketahui');
         }
-        
+
         // Cek bentrok ruangan
         if (isset($request->ruangan_id) && isset($jadwalBentrok->ruangan_id) && $request->ruangan_id == $jadwalBentrok->ruangan_id) {
             $ruangan = \App\Models\Ruangan::find($request->ruangan_id);
             $reasons[] = "Ruangan: " . ($ruangan ? $ruangan->nama : 'Tidak diketahui');
         }
-        
+
         // Cek bentrok kelompok kecil
         if (isset($request->kelompok_kecil_id) && isset($jadwalBentrok->kelompok_kecil_id) && $request->kelompok_kecil_id == $jadwalBentrok->kelompok_kecil_id) {
             $kelompokKecil = \App\Models\KelompokKecil::find($request->kelompok_kecil_id);
             $reasons[] = "Kelompok Kecil: " . ($kelompokKecil ? $kelompokKecil->nama_kelompok : 'Tidak diketahui');
         }
-        
+
         return implode(', ', $reasons);
     }
 
@@ -729,8 +750,8 @@ class JadwalCSRController extends Controller
 
         // Hitung jumlah mahasiswa dalam kelompok
         $jumlahMahasiswa = KelompokKecil::where('nama_kelompok', $kelompokKecil->nama_kelompok)
-                                       ->where('semester', $kelompokKecil->semester)
-                                       ->count();
+            ->where('semester', $kelompokKecil->semester)
+            ->count();
 
         // Hitung total (mahasiswa + 1 dosen)
         $totalMahasiswa = $jumlahMahasiswa + 1;
@@ -741,6 +762,63 @@ class JadwalCSRController extends Controller
         }
 
         return null; // Kapasitas mencukupi
+    }
+
+    /**
+     * Send notification to mahasiswa in the kelompok
+     */
+    private function sendNotificationToMahasiswa($jadwal)
+    {
+        try {
+            // Get mahasiswa in the kelompok
+            $mahasiswaList = [];
+
+            if ($jadwal->kelompok_kecil_id) {
+                $kelompokKecil = \App\Models\KelompokKecil::with('mahasiswa')->find($jadwal->kelompok_kecil_id);
+                if ($kelompokKecil && $kelompokKecil->mahasiswa) {
+                    $mahasiswaList[] = $kelompokKecil->mahasiswa;
+                }
+            }
+
+            if ($jadwal->kelompok_kecil_antara_id) {
+                $kelompokKecilAntara = \App\Models\KelompokKecilAntara::with('mahasiswa')->find($jadwal->kelompok_kecil_antara_id);
+                if ($kelompokKecilAntara && $kelompokKecilAntara->mahasiswa) {
+                    $mahasiswaList[] = $kelompokKecilAntara->mahasiswa;
+                }
+            }
+
+            // Send notification to each mahasiswa
+            foreach ($mahasiswaList as $mahasiswa) {
+                \App\Models\Notification::create([
+                    'user_id' => $mahasiswa->id,
+                    'title' => 'Jadwal CSR Baru',
+                    'message' => "Jadwal CSR baru telah ditambahkan: {$jadwal->mataKuliah->nama} - {$jadwal->topik} pada tanggal {$jadwal->tanggal} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai} di ruangan {$jadwal->ruangan->nama}.",
+                    'type' => 'info',
+                    'is_read' => false,
+                    'data' => [
+                        'jadwal_id' => $jadwal->id,
+                        'jadwal_type' => 'csr',
+                        'mata_kuliah_kode' => $jadwal->mata_kuliah_kode,
+                        'mata_kuliah_nama' => $jadwal->mataKuliah->nama,
+                        'topik' => $jadwal->topik,
+                        'jenis_csr' => $jadwal->jenis_csr,
+                        'tanggal' => $jadwal->tanggal,
+                        'jam_mulai' => $jadwal->jam_mulai,
+                        'jam_selesai' => $jadwal->jam_selesai,
+                        'ruangan' => $jadwal->ruangan->nama,
+                        'dosen' => $jadwal->dosen ? $jadwal->dosen->name : 'N/A',
+                        'created_by' => $jadwal->created_by ? \App\Models\User::find($jadwal->created_by)->name ?? 'Admin' : 'Admin',
+                        'created_by_role' => $jadwal->created_by ? \App\Models\User::find($jadwal->created_by)->role ?? 'admin' : 'admin',
+                        'sender_name' => $jadwal->created_by ? \App\Models\User::find($jadwal->created_by)->name ?? 'Admin' : 'Admin',
+                        'sender_role' => $jadwal->created_by ? \App\Models\User::find($jadwal->created_by)->role ?? 'admin' : 'admin'
+                    ]
+                ]);
+            }
+
+            \Log::info("CSR notifications sent to " . count($mahasiswaList) . " mahasiswa for jadwal ID: {$jadwal->id}");
+        } catch (\Exception $e) {
+            \Log::error("Error sending CSR notifications to mahasiswa: " . $e->getMessage());
+        }
     }
 
     /**
@@ -759,22 +837,22 @@ class JadwalCSRController extends Controller
 
         // Cek bentrok dengan jadwal Kuliah Besar yang menggunakan kelompok besar dari mahasiswa yang sama
         $kuliahBesarBentrok = \App\Models\JadwalKuliahBesar::where('tanggal', $request->tanggal)
-            ->where(function($q) use ($request) {
+            ->where(function ($q) use ($request) {
                 $q->where('jam_mulai', '<', $request->jam_selesai)
-                   ->where('jam_selesai', '>', $request->jam_mulai);
+                    ->where('jam_selesai', '>', $request->jam_mulai);
             })
-            ->whereHas('kelompokBesar', function($q) use ($mahasiswaIds) {
+            ->whereHas('kelompokBesar', function ($q) use ($mahasiswaIds) {
                 $q->whereIn('mahasiswa_id', $mahasiswaIds);
             })
             ->exists();
 
         // Cek bentrok dengan jadwal Agenda Khusus yang menggunakan kelompok besar dari mahasiswa yang sama
         $agendaKhususBentrok = \App\Models\JadwalAgendaKhusus::where('tanggal', $request->tanggal)
-            ->where(function($q) use ($request) {
+            ->where(function ($q) use ($request) {
                 $q->where('jam_mulai', '<', $request->jam_selesai)
-                   ->where('jam_selesai', '>', $request->jam_mulai);
+                    ->where('jam_selesai', '>', $request->jam_mulai);
             })
-            ->whereHas('kelompokBesar', function($q) use ($mahasiswaIds) {
+            ->whereHas('kelompokBesar', function ($q) use ($mahasiswaIds) {
                 $q->whereIn('mahasiswa_id', $mahasiswaIds);
             })
             ->exists();
@@ -811,7 +889,16 @@ class JadwalCSRController extends Controller
                 'absensi' => 'required|array',
                 'absensi.*.mahasiswa_npm' => 'required|string',
                 'absensi.*.hadir' => 'required|boolean',
+                'absensi.*.catatan' => 'nullable|string',
+                'penilaian_submitted' => 'nullable|boolean',
             ]);
+
+            // Update jadwal CSR dengan status penilaian_submitted (mengikuti pola PBL/Jurnal)
+            if ($request->has('penilaian_submitted')) {
+                JadwalCSR::where('id', $jadwalId)->update([
+                    'penilaian_submitted' => $request->penilaian_submitted
+                ]);
+            }
 
             // Hapus data absensi yang lama
             AbsensiCSR::where('jadwal_csr_id', $jadwalId)->delete();
@@ -822,6 +909,7 @@ class JadwalCSRController extends Controller
                     'jadwal_csr_id' => $jadwalId,
                     'mahasiswa_npm' => $absen['mahasiswa_npm'],
                     'hadir' => $absen['hadir'],
+                    'catatan' => $absen['catatan'] ?? '',
                 ]);
             }
 
@@ -865,9 +953,12 @@ class JadwalCSRController extends Controller
                     'topik' => $item->topik,
                     'status_konfirmasi' => $item->status_konfirmasi ?? 'belum_konfirmasi',
                     'alasan_konfirmasi' => $item->alasan_konfirmasi,
+                    'status_reschedule' => $item->status_reschedule ?? null,
+                    'reschedule_reason' => $item->reschedule_reason ?? null,
                     'mata_kuliah_kode' => $item->mata_kuliah_kode,
                     'mata_kuliah_nama' => $item->mataKuliah->nama ?? 'N/A',
                     'jenis_csr' => $item->jenis_csr,
+                    'nomor_csr' => $item->kategori->nomor_csr ?? '',
                     'dosen' => [
                         'id' => $item->dosen->id,
                         'name' => $item->dosen->name
@@ -886,6 +977,7 @@ class JadwalCSRController extends Controller
                     ],
                     'jumlah_sesi' => $item->jumlah_sesi,
                     'semester_type' => 'reguler', // CSR hanya semester reguler
+                    'penilaian_submitted' => $item->penilaian_submitted ?? false,
                     'created_at' => $item->created_at
                 ];
             });
@@ -935,6 +1027,285 @@ class JadwalCSRController extends Controller
         ]);
     }
 
+    // Ajukan reschedule jadwal CSR
+    public function reschedule(Request $request, $jadwalId)
+    {
+        $request->validate([
+            'reschedule_reason' => 'required|string|max:1000',
+            'dosen_id' => 'required|exists:users,id'
+        ]);
+
+        $jadwal = JadwalCSR::with(['mataKuliah', 'dosen', 'ruangan', 'kategori'])
+            ->where('id', $jadwalId)
+            ->where('dosen_id', $request->dosen_id)
+            ->firstOrFail();
+
+        $jadwal->update([
+            'status_konfirmasi' => 'waiting_reschedule',
+            'reschedule_reason' => $request->reschedule_reason,
+            'status_reschedule' => 'waiting'
+        ]);
+
+        // Kirim notifikasi ke admin
+        $this->sendRescheduleNotification($jadwal, $request->reschedule_reason);;
+
+        return response()->json([
+            'message' => 'Permintaan reschedule berhasil diajukan',
+            'status' => 'waiting_reschedule'
+        ]);
+    }
+
+    // Get jadwal CSR for mahasiswa
+    public function getJadwalForMahasiswa($mahasiswaId, Request $request)
+    {
+        try {
+            $mahasiswa = User::where('id', $mahasiswaId)->where('role', 'mahasiswa')->first();
+            if (!$mahasiswa) {
+                return response()->json(['message' => 'Mahasiswa tidak ditemukan', 'data' => []], 404);
+            }
+
+            $kelompokKecil = KelompokKecil::where('mahasiswa_id', $mahasiswaId)->first();
+            if (!$kelompokKecil) {
+                return response()->json(['message' => 'Mahasiswa belum memiliki kelompok', 'data' => []]);
+            }
+
+            $jadwal = JadwalCSR::with(['kategori', 'kelompokKecil', 'dosen', 'ruangan'])
+                ->where('kelompok_kecil_id', $kelompokKecil->id)
+                ->orderBy('tanggal', 'asc')
+                ->orderBy('jam_mulai', 'asc')
+                ->get();
+
+            $mappedJadwal = $jadwal->map(function ($item) {
+                $sessionCount = $item->jenis_csr === 'reguler' ? 3 : 2;
+                return [
+                    'id' => $item->id,
+                    'tanggal' => $item->tanggal,
+                    'jam_mulai' => substr($item->jam_mulai, 0, 5),
+                    'jam_selesai' => substr($item->jam_selesai, 0, 5),
+                    'topik' => $item->topik ?? 'N/A',
+                    'kategori' => $item->kategori ? ['id' => $item->kategori->id, 'nama' => $item->kategori->nama] : null,
+                    'jenis_csr' => $item->jenis_csr,
+                    'pengampu' => $item->dosen->name ?? 'N/A',
+                    'ruangan' => $item->ruangan ? ['id' => $item->ruangan->id, 'nama' => $item->ruangan->nama] : null,
+                    'jumlah_sesi' => $sessionCount,
+                    'semester_type' => 'reguler',
+                ];
+            });
+
+            return response()->json(['message' => 'Data jadwal CSR berhasil diambil', 'data' => $mappedJadwal]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching jadwal CSR for mahasiswa: ' . $e->getMessage());
+            return response()->json(['message' => 'Terjadi kesalahan', 'error' => $e->getMessage(), 'data' => []], 500);
+        }
+    }
+
+
+
+
+
+    /**
+     * Kirim notifikasi reschedule ke admin
+     */
+    private function sendRescheduleNotification($jadwal, $reason)
+    {
+        try {
+            $dosen = User::find($jadwal->dosen_id);
+
+            // Buat hanya 1 notifikasi yang bisa dilihat oleh semua admin
+            $firstAdmin = User::where('role', 'super_admin')->first() ?? User::where('role', 'tim_akademik')->first();
+
+            if ($firstAdmin) {
+                Notification::create([
+                    'user_id' => $firstAdmin->id,
+                    'title' => 'Permintaan Reschedule Jadwal',
+                    'message' => "Dosen {$dosen->name} mengajukan reschedule untuk jadwal CSR. Alasan: {$reason}",
+                    'type' => 'warning',
+                    'is_read' => false,
+                    'data' => [
+                        'jadwal_id' => $jadwal->id,
+                        'jadwal_type' => 'csr',
+                        'jenis_csr' => $jadwal->jenis_csr,
+                        'dosen_name' => $dosen->name,
+                        'dosen_id' => $dosen->id,
+                        'reschedule_reason' => $reason,
+                        'notification_type' => 'reschedule_request'
+                    ]
+                ]);
+            }
+
+            \Log::info("Reschedule notification sent for CSR jadwal ID: {$jadwal->id}");
+        } catch (\Exception $e) {
+            \Log::error("Error sending reschedule notification for CSR jadwal ID: {$jadwal->id}: " . $e->getMessage());
+        }
+    }
+
+    public function importExcel(Request $request, string $kode): JsonResponse
+    {
+        try {
+            $request->validate([
+                'data' => 'required|array',
+                'data.*.jenis_csr' => 'required|in:reguler,responsi',
+                'data.*.tanggal' => 'required|date',
+                'data.*.jam_mulai' => 'required|string',
+                'data.*.jam_selesai' => 'required|string',
+                'data.*.jumlah_sesi' => 'required|integer|min:1|max:6',
+                'data.*.kelompok_kecil_id' => 'required|integer|exists:kelompok_kecil,id',
+                'data.*.topik' => 'required|string',
+                'data.*.kategori_id' => 'required|integer|exists:csrs,id',
+                'data.*.dosen_id' => 'required|integer|exists:users,id',
+                'data.*.ruangan_id' => 'required|integer|exists:ruangan,id',
+            ]);
+
+            $data = $request->input('data');
+            $mataKuliah = MataKuliah::where('kode', $kode)->first();
+
+            if (!$mataKuliah) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mata kuliah tidak ditemukan'
+                ], 404);
+            }
+
+            // Validasi rentang tanggal mata kuliah
+            foreach ($data as $index => $row) {
+                $tanggalJadwal = new \DateTime($row['tanggal']);
+                $tanggalMulai = new \DateTime($mataKuliah->tanggal_mulai);
+                $tanggalAkhir = new \DateTime($mataKuliah->tanggal_akhir);
+
+                if ($tanggalJadwal < $tanggalMulai || $tanggalJadwal > $tanggalAkhir) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Tanggal di luar rentang mata kuliah pada baris " . ($index + 1)
+                    ], 400);
+                }
+
+                // Validasi sesi sesuai jenis CSR
+                if ($row['jenis_csr'] === 'reguler' && $row['jumlah_sesi'] !== 3) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "CSR Reguler harus 3 sesi pada baris " . ($index + 1)
+                    ], 400);
+                }
+
+                if ($row['jenis_csr'] === 'responsi' && $row['jumlah_sesi'] !== 2) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "CSR Responsi harus 2 sesi pada baris " . ($index + 1)
+                    ], 400);
+                }
+            }
+
+            // Validasi konflik jadwal dan kapasitas ruangan
+            foreach ($data as $index => $row) {
+                // Cek konflik jadwal dosen
+                $konflikDosen = JadwalCSR::where('dosen_id', $row['dosen_id'])
+                    ->where('tanggal', $row['tanggal'])
+                    ->where(function ($query) use ($row) {
+                        $query->whereBetween('jam_mulai', [$row['jam_mulai'], $row['jam_selesai']])
+                            ->orWhereBetween('jam_selesai', [$row['jam_mulai'], $row['jam_selesai']])
+                            ->orWhere(function ($q) use ($row) {
+                                $q->where('jam_mulai', '<=', $row['jam_mulai'])
+                                    ->where('jam_selesai', '>=', $row['jam_selesai']);
+                            });
+                    })
+                    ->exists();
+
+                if ($konflikDosen) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Konflik jadwal dosen pada baris " . ($index + 1)
+                    ], 400);
+                }
+
+                // Cek konflik jadwal ruangan
+                $konflikRuangan = JadwalCSR::where('ruangan_id', $row['ruangan_id'])
+                    ->where('tanggal', $row['tanggal'])
+                    ->where(function ($query) use ($row) {
+                        $query->whereBetween('jam_mulai', [$row['jam_mulai'], $row['jam_selesai']])
+                            ->orWhereBetween('jam_selesai', [$row['jam_mulai'], $row['jam_selesai']])
+                            ->orWhere(function ($q) use ($row) {
+                                $q->where('jam_mulai', '<=', $row['jam_mulai'])
+                                    ->where('jam_selesai', '>=', $row['jam_selesai']);
+                            });
+                    })
+                    ->exists();
+
+                if ($konflikRuangan) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Konflik jadwal ruangan pada baris " . ($index + 1)
+                    ], 400);
+                }
+
+                // Cek kapasitas ruangan
+                $ruangan = Ruangan::find($row['ruangan_id']);
+                $kelompokKecil = KelompokKecil::find($row['kelompok_kecil_id']);
+
+                if ($ruangan && $kelompokKecil && $ruangan->kapasitas && $kelompokKecil->jumlah_anggota > $ruangan->kapasitas) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Kapasitas ruangan tidak mencukupi pada baris " . ($index + 1) . " (Kelompok: {$kelompokKecil->jumlah_anggota}, Kapasitas: {$ruangan->kapasitas})"
+                    ], 400);
+                }
+            }
+
+            // Insert data jika semua validasi berhasil
+            DB::beginTransaction();
+
+            try {
+                $insertedData = [];
+                foreach ($data as $row) {
+                    // Konversi format jam dari "07.20" ke "07:20" (sama seperti di store method)
+                    $jamMulai = str_replace('.', ':', $row['jam_mulai']);
+                    $jamSelesai = str_replace('.', ':', $row['jam_selesai']);
+                    
+                    $jadwalCSR = JadwalCSR::create([
+                        'mata_kuliah_kode' => $kode,
+                        'created_by' => auth()->id(),
+                        'jenis_csr' => $row['jenis_csr'],
+                        'tanggal' => $row['tanggal'],
+                        'jam_mulai' => $jamMulai,
+                        'jam_selesai' => $jamSelesai,
+                        'jumlah_sesi' => $row['jumlah_sesi'],
+                        'kelompok_kecil_id' => $row['kelompok_kecil_id'],
+                        'topik' => $row['topik'],
+                        'kategori_id' => $row['kategori_id'],
+                        'dosen_id' => $row['dosen_id'],
+                        'ruangan_id' => $row['ruangan_id'],
+                    ]);
+                    
+                    // Kirim notifikasi ke dosen yang di-assign
+                    $this->sendAssignmentNotification($jadwalCSR, $row['dosen_id']);
+                    
+                    $insertedData[] = $jadwalCSR;
+                }
+
+                DB::commit();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Data CSR berhasil diimport',
+                    'data' => $insertedData
+                ]);
+
+            } catch (\Exception $e) {
+                DB::rollback();
+                throw $e;
+            }
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat mengimport data: ' . implode(', ', $e->validator->errors()->all())
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat mengimport data: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     /**
      * Kirim notifikasi replacement ke super admin
      */
@@ -948,10 +1319,10 @@ class JadwalCSRController extends Controller
                 \App\Models\Notification::create([
                     'user_id' => $jadwal->dosen_id,
                     'title' => 'Dosen Tidak Bisa Mengajar - CSR',
-                    'message' => "Dosen {$jadwal->dosen->name} tidak bisa mengajar pada jadwal CSR {$jadwal->mataKuliah->nama} ({$jadwal->kategori->nama}) pada tanggal " . 
-                               date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " . 
-                               str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) . 
-                               " di ruangan {$jadwal->ruangan->nama}.{$alasanText}",
+                    'message' => "Dosen {$jadwal->dosen->name} tidak bisa mengajar pada jadwal CSR {$jadwal->mataKuliah->nama} ({$jadwal->kategori->nama}) pada tanggal " .
+                        date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                        str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                        " di ruangan {$jadwal->ruangan->nama}.{$alasanText}",
                     'type' => 'warning',
                     'is_read' => false,
                     'data' => [
@@ -968,6 +1339,62 @@ class JadwalCSRController extends Controller
             }
         } catch (\Exception $e) {
             \Log::error("Error sending replacement notification for CSR: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Send assignment notification to dosen
+     */
+    private function sendAssignmentNotification($jadwal, $dosenId)
+    {
+        try {
+            $dosen = \App\Models\User::find($dosenId);
+            if (!$dosen) {
+                \Log::warning("Dosen dengan ID {$dosenId} tidak ditemukan untuk notifikasi jadwal CSR");
+                return;
+            }
+
+            $mataKuliah = $jadwal->mataKuliah;
+            $ruangan = $jadwal->ruangan;
+            $kelompokKecil = $jadwal->kelompokKecil;
+            $kategori = $jadwal->kategori;
+
+            \App\Models\Notification::create([
+                'user_id' => $dosenId,
+                'title' => 'Jadwal CSR Baru',
+                'message' => "Anda telah di-assign untuk mengajar CSR {$mataKuliah->nama} ({$kategori->nama}) pada tanggal " .
+                    date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                    str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                    " di ruangan {$ruangan->nama} untuk kelompok {$kelompokKecil->nama_kelompok}. Silakan konfirmasi ketersediaan Anda.",
+                'type' => 'info',
+                'is_read' => false,
+                'data' => [
+                    'jadwal_id' => $jadwal->id,
+                    'jadwal_type' => 'csr',
+                    'mata_kuliah_kode' => $mataKuliah->kode,
+                    'mata_kuliah_nama' => $mataKuliah->nama,
+                    'tanggal' => $jadwal->tanggal,
+                    'jam_mulai' => $jadwal->jam_mulai,
+                    'jam_selesai' => $jadwal->jam_selesai,
+                    'ruangan' => $ruangan->nama,
+                    'kelompok_kecil' => $kelompokKecil->nama_kelompok,
+                    'kategori' => $kategori->nama,
+                    'topik' => $jadwal->topik,
+                    'jenis_csr' => $jadwal->jenis_csr,
+                    'jumlah_sesi' => $jadwal->jumlah_sesi,
+                    'dosen_id' => $dosen->id,
+                    'dosen_name' => $dosen->name,
+                    'dosen_role' => $dosen->role,
+                    'created_by' => auth()->user()->name ?? 'Admin',
+                    'created_by_role' => auth()->user()->role ?? 'admin',
+                    'sender_name' => auth()->user()->name ?? 'Admin',
+                    'sender_role' => auth()->user()->role ?? 'admin'
+                ]
+            ]);
+
+            \Log::info("Notifikasi jadwal CSR berhasil dikirim ke dosen {$dosen->name} (ID: {$dosenId})");
+        } catch (\Exception $e) {
+            \Log::error("Gagal mengirim notifikasi jadwal CSR ke dosen {$dosenId}: " . $e->getMessage());
         }
     }
 }
