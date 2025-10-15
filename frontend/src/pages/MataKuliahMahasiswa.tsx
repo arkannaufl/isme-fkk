@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faArrowLeft } from "@fortawesome/free-solid-svg-icons";
 import api, { handleApiError } from "../utils/api";
 
 interface MataKuliah {
@@ -109,28 +111,6 @@ const MataKuliahMahasiswa: React.FC<MataKuliahMahasiswaProps> = () => {
       return sortOrder === "asc" ? comparison : -comparison;
     });
 
-  const getJenisBadgeColor = (jenis: string) => {
-    switch (jenis.toLowerCase()) {
-      case "wajib":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300";
-      case "pilihan":
-        return "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300";
-      case "pilihan wajib":
-        return "bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300";
-      default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300";
-    }
-  };
-
-  const getSemesterBadgeColor = (semester: number) => {
-    if (semester <= 2)
-      return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300";
-    if (semester <= 4)
-      return "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300";
-    if (semester <= 6)
-      return "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300";
-    return "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300";
-  };
 
   const downloadRps = async (kode: string) => {
     try {
@@ -198,12 +178,123 @@ const MataKuliahMahasiswa: React.FC<MataKuliahMahasiswaProps> = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">
-            Memuat data mata kuliah...
-          </p>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Header Skeleton */}
+          <div className="mb-8">
+            <div className="h-6 w-20 bg-gray-300 dark:bg-gray-600 rounded mb-4 animate-pulse"></div>
+            <div className="h-8 w-32 bg-gray-300 dark:bg-gray-600 rounded mb-2 animate-pulse"></div>
+            <div className="h-4 w-64 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+          </div>
+
+          {/* Filters Skeleton */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="lg:col-span-2">
+                <div className="h-4 w-32 bg-gray-300 dark:bg-gray-600 rounded mb-2 animate-pulse"></div>
+                <div className="h-12 w-full bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse"></div>
+              </div>
+              <div>
+                <div className="h-4 w-20 bg-gray-300 dark:bg-gray-600 rounded mb-2 animate-pulse"></div>
+                <div className="h-12 w-full bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse"></div>
+              </div>
+              <div>
+                <div className="h-4 w-16 bg-gray-300 dark:bg-gray-600 rounded mb-2 animate-pulse"></div>
+                <div className="h-12 w-full bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse"></div>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-4">
+              <div className="h-8 w-20 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+              <div className="h-8 w-24 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+            </div>
+          </div>
+
+          {/* Results Count Skeleton */}
+          <div className="mb-6">
+            <div className="h-4 w-48 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+          </div>
+
+               {/* Table Skeleton */}
+               <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                 {/* Table Header Skeleton */}
+                 <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                   <div className="flex items-center gap-3">
+                     <div className="w-8 h-8 bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse"></div>
+                     <div>
+                       <div className="h-6 w-40 bg-gray-300 dark:bg-gray-600 rounded mb-1 animate-pulse"></div>
+                       <div className="h-4 w-48 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                     </div>
+                   </div>
+                 </div>
+
+                 {/* Table Content Skeleton */}
+                 <div className="overflow-x-auto">
+                   <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                     <thead className="bg-gray-50 dark:bg-gray-700/50">
+                       <tr>
+                         {Array.from({ length: 6 }).map((_, i) => (
+                           <th key={i} className="px-6 py-3">
+                             <div className="h-3 w-20 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                           </th>
+                         ))}
+                       </tr>
+                     </thead>
+                     <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                       {Array.from({ length: 5 }).map((_, index) => (
+                         <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                           {/* Mata Kuliah Info Skeleton */}
+                           <td className="px-6 py-4 whitespace-nowrap">
+                             <div className="flex items-center">
+                               <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"></div>
+                               <div className="ml-4">
+                                 <div className="h-4 w-48 bg-gray-300 dark:bg-gray-600 rounded mb-1 animate-pulse"></div>
+                                 <div className="h-3 w-20 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                               </div>
+                             </div>
+                           </td>
+
+                           {/* Semester Skeleton */}
+                           <td className="px-6 py-4 whitespace-nowrap">
+                             <div className="flex flex-col gap-1">
+                               <div className="h-6 w-24 bg-gray-300 dark:bg-gray-600 rounded-full animate-pulse"></div>
+                               <div className="h-6 w-20 bg-gray-300 dark:bg-gray-600 rounded-full animate-pulse"></div>
+                             </div>
+                           </td>
+
+                           {/* SKS Skeleton */}
+                           <td className="px-6 py-4 whitespace-nowrap">
+                             <div className="flex items-center gap-2">
+                               <div className="w-6 h-6 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                               <div className="h-4 w-6 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                             </div>
+                           </td>
+
+                           {/* RPS Skeleton */}
+                           <td className="px-6 py-4 whitespace-nowrap">
+                             <div className="h-8 w-24 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"></div>
+                           </td>
+
+                           {/* Materi Skeleton */}
+                           <td className="px-6 py-4 whitespace-nowrap">
+                             <div className="flex items-center gap-2">
+                               <div className="h-4 w-12 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                               <div className="w-6 h-6 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                             </div>
+                           </td>
+
+                           {/* Status Skeleton */}
+                           <td className="px-6 py-4 whitespace-nowrap">
+                             <div className="flex items-center gap-2">
+                               <div className="w-2 h-2 bg-gray-300 dark:bg-gray-600 rounded-full animate-pulse"></div>
+                               <div className="h-4 w-16 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                             </div>
+                           </td>
+                         </tr>
+                       ))}
+                     </tbody>
+                   </table>
+                 </div>
+               </div>
         </div>
       </div>
     );
@@ -211,60 +302,26 @@ const MataKuliahMahasiswa: React.FC<MataKuliahMahasiswaProps> = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mb-8"
-        >
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+        <div className="mb-8">
+          <button
+            onClick={() => window.history.back()}
+            className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition mb-4"
+          >
+            <FontAwesomeIcon icon={faArrowLeft} className="w-4 h-4" />
+            Kembali
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
                   Mata Kuliah
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400">
                   Daftar mata kuliah yang tersedia di program studi
                 </p>
               </div>
-              <div className="flex items-center space-x-4">
-                <div className="text-right">
-                  <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                    {mataKuliahList.length}
-                  </div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                    Total Mata Kuliah
-                  </div>
-                </div>
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center">
-                  <svg
-                    className="w-8 h-8 text-white"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </div>
-        </motion.div>
 
         {/* Filters and Search */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 mb-8"
-        >
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Search */}
             <div className="lg:col-span-2">
@@ -389,15 +446,10 @@ const MataKuliahMahasiswa: React.FC<MataKuliahMahasiswaProps> = () => {
               </button>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Results Count */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="mb-6"
-        >
+        <div className="mb-6">
           <p className="text-gray-600 dark:text-gray-400">
             Menampilkan{" "}
             <span className="font-semibold text-gray-900 dark:text-white">
@@ -409,181 +461,181 @@ const MataKuliahMahasiswa: React.FC<MataKuliahMahasiswaProps> = () => {
             </span>{" "}
             mata kuliah
           </p>
-        </motion.div>
+        </div>
 
-        {/* Mata Kuliah Grid */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-        >
+        {/* Mata Kuliah Table */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+          {/* Table Header */}
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-blue-500 rounded-xl flex items-center justify-center">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Daftar Mata Kuliah
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {filteredMataKuliah.length} dari {mataKuliahList.length} mata kuliah
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Table Content */}
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-700/50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Mata Kuliah
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Semester
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    SKS
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    RPS
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Materi
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
           {filteredMataKuliah.map((mataKuliah, index) => (
-            <motion.div
-              key={`mata-kuliah-${mataKuliah.id}-${index}`}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: index * 0.1 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group"
-            >
-              <div className="p-6">
-                {/* Header */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                  <tr key={`mata-kuliah-${mataKuliah.id}-${index}`} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                    {/* Mata Kuliah Info */}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                          <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                            <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                            </svg>
+                          </div>
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">
                       {mataKuliah.nama}
-                    </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 font-mono">
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400 font-mono">
                       {mataKuliah.kode}
-                    </p>
+                          </div>
+                        </div>
                   </div>
-                  <div className="flex flex-col items-end space-y-2">
-                    <span
-                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getSemesterBadgeColor(
-                        mataKuliah.semester
-                      )}`}
-                    >
-                      Semester {mataKuliah.semester}
-                    </span>
-                    <span
-                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getJenisBadgeColor(
-                        mataKuliah.jenis
-                      )}`}
-                    >
+                    </td>
+
+                    {/* Semester & Jenis */}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex flex-col gap-1">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium w-fit ${
+                          mataKuliah.semester >= 1 && mataKuliah.semester <= 7 
+                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300' 
+                            : 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300'
+                        }`}>
+                          {mataKuliah.semester >= 1 && mataKuliah.semester <= 7 
+                            ? `Semester ${mataKuliah.semester}` 
+                            : 'Semester Antara'}
+                        </span>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300 w-fit">
                       {mataKuliah.jenis}
                     </span>
                   </div>
-                </div>
+                    </td>
 
                 {/* SKS */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
-                      <svg
-                        className="w-4 h-4 text-blue-600 dark:text-blue-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                        />
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 bg-purple-100 dark:bg-purple-900/20 rounded flex items-center justify-center">
+                          <svg className="w-3 h-3 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
                     </div>
-                    <div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        SKS
-                      </p>
-                      <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">
                         {mataKuliah.sks}
-                      </p>
+                        </span>
                     </div>
-                  </div>
-                </div>
+                    </td>
 
-                {/* RPS Section */}
-                <div className="mb-4">
-                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    📄 RPS (Rencana Pembelajaran Semester)
-                  </h4>
+                    {/* RPS */}
+                    <td className="px-6 py-4 whitespace-nowrap">
                   {mataKuliah.rps_file ? (
                     <button
                       onClick={() => downloadRps(mataKuliah.kode)}
-                      className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors border border-green-200 dark:border-green-800"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors border border-blue-200 dark:border-blue-800 text-sm"
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
-                      Download RPS
+                          Download
                     </button>
                   ) : (
-                    <div className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-lg border border-gray-200 dark:border-gray-600">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-lg border border-gray-200 dark:border-gray-600 text-sm">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
-                      RPS belum tersedia
-                    </div>
-                  )}
-                </div>
+                          Belum tersedia
+                        </span>
+                      )}
+                    </td>
 
-                {/* Materi Section */}
-                <div className="mb-4">
-                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    📚 Materi Pembelajaran {mataKuliah.materi && mataKuliah.materi.length > 0 && `(${mataKuliah.materi.length} file)`}
-                  </h4>
+                    {/* Materi */}
+                    <td className="px-6 py-4 whitespace-nowrap">
                   {mataKuliah.materi && mataKuliah.materi.length > 0 ? (
-                    <div className="space-y-2 max-h-32 overflow-y-auto">
-                      {mataKuliah.materi.slice(0, 3).map((materi, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <span className="text-lg">{getFileIcon(materi.file_type)}</span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                                {materi.judul}
-                              </p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {formatFileSize(materi.file_size)} • {new Date(materi.upload_date).toLocaleDateString('id-ID')}
-                              </p>
-                            </div>
-                          </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {mataKuliah.materi.length} file
+                          </span>
                           <button
-                            onClick={() => downloadMateri(mataKuliah.kode, materi.filename, materi.judul)}
-                            className="ml-2 p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/20 rounded transition-colors"
-                            title="Download"
+                            onClick={() => {
+                              // Show first materi for download
+                              if (mataKuliah.materi && mataKuliah.materi.length > 0) {
+                                const firstMateri = mataKuliah.materi[0];
+                                downloadMateri(mataKuliah.kode, firstMateri.filename, firstMateri.judul);
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+                            title="Download materi"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
                           </button>
-                        </div>
-                      ))}
-                      {mataKuliah.materi.length > 3 && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-                          +{mataKuliah.materi.length - 3} file lainnya
-                        </p>
-                      )}
                     </div>
                   ) : (
-                    <div className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-lg border border-gray-200 dark:border-gray-600">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      Materi belum tersedia
-                    </div>
-                  )}
-                </div>
-
-                {/* Footer */}
-                <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                    <span>
-                      Ditambahkan:{" "}
-                      {new Date(mataKuliah.created_at).toLocaleDateString(
-                        "id-ID"
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          Belum tersedia
+                        </span>
                       )}
-                    </span>
-                    <div className="flex items-center space-x-1">
+                    </td>
+
+                    {/* Status */}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
                       <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                      <span>Tersedia</span>
+                        <span className="text-sm text-gray-900 dark:text-white">Tersedia</span>
                     </div>
-                  </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
                 </div>
               </div>
-            </motion.div>
-          ))}
-        </motion.div>
 
         {/* Empty State */}
         {filteredMataKuliah.length === 0 && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5 }}
-            className="text-center py-12"
-          >
+          <div className="text-center py-12">
             <div className="w-24 h-24 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg
                 className="w-12 h-12 text-gray-400"
@@ -605,7 +657,7 @@ const MataKuliahMahasiswa: React.FC<MataKuliahMahasiswaProps> = () => {
             <p className="text-gray-500 dark:text-gray-400">
               Coba ubah filter atau kata kunci pencarian
             </p>
-          </motion.div>
+          </div>
         )}
       </div>
     </div>

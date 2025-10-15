@@ -27,6 +27,9 @@ import {
   faReply,
   faFolderPlus,
   faCalendarAlt,
+  faNewspaper,
+  faUsers,
+  faFileAlt,
 } from "@fortawesome/free-solid-svg-icons";
 import { useNavigate } from "react-router-dom";
 import api, { handleApiError, getUser } from "../utils/api";
@@ -796,55 +799,76 @@ export default function DashboardDosen() {
         | "csr"
         | "non_blok_non_csr",
       emptyMessage: string
-    ) => (
-      <div className="overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-2xl bg-blue-500 flex items-center justify-center shadow-lg">
-              <FontAwesomeIcon icon={icon} className="text-white text-sm" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              {title}
-            </h3>
-          </div>
-        </div>
+    ) => {
+      // Tentukan warna berdasarkan jenis jadwal
+      const getIconColor = (type: string) => {
+        switch (type) {
+          case "kuliah_besar":
+            return "bg-blue-500";
+          case "pbl":
+            return "bg-green-500";
+          case "praktikum":
+            return "bg-purple-500";
+          case "jurnal":
+            return "bg-indigo-500";
+          case "csr":
+            return "bg-orange-500";
+          case "non_blok_non_csr":
+            return "bg-teal-500";
+          default:
+            return "bg-gray-500";
+        }
+      };
 
-        <div className="overflow-x-auto hide-scroll">
-          <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-gray-700/50">
-              <tr>
-                {headers.map((header, index) => (
-                  <th
-                    key={index}
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
-                  >
-                    {header}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {jadwalData.length === 0 ? (
+      return (
+        <div className="overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+            <div className="flex items-center gap-3">
+              <div className={`w-8 h-8 rounded-2xl ${getIconColor(jadwalType)} flex items-center justify-center shadow-lg`}>
+                <FontAwesomeIcon icon={icon} className="text-white text-sm" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                {title}
+              </h3>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto hide-scroll">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-gray-700/50">
                 <tr>
-                  <td
-                    colSpan={headers.length}
-                    className="px-6 py-8 text-center"
-                  >
-                    <div className="flex flex-col items-center justify-center">
-                      <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4">
-                        <FontAwesomeIcon
-                          icon={icon}
-                          className="w-8 h-8 text-gray-400"
-                        />
-                      </div>
-                      <p className="text-gray-500 dark:text-gray-400 text-sm">
-                        {emptyMessage}
-                      </p>
-                    </div>
-                  </td>
+                  {headers.map((header, index) => (
+                    <th
+                      key={index}
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                    >
+                      {header}
+                    </th>
+                  ))}
                 </tr>
-              ) : (
-                jadwalData.map((item, index) => (
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {jadwalData.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={headers.length}
+                      className="px-6 py-8 text-center"
+                    >
+                      <div className="flex flex-col items-center justify-center">
+                        <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4">
+                          <FontAwesomeIcon
+                            icon={icon}
+                            className="w-8 h-8 text-gray-400"
+                          />
+                        </div>
+                        <p className="text-gray-500 dark:text-gray-400 text-sm">
+                          {emptyMessage}
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  jadwalData.map((item, index) => (
                   <tr
                     key={index}
                     className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
@@ -1076,14 +1100,15 @@ export default function DashboardDosen() {
                         )}
                       </div>
                     </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
-    ),
+      );
+    },
     [
       getSemesterTypeBadge,
       getStatusBadge,
@@ -1917,16 +1942,15 @@ export default function DashboardDosen() {
             </div>
           </motion.div>
         </div>
-      </div>
 
-      {/* Jadwal Tables */}
-      <div className="col-span-12 mb-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
-        >
+        {/* Jadwal Tables */}
+        <div className="col-span-12 mb-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
+          >
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-indigo-500 rounded-2xl flex items-center justify-center shadow-lg">
@@ -1997,7 +2021,7 @@ export default function DashboardDosen() {
               className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
             >
               {renderJadwalTable(
-                "PBL",
+                "PBL (Problem Based Learning)",
                 faBookOpen,
                 jadwalPBL,
                 [
@@ -2087,7 +2111,7 @@ export default function DashboardDosen() {
             >
               {renderJadwalTable(
                 "Jurnal Reading",
-                faBookOpen,
+                faNewspaper,
                 jadwalJurnalReading,
                 [
                   "NO",
@@ -2115,8 +2139,8 @@ export default function DashboardDosen() {
                 className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
               >
                 {renderJadwalTable(
-                  "CSR",
-                  faBookOpen,
+                  "CSR (Community Service Learning)",
+                  faUsers,
                   jadwalCSR,
                   [
                     "NO",
@@ -2147,7 +2171,7 @@ export default function DashboardDosen() {
             >
               {renderJadwalTable(
                 "Non Blok Non CSR",
-                faBookOpen,
+                faFileAlt,
                 jadwalNonBlokNonCSR,
                 [
                   "NO",
@@ -2166,8 +2190,9 @@ export default function DashboardDosen() {
                 "Tidak ada data Non Blok Non CSR"
               )}
             </motion.div>
-          </div>
-        </motion.div>
+            </div>
+          </motion.div>
+        </div>
       </div>
 
       {/* Modal Konfirmasi */}

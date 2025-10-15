@@ -7,6 +7,7 @@ import {
   faUser,
   faEye,
   faSearch,
+  faArrowLeft,
 } from "@fortawesome/free-solid-svg-icons";
 import { useSession } from "../context/SessionContext";
 import { useNavigate } from "react-router";
@@ -141,60 +142,71 @@ export default function MataKuliahDosen() {
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="animate-pulse">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Header Skeleton */}
           <div className="mb-8">
-            <div className="h-8 bg-gray-300 dark:bg-gray-600 rounded w-1/3 mb-2"></div>
-            <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+            <div className="h-6 w-20 bg-gray-300 dark:bg-gray-600 rounded mb-4 animate-pulse"></div>
+            <div className="h-8 w-32 bg-gray-300 dark:bg-gray-600 rounded mb-2 animate-pulse"></div>
+            <div className="h-4 w-64 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
           </div>
-          
-          {/* Filters Skeleton */}
-          <div className="mb-6 flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
+
+          {/* Tabs Skeleton */}
+          <div className="mb-8">
+            <div className="flex gap-8">
+              <div className="h-8 w-40 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+              <div className="h-8 w-32 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
             </div>
-            <div className="flex gap-2">
-              <div className="h-10 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
-              <div className="h-10 w-40 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
+          </div>
+
+          {/* Filters Skeleton */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <div className="h-12 bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse"></div>
+              </div>
+              <div className="flex gap-4">
+                <div className="h-12 w-32 bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse"></div>
+                <div className="h-12 w-40 bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse"></div>
+              </div>
             </div>
           </div>
           
           {/* Cards Skeleton */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <div key={i} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
                 {/* Card Header */}
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
-                    <div className="h-5 bg-gray-300 dark:bg-gray-600 rounded w-3/4 mb-2"></div>
-                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+                    <div className="h-5 bg-gray-300 dark:bg-gray-600 rounded w-3/4 mb-2 animate-pulse"></div>
+                    <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-1/2 animate-pulse"></div>
                   </div>
                   <div className="flex gap-2">
-                    <div className="h-6 w-12 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
-                    <div className="h-6 w-16 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
+                    <div className="h-6 w-12 bg-gray-300 dark:bg-gray-600 rounded-full animate-pulse"></div>
+                    <div className="h-6 w-16 bg-gray-300 dark:bg-gray-600 rounded-full animate-pulse"></div>
                   </div>
                 </div>
                 
                 {/* Card Details */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
+                    <div className="w-4 h-4 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                    <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-1/3 animate-pulse"></div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
+                    <div className="w-4 h-4 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                    <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-1/4 animate-pulse"></div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                    <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/5"></div>
+                    <div className="w-4 h-4 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                    <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded w-1/5 animate-pulse"></div>
                   </div>
                 </div>
                 
                 {/* Card Action Button */}
                 <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
+                  <div className="h-10 bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse"></div>
                 </div>
               </div>
             ))}
@@ -206,29 +218,43 @@ export default function MataKuliahDosen() {
 
   if (error) {
     return (
-      <div className="p-6">
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <p className="text-red-700 dark:text-red-300">{error}</p>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-500 mb-4">{error}</p>
+          <button
+            onClick={() => window.history.back()}
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+          >
+            Kembali
+          </button>
         </div>
       </div>
     );
   }
 
-
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-          Daftar Mata Kuliah
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400 mb-6">
-          Lihat informasi mata kuliah yang tersedia
-        </p>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <button
+            onClick={() => window.history.back()}
+            className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition mb-4"
+          >
+            <FontAwesomeIcon icon={faArrowLeft} className="w-4 h-4" />
+            Kembali
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            Daftar Mata Kuliah
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Lihat informasi mata kuliah yang tersedia
+          </p>
+        </div>
 
         {/* Tabs */}
-        <div className="border-b border-gray-200 dark:border-gray-700">
-          <nav className="-mb-px flex space-x-8">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
+          <div className="flex space-x-8">
             <button
               onClick={() => setActiveTab("semua")}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
@@ -255,77 +281,78 @@ export default function MataKuliahDosen() {
                 {mataKuliahDosenList.length}
               </span>
             </button>
-          </nav>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="mb-6 flex flex-col sm:flex-row gap-4">
-        <div className="flex-1">
-          <div className="relative">
-            <FontAwesomeIcon
-              icon={faSearch}
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-            />
-            <input
-              type="text"
-              placeholder="Cari mata kuliah..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
           </div>
         </div>
-        
-        <div className="flex gap-2">
-          <select
-            value={filterJenis}
-            onChange={(e) => setFilterJenis(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="semua">Semua Jenis</option>
-            <option value="Blok">Blok</option>
-            <option value="Non Blok">Non Blok</option>
-          </select>
-          
-          <select
-            value={filterSemester}
-            onChange={(e) => setFilterSemester(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="semua">Semua Semester</option>
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((semester) => (
-              <option key={semester} value={semester.toString()}>
-                Semester {semester}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
 
-      {/* Mata Kuliah Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredMataKuliah.map((mk) => (
-          <div
-            key={mk.kode}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow"
-          >
-            <div className="p-6">
-              {/* Header */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                    {mk.nama}
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {mk.kode}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  {getJenisBadge(mk.jenis)}
-                  {getSemesterBadge(mk.semester)}
-                </div>
+        {/* Filters */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <FontAwesomeIcon
+                  icon={faSearch}
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+                />
+                <input
+                  type="text"
+                  placeholder="Cari mata kuliah..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                />
               </div>
+            </div>
+            
+            <div className="flex gap-4">
+              <select
+                value={filterJenis}
+                onChange={(e) => setFilterJenis(e.target.value)}
+                className="px-3 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              >
+                <option value="semua">Semua Jenis</option>
+                <option value="Blok">Blok</option>
+                <option value="Non Blok">Non Blok</option>
+              </select>
+              
+              <select
+                value={filterSemester}
+                onChange={(e) => setFilterSemester(e.target.value)}
+                className="px-3 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              >
+                <option value="semua">Semua Semester</option>
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((semester) => (
+                  <option key={semester} value={semester.toString()}>
+                    Semester {semester}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Mata Kuliah Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredMataKuliah.map((mk) => (
+            <div
+              key={mk.kode}
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow"
+            >
+              <div className="p-6">
+                {/* Header */}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+                      {mk.nama}
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {mk.kode}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    {getJenisBadge(mk.jenis)}
+                    {getSemesterBadge(mk.semester)}
+                  </div>
+                </div>
 
               {/* Details */}
               <div className="space-y-3">
@@ -424,41 +451,42 @@ export default function MataKuliahDosen() {
                 </div>
               </div>
 
-              {/* Action Button */}
-              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <button
-                  onClick={() => {
-                    navigate(`/mata-kuliah-dosen/${mk.kode}`);
-                  }}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                >
-                  <FontAwesomeIcon icon={faEye} className="w-4 h-4" />
-                  Lihat Detail
-                </button>
+                {/* Action Button */}
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    onClick={() => {
+                      navigate(`/mata-kuliah-dosen/${mk.kode}`);
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors shadow-sm"
+                  >
+                    <FontAwesomeIcon icon={faEye} className="w-4 h-4" />
+                    Lihat Detail
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Empty State */}
-      {filteredMataKuliah.length === 0 && !loading && (
-        <div className="text-center py-12">
-          <FontAwesomeIcon icon={faBookOpen} className="text-gray-400 text-6xl mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            {activeTab === "saya" 
-              ? "Belum ada mata kuliah yang diampu" 
-              : "Tidak ada mata kuliah ditemukan"
-            }
-          </h3>
-          <p className="text-gray-500 dark:text-gray-400">
-            {activeTab === "saya" 
-              ? "Mata kuliah yang Anda ampu akan muncul di sini. Hubungi tim akademik jika ada masalah."
-              : "Coba ubah filter pencarian Anda"
-            }
-          </p>
+          ))}
         </div>
-      )}
+
+        {/* Empty State */}
+        {filteredMataKuliah.length === 0 && !loading && (
+          <div className="text-center py-12">
+            <FontAwesomeIcon icon={faBookOpen} className="text-gray-400 text-6xl mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              {activeTab === "saya" 
+                ? "Belum ada mata kuliah yang diampu" 
+                : "Tidak ada mata kuliah ditemukan"
+              }
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400">
+              {activeTab === "saya" 
+                ? "Mata kuliah yang Anda ampu akan muncul di sini. Hubungi tim akademik jika ada masalah."
+                : "Coba ubah filter pencarian Anda"
+              }
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 } 

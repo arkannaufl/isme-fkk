@@ -470,7 +470,7 @@ export default function DetailBlok() {
   const [pblImportFile, setPBLImportFile] = useState<File | null>(null);
 
   const [pblImportData, setPBLImportData] = useState<JadwalPBLType[]>([]);
-
+  const [pblImportErrors, setPBLImportErrors] = useState<string[]>([]);
   const [pblCellErrors, setPBLCellErrors] = useState<{ row: number, field: string, message: string }[]>([]);
 
   const [pblEditingCell, setPBLEditingCell] = useState<{ row: number; key: string } | null>(null);
@@ -6352,6 +6352,7 @@ export default function DetailBlok() {
     setSelectedPBLTemplate(null);
     setPBLImportFile(null);
     setPBLImportData([]);
+    setPBLImportErrors([]);
     setPBLCellErrors([]);
     setPBLEditingCell(null);
     setPBLImportPage(1);
@@ -6388,11 +6389,12 @@ export default function DetailBlok() {
 
     try {
 
-      setIsPBLImporting(true);
+    setIsPBLImporting(true);
 
-      setPBLCellErrors([]);
+    setPBLImportErrors([]);
+    setPBLCellErrors([]);
 
-      setPBLImportData([]);
+    setPBLImportData([]);
 
 
 
@@ -6535,12 +6537,20 @@ export default function DetailBlok() {
 
   };
 
+  // Handler untuk import Excel template SIAKAD PBL dari input file
+  const handlePBLSIAKADImportExcelFromInput = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await handlePBLSIAKADImportExcel(file);
+  };
+
   // Handler untuk import Excel template SIAKAD PBL
   const handlePBLSIAKADImportExcel = async (file?: File) => {
     const targetFile = file || pblImportFile;
     if (!targetFile) return;
 
     setIsPBLImporting(true);
+    setPBLImportErrors([]);
     setPBLCellErrors([]);
 
     try {
@@ -6550,11 +6560,13 @@ export default function DetailBlok() {
       // Validate template format
       const isValidTemplate = await validateTemplateFormat(targetFile, 'SIAKAD', 'pbl');
       if (!isValidTemplate) {
-        setPBLCellErrors([{ 
-          row: 0, 
-          field: 'file', 
-          message: 'Format file Excel tidak sesuai dengan template SIAKAD. Pastikan kolom sesuai dengan template yang didownload.' 
-        }]);
+        // Debug: Tampilkan headers yang sebenarnya ada di file
+        const { headers } = await readExcelFile(targetFile);
+        
+        setPBLImportErrors([
+          'Format file Excel tidak sesuai dengan template SIAKAD. Pastikan kolom sesuai dengan template yang didownload.',
+          `Headers found: ${headers.join(', ')}`
+        ]);
         setPBLImportFile(targetFile);
         setShowPBLImportModal(true);
         return;
@@ -6794,6 +6806,24 @@ export default function DetailBlok() {
       return;
     }
 
+    // Jika file yang dipilih sama dengan file sebelumnya dan sudah ada data yang diedit,
+    // tidak perlu memproses ulang file
+    const isSameFile = importFile && 
+      importFile.name === file.name && 
+      importFile.size === file.size && 
+      importFile.lastModified === file.lastModified;
+
+    if (isSameFile && importData.length > 0) {
+      // File sama dan sudah ada data, langsung buka modal dengan data yang sudah ada
+      setShowImportModal(true);
+      return;
+    }
+
+    // Jika file berbeda, reset data sebelumnya
+    if (importFile && !isSameFile) {
+      resetImportData();
+    }
+
     setImportFile(file);
     setImportErrors([]);
 
@@ -6938,9 +6968,34 @@ export default function DetailBlok() {
     // Validasi template
     const isValidTemplate = await validateTemplateFormat(file, 'SIAKAD');
     if (!isValidTemplate) {
-      setSiakadImportErrors(['Template tidak valid. Pastikan menggunakan template SIAKAD.']);
+      // Debug: Tampilkan headers yang sebenarnya ada di file
+      const { headers } = await readExcelFile(file);
+      
+      setSiakadImportFile(file);
+      setSiakadImportErrors([
+        'Format file Excel tidak sesuai dengan template SIAKAD. Pastikan kolom sesuai dengan template yang didownload.',
+        `Headers found: ${headers.join(', ')}`
+      ]);
       setShowSIAKADImportModal(true);
       return;
+    }
+
+    // Jika file yang dipilih sama dengan file sebelumnya dan sudah ada data yang diedit,
+    // tidak perlu memproses ulang file
+    const isSameFile = siakadImportFile && 
+      siakadImportFile.name === file.name && 
+      siakadImportFile.size === file.size && 
+      siakadImportFile.lastModified === file.lastModified;
+
+    if (isSameFile && siakadImportData.length > 0) {
+      // File sama dan sudah ada data, langsung buka modal dengan data yang sudah ada
+      setShowSIAKADImportModal(true);
+      return;
+    }
+
+    // Jika file berbeda, reset data sebelumnya
+    if (siakadImportFile && !isSameFile) {
+      resetSIAKADImportData();
     }
 
     setSiakadImportFile(file);
@@ -7106,6 +7161,7 @@ export default function DetailBlok() {
 
         setPBLImportFile(null);
 
+        setPBLImportErrors([]);
         setPBLCellErrors([]);
 
         setPBLEditingCell(null);
@@ -8101,6 +8157,7 @@ export default function DetailBlok() {
 
     setPBLImportData([]);
 
+    setPBLImportErrors([]);
     setPBLCellErrors([]);
 
     setPBLImportFile(null);
@@ -8299,44 +8356,52 @@ export default function DetailBlok() {
 
     setShowImportModal(false);
 
-    setImportData([]);
-
-    setImportFile(null);
-
-    setImportErrors([]);
-
-    setCellErrors([]);
-
-    setEditingCell(null);
-
+    // Tidak mereset importData, importFile, cellErrors, editingCell, dan importErrors
+    // agar data dan error validasi tetap tersimpan ketika modal dibuka kembali
     setImportSuccess(false);
 
     setImportPage(1);
 
-    
+    // Tidak mereset file input agar file tetap tersimpan
 
+  };
+
+  // Fungsi untuk mereset data import
+  const resetImportData = () => {
+    setImportData([]);
+    setImportFile(null);
+    setCellErrors([]);
+    setEditingCell(null);
+    setImportErrors([]);
+    setImportSuccess(false);
+    setImportPage(1);
     if (fileInputRef.current) {
-
       fileInputRef.current.value = '';
-
     }
+  };
 
+  // Fungsi untuk mereset data import SIAKAD
+  const resetSIAKADImportData = () => {
+    setSiakadImportData([]);
+    setSiakadImportFile(null);
+    setSiakadCellErrors([]);
+    setSiakadEditingCell(null);
+    setSiakadImportErrors([]);
+    setSiakadImportSuccess(false);
+    setSiakadImportPage(1);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   // Handler untuk close modal import SIAKAD
   const handleSIAKADCloseImportModal = () => {
     setShowSIAKADImportModal(false);
-    setSiakadImportData([]);
-    setSiakadImportFile(null);
-    setSiakadImportErrors([]);
-    setSiakadCellErrors([]);
-    setSiakadEditingCell(null);
+    // Tidak mereset siakadImportData, siakadImportFile, siakadCellErrors, siakadEditingCell, dan siakadImportErrors
+    // agar data dan error validasi tetap tersimpan ketika modal dibuka kembali
     setSiakadImportSuccess(false);
     setSiakadImportPage(1);
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    // Tidak mereset file input agar file tetap tersimpan
   };
 
   // Handler untuk edit cell SIAKAD
@@ -8600,6 +8665,11 @@ export default function DetailBlok() {
         }
       }
     }
+    
+    // Jalankan validasi lengkap untuk semua data setelah edit
+    const validationResult = validateExcelData(newData, jadwalKuliahBesar);
+    setSiakadImportErrors(validationResult.errors);
+    setSiakadCellErrors(validationResult.cellErrors);
   };
 
   // Handler untuk edit dosen SIAKAD
@@ -8650,6 +8720,11 @@ export default function DetailBlok() {
         }
       }
     }
+    
+    // Jalankan validasi lengkap untuk semua data setelah edit
+    const validationResult = validateExcelData(newData, jadwalKuliahBesar);
+    setSiakadImportErrors(validationResult.errors);
+    setSiakadCellErrors(validationResult.cellErrors);
   };
 
   // Handler untuk edit ruangan SIAKAD
@@ -8682,6 +8757,11 @@ export default function DetailBlok() {
         message: `Ruangan "${namaRuangan}" tidak ditemukan (Baris ${rowNumber}, Kolom Ruangan)` 
       }]);
     }
+    
+    // Jalankan validasi lengkap untuk semua data setelah edit
+    const validationResult = validateExcelData(newData, jadwalKuliahBesar);
+    setSiakadImportErrors(validationResult.errors);
+    setSiakadCellErrors(validationResult.cellErrors);
   };
 
   // Logika pagination untuk import preview
@@ -15448,18 +15528,49 @@ export default function DetailBlok() {
                     ) : (
                       /* Preview Section */
                       <>
-                        {/* File Info */}
-                        <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-500" />
-                            <div className="flex-1">
-                              <p className="font-medium text-blue-800 dark:text-blue-200">{siakadImportFile.name}</p>
-                              <p className="text-sm text-blue-600 dark:text-blue-300">
-                                {(siakadImportFile.size / 1024).toFixed(1)} KB
-                              </p>
+                        {/* File Info atau Upload Section */}
+                        {siakadImportErrors.length > 0 ? (
+                          /* Upload Section ketika ada error */
+                          <div className="mb-6">
+                            <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
+                              <div className="space-y-4">
+                                <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
+                                  <FontAwesomeIcon icon={faFileExcel} className="w-8 h-8 text-brand-600 dark:text-brand-400" />
+                                </div>
+                                <div>
+                                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Upload File Excel SIAKAD</h3>
+                                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                    Pilih file Excel dengan format SIAKAD (.xlsx, .xls)
+                                  </p>
+                                </div>
+                                <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
+                                  <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                                  Pilih File
+                                  <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept=".xlsx,.xls"
+                                    onChange={handleSIAKADImportExcel}
+                                    className="hidden"
+                                  />
+                                </label>
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        ) : (
+                          /* File Info ketika tidak ada error */
+                          <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-500" />
+                              <div className="flex-1">
+                                <p className="font-medium text-blue-800 dark:text-blue-200">{siakadImportFile.name}</p>
+                                <p className="text-sm text-blue-600 dark:text-blue-300">
+                                  {(siakadImportFile.size / 1024).toFixed(1)} KB
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
 
                         {/* Error Messages */}
                         {(siakadImportErrors.length > 0 || siakadCellErrors.length > 0) && (
@@ -15492,8 +15603,16 @@ export default function DetailBlok() {
                               <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
                                 Preview Data ({siakadImportData.length} jadwal)
                               </h3>
-                              <div className="text-sm text-gray-500 dark:text-gray-400">
-                                File: {siakadImportFile?.name}
+                              <div className="flex items-center gap-3">
+                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                  File: {siakadImportFile?.name}
+                                </div>
+                                <button
+                                  onClick={resetSIAKADImportData}
+                                  className="px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                                >
+                                  Reset Data
+                                </button>
                               </div>
                             </div>
                             
@@ -17090,9 +17209,25 @@ export default function DetailBlok() {
 
                         </h3>
 
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                        <div className="flex items-center gap-3">
 
-                          File: {importFile?.name}
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+
+                            File: {importFile?.name}
+
+                          </div>
+
+                          <button
+
+                            onClick={resetImportData}
+
+                            className="px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+
+                          >
+
+                            Reset Data
+
+                          </button>
 
                         </div>
 
@@ -18056,31 +18191,54 @@ export default function DetailBlok() {
 
                 <>
 
-                  {/* File Info */}
+                  {/* File Info atau Upload Section */}
 
                   {pblImportFile && (
 
-                    <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-
-                      <div className="flex items-center gap-3">
-
-                        <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-500" />
-
-                        <div>
-
-                          <p className="font-medium text-blue-800 dark:text-blue-200">{pblImportFile.name}</p>
-
-                          <p className="text-sm text-blue-600 dark:text-blue-300">
-
-                            {(pblImportFile.size / 1024).toFixed(1)} KB
-
-                          </p>
-
+                    <>
+                      {(pblImportErrors.length > 0 || pblCellErrors.length > 0) ? (
+                        /* Upload Section ketika ada error */
+                        <div className="mb-6">
+                          <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
+                            <div className="space-y-4">
+                              <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
+                                <FontAwesomeIcon icon={faFileExcel} className="w-8 h-8 text-brand-600 dark:text-brand-400" />
+                              </div>
+                              <div>
+                                <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Upload File Excel SIAKAD</h3>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                  Pilih file Excel dengan format SIAKAD (.xlsx, .xls)
+                                </p>
+                              </div>
+                              <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
+                                <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                                Pilih File
+                                <input
+                                  ref={fileInputRef}
+                                  type="file"
+                                  accept=".xlsx,.xls"
+                                  onChange={handlePBLSIAKADImportExcelFromInput}
+                                  className="hidden"
+                                />
+                              </label>
+                            </div>
+                          </div>
                         </div>
-
-                      </div>
-
-                    </div>
+                      ) : (
+                        /* File Info ketika tidak ada error */
+                        <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-500" />
+                            <div>
+                              <p className="font-medium text-blue-800 dark:text-blue-200">{pblImportFile.name}</p>
+                              <p className="text-sm text-blue-600 dark:text-blue-300">
+                                {(pblImportFile.size / 1024).toFixed(1)} KB
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </>
 
                   )}
 
@@ -18088,7 +18246,7 @@ export default function DetailBlok() {
 
                   {/* Error Messages */}
 
-                  {pblCellErrors.length > 0 && (
+                  {(pblImportErrors.length > 0 || pblCellErrors.length > 0) && (
 
                     <div className="mb-6">
 
@@ -18100,13 +18258,16 @@ export default function DetailBlok() {
 
                           <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
 
-                            Error Validasi ({pblCellErrors.length} error)
+                            Error Validasi ({pblImportErrors.length + pblCellErrors.length} error)
 
                           </h3>
 
                         </div>
 
-                        <div className="max-h-40 overflow-y-auto">
+                        <div className="max-h-40 overflow-y-auto space-y-2">
+                          {pblImportErrors.map((error, index) => (
+                            <p key={index} className="text-sm text-red-600 dark:text-red-400">• {error}</p>
+                          ))}
 
                           {pblCellErrors.map((err, idx) => (
 

@@ -335,7 +335,7 @@ export default function DashboardMahasiswa() {
       <div className="overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-2xl bg-blue-500 flex items-center justify-center shadow-lg">
+            <div className="w-8 h-8 rounded-2xl bg-blue-500 flex items-center justify-center">
               <FontAwesomeIcon icon={icon} className="text-white text-sm" />
             </div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -477,13 +477,150 @@ export default function DashboardMahasiswa() {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="grid grid-cols-12 gap-4 md:gap-6 p-4 md:p-6">
-          <div className="col-span-12 h-32 bg-white/60 dark:bg-gray-800/60 rounded-2xl animate-pulse" />
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div
-              key={i}
-              className="col-span-12 h-64 bg-white/60 dark:bg-gray-800/60 rounded-2xl animate-pulse"
-            />
-          ))}
+          {/* Header Skeleton */}
+          <div className="col-span-12">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-gray-300 dark:bg-gray-600 rounded-2xl animate-pulse" />
+                  <div className="flex-1">
+                    <div className="h-8 w-64 bg-gray-300 dark:bg-gray-600 rounded mb-2 animate-pulse" />
+                    <div className="h-4 w-96 bg-gray-300 dark:bg-gray-600 rounded mb-1 animate-pulse" />
+                    <div className="h-4 w-48 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-32 bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse" />
+                  <div className="h-12 w-28 bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Semester & Kelompok Cards Skeleton */}
+          <div className="col-span-12 grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Semester Card Skeleton */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse" />
+                <div className="flex-1">
+                  <div className="h-4 w-24 bg-gray-300 dark:bg-gray-600 rounded mb-1 animate-pulse" />
+                  <div className="h-10 w-16 bg-gray-300 dark:bg-gray-600 rounded mb-1 animate-pulse" />
+                  <div className="h-3 w-32 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                </div>
+              </div>
+            </div>
+
+            {/* Kelompok Card Skeleton */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse" />
+                <div className="flex-1">
+                  <div className="h-4 w-28 bg-gray-300 dark:bg-gray-600 rounded mb-1 animate-pulse" />
+                  <div className="h-10 w-12 bg-gray-300 dark:bg-gray-600 rounded mb-1 animate-pulse" />
+                  <div className="h-3 w-36 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Peta Akademik Skeleton */}
+          <div className="col-span-12">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-2xl animate-pulse" />
+                  <div>
+                    <div className="h-6 w-32 bg-gray-300 dark:bg-gray-600 rounded mb-1 animate-pulse" />
+                    <div className="h-4 w-48 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                  </div>
+                </div>
+                <div className="h-10 w-24 bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse" />
+              </div>
+              <div className="h-96 bg-gray-300 dark:bg-gray-600 animate-pulse" />
+            </div>
+          </div>
+
+          {/* Peta Blok Skeleton */}
+          <div className="col-span-12">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-2xl animate-pulse" />
+                  <div>
+                    <div className="h-6 w-24 bg-gray-300 dark:bg-gray-600 rounded mb-1 animate-pulse" />
+                    <div className="h-4 w-40 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                  </div>
+                </div>
+                <div className="h-10 w-24 bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse" />
+              </div>
+              <div className="h-96 bg-gray-300 dark:bg-gray-600 animate-pulse" />
+            </div>
+          </div>
+
+          {/* Notifications Skeleton */}
+          <div className="col-span-12">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-2xl animate-pulse" />
+                <div className="flex-1">
+                  <div className="h-6 w-40 bg-gray-300 dark:bg-gray-600 rounded mb-1 animate-pulse" />
+                  <div className="h-4 w-32 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="p-4 rounded-xl border border-gray-200 dark:border-gray-600">
+                    <div className="flex items-start gap-3">
+                      <div className="w-2 h-2 bg-gray-300 dark:bg-gray-600 rounded-full mt-2 animate-pulse" />
+                      <div className="flex-1">
+                        <div className="h-4 w-48 bg-gray-300 dark:bg-gray-600 rounded mb-1 animate-pulse" />
+                        <div className="h-3 w-64 bg-gray-300 dark:bg-gray-600 rounded mb-1 animate-pulse" />
+                        <div className="h-3 w-24 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Jadwal Tables Skeleton */}
+          <div className="col-span-12">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-2xl animate-pulse" />
+                  <div>
+                    <div className="h-6 w-40 bg-gray-300 dark:bg-gray-600 rounded mb-1 animate-pulse" />
+                    <div className="h-4 w-48 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="h-4 w-12 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                  <div className="flex gap-2">
+                    <div className="h-10 w-20 bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse" />
+                    <div className="h-10 w-20 bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse" />
+                    <div className="h-10 w-20 bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-gray-300 dark:bg-gray-600 rounded-2xl animate-pulse" />
+                        <div className="h-6 w-24 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                      </div>
+                    </div>
+                    <div className="h-64 bg-gray-300 dark:bg-gray-600 animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -502,10 +639,10 @@ export default function DashboardMahasiswa() {
           >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center">
+                <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center">
                   <FontAwesomeIcon
                     icon={faGraduationCap}
-                    className="text-blue-600 dark:text-blue-400 text-xl"
+                    className="text-white text-xl"
                   />
                 </div>
                 <div>
@@ -568,25 +705,25 @@ export default function DashboardMahasiswa() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
-            className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 shadow-lg"
+            className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
           >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-100 text-sm font-medium mb-1">
-                  Semester Aktif
-                </p>
-                <h2 className="text-4xl font-bold text-white">
-                  {semesterDisplay}
-                </h2>
-                <p className="text-blue-100 text-xs mt-2">
-                  Tahun Akademik 2024/2025
-                </p>
-              </div>
-              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
                 <FontAwesomeIcon
                   icon={faBookOpen}
-                  className="text-white text-2xl"
+                  className="text-white text-xl"
                 />
+              </div>
+              <div className="flex-1">
+                <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-1">
+                  Semester Aktif
+                </p>
+                <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
+                  {semesterDisplay}
+                </h2>
+                <p className="text-gray-500 dark:text-gray-400 text-xs mt-1">
+                  Tahun Akademik 2024/2025
+                </p>
               </div>
             </div>
           </motion.div>
@@ -596,25 +733,25 @@ export default function DashboardMahasiswa() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-6 shadow-lg"
+            className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
           >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-green-100 text-sm font-medium mb-1">
-                  Kelompok Kecil
-                </p>
-                <h2 className="text-4xl font-bold text-white">
-                  {kelompokDisplay}
-                </h2>
-                <p className="text-green-100 text-xs mt-2">
-                  Kelompok Pembelajaran
-                </p>
-              </div>
-              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
                 <FontAwesomeIcon
                   icon={faGraduationCap}
-                  className="text-white text-2xl"
+                  className="text-white text-xl"
                 />
+              </div>
+              <div className="flex-1">
+                <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-1">
+                  Kelompok Kecil
+                </p>
+                <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
+                  {kelompokDisplay}
+                </h2>
+                <p className="text-gray-500 dark:text-gray-400 text-xs mt-1">
+                  Kelompok Pembelajaran
+                </p>
               </div>
             </div>
           </motion.div>
@@ -630,7 +767,7 @@ export default function DashboardMahasiswa() {
           >
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-purple-500 rounded-2xl flex items-center justify-center shadow-lg">
+                <div className="w-10 h-10 bg-purple-500 rounded-2xl flex items-center justify-center">
                   <FontAwesomeIcon
                     icon={faMapMarkedAlt}
                     className="text-white text-lg"
@@ -647,7 +784,7 @@ export default function DashboardMahasiswa() {
               </div>
               <button
                 onClick={() => navigate("/peta-akademik")}
-                className="inline-flex items-center px-4 py-2 bg-purple-500 text-white rounded-xl text-sm font-medium hover:bg-purple-600 transition-colors shadow-lg"
+                className="inline-flex items-center px-4 py-2 bg-purple-500 text-white rounded-xl text-sm font-medium hover:bg-purple-600 transition-colors shadow-sm"
               >
                 <FontAwesomeIcon icon={faExternalLinkAlt} className="mr-2" />
                 Lihat Full
@@ -670,7 +807,7 @@ export default function DashboardMahasiswa() {
           >
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-green-500 rounded-2xl flex items-center justify-center shadow-lg">
+                <div className="w-10 h-10 bg-green-500 rounded-2xl flex items-center justify-center">
                   <FontAwesomeIcon
                     icon={faCalendarWeek}
                     className="text-white text-lg"
@@ -691,7 +828,7 @@ export default function DashboardMahasiswa() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => navigate("/peta-blok")}
-                  className="inline-flex items-center px-4 py-2 bg-green-500 text-white rounded-xl text-sm font-medium hover:bg-green-600 transition-colors shadow-lg"
+                  className="inline-flex items-center px-4 py-2 bg-green-500 text-white rounded-xl text-sm font-medium hover:bg-green-600 transition-colors shadow-sm"
                 >
                   <FontAwesomeIcon icon={faExternalLinkAlt} className="mr-2" />
                   Lihat Full
@@ -701,7 +838,6 @@ export default function DashboardMahasiswa() {
             {/* Embedded Peta Blok dengan scroll di dalam card */}
             <div className="max-h-[600px] overflow-y-auto">
               <PetaBlok
-                embeddedSemester={semesterNumber.toString()}
                 key={semesterNumber}
               />
             </div>
@@ -717,7 +853,7 @@ export default function DashboardMahasiswa() {
             className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
           >
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-red-500 rounded-2xl flex items-center justify-center shadow-lg">
+              <div className="w-10 h-10 bg-red-500 rounded-2xl flex items-center justify-center">
                 <FontAwesomeIcon icon={faBell} className="text-white text-lg" />
               </div>
               <div className="flex-1">
@@ -790,7 +926,7 @@ export default function DashboardMahasiswa() {
           >
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-indigo-500 rounded-2xl flex items-center justify-center shadow-lg">
+                <div className="w-10 h-10 bg-indigo-500 rounded-2xl flex items-center justify-center">
                   <FontAwesomeIcon
                     icon={faCalendar}
                     className="text-white text-lg"
@@ -816,8 +952,8 @@ export default function DashboardMahasiswa() {
                     onClick={() => setActiveSemesterType("reguler")}
                     className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
                       activeSemesterType === "reguler"
-                        ? "bg-blue-500 text-white shadow-lg"
-                        : "bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-gray-200 dark:border-gray-500"
+                        ? "bg-blue-500 text-white shadow-sm"
+                        : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-gray-200 dark:border-gray-600"
                     }`}
                   >
                     Reguler
@@ -826,8 +962,8 @@ export default function DashboardMahasiswa() {
                     onClick={() => setActiveSemesterType("antara")}
                     className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
                       activeSemesterType === "antara"
-                        ? "bg-green-500 text-white shadow-lg"
-                        : "bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-green-50 dark:hover:bg-green-900/20 border border-gray-200 dark:border-gray-500"
+                        ? "bg-green-500 text-white shadow-sm"
+                        : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 border border-gray-200 dark:border-gray-600"
                     }`}
                   >
                     Antara
@@ -836,8 +972,8 @@ export default function DashboardMahasiswa() {
                     onClick={() => setActiveSemesterType("all")}
                     className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
                       activeSemesterType === "all"
-                        ? "bg-purple-500 text-white shadow-lg"
-                        : "bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 border border-gray-200 dark:border-gray-500"
+                        ? "bg-purple-500 text-white shadow-sm"
+                        : "bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 border border-gray-200 dark:border-gray-600"
                     }`}
                   >
                     Semua

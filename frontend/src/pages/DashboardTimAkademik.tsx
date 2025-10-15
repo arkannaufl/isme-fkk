@@ -552,12 +552,7 @@ const DashboardTimAkademik: React.FC = () => {
           {/* Main Stats Cards */}
           <div className="col-span-12">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 md:gap-6">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800"
-              >
+              <div className="bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800">
                 <div className="flex items-center justify-between mb-4">
                   <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-2xl flex items-center justify-center">
                     <DocsIcon className="w-6 h-6 text-blue-600 dark:text-blue-400" />
@@ -568,14 +563,9 @@ const DashboardTimAkademik: React.FC = () => {
                   <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Mata Kuliah</p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalMataKuliah}</p>
                 </div>
-              </motion.div>
+              </div>
 
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800"
-              >
+              <div className="bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800">
                 <div className="flex items-center justify-between mb-4">
                   <div className="w-12 h-12 bg-green-100 dark:bg-green-900/20 rounded-2xl flex items-center justify-center">
                     <GroupIcon className="w-6 h-6 text-green-600 dark:text-green-400" />
@@ -586,14 +576,9 @@ const DashboardTimAkademik: React.FC = () => {
                   <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Mahasiswa</p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalMahasiswa}</p>
                 </div>
-              </motion.div>
+              </div>
 
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800"
-              >
+              <div className="bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800">
                 <div className="flex items-center justify-between mb-4">
                   <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/20 rounded-2xl flex items-center justify-center">
                     <UserIcon className="w-6 h-6 text-purple-600 dark:text-purple-400" />
@@ -604,14 +589,9 @@ const DashboardTimAkademik: React.FC = () => {
                   <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Dosen</p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalDosen}</p>
                 </div>
-              </motion.div>
+              </div>
 
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800"
-              >
+              <div className="bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800">
                 <div className="flex items-center justify-between mb-4">
                   <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/20 rounded-2xl flex items-center justify-center">
                     <CalenderIcon className="w-6 h-6 text-orange-600 dark:text-orange-400" />
@@ -622,7 +602,7 @@ const DashboardTimAkademik: React.FC = () => {
                   <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Jadwal</p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalJadwalAktif}</p>
                 </div>
-              </motion.div>
+              </div>
             </div>
           </div>
 
@@ -630,12 +610,7 @@ const DashboardTimAkademik: React.FC = () => {
           <div className="col-span-12">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
               {/* Attendance Statistics */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-                className="group bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800 hover:shadow-md transition-all duration-300"
-              >
+              <div className="group bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800 hover:shadow-md transition-all duration-300">
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
@@ -756,15 +731,10 @@ const DashboardTimAkademik: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              </motion.div>
+              </div>
 
               {/* Assessment Statistics */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-                className="group bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800 hover:shadow-md transition-all duration-300"
-              >
+              <div className="group bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800 hover:shadow-md transition-all duration-300">
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
@@ -867,15 +837,10 @@ const DashboardTimAkademik: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              </motion.div>
+              </div>
 
               {/* Schedule Statistics */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.7 }}
-                className="group bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800 hover:shadow-md transition-all duration-300"
-              >
+              <div className="group bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800 hover:shadow-md transition-all duration-300">
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
@@ -959,7 +924,7 @@ const DashboardTimAkademik: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             </div>
           </div>
 
@@ -967,12 +932,7 @@ const DashboardTimAkademik: React.FC = () => {
           <div className="col-span-12">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
               {/* Academic Notifications */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.8 }}
-                className="bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800"
-              >
+              <div className="bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Notifikasi Akademik</h3>
                   <BoltIcon className="w-5 h-5 text-gray-400" />
@@ -998,15 +958,10 @@ const DashboardTimAkademik: React.FC = () => {
                     <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">Tidak ada notifikasi</p>
                   )}
                 </div>
-              </motion.div>
+              </div>
 
               {/* Low Attendance Alerts */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.9 }}
-                className="bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800"
-              >
+              <div className="bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Peringatan Kehadiran</h3>
                   <AlertIcon className="w-5 h-5 text-gray-400" />
@@ -1032,7 +987,7 @@ const DashboardTimAkademik: React.FC = () => {
                     <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">Tidak ada peringatan</p>
                   )}
                 </div>
-              </motion.div>
+              </div>
             </div>
           </div>
 
@@ -1040,12 +995,7 @@ const DashboardTimAkademik: React.FC = () => {
           <div className="col-span-12">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
               {/* Today's Schedule */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.0 }}
-                className="group bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800 hover:shadow-md transition-all duration-300"
-              >
+              <div className="group bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800 hover:shadow-md transition-all duration-300">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl flex items-center justify-center">
@@ -1085,15 +1035,10 @@ const DashboardTimAkademik: React.FC = () => {
                     </div>
                   )}
                 </div>
-              </motion.div>
+              </div>
 
               {/* Recent Activities */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.1 }}
-                className="group bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800 hover:shadow-md transition-all duration-300"
-              >
+              <div className="group bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800 hover:shadow-md transition-all duration-300">
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/20 dark:to-green-800/20 rounded-xl flex items-center justify-center">
@@ -1126,18 +1071,13 @@ const DashboardTimAkademik: React.FC = () => {
                     </div>
                   )}
                 </div>
-              </motion.div>
+              </div>
             </div>
           </div>
 
                 {/* Academic Overview */}
           <div className="col-span-12">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.2 }}
-              className="group bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800 hover:shadow-md transition-all duration-300"
-            >
+            <div className="group bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800 hover:shadow-md transition-all duration-300">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-900/20 dark:to-purple-800/20 rounded-xl flex items-center justify-center">
@@ -1186,7 +1126,7 @@ const DashboardTimAkademik: React.FC = () => {
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </div>
         </div>
       </div>

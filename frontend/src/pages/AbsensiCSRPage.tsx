@@ -68,6 +68,8 @@ export default function AbsensiCSRPage() {
   const [includeInReport, setIncludeInReport] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [isReportSubmitted, setIsReportSubmitted] = useState(false);
+  const [showCatatanModal, setShowCatatanModal] = useState(false);
+  const [selectedMahasiswa, setSelectedMahasiswa] = useState<Mahasiswa | null>(null);
 
   // Fetch jadwal CSR dan data mahasiswa
   useEffect(() => {
@@ -212,6 +214,26 @@ export default function AbsensiCSRPage() {
     }));
   };
 
+  // Fungsi untuk membuka modal catatan
+  const handleOpenCatatanModal = (mahasiswa: Mahasiswa) => {
+    setSelectedMahasiswa(mahasiswa);
+    setShowCatatanModal(true);
+  };
+
+  // Fungsi untuk menutup modal catatan
+  const handleCloseCatatanModal = () => {
+    setShowCatatanModal(false);
+    setSelectedMahasiswa(null);
+  };
+
+  // Fungsi untuk menyimpan catatan dari modal
+  const handleSaveCatatan = (catatan: string) => {
+    if (selectedMahasiswa) {
+      handleCatatanChange(selectedMahasiswa.npm, catatan);
+    }
+    handleCloseCatatanModal();
+  };
+
   // Fungsi untuk menyimpan absensi
   const handleSaveAbsensi = async () => {
     if (!kode || !jadwalId) return;
@@ -299,19 +321,126 @@ export default function AbsensiCSRPage() {
     return (
       <div className="w-full mx-auto">
         {/* Header skeleton */}
-        <div className="h-8 w-80 bg-gray-200 dark:bg-gray-700 rounded mb-4 animate-pulse" />
-        <div className="h-4 w-96 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-8" />
+        <div className="mb-8">
+          <div className="h-8 w-80 bg-gray-300 dark:bg-gray-600 rounded mb-2 animate-pulse" />
+          <div className="h-4 w-96 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+        </div>
 
-        {/* Content skeleton */}
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-8">
-          <div className="space-y-4">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div
-                key={i}
-                className="h-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"
-              />
-            ))}
+        {/* Content skeleton - 2 panel layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Panel - Informasi Sesi skeleton */}
+          <div className="lg:col-span-1">
+            <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm">
+              {/* Header skeleton */}
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse" />
+                <div className="h-6 w-32 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+              </div>
+
+              {/* Info items skeleton */}
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 gap-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4">
+                      <div className="h-3 w-20 bg-gray-300 dark:bg-gray-600 rounded mb-2 animate-pulse" />
+                      <div className="h-4 w-24 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Checkbox section skeleton */}
+                <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-5 h-5 bg-gray-300 dark:bg-gray-600 rounded animate-pulse mt-0.5" />
+                      <div className="flex-1">
+                        <div className="h-4 w-24 bg-gray-300 dark:bg-gray-600 rounded mb-1 animate-pulse" />
+                        <div className="h-3 w-40 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
+
+          {/* Right Panel - Daftar Mahasiswa skeleton */}
+          <div className="lg:col-span-2">
+            <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm">
+              {/* Header skeleton */}
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse" />
+                  <div className="h-6 w-40 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                </div>
+
+                {/* Summary stats skeleton */}
+                <div className="flex items-center gap-6">
+                  <div className="text-center">
+                    <div className="h-8 w-8 bg-gray-300 dark:bg-gray-600 rounded animate-pulse mb-1" />
+                    <div className="h-3 w-12 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                  </div>
+                  <div className="text-center">
+                    <div className="h-8 w-8 bg-gray-300 dark:bg-gray-600 rounded animate-pulse mb-1" />
+                    <div className="h-3 w-16 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Table skeleton */}
+              <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-50 dark:bg-gray-800">
+                    <tr>
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <th key={i} className="px-4 py-3">
+                          <div className="h-3 w-16 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <div className="w-8 h-8 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse" />
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-3">
+                            <div>
+                              <div className="h-4 w-32 bg-gray-300 dark:bg-gray-600 rounded mb-1 animate-pulse" />
+                              <div className="h-3 w-8 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <div className="h-6 w-20 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <div className="h-4 w-8 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-center">
+                          <div className="h-6 w-20 bg-gray-300 dark:bg-gray-600 rounded-full animate-pulse mx-auto" />
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-center">
+                          <div className="flex items-center justify-center gap-3">
+                            <div className="w-6 h-6 bg-gray-300 dark:bg-gray-600 rounded-full animate-pulse" />
+                            <div className="h-6 w-16 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Action buttons skeleton */}
+        <div className="flex justify-end gap-4 pt-8">
+          <div className="h-10 w-16 bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse" />
+          <div className="h-10 w-32 bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse" />
         </div>
       </div>
     );
@@ -365,9 +494,9 @@ export default function AbsensiCSRPage() {
       <AnimatePresence>
         {showSuccessMessage && (
           <motion.div
-            initial={{ opacity: 0, y: -50 }}
+            initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -50 }}
+            exit={{ opacity: 0, y: -20 }}
             className="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl p-4"
           >
             <div className="flex items-center gap-3">
@@ -391,8 +520,7 @@ export default function AbsensiCSRPage() {
                   Absensi Berhasil Disimpan!
                 </h3>
                 <p className="text-green-600 dark:text-green-300 text-sm">
-                  Data absensi telah tersimpan dan akan dimasukkan ke dalam
-                  laporan.
+                  Data absensi telah tersimpan dan akan dimasukkan ke dalam laporan.
                 </p>
               </div>
             </div>
@@ -410,29 +538,30 @@ export default function AbsensiCSRPage() {
           Kembali ke Detail CSR
         </button>
       </div>
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-        Absensi CSR -{" "}
-        {jadwalCSR.jenis_csr === "reguler" ? "CSR Reguler" : "CSR Responsi"}
-      </h1>
-      <p className="text-gray-500 dark:text-gray-400 text-base mb-8">
-        {new Date(jadwalCSR.tanggal).toLocaleDateString("id-ID", {
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        })}{" "}
-        • {jadwalCSR.jam_mulai?.replace(".", ":")}–
-        {jadwalCSR.jam_selesai?.replace(".", ":")}
-      </p>
+      
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+          Absensi CSR - {jadwalCSR.jenis_csr === "reguler" ? "CSR Reguler" : "CSR Responsi"}
+        </h1>
+        <p className="text-gray-500 dark:text-gray-400 text-base">
+          {new Date(jadwalCSR.tanggal).toLocaleDateString("id-ID", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          })}{" "}
+          • {jadwalCSR.jam_mulai?.replace(".", ":")}–{jadwalCSR.jam_selesai?.replace(".", ":")}
+        </p>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Panel - Session Info */}
         <div className="lg:col-span-1">
-          <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow">
-            <div className="flex items-center space-x-2 mb-6">
-              <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
+          <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-brand-500 rounded-xl flex items-center justify-center">
                 <svg
-                  className="w-4 h-4 text-white"
+                  className="w-5 h-5 text-white"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -445,115 +574,119 @@ export default function AbsensiCSRPage() {
                   />
                 </svg>
               </div>
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Informasi Sesi
               </h3>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
-                  Pengampu
-                </p>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                  {jadwalCSR.dosen?.name || "-"}
-                </p>
-              </div>
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 gap-4">
+                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4">
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                    Pengampu
+                  </p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                    {jadwalCSR.dosen?.name || "-"}
+                  </p>
+                </div>
 
-              <div>
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
-                  Ruangan
-                </p>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                  {jadwalCSR.ruangan?.nama || "-"}
-                </p>
-              </div>
+                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4">
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                    Ruangan
+                  </p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                    {jadwalCSR.ruangan?.nama || "-"}
+                  </p>
+                </div>
 
-              <div>
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
-                  Kelompok
-                </p>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                  {jadwalCSR.kelompok_kecil?.nama_kelompok
-                    ? `Kelompok ${jadwalCSR.kelompok_kecil.nama_kelompok}`
-                    : "-"}
-                </p>
-              </div>
+                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4">
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                    Kelompok
+                  </p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                    {jadwalCSR.kelompok_kecil?.nama_kelompok
+                      ? `Kelompok ${jadwalCSR.kelompok_kecil.nama_kelompok}`
+                      : "-"}
+                  </p>
+                </div>
 
-              <div>
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
-                  Topik
-                </p>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                  {jadwalCSR.topik || "-"}
-                </p>
-              </div>
+                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4">
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                    Topik
+                  </p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                    {jadwalCSR.topik || "-"}
+                  </p>
+                </div>
 
-              <div>
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
-                  Durasi
-                </p>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                  {jadwalCSR.jumlah_sesi}x50 menit
-                </p>
+                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4">
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
+                    Durasi
+                  </p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                    {jadwalCSR.jumlah_sesi}x50 menit
+                  </p>
+                </div>
               </div>
 
               {/* Masuk Laporan Checkbox */}
               <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                <label
-                  className={`flex items-center space-x-3 ${
-                    isReportSubmitted ? "cursor-not-allowed" : "cursor-pointer"
-                  }`}
-                >
-                  <div className="relative">
-                    <input
-                      type="checkbox"
-                      checked={includeInReport}
-                      onChange={(e) =>
-                        !isReportSubmitted &&
-                        setIncludeInReport(e.target.checked)
-                      }
-                      disabled={isReportSubmitted}
-                      className="sr-only"
-                    />
-                    <div
-                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all duration-200 ${
-                        includeInReport
-                          ? isReportSubmitted
-                            ? "bg-green-500 border-green-500"
-                            : "bg-brand-500 border-brand-500"
-                          : "border-red-300 dark:border-red-600 hover:border-red-400"
-                      }`}
-                    >
-                      {includeInReport && (
-                        <svg
-                          className="w-3 h-3 text-white"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      )}
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                  <label
+                    className={`flex items-start gap-3 ${
+                      isReportSubmitted ? "cursor-not-allowed" : "cursor-pointer"
+                    }`}
+                  >
+                    <div className="relative mt-0.5">
+                      <input
+                        type="checkbox"
+                        checked={includeInReport}
+                        onChange={(e) =>
+                          !isReportSubmitted &&
+                          setIncludeInReport(e.target.checked)
+                        }
+                        disabled={isReportSubmitted}
+                        className="sr-only"
+                      />
+                      <div
+                        className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all duration-200 ${
+                          includeInReport
+                            ? isReportSubmitted
+                              ? "bg-green-500 border-green-500"
+                              : "bg-brand-500 border-brand-500"
+                            : "border-gray-300 dark:border-gray-600 hover:border-brand-400"
+                        }`}
+                      >
+                        {includeInReport && (
+                          <svg
+                            className="w-3 h-3 text-white"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      Masuk Laporan{" "}
-                      {!isReportSubmitted && (
-                        <span className="text-red-500">*</span>
-                      )}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {isReportSubmitted
-                        ? "✅ Laporan sudah disubmit dan tersimpan"
-                        : "⚠️ Wajib dicentang untuk menyimpan absensi"}
-                    </p>
-                  </div>
-                </label>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        Masuk Laporan{" "}
+                        {!isReportSubmitted && (
+                          <span className="text-red-500">*</span>
+                        )}
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
+                        {isReportSubmitted
+                          ? "✅ Laporan sudah disubmit dan tersimpan"
+                          : "⚠️ Wajib dicentang untuk menyimpan absensi"}
+                      </p>
+                    </div>
+                  </label>
+                </div>
               </div>
             </div>
           </div>
@@ -561,12 +694,12 @@ export default function AbsensiCSRPage() {
 
         {/* Right Panel - Student List */}
         <div className="lg:col-span-2">
-          <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow">
+          <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm">
             <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center">
                   <svg
-                    className="w-4 h-4 text-white"
+                    className="w-5 h-5 text-white"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -579,18 +712,18 @@ export default function AbsensiCSRPage() {
                     />
                   </svg>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Daftar Mahasiswa ({mahasiswaList.length} orang)
                 </h3>
               </div>
 
               {/* Summary Stats */}
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-6">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-green-600 dark:text-green-400">
                     {Object.values(absensi).filter((a) => a.hadir).length}
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                  <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                     Hadir
                   </div>
                 </div>
@@ -598,156 +731,179 @@ export default function AbsensiCSRPage() {
                   <div className="text-2xl font-bold text-red-600 dark:text-red-400">
                     {Object.values(absensi).filter((a) => !a.hadir).length}
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                  <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                     Tidak Hadir
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-3">
-              {mahasiswaList.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg
-                      className="w-8 h-8 text-gray-400 dark:text-gray-500"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                      />
-                    </svg>
-                  </div>
-                  <p className="text-gray-500 dark:text-gray-400 font-medium">
-                    Tidak ada mahasiswa dalam kelompok ini
-                  </p>
-                  <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-                    Silakan tambahkan mahasiswa ke kelompok terlebih dahulu
-                  </p>
-                </div>
-              ) : (
-                mahasiswaList.map((mahasiswa, index) => (
-                  <motion.div
-                    key={mahasiswa.npm}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className={`bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer border-2 ${
-                      absensi[mahasiswa.npm]?.hadir
-                        ? "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20"
-                        : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
-                    }`}
-                    onClick={() =>
-                      handleAbsensiChange(
-                        mahasiswa.npm,
-                        !absensi[mahasiswa.npm]?.hadir
-                      )
-                    }
+            {mahasiswaList.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg
+                    className="w-8 h-8 text-gray-400 dark:text-gray-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-8 h-8 bg-brand-100 dark:bg-brand-900/20 rounded-lg flex items-center justify-center">
-                          <span className="text-sm font-semibold text-brand-600 dark:text-brand-400">
-                            {index + 1}
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                    />
+                  </svg>
+                </div>
+                <p className="text-gray-500 dark:text-gray-400 font-medium">
+                  Tidak ada mahasiswa dalam kelompok ini
+                </p>
+                <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+                  Silakan tambahkan mahasiswa ke kelompok terlebih dahulu
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-50 dark:bg-gray-800">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        No
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Mahasiswa
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        NIM
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        IPK
+                      </th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Aksi
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                    {mahasiswaList.map((mahasiswa, index) => (
+                      <motion.tr
+                        key={mahasiswa.npm}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className={`hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors duration-200 ${
+                          absensi[mahasiswa.npm]?.hadir
+                            ? "bg-green-50/50 dark:bg-green-900/10"
+                            : ""
+                        }`}
+                      >
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <div className="w-8 h-8 bg-brand-100 dark:bg-brand-900/20 rounded-lg flex items-center justify-center">
+                            <span className="text-sm font-semibold text-brand-600 dark:text-brand-400">
+                              {index + 1}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-3">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                                  {mahasiswa.nama}
+                                </h4>
+                                <span
+                                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                    mahasiswa.gender === "L"
+                                      ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                                      : "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300"
+                                  }`}
+                                >
+                                  {mahasiswa.gender === "L" ? "👨" : "👩"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <span className="text-sm font-mono text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+                            {mahasiswa.nim}
                           </span>
-                        </div>
-                        <div>
-                          <div className="flex items-center space-x-2 mb-1">
-                            <h4 className="font-semibold text-gray-800 dark:text-white">
-                              {mahasiswa.nama}
-                            </h4>
-                            <span
-                              className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                mahasiswa.gender === "L"
-                                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
-                                  : "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300"
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {mahasiswa.ipk.toFixed(2)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-center">
+                          <span
+                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                              absensi[mahasiswa.npm]?.hadir
+                                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                                : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+                            }`}
+                          >
+                            {absensi[mahasiswa.npm]?.hadir ? "Hadir" : "Tidak Hadir"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-center">
+                          <div className="flex items-center justify-center gap-3">
+                            <button
+                              onClick={() =>
+                                handleAbsensiChange(
+                                  mahasiswa.npm,
+                                  !absensi[mahasiswa.npm]?.hadir
+                                )
+                              }
+                              className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
+                                absensi[mahasiswa.npm]?.hadir
+                                  ? "bg-green-500 border-green-500"
+                                  : "border-gray-300 dark:border-gray-600 hover:border-green-400"
                               }`}
                             >
-                              {mahasiswa.gender === "L" ? "👨" : "👩"}
-                            </span>
-                          </div>
-                          <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
-                            <span className="font-mono">{mahasiswa.nim}</span>
-                            <span className="font-medium">
-                              IPK: {mahasiswa.ipk.toFixed(2)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Status Badge */}
-                      <div className="flex items-center space-x-3">
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            absensi[mahasiswa.npm]?.hadir
-                              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                              : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
-                          }`}
-                        >
-                          {absensi[mahasiswa.npm]?.hadir
-                            ? "Hadir"
-                            : "Tidak Hadir"}
-                        </span>
-
-                        {/* Checkbox */}
-                        <div
-                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                            absensi[mahasiswa.npm]?.hadir
-                              ? "bg-green-500 border-green-500"
-                              : "border-gray-300 dark:border-gray-600"
-                          }`}
-                        >
-                          {absensi[mahasiswa.npm]?.hadir && (
-                            <svg
-                              className="w-3 h-3 text-white"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
+                              {absensi[mahasiswa.npm]?.hadir && (
+                                <svg
+                                  className="w-4 h-4 text-white"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleOpenCatatanModal(mahasiswa)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-lg transition-all duration-200"
+                              title="Tambah/Edit Catatan"
                             >
-                              <path
-                                fillRule="evenodd"
-                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Catatan Field */}
-                    <div className="mt-3">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Catatan (Opsional)
-                      </label>
-                      <textarea
-                        value={absensi[mahasiswa.npm]?.catatan || ""}
-                        onChange={(e) =>
-                          handleCatatanChange(mahasiswa.npm, e.target.value)
-                        }
-                        placeholder="Masukkan catatan jika ada..."
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent dark:bg-gray-700 dark:text-white text-sm resize-none"
-                        rows={2}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </div>
-                  </motion.div>
-                ))
-              )}
-            </div>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                              Catatan
+                            </button>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Action Buttons */}
-      <div className="flex justify-end gap-3 pt-6">
+      <div className="flex justify-end gap-4 pt-8">
         <button
           onClick={() => navigate(`/detail-non-blok-csr/${kode}`)}
-          className="px-6 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-200"
+          className="px-6 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm"
         >
           Batal
         </button>
@@ -759,7 +915,7 @@ export default function AbsensiCSRPage() {
             !includeInReport ||
             isReportSubmitted
           }
-          className={`px-6 py-3 rounded-xl text-white text-sm font-medium shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ${
+          className={`px-6 py-3 rounded-xl text-white text-sm font-medium shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ${
             isReportSubmitted
               ? "bg-green-500 hover:bg-green-600"
               : "bg-brand-500 hover:bg-brand-600"
@@ -795,6 +951,107 @@ export default function AbsensiCSRPage() {
             : "Simpan Absensi"}
         </button>
       </div>
+
+      {/* Modal Catatan */}
+      <AnimatePresence>
+        {showCatatanModal && selectedMahasiswa && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => handleCloseCatatanModal()}
+            ></motion.div>
+            {/* Modal Content */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => handleCloseCatatanModal()}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+              
+              <div>
+                <div className="flex items-center justify-between pb-4 sm:pb-6">
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
+                      Catatan Mahasiswa
+                    </h2>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {selectedMahasiswa.nama} ({selectedMahasiswa.nim})
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Catatan untuk {selectedMahasiswa.nama}
+                    </label>
+                    <textarea
+                      value={absensi[selectedMahasiswa.npm]?.catatan || ""}
+                      onChange={(e) => {
+                        const newCatatan = e.target.value;
+                        setAbsensi((prev) => ({
+                          ...prev,
+                          [selectedMahasiswa.npm]: {
+                            hadir: prev[selectedMahasiswa.npm]?.hadir || false,
+                            catatan: newCatatan,
+                          },
+                        }));
+                      }}
+                      placeholder="Masukkan catatan untuk mahasiswa ini..."
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl dark:bg-gray-700 dark:text-white resize-none"
+                      rows={4}
+                      autoFocus
+                    />
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                      Catatan ini akan tersimpan bersama data absensi
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 relative z-20">
+                  <button
+                    onClick={() => handleCloseCatatanModal()}
+                    className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={() => handleSaveCatatan(absensi[selectedMahasiswa.npm]?.catatan || "")}
+                    className="px-3 sm:px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-xs sm:text-sm font-medium transition-all duration-300 ease-in-out"
+                  >
+                    Simpan Catatan
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

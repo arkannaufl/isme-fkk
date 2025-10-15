@@ -49,6 +49,74 @@ const HistoryIcon = () => (
     />
   </svg>
 );
+
+// Peta Akademik icon component (Calendar/Grid icon)
+const PetaAkademikIcon = () => (
+  <svg
+    className="w-5 h-5"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={1.5}
+      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+    />
+  </svg>
+);
+
+// Peta Blok icon component (Blocks/Cubes icon)
+const PetaBlokIcon = () => (
+  <svg
+    className="w-5 h-5"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={1.5}
+      d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+    />
+  </svg>
+);
+
+// Detail Keabsenan icon component (Single person icon)
+const DetailKeabsenanIcon = () => (
+  <svg
+    className="w-5 h-5"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={1.5}
+      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+    />
+  </svg>
+);
+
+// Service Center icon component (Exclamation mark/Alert icon)
+const ServiceCenterIcon = () => (
+  <svg
+    className="w-5 h-5"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={1.5}
+      d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+    />
+  </svg>
+);
 import { useSidebar } from "../context/SidebarContext";
 
 type NavItem = {
@@ -200,25 +268,25 @@ const getNavItems = (userRole?: string): NavItem[] => {
       roles: ["mahasiswa"],
     },
     {
-      icon: <TableIcon />,
+      icon: <PetaAkademikIcon />,
       name: "Peta Akademik",
       path: "/peta-akademik",
       roles: ["mahasiswa"],
     },
     {
-      icon: <TableIcon />,
+      icon: <PetaBlokIcon />,
       name: "Peta Blok",
       path: "/peta-blok",
       roles: ["mahasiswa"],
     },
     {
-      icon: <PieChartIcon />,
+      icon: <DetailKeabsenanIcon />,
       name: "Detail Keabsenan",
       path: "/detail-mahasiswa-keabsenan",
       roles: ["mahasiswa"],
     },
     {
-      icon: <PieChartIcon />,
+      icon: <ServiceCenterIcon />,
       name: "Service Center",
       path: "/support-center",
       roles: ["super_admin", "dosen", "mahasiswa", "tim_akademik"],

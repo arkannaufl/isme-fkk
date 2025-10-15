@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import api from '../utils/api';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const sesiHarian = [
   { jam: '07.20-08.10' },
@@ -231,6 +232,15 @@ export default function PetaBlok() {
   const [showPopup, setShowPopup] = useState(false);
   const [popupData, setPopupData] = useState<{ jenis: string; details: any[] } | null>(null);
   // State untuk redirect sudah tidak digunakan, dihapus
+
+  // Fungsi untuk mengubah format nama jadwal
+  const formatJenisJadwal = (jenis: string): string => {
+    return jenis
+      .toLowerCase()
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
 
   const fetchData = useCallback(async () => {
     // Jika tidak ada blok atau blok adalah kode spesifik yang sudah di-redirect, gunakan mode gabungan
@@ -2320,8 +2330,101 @@ export default function PetaBlok() {
   const todayIdx = hariList.findIndex(h => h.iso === todayIso);
   const jadwalHariIni = todayIdx !== -1 ? hariList[todayIdx] : null;
 
+  // Skeleton Loading Component
+  if (loading) {
+    return (
+      <div>
+        {/* Header Skeleton */}
+        <div className="flex flex-col gap-2 pt-1">
+          {/* Back Button Skeleton */}
+          <div className="mb-4 flex items-center gap-2">
+            <div className="w-5 h-5 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+            <div className="h-4 w-16 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+          </div>
+          
+          {/* Title Skeleton */}
+          <div className="h-8 w-80 bg-gray-300 dark:bg-gray-600 rounded mb-2 animate-pulse" />
+          
+          {/* Info Skeleton */}
+          <div className="flex flex-wrap gap-4 items-center">
+            <div className="h-4 w-32 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+            <div className="h-4 w-24 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+          </div>
+        </div>
+
+        {/* Search and Export Section Skeleton */}
+        <div className="flex justify-between items-center mb-6 mt-8">
+          <div className="h-10 w-80 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse" />
+          <div className="flex gap-3">
+            <div className="h-10 w-32 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse" />
+            <div className="h-10 w-40 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse" />
+          </div>
+        </div>
+
+        {/* Table Skeleton */}
+        <div className="overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          {/* Table Header Skeleton */}
+          <div className="bg-gray-50 dark:bg-gray-700/50 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+            <div className="grid grid-cols-13 gap-2">
+              <div className="h-4 w-16 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div key={i} className="h-4 w-20 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+              ))}
+            </div>
+          </div>
+
+          {/* Table Body Skeleton */}
+          <div className="divide-y divide-gray-200 dark:divide-gray-700">
+            {Array.from({ length: 7 }).map((_, rowIndex) => (
+              <div key={rowIndex} className="grid grid-cols-13 gap-2 p-4">
+                {rowIndex === 0 ? (
+                  // First column (day) skeleton
+                  <div className="row-span-12 flex flex-col items-center justify-center">
+                    <div className="h-6 w-16 bg-gray-300 dark:bg-gray-600 rounded mb-1 animate-pulse" />
+                    <div className="h-3 w-12 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                  </div>
+                ) : null}
+                
+                {/* Time column skeleton */}
+                <div className="h-8 w-20 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+                
+                {/* Schedule cells skeleton */}
+                {Array.from({ length: 11 }).map((_, cellIndex) => (
+                  <div key={cellIndex} className="h-8 w-full bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Pagination Skeleton */}
+        <div className="flex justify-between items-center mt-6">
+          <div className="flex items-center gap-3">
+            <div className="h-4 w-24 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+            <div className="h-8 w-16 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+            <div className="h-4 w-32 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-16 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+            <div className="h-8 w-8 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+            <div className="h-8 w-8 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+            <div className="h-8 w-8 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+            <div className="h-8 w-8 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+            <div className="h-8 w-16 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <div className="h-4 w-20 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+            <div className="h-8 w-20 bg-gray-300 dark:bg-gray-600 rounded animate-pulse" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-7xl mx-auto mt-4">
+    <div>
       {/* Header */}
       <div className="flex flex-col gap-2 pt-1 ">
         <button
@@ -2343,7 +2446,6 @@ export default function PetaBlok() {
           <span>Semester: <b>{isAntara ? 'Antara' : (isGanjil ? 'Ganjil' : 'Genap')}</b></span>
         </div>
       </div>
-      {/* Jadwal Hari Ini section removed - only main table shows */}
       {/* Search and Export Section */}
       <div className="flex justify-between items-center mb-6 mt-8">
         <div className="flex-1 max-w-md">
@@ -2403,7 +2505,7 @@ export default function PetaBlok() {
                 onClick={() => goToPage(pageNum)}
                 className={`px-3 py-1 text-sm border rounded ${
                   page === pageNum
-                    ? 'bg-green-500 text-white border-pink-300 dark:border-pink-400'
+                    ? 'bg-green-500 text-white border-green-500'
                     : 'border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800'
                 }`}
               >
@@ -2530,110 +2632,174 @@ export default function PetaBlok() {
       )}
       
       {/* Popup Detail Jadwal */}
+      <AnimatePresence>
       {showPopup && popupData && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Detail {popupData.jenis} ({popupData.details.length} jadwal)
-              </h3>
-              <button
-                onClick={() => setShowPopup(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+        <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          {/* Overlay */}
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+            onClick={() => setShowPopup(false)}
+          ></motion.div>
+          
+          {/* Modal Content */}
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            className="relative w-full max-w-xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setShowPopup(false)}
+              className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+            >
+              <svg
+                width="20"
+                height="20"
+                fill="none"
+                viewBox="0 0 24 24"
+                className="w-6 h-6"
               >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              {popupData.details.map((detail, index) => (
-                <div key={index} className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                    Jadwal {index + 1}
-                  </div>
-                  <div className="space-y-2">
-                    {detail.detail && (
-                      <>
-                        {detail.detail.modul && (
-                          <div className="flex">
-                            <span className="font-medium text-gray-700 dark:text-gray-300 w-20">Modul:</span>
-                            <span className="text-gray-600 dark:text-gray-400">{detail.detail.modul}</span>
-                          </div>
-                        )}
-                        {detail.detail.topik && (
-                          <div className="flex">
-                            <span className="font-medium text-gray-700 dark:text-gray-300 w-20">Topik:</span>
-                            <span className="text-gray-600 dark:text-gray-400">{detail.detail.topik}</span>
-                          </div>
-                        )}
-                        {detail.detail.materi && (
-                          <div className="flex">
-                            <span className="font-medium text-gray-700 dark:text-gray-300 w-20">Materi:</span>
-                            <span className="text-gray-600 dark:text-gray-400">{detail.detail.materi}</span>
-                          </div>
-                        )}
-                        {detail.detail.agenda && (
-                          <div className="flex">
-                            <span className="font-medium text-gray-700 dark:text-gray-300 w-20">Agenda:</span>
-                            <span className="text-gray-600 dark:text-gray-400">{detail.detail.agenda}</span>
-                          </div>
-                        )}
-                        {(detail.detail.dosen || detail.detail.dosen_names) && (
-                          <div className="flex">
-                            <span className="font-medium text-gray-700 dark:text-gray-300 w-20">Dosen:</span>
-                            <span className="text-gray-600 dark:text-gray-400">{detail.detail.dosen || detail.detail.dosen_names}</span>
-                          </div>
-                        )}
-                        {detail.detail.ruang && (
-                          <div className="flex">
-                            <span className="font-medium text-gray-700 dark:text-gray-300 w-20">Ruang:</span>
-                            <span className="text-gray-600 dark:text-gray-400">{detail.detail.ruang}</span>
-                          </div>
-                        )}
-                        {detail.detail.kelompok && (
-                          <div className="flex">
-                            <span className="font-medium text-gray-700 dark:text-gray-300 w-20">Kelompok:</span>
-                            <span className="text-gray-600 dark:text-gray-400">{detail.detail.kelompok}</span>
-                          </div>
-                        )}
-                        {detail.detail.kelas && (
-                          <div className="flex">
-                            <span className="font-medium text-gray-700 dark:text-gray-300 w-20">Kelas:</span>
-                            <span className="text-gray-600 dark:text-gray-400">{detail.detail.kelas}</span>
-                          </div>
-                        )}
-                        {detail.detail.kode && (
-                          <div className="flex">
-                            <span className="font-medium text-gray-700 dark:text-gray-300 w-20">Kode:</span>
-                            <span className="text-gray-600 dark:text-gray-400">{detail.detail.kode}</span>
-                          </div>
-                        )}
-                        {detail.detail.blok && detail.detail.blok > 0 && (
-                          <div className="flex">
-                            <span className="font-medium text-gray-700 dark:text-gray-300 w-20">Blok:</span>
-                            <span className="text-gray-600 dark:text-gray-400">{detail.detail.blok}</span>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
+                <path
+                  fillRule="evenodd"
+                  clipRule="evenodd"
+                  d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                  fill="currentColor"
+                />
+              </svg>
+            </button>
+
+            <div>
+              <div className="flex items-center justify-between pb-4 sm:pb-6">
+                <div>
+                  <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
+                    Detail {formatJenisJadwal(popupData.jenis)} ({popupData.details.length} jadwal)
+                  </h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Informasi lengkap jadwal {formatJenisJadwal(popupData.jenis).toLowerCase()}
+                  </p>
                 </div>
-              ))}
-            </div>
+              </div>
             
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={() => setShowPopup(false)}
-                className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 dark:bg-gray-600 dark:hover:bg-gray-700"
-              >
-                Tutup
-              </button>
+              <div className="space-y-6">
+                {popupData.details.map((detail, index) => (
+                  <div key={index} className="bg-gray-50/50 dark:bg-gray-800/30 rounded-2xl p-6 border border-gray-200/50 dark:border-gray-700/50">
+                    <div className="flex items-center gap-3 mb-5">
+                      <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-sm">
+                        <span className="text-white text-sm font-bold">{index + 1}</span>
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                        Jadwal {index + 1}
+                      </h3>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {detail.detail && (
+                        <>
+                          {detail.detail.modul && (
+                            <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-700/40 rounded-xl border border-gray-200/50 dark:border-gray-600/50">
+                              <div className="flex-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Modul</span>
+                                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mt-1">{detail.detail.modul}</p>
+                              </div>
+                            </div>
+                          )}
+                          {detail.detail.topik && (
+                            <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-700/40 rounded-xl border border-gray-200/50 dark:border-gray-600/50">
+                              <div className="flex-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Topik</span>
+                                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mt-1">{detail.detail.topik}</p>
+                              </div>
+                            </div>
+                          )}
+                          {detail.detail.materi && (
+                            <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-700/40 rounded-xl border border-gray-200/50 dark:border-gray-600/50">
+                              <div className="flex-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Materi</span>
+                                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mt-1">{detail.detail.materi}</p>
+                              </div>
+                            </div>
+                          )}
+                          {detail.detail.agenda && (
+                            <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-700/40 rounded-xl border border-gray-200/50 dark:border-gray-600/50">
+                              <div className="flex-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Agenda</span>
+                                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mt-1">{detail.detail.agenda}</p>
+                              </div>
+                            </div>
+                          )}
+                          {(detail.detail.dosen || detail.detail.dosen_names) && (
+                            <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-700/40 rounded-xl border border-gray-200/50 dark:border-gray-600/50">
+                              <div className="flex-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Dosen</span>
+                                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mt-1">{detail.detail.dosen || detail.detail.dosen_names}</p>
+                              </div>
+                            </div>
+                          )}
+                          {detail.detail.ruang && (
+                            <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-700/40 rounded-xl border border-gray-200/50 dark:border-gray-600/50">
+                              <div className="flex-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Ruang</span>
+                                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mt-1">{detail.detail.ruang}</p>
+                              </div>
+                            </div>
+                          )}
+                          {detail.detail.kelompok && (
+                            <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-700/40 rounded-xl border border-gray-200/50 dark:border-gray-600/50">
+                              <div className="flex-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Kelompok</span>
+                                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mt-1">{detail.detail.kelompok}</p>
+                              </div>
+                            </div>
+                          )}
+                          {detail.detail.kelas && (
+                            <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-700/40 rounded-xl border border-gray-200/50 dark:border-gray-600/50">
+                              <div className="flex-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Kelas</span>
+                                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mt-1">{detail.detail.kelas}</p>
+                              </div>
+                            </div>
+                          )}
+                          {detail.detail.kode && (
+                            <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-700/40 rounded-xl border border-gray-200/50 dark:border-gray-600/50">
+                              <div className="flex-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Kode</span>
+                                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mt-1">{detail.detail.kode}</p>
+                              </div>
+                            </div>
+                          )}
+                          {detail.detail.blok && detail.detail.blok > 0 && (
+                            <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-700/40 rounded-xl border border-gray-200/50 dark:border-gray-600/50">
+                              <div className="flex-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Blok</span>
+                                <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mt-1">{detail.detail.blok}</p>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            
+              <div className="flex justify-end gap-2 pt-2 relative z-20">
+                <button
+                  onClick={() => setShowPopup(false)}
+                  className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
+                >
+                  Tutup
+                </button>
+              </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
+      </AnimatePresence>
       
         {/* Legenda warna dummy ... */}
     </div>

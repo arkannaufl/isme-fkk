@@ -1459,12 +1459,7 @@ const DashboardSuperAdmin: React.FC = () => {
        <div className="grid grid-cols-12 gap-4 md:gap-6 p-4 md:p-6">
          {/* Page Header */}
          <div className="col-span-12 mb-6">
-           <motion.div 
-             initial={{ opacity: 0, y: 20 }}
-             animate={{ opacity: 1, y: 0 }}
-             transition={{ delay: 0.1 }}
-             className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
-           >
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                <div className="flex items-center space-x-4">
                  <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
@@ -1550,7 +1545,7 @@ const DashboardSuperAdmin: React.FC = () => {
                  </div>
                </div>
              </div>
-           </motion.div>
+           </div>
          </div>
 
          {/* Success Messages */}
@@ -1705,16 +1700,11 @@ const DashboardSuperAdmin: React.FC = () => {
            </div>
          )}
 
-                 {/* Main Statistics Cards - 2 Rows of 3 Cards Each */}
+        {/* Main Statistics Cards - 2 Rows of 3 Cards Each */}
          <div className="col-span-12">
            <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6 mb-6">
              {/* Total Users Card */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-               transition={{ delay: 0.1 }}
-               className="group relative overflow-hidden rounded-2xl bg-white p-6 shadow-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800 hover:shadow-md transition-all duration-300 hover:-translate-y-1"
-             >
+              <div className="group relative overflow-hidden rounded-2xl bg-white p-6 shadow-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
                <div className="absolute top-0 right-0 w-20 h-20 bg-blue-50 dark:bg-blue-900/20 rounded-full -mr-10 -mt-10"></div>
                <div className="relative">
                  <div className="flex items-center justify-between mb-4">
@@ -1732,7 +1722,7 @@ const DashboardSuperAdmin: React.FC = () => {
                           d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
                         />
                      </svg>
-            </div>
+                  </div>
                     <span
                       className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
                         formatGrowthPercentage(stats.usersGrowth).colorClass
@@ -1758,7 +1748,7 @@ const DashboardSuperAdmin: React.FC = () => {
                      {formatGrowthPercentage(stats.usersGrowth).value}
                    </span>
                  </div>
-            <div>
+                  <div>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
                       Total Users
                     </p>
@@ -1768,17 +1758,12 @@ const DashboardSuperAdmin: React.FC = () => {
                     <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
                       Active system users
                     </p>
-            </div>
+                  </div>
           </div>
-        </motion.div>
+        </div>
 
              {/* Mahasiswa Card */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-               transition={{ delay: 0.2 }}
-               className="group relative overflow-hidden rounded-2xl bg-white p-6 shadow-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800 hover:shadow-md transition-all duration-300 hover:-translate-y-1"
-             >
+        <div className="group relative overflow-hidden rounded-2xl bg-white p-6 shadow-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
                <div className="absolute top-0 right-0 w-20 h-20 bg-green-50 dark:bg-green-900/20 rounded-full -mr-10 -mt-10"></div>
                <div className="relative">
                  <div className="flex items-center justify-between mb-4">
@@ -1835,15 +1820,10 @@ const DashboardSuperAdmin: React.FC = () => {
                     </p>
             </div>
                </div>
-             </motion.div>
+             </div>
 
              {/* Dosen Card */}
-             <motion.div 
-               initial={{ opacity: 0, y: 20 }}
-               animate={{ opacity: 1, y: 0 }}
-               transition={{ delay: 0.3 }}
-               className="group relative overflow-hidden rounded-2xl bg-white p-6 shadow-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800 hover:shadow-md transition-all duration-300 hover:-translate-y-1"
-             >
+        <div className="group relative overflow-hidden rounded-2xl bg-white p-6 shadow-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
                <div className="absolute top-0 right-0 w-20 h-20 bg-purple-50 dark:bg-purple-900/20 rounded-full -mr-10 -mt-10"></div>
                <div className="relative">
                  <div className="flex items-center justify-between mb-4">
@@ -1899,7 +1879,7 @@ const DashboardSuperAdmin: React.FC = () => {
                     </p>
             </div>
           </div>
-        </motion.div>
+        </div>
            </div>
          </div>
 
@@ -1907,12 +1887,7 @@ const DashboardSuperAdmin: React.FC = () => {
          <div className="col-span-12">
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
              {/* Mata Kuliah Card */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-               transition={{ delay: 0.4 }}
-               className="group relative overflow-hidden rounded-2xl bg-white p-5 shadow-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800 hover:shadow-md transition-all duration-300 hover:-translate-y-1 md:p-6"
-             >
+        <div className="group relative overflow-hidden rounded-2xl bg-white p-5 shadow-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800 hover:shadow-md transition-all duration-300 hover:-translate-y-1 md:p-6">
                <div className="absolute top-0 right-0 w-16 h-16 bg-indigo-50 dark:bg-indigo-900/20 rounded-full -mr-8 -mt-8"></div>
                <div className="relative">
                  <div className="w-12 h-12 bg-indigo-500 rounded-2xl flex items-center justify-center shadow-lg mb-4">
@@ -1939,15 +1914,10 @@ const DashboardSuperAdmin: React.FC = () => {
                     </h4>
             </div>
                </div>
-             </motion.div>
+             </div>
 
              {/* Kelas Aktif Card */}
-             <motion.div 
-               initial={{ opacity: 0, y: 20 }}
-               animate={{ opacity: 1, y: 0 }}
-               transition={{ delay: 0.5 }}
-               className="group relative overflow-hidden rounded-2xl bg-white p-5 shadow-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800 hover:shadow-md transition-all duration-300 hover:-translate-y-1 md:p-6"
-             >
+        <div className="group relative overflow-hidden rounded-2xl bg-white p-5 shadow-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800 hover:shadow-md transition-all duration-300 hover:-translate-y-1 md:p-6">
                <div className="absolute top-0 right-0 w-16 h-16 bg-teal-50 dark:bg-teal-900/20 rounded-full -mr-8 -mt-8"></div>
                <div className="relative">
                  <div className="w-12 h-12 bg-teal-500 rounded-2xl flex items-center justify-center shadow-lg mb-4">
@@ -1974,15 +1944,10 @@ const DashboardSuperAdmin: React.FC = () => {
                     </h4>
             </div>
           </div>
-        </motion.div>
+        </div>
 
              {/* Ruangan Card */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-               transition={{ delay: 0.6 }}
-               className="group relative overflow-hidden rounded-2xl bg-white p-5 shadow-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800 hover:shadow-md transition-all duration-300 hover:-translate-y-1 md:p-6"
-             >
+        <div className="group relative overflow-hidden rounded-2xl bg-white p-5 shadow-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800 hover:shadow-md transition-all duration-300 hover:-translate-y-1 md:p-6">
                <div className="absolute top-0 right-0 w-16 h-16 bg-pink-50 dark:bg-pink-900/20 rounded-full -mr-8 -mt-8"></div>
                <div className="relative">
                  <div className="w-12 h-12 bg-pink-500 rounded-2xl flex items-center justify-center shadow-lg mb-4">
@@ -2009,15 +1974,10 @@ const DashboardSuperAdmin: React.FC = () => {
                     </h4>
             </div>
                </div>
-             </motion.div>
+             </div>
 
              {/* Jadwal Aktif Card */}
-             <motion.div 
-               initial={{ opacity: 0, y: 20 }}
-               animate={{ opacity: 1, y: 0 }}
-               transition={{ delay: 0.7 }}
-               className="group relative overflow-hidden rounded-2xl bg-white p-5 shadow-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800 hover:shadow-md transition-all duration-300 hover:-translate-y-1 md:p-6"
-             >
+        <div className="group relative overflow-hidden rounded-2xl bg-white p-5 shadow-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800 hover:shadow-md transition-all duration-300 hover:-translate-y-1 md:p-6">
                <div className="absolute top-0 right-0 w-16 h-16 bg-cyan-50 dark:bg-cyan-900/20 rounded-full -mr-8 -mt-8"></div>
                <div className="relative">
                  <div className="w-12 h-12 bg-cyan-500 rounded-2xl flex items-center justify-center shadow-lg mb-4">
@@ -2044,7 +2004,7 @@ const DashboardSuperAdmin: React.FC = () => {
                     </h4>
             </div>
           </div>
-        </motion.div>
+        </div>
            </div>
       </div>
 
@@ -2052,12 +2012,7 @@ const DashboardSuperAdmin: React.FC = () => {
       <div className="col-span-12">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
           {/* Super Admin Management - Takes 2 columns */}
-        <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.8 }}
-            className="md:col-span-2 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6 flex flex-col"
-          >
+        <div className="md:col-span-2 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6 flex flex-col">
             <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
                     Super Admin Management
@@ -2197,15 +2152,10 @@ const DashboardSuperAdmin: React.FC = () => {
                     </div>
                     </div>
                   </div>
-        </motion.div>
+        </div>
           
           {/* Quick Actions - Takes 1 column */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.9 }}
-            className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03] md:p-5 flex flex-col"
-          >
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-white/[0.03] md:p-5 flex flex-col">
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-3">
                   Quick Actions
                 </h3>
@@ -2384,19 +2334,14 @@ const DashboardSuperAdmin: React.FC = () => {
           </div>
               </button>
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
 
         {/* Today's Schedule */}
       {stats.todaySchedule.length > 0 && (
         <div className="col-span-12">
-        <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.0 }}
-            className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6"
-        >
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
           <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
                     Today's Schedule
@@ -2442,18 +2387,13 @@ const DashboardSuperAdmin: React.FC = () => {
               </div>
               ))}
                     </div>
-          </motion.div>
+          </div>
         </div>
       )}
 
       {/* System Notifications */}
       {stats.systemNotifications.length > 0 && (
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.1 }}
-          className="col-span-12 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6"
-        >
+        <div className="col-span-12 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
               <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">
                 System Notifications
               </h3>
@@ -2517,17 +2457,12 @@ const DashboardSuperAdmin: React.FC = () => {
                 </div>
             ))}
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* Recent Activities Table */}
       <div className="col-span-12">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.2 }}
-          className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-4 pb-3 pt-4 dark:border-gray-800 dark:bg-white/[0.03] sm:px-6"
-        >
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white px-4 pb-3 pt-4 dark:border-gray-800 dark:bg-white/[0.03] sm:px-6">
           <div className="flex flex-col gap-2 mb-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
               <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
@@ -2629,7 +2564,8 @@ const DashboardSuperAdmin: React.FC = () => {
               </tbody>
             </table>
           </div>
-        </motion.div>
+        </div>
+      </div>
       </div>
       </div>
 
@@ -3081,8 +3017,8 @@ const DashboardSuperAdmin: React.FC = () => {
                 </div>
             </div>
           </div>
-        </motion.div>
-      </div>
+          </motion.div>
+        </div>
       )}
       </AnimatePresence>
 
@@ -3312,8 +3248,8 @@ const DashboardSuperAdmin: React.FC = () => {
                 </div>
             </div>
           </div>
-        </motion.div>
-      </div>
+          </motion.div>
+        </div>
       )}
       </AnimatePresence>
 
@@ -3771,11 +3707,13 @@ const DashboardSuperAdmin: React.FC = () => {
             </div>
           </div>
         </div>
-      </motion.div>
-    </div>
+        </motion.div>
+      </div>
       )}
+      </AnimatePresence>
 
       {/* Reset System Modal */}
+      <AnimatePresence>
       {showResetModal && (
         <div className="fixed inset-0 z-[100000] flex items-center justify-center">
           {/* Overlay */}
@@ -3945,7 +3883,6 @@ const DashboardSuperAdmin: React.FC = () => {
         </div>
       )}
       </AnimatePresence>
-       </div>
 
       {/* Create Super Admin Modal */}
       <AnimatePresence>

@@ -16,6 +16,7 @@ import {
   faArrowLeft,
 } from "@fortawesome/free-solid-svg-icons";
 import api, { handleApiError } from "../utils/api";
+import jsPDF from "jspdf";
 
 interface MahasiswaKeabsenan {
   id: number;
@@ -116,13 +117,13 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "hadir":
-        return "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300";
+        return "bg-green-500 text-white";
       case "tidak_hadir":
-        return "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300";
+        return "bg-red-500 text-white";
       case "waiting":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300";
+        return "bg-gray-500 text-white";
       default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300";
+        return "bg-gray-500 text-white";
     }
   };
 
@@ -142,17 +143,17 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
   const getJenisJadwalColor = (jenis: string) => {
     switch (jenis) {
       case "kuliah_besar":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300";
+        return "bg-blue-500 text-white";
       case "praktikum":
-        return "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300";
+        return "bg-green-500 text-white";
       case "jurnal_reading":
-        return "bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300";
+        return "bg-purple-500 text-white";
       case "pbl":
-        return "bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-300";
+        return "bg-orange-500 text-white";
       case "csr":
-        return "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300";
+        return "bg-red-500 text-white";
       default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300";
+        return "bg-gray-500 text-white";
     }
   };
 
@@ -176,13 +177,13 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
   const getStatusKehadiranColor = (status: string) => {
     switch (status) {
       case "baik":
-        return "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300";
+        return "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-200";
       case "kurang":
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300";
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-200";
       case "buruk":
-        return "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300";
+        return "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-200";
       default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300";
+        return "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-200";
     }
   };
 
@@ -248,20 +249,491 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
     });
   };
 
-  const exportPDF = () => {
-    // TODO: Implement PDF export functionality
-    console.log("Export PDF functionality will be implemented later");
+  const exportPDF = async () => {
+    try {
+      if (!mahasiswaData) {
+        console.error("Data mahasiswa tidak tersedia");
+        return;
+      }
+
+      const doc = new jsPDF();
+      const margin = 20;
+      let yPos = margin;
+      const maxPageHeight = doc.internal.pageSize.height - margin;
+
+      const addNewPage = () => {
+        doc.addPage();
+        yPos = margin;
+      };
+
+      const addText = (
+        text: string,
+        x: number,
+        y: number,
+        options?: { align?: string }
+      ) => {
+        if (y > maxPageHeight) {
+          addNewPage();
+          y = margin;
+        }
+        doc.text(text, x, y, options);
+        return y;
+      };
+
+      // LOAD LOGO
+      const loadLogo = async (): Promise<string> => {
+        try {
+          const response = await fetch("/images/logo/logo.svg");
+          if (!response.ok) {
+            throw new Error("Logo tidak ditemukan");
+          }
+          const svgText = await response.text();
+
+          // Convert SVG to canvas then to data URL
+          return new Promise((resolve) => {
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            canvas.width = 100;
+            canvas.height = 100;
+
+            const img = new Image();
+            img.onload = () => {
+              if (ctx) {
+                ctx.drawImage(img, 0, 0, 100, 100);
+                resolve(canvas.toDataURL("image/png"));
+              } else {
+                resolve("");
+              }
+            };
+            img.onerror = () => resolve("");
+            img.src = "data:image/svg+xml;base64," + btoa(svgText);
+          });
+        } catch (error) {
+          console.error("Error loading logo:", error);
+          return "";
+        }
+      };
+
+      const logoDataUrl = await loadLogo();
+
+      // HEADER UNIVERSITAS DENGAN LOGO
+      if (logoDataUrl) {
+        try {
+          // Tambahkan logo di tengah atas dengan ukuran yang lebih besar
+          const logoWidth = 25;
+          const logoHeight = 25;
+          const logoX = (doc.internal.pageSize.width - logoWidth) / 2; // Tengah horizontal
+          const logoY = yPos;
+
+          doc.addImage(
+            logoDataUrl,
+            "PNG",
+            logoX,
+            logoY,
+            logoWidth,
+            logoHeight,
+            undefined,
+            "FAST",
+            0
+          );
+        } catch (logoError) {
+          console.error("Error adding logo to PDF:", logoError);
+          // Fallback: tambahkan simbol atau text sebagai logo
+          doc.setFontSize(24);
+          doc.setFont("times", "bold");
+          doc.text("UMJ", 105, yPos + 20, { align: "center" });
+        }
+      } else {
+        // Fallback jika logo tidak berhasil load
+        doc.setFontSize(24);
+        doc.setFont("times", "bold");
+        doc.text("UMJ", 105, yPos + 20, { align: "center" });
+      }
+
+      yPos += 35; // Mengurangi jarak antara logo dan teks
+
+      doc.setFontSize(18);
+      doc.setFont("times", "bold");
+      yPos = addText("UNIVERSITAS MUHAMMADIYAH JAKARTA", 105, yPos, {
+        align: "center",
+      });
+      yPos += 10;
+
+      doc.setFontSize(14);
+      doc.setFont("times", "normal");
+      yPos = addText("Fakultas Kedokteran", 105, yPos, { align: "center" });
+      yPos = addText("Program Studi Kedokteran", 105, yPos + 7, {
+        align: "center",
+      });
+      yPos += 5;
+
+      doc.setFontSize(11);
+      yPos = addText(
+        "Jl. KH. Ahmad Dahlan, Cirendeu, Ciputat, Tangerang Selatan",
+        105,
+        yPos + 5,
+        { align: "center" }
+      );
+      yPos = addText(
+        "Telp. (021) 742-3740 - Fax. (021) 742-3740",
+        105,
+        yPos + 5,
+        { align: "center" }
+      );
+      yPos += 15;
+
+      doc.line(margin, yPos, doc.internal.pageSize.width - margin, yPos);
+      yPos += 10;
+
+      // JUDUL DOKUMEN
+      doc.setFontSize(16);
+      doc.setFont("times", "bold");
+      yPos = addText("LAPORAN KEHADIRAN MAHASISWA", 105, yPos, { align: "center" });
+      yPos += 10;
+
+      doc.setFontSize(12);
+      doc.setFont("times", "normal");
+      yPos = addText(`No: 6/UMJ-FK/8/2025`, 105, yPos, { align: "center" });
+      yPos += 15;
+
+      // INFORMASI PENERBIT
+      yPos = addText("Saya yang bertanda tangan di bawah ini:", margin, yPos);
+      yPos += 8;
+      yPos = addText("Nama    : Kepala Program Studi Kedokteran", margin, yPos);
+      yPos += 8;
+      yPos = addText("Jabatan : Kepala Program Studi", margin, yPos);
+      yPos += 8;
+      yPos = addText(
+        "Alamat  : Jl. KH. Ahmad Dahlan, Cirendeu, Ciputat, Tangerang Selatan",
+        margin,
+        yPos
+      );
+      yPos += 15;
+
+      // INFORMASI MAHASISWA
+      yPos = addText("Dengan ini menerangkan bahwa :", margin, yPos);
+      yPos += 10;
+      yPos = addText(`Nama         : ${mahasiswaData.nama}`, margin, yPos);
+      yPos += 8;
+      yPos = addText(`NID          : ${mahasiswaData.nid}`, margin, yPos);
+      yPos += 8;
+      yPos = addText(`Semester     : ${mahasiswaData.semester}`, margin, yPos);
+      yPos += 8;
+      yPos = addText(`Kelompok     : ${mahasiswaData.kelompok_kecil}`, margin, yPos);
+      yPos += 8;
+      yPos = addText(`Email        : ${mahasiswaData.email}`, margin, yPos);
+      yPos += 8;
+      yPos = addText(`Telepon      : ${mahasiswaData.telp}`, margin, yPos);
+      yPos += 15;
+
+      // TANGGAL DINAMIS
+      const jadwalDates = filteredKehadiran
+        .map((j) => new Date(j.tanggal))
+        .sort((a, b) => a.getTime() - b.getTime());
+      const tanggalMulai = jadwalDates.length > 0 ? jadwalDates[0] : new Date();
+      const tanggalAkhir =
+        jadwalDates.length > 0
+          ? jadwalDates[jadwalDates.length - 1]
+          : new Date();
+
+      yPos = addText(
+        `Periode Laporan: ${tanggalMulai.toLocaleDateString("id-ID")} - ${tanggalAkhir.toLocaleDateString("id-ID")}`,
+        margin,
+        yPos
+      );
+      yPos += 15;
+
+      // STATISTIK KEHADIRAN
+      doc.setFontSize(14);
+      doc.setFont("times", "bold");
+      yPos = addText("STATISTIK KEHADIRAN", margin, yPos);
+      yPos += 10;
+
+      doc.setFontSize(12);
+      doc.setFont("times", "normal");
+      yPos = addText(`Total Kehadiran     : ${mahasiswaData.total_kehadiran} kali`, margin, yPos);
+      yPos += 8;
+      yPos = addText(`Total Tidak Hadir   : ${mahasiswaData.total_absensi} kali`, margin, yPos);
+      yPos += 8;
+      yPos = addText(`Total Menunggu      : ${mahasiswaData.total_waiting} kali`, margin, yPos);
+      yPos += 8;
+      yPos = addText(`Persentase Kehadiran: ${mahasiswaData.persentase_kehadiran.toFixed(1)}%`, margin, yPos);
+      yPos += 8;
+      yPos = addText(`Status Kehadiran    : ${mahasiswaData.status_kehadiran}`, margin, yPos);
+      yPos += 15;
+
+      // PERNYATAAN
+      const pernyataan = [
+        "Bahwa mahasiswa tersebut adalah mahasiswa aktif di Universitas Muhammadiyah Jakarta,",
+        "Fakultas Kedokteran, Program Studi Kedokteran.",
+        "",
+        "Bahwa berdasarkan data kehadiran yang tercatat dalam sistem akademik,",
+        `mahasiswa tersebut memiliki tingkat kehadiran sebesar ${mahasiswaData.persentase_kehadiran.toFixed(1)}%`,
+        `dengan status kehadiran "${mahasiswaData.status_kehadiran}".`,
+        "",
+        "Bahwa Surat Keterangan ini dibuat untuk keperluan referensi akademik atau",
+        "untuk dipergunakan sebagaimana mestinya.",
+      ];
+
+      pernyataan.forEach((line) => {
+        if (line) yPos = addText(line, margin, yPos);
+        yPos += 5;
+      });
+
+      // --- HALAMAN 2: DETAIL KEHADIRAN ---
+      addNewPage();
+
+      doc.setFontSize(14);
+      doc.setFont("times", "bold");
+      yPos = addText("DETAIL KEHADIRAN", 105, yPos, {
+        align: "center",
+      });
+      yPos += 15;
+
+      // Tabel detail kehadiran
+      doc.setFontSize(10);
+      doc.setFont("times", "bold");
+      
+      // Header tabel
+      const pageWidth = doc.internal.pageSize.width;
+      const availableWidth = pageWidth - margin * 2;
+      
+      // Sesuaikan posisi kolom dengan distribusi yang lebih proporsional
+      const colTanggal = margin;
+      const colMataKuliah = margin + availableWidth * 0.15;
+      const colJenis = margin + availableWidth * 0.3;
+      const colStatus = margin + availableWidth * 0.45;
+      const colWaktu = margin + availableWidth * 0.6;
+      const colRuangan = margin + availableWidth * 0.75;
+      const colDosen = margin + availableWidth * 0.9;
+
+      // Header
+      doc.text("Tanggal", colTanggal, yPos);
+      doc.text("Mata Kuliah", colMataKuliah, yPos);
+      doc.text("Jenis", colJenis, yPos);
+      doc.text("Status", colStatus, yPos);
+      doc.text("Waktu", colWaktu, yPos);
+      doc.text("Ruangan", colRuangan, yPos);
+      doc.text("Dosen", colDosen, yPos);
+      yPos += 6;
+
+      // Garis bawah header - menggunakan margin yang sama dengan section lain
+      doc.line(margin, yPos, pageWidth - margin, yPos);
+      yPos += 6;
+
+      // Data tabel
+      doc.setFont("times", "normal");
+      filteredKehadiran.forEach((kehadiran) => {
+        if (yPos > maxPageHeight - 20) {
+          addNewPage();
+          yPos = margin + 20;
+        }
+
+        const tanggal = new Date(kehadiran.tanggal).toLocaleDateString("id-ID");
+        const mataKuliah = kehadiran.mata_kuliah.length > 15 
+          ? kehadiran.mata_kuliah.substring(0, 15) + "..."
+          : kehadiran.mata_kuliah;
+        const jenis = kehadiran.jenis_jadwal.length > 8
+          ? kehadiran.jenis_jadwal.substring(0, 8) + "..."
+          : kehadiran.jenis_jadwal;
+        const status = kehadiran.status;
+        const waktu = `${kehadiran.jam_mulai} - ${kehadiran.jam_selesai}`;
+        const ruangan = kehadiran.ruangan.length > 10
+          ? kehadiran.ruangan.substring(0, 10) + "..."
+          : kehadiran.ruangan;
+        const dosen = kehadiran.dosen.length > 12
+          ? kehadiran.dosen.substring(0, 12) + "..."
+          : kehadiran.dosen;
+
+        doc.text(tanggal, colTanggal, yPos);
+        doc.text(mataKuliah, colMataKuliah, yPos);
+        doc.text(jenis, colJenis, yPos);
+        doc.text(status, colStatus, yPos);
+        doc.text(waktu, colWaktu, yPos);
+        doc.text(ruangan, colRuangan, yPos);
+        doc.text(dosen, colDosen, yPos);
+
+        yPos += 6;
+      });
+
+      // Footer halaman
+      const totalPages = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setFont("times", "normal");
+        doc.text(
+          `Halaman ${i} dari ${totalPages}`,
+          105,
+          doc.internal.pageSize.height - 15,
+          { align: "center" }
+        );
+        doc.text(
+          `Dicetak pada: ${new Date().toLocaleDateString(
+            "id-ID"
+          )} ${new Date().toLocaleTimeString("id-ID")}`,
+          105,
+          doc.internal.pageSize.height - 10,
+          { align: "center" }
+        );
+      }
+
+      // Bagian tanda tangan
+      yPos += 25;
+
+      // Posisi tanda tangan
+      const signYStart = yPos;
+
+      // Tanggal di kanan
+      doc.setFontSize(11);
+      doc.setFont("times", "normal");
+      doc.text(
+        `Jakarta, ${new Date().toLocaleDateString("id-ID", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        })}`,
+        doc.internal.pageSize.width - margin,
+        signYStart - 10,
+        { align: "right" }
+      );
+
+      // Jabatan
+      doc.setFontSize(11);
+      doc.setFont("times", "bold");
+      doc.text(
+        "Ketua Program Studi",
+        doc.internal.pageSize.width - margin,
+        signYStart - 5,
+        { align: "right" }
+      );
+
+      // Garis tanda tangan
+      doc.setFont("times", "normal");
+      doc.text(
+        "(_________________________)",
+        doc.internal.pageSize.width - margin + 7,
+        signYStart + 25,
+        { align: "right" }
+      );
+
+      // Simpan PDF
+      const fileName = `Laporan_Kehadiran_${mahasiswaData.nama.replace(
+        /\s+/g,
+        "_"
+      )}_${new Date().toISOString().split("T")[0]}.pdf`;
+      doc.save(fileName);
+    } catch (error) {
+      console.error("Error saat export PDF:", error);
+      // Tidak menampilkan alert, hanya log error
+    }
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-            <p className="text-gray-600 dark:text-gray-400">
-              Memuat data keabsenan mahasiswa...
-            </p>
+          {/* Header Skeleton */}
+          <div className="mb-8">
+            <div className="h-6 w-32 bg-gray-300 dark:bg-gray-600 rounded mb-4 animate-pulse"></div>
+            <div className="h-10 w-80 bg-gray-300 dark:bg-gray-600 rounded mb-2 animate-pulse"></div>
+            <div className="h-4 w-96 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+          </div>
+
+          {/* Informasi Mahasiswa Skeleton */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-16 h-16 bg-gray-300 dark:bg-gray-600 rounded-2xl animate-pulse"></div>
+              <div>
+                <div className="h-8 w-64 bg-gray-300 dark:bg-gray-600 rounded mb-2 animate-pulse"></div>
+                <div className="h-4 w-48 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <div className="h-4 w-20 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                  <div className="h-5 w-32 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          {/* Statistik Kehadiran Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse"></div>
+                  <div>
+                    <div className="h-4 w-16 bg-gray-300 dark:bg-gray-600 rounded mb-2 animate-pulse"></div>
+                    <div className="h-8 w-12 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Status Kehadiran Skeleton */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="h-6 w-40 bg-gray-300 dark:bg-gray-600 rounded mb-2 animate-pulse"></div>
+                <div className="h-4 w-64 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+              </div>
+              <div className="h-8 w-20 bg-gray-300 dark:bg-gray-600 rounded-full animate-pulse"></div>
+            </div>
+          </div>
+
+          {/* Filter dan Search Skeleton */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
+            <div className="flex flex-col lg:flex-row gap-4">
+              <div className="flex-1">
+                  <div className="h-12 w-full bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse"></div>
+                </div>
+              <div className="flex gap-4">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="h-12 w-32 bg-gray-300 dark:bg-gray-600 rounded-xl animate-pulse"></div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Detail Kehadiran Table Skeleton */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <div className="h-6 w-32 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                <div className="h-10 w-24 bg-gray-300 dark:bg-gray-600 rounded-lg animate-pulse"></div>
+                </div>
+              </div>
+            <div className="overflow-x-auto hide-scrollbar" style={{
+              scrollbarWidth: 'none', /* Firefox */
+              msOverflowStyle: 'none', /* Internet Explorer 10+ */
+            }}>
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    {Array.from({ length: 9 }).map((_, i) => (
+                      <th key={i} className="px-6 py-3">
+                        <div className="h-3 w-20 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <tr key={index}>
+                      {Array.from({ length: 9 }).map((_, i) => (
+                        <td key={i} className="px-6 py-4">
+                          <div className="h-4 w-24 bg-gray-300 dark:bg-gray-600 rounded animate-pulse"></div>
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -297,175 +769,164 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
   }
 
   return (
+    <>
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+          }
+        `
+      }} />
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
-          <button
-            onClick={() => window.history.back()}
+        <div className="mb-8">
+              <button
+                onClick={() => window.history.back()}
             className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition mb-4"
-          >
-            <FontAwesomeIcon icon={faArrowLeft} className="w-4 h-4" />
-            Kembali
-          </button>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            Detail Keabsenan Mahasiswa
-          </h1>
+              >
+                <FontAwesomeIcon icon={faArrowLeft} className="w-4 h-4" />
+                Kembali
+              </button>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              Detail Keabsenan Mahasiswa
+            </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Rekapitulasi dan detail kehadiran mahasiswa dalam kegiatan akademik
-          </p>
-        </motion.div>
+              Rekapitulasi dan detail kehadiran mahasiswa dalam kegiatan akademik
+            </p>
+        </div>
 
         {/* Informasi Mahasiswa */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 mb-8"
-        >
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
           <div className="flex items-center gap-4 mb-6">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center">
+            <div className="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center">
               <FontAwesomeIcon icon={faUser} className="w-8 h-8 text-white" />
-            </div>
+              </div>
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                {mahasiswaData.nama}
-              </h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  {mahasiswaData.nama}
+                </h2>
               <p className="text-gray-600 dark:text-gray-400">
                 {mahasiswaData.nid} • Semester {mahasiswaData.semester}
               </p>
             </div>
           </div>
-
+          
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="space-y-2">
               <p className="text-sm text-gray-500 dark:text-gray-400">Email</p>
               <p className="text-gray-900 dark:text-white font-medium">
-                {mahasiswaData.email}
-              </p>
-            </div>
+                  {mahasiswaData.email}
+                </p>
+              </div>
             <div className="space-y-2">
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Telepon
               </p>
               <p className="text-gray-900 dark:text-white font-medium">
-                {mahasiswaData.telp}
-              </p>
-            </div>
+                  {mahasiswaData.telp}
+                </p>
+              </div>
             <div className="space-y-2">
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Kelompok Kecil
               </p>
               <p className="text-gray-900 dark:text-white font-medium">
-                {mahasiswaData.kelompok_kecil || "-"}
-              </p>
-            </div>
+                  {mahasiswaData.kelompok_kecil || "-"}
+                </p>
+              </div>
             <div className="space-y-2">
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Kelompok Besar
               </p>
               <p className="text-gray-900 dark:text-white font-medium">
-                Semester {mahasiswaData.semester}
-              </p>
+                  Semester {mahasiswaData.semester}
+                </p>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Statistik Kehadiran */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
-        >
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-green-100 dark:bg-green-900/20 rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
                 <FontAwesomeIcon
                   icon={faCheckCircle}
-                  className="w-6 h-6 text-green-600 dark:text-green-400"
+                  className="w-6 h-6 text-white"
                 />
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Hadir
                 </p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                <p className="text-xl font-bold text-gray-900 dark:text-white">
                   {mahasiswaData.total_kehadiran}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-red-500 rounded-xl flex items-center justify-center">
                 <FontAwesomeIcon
                   icon={faTimesCircle}
-                  className="w-6 h-6 text-red-600 dark:text-red-400"
+                  className="w-6 h-6 text-white"
                 />
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Tidak Hadir
                 </p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                <p className="text-xl font-bold text-gray-900 dark:text-white">
                   {mahasiswaData.total_absensi}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gray-100 dark:bg-gray-900/20 rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-gray-500 rounded-xl flex items-center justify-center">
                 <FontAwesomeIcon
                   icon={faClock}
-                  className="w-6 h-6 text-gray-600 dark:text-gray-400"
+                  className="w-6 h-6 text-white"
                 />
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Menunggu
                 </p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                <p className="text-xl font-bold text-gray-900 dark:text-white">
                   {mahasiswaData.total_waiting}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-xl flex items-center justify-center">
+              <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
                 <FontAwesomeIcon
                   icon={faChartBar}
-                  className="w-6 h-6 text-blue-600 dark:text-blue-400"
+                  className="w-6 h-6 text-white"
                 />
               </div>
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Persentase
                 </p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                <p className="text-xl font-bold text-gray-900 dark:text-white">
                   {mahasiswaData.persentase_kehadiran.toFixed(1)}%
                 </p>
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
 
-        {/* Status Kehadiran */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 mb-8"
-        >
+          {/* Status Kehadiran */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
@@ -475,23 +936,18 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
                 Evaluasi keseluruhan kehadiran mahasiswa
               </p>
             </div>
-            <span
+                <span
               className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-medium ${getStatusKehadiranColor(
-                mahasiswaData.status_kehadiran
-              )}`}
-            >
-              {getStatusKehadiranLabel(mahasiswaData.status_kehadiran)}
-            </span>
+                    mahasiswaData.status_kehadiran
+                  )}`}
+                >
+                  {getStatusKehadiranLabel(mahasiswaData.status_kehadiran)}
+                </span>
+            </div>
           </div>
-        </motion.div>
 
-        {/* Filter dan Search */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 mb-8"
-        >
+          {/* Filter dan Search */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
@@ -511,75 +967,76 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
               </div>
             </div>
             <div className="flex gap-4">
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                >
+                  <option value="all">Semua Status</option>
+                  <option value="hadir">Hadir</option>
+                  <option value="tidak_hadir">Tidak Hadir</option>
+                  <option value="waiting">Menunggu</option>
+                </select>
+                <select
+                  value={filterJenis}
+                  onChange={(e) => setFilterJenis(e.target.value)}
+                  className="px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                >
+                  <option value="all">Semua Jenis</option>
+                  <option value="kuliah_besar">Kuliah Besar</option>
+                  <option value="praktikum">Praktikum</option>
+                  <option value="jurnal_reading">Jurnal Reading</option>
+                  <option value="pbl">PBL</option>
+                  <option value="csr">CSR</option>
+                </select>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
                 className="px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              >
-                <option value="all">Semua Status</option>
-                <option value="hadir">Hadir</option>
-                <option value="tidak_hadir">Tidak Hadir</option>
-                <option value="waiting">Menunggu</option>
-              </select>
-              <select
-                value={filterJenis}
-                onChange={(e) => setFilterJenis(e.target.value)}
-                className="px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              >
-                <option value="all">Semua Jenis</option>
-                <option value="kuliah_besar">Kuliah Besar</option>
-                <option value="praktikum">Praktikum</option>
-                <option value="jurnal_reading">Jurnal Reading</option>
-                <option value="pbl">PBL</option>
-                <option value="csr">CSR</option>
-              </select>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              >
-                <option value="tanggal">Urutkan berdasarkan Tanggal</option>
+                >
+                  <option value="tanggal">Urutkan berdasarkan Tanggal</option>
                 <option value="mata_kuliah">
                   Urutkan berdasarkan Mata Kuliah
                 </option>
-                <option value="status">Urutkan berdasarkan Status</option>
-                <option value="jenis_jadwal">Urutkan berdasarkan Jenis</option>
-              </select>
-              <button
-                onClick={() =>
-                  setSortOrder(sortOrder === "asc" ? "desc" : "asc")
-                }
-                className="p-3 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                <FontAwesomeIcon icon={faSort} className="w-5 h-5" />
-              </button>
+                  <option value="status">Urutkan berdasarkan Status</option>
+                  <option value="jenis_jadwal">Urutkan berdasarkan Jenis</option>
+                </select>
+                <button
+                  onClick={() =>
+                    setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                  }
+                  className="p-3 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  <FontAwesomeIcon icon={faSort} className="w-5 h-5" />
+                </button>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Detail Kehadiran */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
-        >
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Detail Kehadiran
-              </h3>
+                  Detail Kehadiran
+                </h3>
               <button
                 onClick={exportPDF}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                className="inline-flex text-sm items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors shadow-sm"
               >
-                <FontAwesomeIcon icon={faDownload} className="w-4 h-4" />
+                <FontAwesomeIcon icon={faDownload} className="w-3 h-3" />
                 Export PDF
               </button>
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div 
+            className="overflow-x-auto hide-scrollbar"
+            style={{
+              scrollbarWidth: 'none', /* Firefox */
+              msOverflowStyle: 'none', /* Internet Explorer 10+ */
+            }}
+          >
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
@@ -623,13 +1080,13 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
                     }`}
                   >
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {formatDate(item.tanggal)}
+                        {formatDate(item.tanggal)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {item.mata_kuliah}
+                        {item.mata_kuliah}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                      {item.jenis_detail || "-"}
+                        {item.jenis_detail || "-"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
@@ -646,12 +1103,12 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
                           icon={getStatusIcon(item.status)}
                           className={`w-4 h-4 ${
                             item.status === "hadir"
-                              ? "text-green-500"
+                              ? "text-white"
                               : item.status === "tidak_hadir"
-                              ? "text-red-500"
+                              ? "text-white"
                               : item.status === "waiting"
-                              ? "text-gray-500"
-                              : "text-gray-500"
+                              ? "text-white"
+                              : "text-white"
                           }`}
                         />
                         <span
@@ -670,16 +1127,16 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {item.jam_mulai} - {item.jam_selesai}
+                        {item.jam_mulai} - {item.jam_selesai}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {item.ruangan}
+                        {item.ruangan}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {item.dosen}
+                        {item.dosen}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {item.alasan || "-"}
+                        {item.alasan || "-"}
                     </td>
                   </tr>
                 ))}
@@ -689,8 +1146,8 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
 
           {filteredKehadiran.length === 0 && (
             <div className="text-center py-12">
-              <FontAwesomeIcon
-                icon={faCalendarAlt}
+                <FontAwesomeIcon
+                  icon={faCalendarAlt}
                 className="w-12 h-12 text-gray-400 mx-auto mb-4"
               />
               <p className="text-gray-500 dark:text-gray-400">
@@ -698,15 +1155,10 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
               </p>
             </div>
           )}
-        </motion.div>
+        </div>
 
         {/* Summary */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="mt-8 text-center"
-        >
+        <div className="mt-8 text-center">
           <p className="text-gray-600 dark:text-gray-400">
             Menampilkan{" "}
             <span className="font-semibold text-gray-900 dark:text-white">
@@ -718,9 +1170,10 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
             </span>{" "}
             data kehadiran
           </p>
-        </motion.div>
+        </div>
       </div>
     </div>
+    </>
   );
 };
 
