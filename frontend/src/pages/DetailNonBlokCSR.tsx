@@ -13,16 +13,12 @@ import * as XLSX from 'xlsx';
 const SESSION_DURATION_MINUTES = 50;
 const CSR_REGULER_SESSIONS = 3;
 const CSR_RESPONSI_SESSIONS = 2;
-const MAX_SESSIONS = 6;
-const MIN_SESSIONS = 1;
 const TEMPLATE_DISPLAY_LIMIT = 10;
 const DEFAULT_PAGE_SIZE = 10;
 const EXCEL_COLUMN_WIDTHS = {
   TANGGAL: 12,
   JAM_MULAI: 10,
-  JAM_SELESAI: 10,
   JENIS_CSR: 12,
-  SESI: 8,
   KELOMPOK_KECIL: 15,
   TOPIK: 35,
   KEAHLIAN: 15,
@@ -276,8 +272,6 @@ export default function DetailNonBlokCSR() {
           'Jenis CSR': 'reguler',
           'Tanggal': contohTanggal1,
           'Jam Mulai': '07.20',
-          'Sesi': '3',
-          'Jam Selesai': '10.50',
           'Kelompok Kecil': kelompokKecilTersedia[0]?.nama_kelompok || '1',
           'Topik': 'Pemeriksaan Fisik Sistem Kardiovaskular',
           'Keahlian': keahlianTersedia[0] || 'Kardiologi',
@@ -288,8 +282,6 @@ export default function DetailNonBlokCSR() {
           'Jenis CSR': 'responsi',
           'Tanggal': contohTanggal2,
           'Jam Mulai': '08.10',
-          'Sesi': '2',
-          'Jam Selesai': '10.10',
           'Kelompok Kecil': kelompokKecilTersedia[1]?.nama_kelompok || '2',
           'Topik': 'Interpretasi EKG',
           'Keahlian': keahlianTersedia[1] || keahlianTersedia[0] || 'Kardiologi',
@@ -303,16 +295,14 @@ export default function DetailNonBlokCSR() {
       
       // Sheet 1: Template CSR dengan header yang eksplisit
       const ws = XLSX.utils.json_to_sheet(templateData, {
-        header: ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Jenis CSR', 'Sesi', 'Kelompok Kecil', 'Topik', 'Keahlian', 'Dosen', 'Ruangan']
+        header: ['Tanggal', 'Jam Mulai', 'Jenis CSR', 'Kelompok Kecil', 'Topik', 'Keahlian', 'Dosen', 'Ruangan']
       });
       
       // Set lebar kolom
       const colWidths = [
         { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
         { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
-        { wch: EXCEL_COLUMN_WIDTHS.JAM_SELESAI },
         { wch: EXCEL_COLUMN_WIDTHS.JENIS_CSR },
-        { wch: EXCEL_COLUMN_WIDTHS.SESI },
         { wch: EXCEL_COLUMN_WIDTHS.KELOMPOK_KECIL },
         { wch: EXCEL_COLUMN_WIDTHS.TOPIK },
         { wch: EXCEL_COLUMN_WIDTHS.KEAHLIAN },
@@ -374,19 +364,17 @@ export default function DetailNonBlokCSR() {
         ['⏰ VALIDASI JAM:'],
         ['• Format: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
         ['• Jam mulai harus sesuai opsi yang tersedia'],
-        ['• Jam selesai akan divalidasi berdasarkan perhitungan:'],
-        ['  Jam selesai = Jam mulai + (Jumlah sesi x 50 menit)'],
-        ['  Contoh: 07:20 + (2 x 50 menit) = 09:00'],
+        ['• Jam selesai akan dihitung otomatis berdasarkan jenis CSR:'],
+        ['  - CSR Reguler: Jam mulai + (3 x 50 menit)'],
+        ['  - CSR Responsi: Jam mulai + (2 x 50 menit)'],
+        ['  Contoh: 07:20 + (3 x 50 menit) = 09:50 (reguler)'],
+        ['  Contoh: 07:20 + (2 x 50 menit) = 09:00 (responsi)'],
         [''],
         ['📝 VALIDASI JENIS CSR:'],
         ['• Jenis CSR: "reguler" atau "responsi"'],
         [`• CSR Reguler = ${CSR_REGULER_SESSIONS} sesi (${CSR_REGULER_SESSIONS * SESSION_DURATION_MINUTES} menit)`],
         [`• CSR Responsi = ${CSR_RESPONSI_SESSIONS} sesi (${CSR_RESPONSI_SESSIONS * SESSION_DURATION_MINUTES} menit)`],
-        [''],
-        ['🔢 VALIDASI SESI:'],
-        [`• Jumlah sesi: ${CSR_REGULER_SESSIONS} untuk reguler, ${CSR_RESPONSI_SESSIONS} untuk responsi`],
-        ['• Digunakan untuk menghitung jam selesai'],
-        ['• 1 sesi = 50 menit'],
+        ['• Jam selesai dihitung otomatis berdasarkan jenis CSR'],
         [''],
         ['👥 VALIDASI KELOMPOK KECIL:'],
         ['• Kelompok kecil wajib diisi'],
@@ -425,6 +413,32 @@ export default function DetailNonBlokCSR() {
     } catch (error) {
       // Error generating template
     }
+  };
+
+  // Helper function untuk konversi format waktu
+  const convertTimeFormat = (timeStr: string) => {
+    if (!timeStr || timeStr.trim() === '') return '';
+    
+    // Hapus spasi dan konversi ke string
+    const time = timeStr.toString().trim();
+    
+    // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
+    if (time.match(/^\d{2}[:.]\d{2}$/)) {
+      return time.replace('.', ':');
+    }
+    
+    // Cek apakah format H:MM atau H.MM (1 digit jam)
+    if (time.match(/^\d{1}[:.]\d{2}$/)) {
+      return '0' + time.replace('.', ':');
+    }
+    
+    // Cek apakah format HH:MM atau HH.MM (2 digit jam)
+    if (time.match(/^\d{2}[:.]\d{2}$/)) {
+      return time.replace('.', ':');
+    }
+    
+    // Jika tidak sesuai format, return as is
+    return time;
   };
 
   // Fungsi untuk membaca file Excel CSR
@@ -488,9 +502,9 @@ export default function DetailNonBlokCSR() {
       // Cek format header berdasarkan format yang dideteksi
       let expectedHeaders: string[];
       if (format === 'export') {
-        expectedHeaders = ['No', 'Tanggal', 'Jam Mulai', 'Jam Selesai', 'Jenis CSR', 'Sesi', 'Kelompok Kecil', 'Topik', 'Keahlian', 'Dosen', 'Ruangan'];
+        expectedHeaders = ['No', 'Tanggal', 'Jam Mulai', 'Jenis CSR', 'Kelompok Kecil', 'Topik', 'Keahlian', 'Dosen', 'Ruangan'];
       } else {
-        expectedHeaders = ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Jenis CSR', 'Sesi', 'Kelompok Kecil', 'Topik', 'Keahlian', 'Dosen', 'Ruangan'];
+        expectedHeaders = ['Tanggal', 'Jam Mulai', 'Jenis CSR', 'Kelompok Kecil', 'Topik', 'Keahlian', 'Dosen', 'Ruangan'];
       }
       
       const headerMatch = expectedHeaders.every(header => headers.includes(header));
@@ -503,34 +517,30 @@ export default function DetailNonBlokCSR() {
 
       // Konversi data Excel ke format yang diinginkan berdasarkan format yang dideteksi
       const convertedData: JadwalCSRType[] = excelData.map((row: any[], index: number) => {
-        let tanggal, jamMulai, jamSelesai, jenisCSR, jumlahSesi, kelompokKecilNama, topik, keahlianNama, dosenNama, ruanganNama;
+        let tanggal, jamMulai, jenisCSR, kelompokKecilNama, topik, keahlianNama, dosenNama, ruanganNama;
         
         if (format === 'export') {
-          // Format export: No, Tanggal, Jam Mulai, Jam Selesai, Jenis CSR, Sesi, Kelompok Kecil, Topik, Keahlian, Dosen, Ruangan
+          // Format export: No, Tanggal, Jam Mulai, Jenis CSR, Kelompok Kecil, Topik, Keahlian, Dosen, Ruangan
           tanggal = row[1]?.toString();
           jamMulai = row[2]?.toString();
-          jamSelesai = row[3]?.toString();
           // Handle jenis CSR dari export yang mungkin "CSR Reguler" atau "CSR Responsi"
-          const jenisCSRExport = row[4]?.toString().toLowerCase();
+          const jenisCSRExport = row[3]?.toString().toLowerCase();
           jenisCSR = jenisCSRExport?.includes('reguler') ? 'reguler' : jenisCSRExport?.includes('responsi') ? 'responsi' : jenisCSRExport;
-          jumlahSesi = parseInt(row[5]?.toString() || '0');
-          kelompokKecilNama = row[6]?.toString();
-          topik = row[7]?.toString();
-          keahlianNama = row[8]?.toString();
-          dosenNama = row[9]?.toString();
-          ruanganNama = row[10]?.toString();
+          kelompokKecilNama = row[4]?.toString();
+          topik = row[5]?.toString();
+          keahlianNama = row[6]?.toString();
+          dosenNama = row[7]?.toString();
+          ruanganNama = row[8]?.toString();
         } else {
-          // Format template: Tanggal, Jam Mulai, Jam Selesai, Jenis CSR, Sesi, Kelompok Kecil, Topik, Keahlian, Dosen, Ruangan
+          // Format template: Tanggal, Jam Mulai, Jenis CSR, Kelompok Kecil, Topik, Keahlian, Dosen, Ruangan
           tanggal = row[0]?.toString();
           jamMulai = row[1]?.toString();
-          jamSelesai = row[2]?.toString();
-          jenisCSR = row[3]?.toString().toLowerCase();
-          jumlahSesi = parseInt(row[4]?.toString() || '0');
-          kelompokKecilNama = row[5]?.toString();
-          topik = row[6]?.toString();
-          keahlianNama = row[7]?.toString();
-          dosenNama = row[8]?.toString();
-          ruanganNama = row[9]?.toString();
+          jenisCSR = row[2]?.toString().toLowerCase();
+          kelompokKecilNama = row[3]?.toString();
+          topik = row[4]?.toString();
+          keahlianNama = row[5]?.toString();
+          dosenNama = row[6]?.toString();
+          ruanganNama = row[7]?.toString();
         }
 
 
@@ -542,6 +552,8 @@ export default function DetailNonBlokCSR() {
           if (jamMulai === '00.00' || jamMulai === '00:00' || jamMulai === '0' || jamMulai === '0.00') {
             jamMulai = '';
           } else {
+            // Konversi format waktu dengan leading zero
+            jamMulai = convertTimeFormat(jamMulai);
             // Normalize format jam (pastikan menggunakan format HH.MM)
             if (jamMulai.includes(':')) {
               jamMulai = jamMulai.replace(':', '.');
@@ -555,25 +567,9 @@ export default function DetailNonBlokCSR() {
           jamMulai = '';
         }
 
-        if (jamSelesai) {
-          // Bersihkan data jam dari karakter yang tidak diinginkan
-          jamSelesai = jamSelesai.toString().trim();
-          // Handle jam yang tidak valid (00.00 atau kosong)
-          if (jamSelesai === '00.00' || jamSelesai === '00:00' || jamSelesai === '0' || jamSelesai === '0.00') {
-            jamSelesai = '';
-          } else {
-            // Normalize format jam (pastikan menggunakan format HH.MM)
-            if (jamSelesai.includes(':')) {
-              jamSelesai = jamSelesai.replace(':', '.');
-            }
-            // Pastikan format jam valid (HH.MM)
-            if (!/^\d{1,2}\.\d{2}$/.test(jamSelesai)) {
-              jamSelesai = '';
-            }
-          }
-        } else {
-          jamSelesai = '';
-        }
+        // Hitung jam selesai otomatis berdasarkan jenis CSR
+        const jumlahSesi = jenisCSR === 'reguler' ? CSR_REGULER_SESSIONS : CSR_RESPONSI_SESSIONS;
+        const jamSelesai = hitungJamSelesai(jamMulai || '08:00', jumlahSesi);
 
 
         // Cari ID berdasarkan nama
@@ -586,7 +582,7 @@ export default function DetailNonBlokCSR() {
           jenis_csr: jenisCSR as 'reguler' | 'responsi',
           tanggal: tanggal || '',
           jam_mulai: jamMulai || '',
-          jam_selesai: jamSelesai || '',
+          jam_selesai: jamSelesai,
           jumlah_sesi: jumlahSesi,
           kelompok_kecil_id: kelompokKecil?.id || 0,
           topik: topik || '',
@@ -690,49 +686,9 @@ export default function DetailNonBlokCSR() {
         errors.push({ row: rowNumber, field: 'jam_mulai', message: jamMulaiError });
       }
 
-      // Validasi sesi
-      if (!row.jumlah_sesi) {
-        errors.push({ row: rowNumber, field: 'jumlah_sesi', message: `Sesi wajib diisi (Baris ${rowNumber}, Kolom SESI)` });
-      } else {
-        const sesi = parseInt(row.jumlah_sesi.toString());
-        if (isNaN(sesi) || sesi < MIN_SESSIONS || sesi > MAX_SESSIONS) {
-          errors.push({ row: rowNumber, field: 'jumlah_sesi', message: `Sesi harus antara ${MIN_SESSIONS}-${MAX_SESSIONS} (Baris ${rowNumber}, Kolom SESI)` });
-        } else {
-          // Validasi sesi sesuai jenis CSR
-          if (row.jenis_csr === 'reguler' && sesi !== CSR_REGULER_SESSIONS) {
-            errors.push({ row: rowNumber, field: 'jumlah_sesi', message: `CSR Reguler harus ${CSR_REGULER_SESSIONS} sesi (Baris ${rowNumber}, Kolom SESI)` });
-          } else if (row.jenis_csr === 'responsi' && sesi !== CSR_RESPONSI_SESSIONS) {
-            errors.push({ row: rowNumber, field: 'jumlah_sesi', message: `CSR Responsi harus ${CSR_RESPONSI_SESSIONS} sesi (Baris ${rowNumber}, Kolom SESI)` });
-          }
-        }
-      }
+      // Validasi jumlah sesi berdasarkan jenis CSR (otomatis)
+      const jumlahSesi = row.jenis_csr === 'reguler' ? CSR_REGULER_SESSIONS : CSR_RESPONSI_SESSIONS;
 
-      // Validasi jam selesai jika ada
-      if (row.jam_selesai && row.jam_mulai) {
-        const jamSelesaiInput = row.jam_selesai.toString();
-        
-        const normalizeTimeForComparison = (time: string): string => {
-          if (!time) return time;
-          return time.replace('.', ':');
-        };
-        
-        if (!/^\d{1,2}[.:]\d{2}$/.test(jamSelesaiInput)) {
-          errors.push({ row: rowNumber, field: 'jam_selesai', message: `Format jam selesai harus HH:MM atau HH.MM (Baris ${rowNumber}, Kolom JAM_SELESAI)` });
-        } else {
-          // Hitung jam selesai yang seharusnya berdasarkan sesi
-          let jumlahSesi = row.jumlah_sesi || 1;
-          const jamMulaiForCalculation = normalizeTimeForComparison(row.jam_mulai.toString());
-          const jamSelesaiSeharusnya = hitungJamSelesai(jamMulaiForCalculation, jumlahSesi);
-          
-          // Bandingkan dengan format yang dinormalisasi
-          const normalizedJamSelesai = normalizeTimeForComparison(jamSelesaiInput);
-          const normalizedJamSelesaiSeharusnya = normalizeTimeForComparison(jamSelesaiSeharusnya);
-          
-          if (normalizedJamSelesai !== normalizedJamSelesaiSeharusnya) {
-            errors.push({ row: rowNumber, field: 'jam_selesai', message: `Jam selesai seharusnya ${normalizedJamSelesaiSeharusnya} (${jumlahSesi} x ${SESSION_DURATION_MINUTES} menit dari ${jamMulaiForCalculation}) (Baris ${rowNumber}, Kolom JAM_SELESAI)` });
-          }
-        }
-      }
 
       // Validasi kelompok kecil
       if (!row.kelompok_kecil_id || row.kelompok_kecil_id === 0) {
@@ -799,6 +755,7 @@ export default function DetailNonBlokCSR() {
   const handleCSRSubmitImport = async () => {
     try {
       setIsCSRImporting(true);
+      setCSRImportErrors([]);
       
       // Validasi data terlebih dahulu
       const { cellErrors } = validateCSRExcelData(csrImportData);
@@ -814,7 +771,6 @@ export default function DetailNonBlokCSR() {
         // Normalize jam format - pastikan menggunakan format HH.MM
         let jamMulai = row.jam_mulai;
         let jamSelesai = row.jam_selesai;
-        
         
         if (jamMulai && jamMulai.includes(':')) {
           jamMulai = jamMulai.replace(':', '.');
@@ -844,10 +800,8 @@ export default function DetailNonBlokCSR() {
           ruangan_id: row.ruangan_id
         };
         
-        
         return transformedRow;
       });
-
       
       // Kirim ke backend
       const response = await api.post(`/csr/jadwal/${kode}/import`, {
@@ -866,10 +820,23 @@ export default function DetailNonBlokCSR() {
       } else {
         // Handle error dari response
         setCSRImportErrors([response.data.message || 'Terjadi kesalahan saat mengimport data']);
+        // Tidak import data jika ada error - all or nothing
       }
     } catch (error: any) {
       // Handle error dari API response
-      if (error.response?.data?.message) {
+      if (error.response?.status === 422) {
+        const errorData = error.response.data;
+        if (errorData.errors && Array.isArray(errorData.errors)) {
+          const cellErrors = errorData.errors.map((err: string, idx: number) => ({
+            row: idx + 1,
+            field: 'api',
+            message: err
+          }));
+          setCSRCellErrors(cellErrors);
+        } else {
+          setCSRImportErrors([errorData.message || 'Terjadi kesalahan validasi']);
+        }
+      } else if (error.response?.data?.message) {
         setCSRImportErrors([error.response.data.message]);
       } else {
         setCSRImportErrors([handleApiError(error, 'Mengimport data CSR')]);
@@ -910,13 +877,26 @@ export default function DetailNonBlokCSR() {
 
   // Handler untuk edit cell CSR
   const handleCSREditCell = (rowIndex: number, field: string, value: any) => {
-    setCSRImportData(prev => prev.map((row, index) => 
-      index === rowIndex ? { ...row, [field]: value } : row
-    ));
-    
-    // Re-validate data after edit
     const updatedData = [...csrImportData];
     updatedData[rowIndex] = { ...updatedData[rowIndex], [field]: value };
+    
+    // Jika mengedit jenis_csr atau jam_mulai, hitung ulang jam selesai dan jumlah sesi
+    if (field === 'jenis_csr' || field === 'jam_mulai') {
+      const jenisCSR = field === 'jenis_csr' ? value : updatedData[rowIndex].jenis_csr;
+      const jamMulai = field === 'jam_mulai' ? value : updatedData[rowIndex].jam_mulai;
+      const jumlahSesi = jenisCSR === 'reguler' ? CSR_REGULER_SESSIONS : CSR_RESPONSI_SESSIONS;
+      const jamSelesai = hitungJamSelesai(jamMulai || '08:00', jumlahSesi);
+      
+      updatedData[rowIndex] = {
+        ...updatedData[rowIndex],
+        jam_selesai: jamSelesai,
+        jumlah_sesi: jumlahSesi
+      };
+    }
+    
+    setCSRImportData(updatedData);
+    
+    // Re-validate data after edit
     const { cellErrors } = validateCSRExcelData(updatedData);
     setCSRCellErrors(cellErrors);
   };
@@ -1245,9 +1225,7 @@ export default function DetailNonBlokCSR() {
           'No': index + 1,
           'Tanggal': row.tanggal ? new Date(row.tanggal).toISOString().split('T')[0] : '',
           'Jam Mulai': row.jam_mulai || '',
-          'Jam Selesai': row.jam_selesai || '',
           'Jenis CSR': row.jenis_csr === 'reguler' ? 'reguler' : row.jenis_csr === 'responsi' ? 'responsi' : row.jenis_csr,
-          'Sesi': row.jumlah_sesi,
           'Kelompok Kecil': kelompokKecil?.nama_kelompok || '',
           'Topik': row.topik,
           'Keahlian': kategori?.keahlian_required?.join(', ') || '',
@@ -1261,7 +1239,7 @@ export default function DetailNonBlokCSR() {
       
       // Sheet 1: Data CSR
       const ws = XLSX.utils.json_to_sheet(exportData, {
-        header: ['No', 'Tanggal', 'Jam Mulai', 'Jam Selesai', 'Jenis CSR', 'Sesi', 'Kelompok Kecil', 'Topik', 'Keahlian', 'Dosen', 'Ruangan']
+        header: ['No', 'Tanggal', 'Jam Mulai', 'Jenis CSR', 'Kelompok Kecil', 'Topik', 'Keahlian', 'Dosen', 'Ruangan']
       });
       
       // Set lebar kolom
@@ -1269,9 +1247,7 @@ export default function DetailNonBlokCSR() {
         { wch: 5 },  // No
         { wch: 12 }, // Tanggal
         { wch: 10 }, // Jam Mulai
-        { wch: 10 }, // Jam Selesai
         { wch: 12 }, // Jenis CSR
-        { wch: 6 },  // Sesi
         { wch: 15 }, // Kelompok Kecil
         { wch: 30 }, // Topik
         { wch: 20 }, // Keahlian
@@ -1304,6 +1280,7 @@ export default function DetailNonBlokCSR() {
         ['• Format tanggal: YYYY-MM-DD'],
         ['• Format jam: HH.MM atau HH:MM'],
         ['• Jenis CSR: "reguler" (3 sesi) atau "responsi" (2 sesi)'],
+        ['• Jam selesai dihitung otomatis berdasarkan jenis CSR'],
         ['• Pastikan data dosen, ruangan, kelompok kecil, dan keahlian valid sebelum import']
       ];
 
@@ -2533,9 +2510,7 @@ export default function DetailNonBlokCSR() {
                             <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Mulai</th>
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Selesai</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jenis CSR</th>
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Sesi</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Kelompok Kecil</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Topik</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Keahlian</th>
@@ -2555,9 +2530,7 @@ export default function DetailNonBlokCSR() {
                               </td>
                               {renderCSREditableCell('tanggal', row.tanggal, index)}
                               {renderCSREditableCell('jam_mulai', row.jam_mulai, index)}
-                              {renderCSREditableCell('jam_selesai', row.jam_selesai, index)}
                               {renderCSREditableCell('jenis_csr', row.jenis_csr, index)}
-                              {renderCSREditableCell('jumlah_sesi', row.jumlah_sesi, index)}
                               
                               {/* Kelompok Kecil - Special handling */}
                               <td

@@ -1161,42 +1161,33 @@ class JadwalCSRController extends Controller
 
             if (!$mataKuliah) {
                 return response()->json([
-                    'success' => false,
+                    'success' => 0,
                     'message' => 'Mata kuliah tidak ditemukan'
                 ], 404);
             }
 
-            // Validasi rentang tanggal mata kuliah
+            $errors = [];
+
+            // Validasi semua data terlebih dahulu (all-or-nothing approach)
             foreach ($data as $index => $row) {
+                // Validasi rentang tanggal mata kuliah
                 $tanggalJadwal = new \DateTime($row['tanggal']);
                 $tanggalMulai = new \DateTime($mataKuliah->tanggal_mulai);
                 $tanggalAkhir = new \DateTime($mataKuliah->tanggal_akhir);
 
                 if ($tanggalJadwal < $tanggalMulai || $tanggalJadwal > $tanggalAkhir) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Tanggal di luar rentang mata kuliah pada baris " . ($index + 1)
-                    ], 400);
+                    $errors[] = "Baris " . ($index + 1) . ": Tanggal di luar rentang mata kuliah";
                 }
 
                 // Validasi sesi sesuai jenis CSR
                 if ($row['jenis_csr'] === 'reguler' && $row['jumlah_sesi'] !== 3) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "CSR Reguler harus 3 sesi pada baris " . ($index + 1)
-                    ], 400);
+                    $errors[] = "Baris " . ($index + 1) . ": CSR Reguler harus 3 sesi";
                 }
 
                 if ($row['jenis_csr'] === 'responsi' && $row['jumlah_sesi'] !== 2) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "CSR Responsi harus 2 sesi pada baris " . ($index + 1)
-                    ], 400);
+                    $errors[] = "Baris " . ($index + 1) . ": CSR Responsi harus 2 sesi";
                 }
-            }
 
-            // Validasi konflik jadwal dan kapasitas ruangan
-            foreach ($data as $index => $row) {
                 // Cek konflik jadwal dosen
                 $konflikDosen = JadwalCSR::where('dosen_id', $row['dosen_id'])
                     ->where('tanggal', $row['tanggal'])
@@ -1211,10 +1202,7 @@ class JadwalCSRController extends Controller
                     ->exists();
 
                 if ($konflikDosen) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Konflik jadwal dosen pada baris " . ($index + 1)
-                    ], 400);
+                    $errors[] = "Baris " . ($index + 1) . ": Konflik jadwal dosen";
                 }
 
                 // Cek konflik jadwal ruangan
@@ -1231,10 +1219,7 @@ class JadwalCSRController extends Controller
                     ->exists();
 
                 if ($konflikRuangan) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Konflik jadwal ruangan pada baris " . ($index + 1)
-                    ], 400);
+                    $errors[] = "Baris " . ($index + 1) . ": Konflik jadwal ruangan";
                 }
 
                 // Cek kapasitas ruangan
@@ -1242,16 +1227,31 @@ class JadwalCSRController extends Controller
                 $kelompokKecil = KelompokKecil::find($row['kelompok_kecil_id']);
 
                 if ($ruangan && $kelompokKecil && $ruangan->kapasitas && $kelompokKecil->jumlah_anggota > $ruangan->kapasitas) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Kapasitas ruangan tidak mencukupi pada baris " . ($index + 1) . " (Kelompok: {$kelompokKecil->jumlah_anggota}, Kapasitas: {$ruangan->kapasitas})"
-                    ], 400);
+                    $errors[] = "Baris " . ($index + 1) . ": Kapasitas ruangan tidak mencukupi (Kelompok: {$kelompokKecil->jumlah_anggota}, Kapasitas: {$ruangan->kapasitas})";
+                }
+
+                // Validasi bentrok dengan data dalam batch import yang sama
+                for ($j = 0; $j < $index; $j++) {
+                    $previousData = $data[$j];
+                    if ($this->isDataBentrok($row, $previousData)) {
+                        $errors[] = "Baris " . ($index + 1) . ": Jadwal bentrok dengan data pada baris " . ($j + 1) . " (Dosen: " . (\App\Models\User::find($row['dosen_id'])->name ?? 'N/A') . ", Ruangan: " . (\App\Models\Ruangan::find($row['ruangan_id'])->nama ?? 'N/A') . ")";
+                        break;
+                    }
                 }
             }
 
-            // Insert data jika semua validasi berhasil
-            DB::beginTransaction();
+            // Jika ada error validasi, return error tanpa import apapun (all-or-nothing)
+            if (count($errors) > 0) {
+                return response()->json([
+                    'success' => 0,
+                    'total' => count($data),
+                    'errors' => $errors,
+                    'message' => "Gagal mengimport data. Semua data harus valid untuk dapat diimport."
+                ], 422);
+            }
 
+            // Jika tidak ada error, import semua data menggunakan database transaction
+            DB::beginTransaction();
             try {
                 $insertedData = [];
                 foreach ($data as $row) {
@@ -1283,27 +1283,81 @@ class JadwalCSRController extends Controller
                 DB::commit();
 
                 return response()->json([
-                    'success' => true,
-                    'message' => 'Data CSR berhasil diimport',
-                    'data' => $insertedData
+                    'success' => count($insertedData),
+                    'total' => count($data),
+                    'errors' => [],
+                    'message' => "Berhasil mengimport " . count($insertedData) . " dari " . count($data) . " jadwal CSR"
                 ]);
 
             } catch (\Exception $e) {
                 DB::rollback();
-                throw $e;
+                return response()->json([
+                    'success' => 0,
+                    'total' => count($data),
+                    'errors' => ["Terjadi kesalahan saat menyimpan data: " . $e->getMessage()],
+                    'message' => "Gagal mengimport data. Terjadi kesalahan saat menyimpan."
+                ], 422);
             }
 
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
-                'success' => false,
-                'message' => 'Terjadi kesalahan saat mengimport data: ' . implode(', ', $e->validator->errors()->all())
+                'success' => 0,
+                'total' => count($request->input('data', [])),
+                'errors' => $e->validator->errors()->all(),
+                'message' => 'Terjadi kesalahan validasi data'
             ], 422);
         } catch (\Exception $e) {
             return response()->json([
-                'success' => false,
-                'message' => 'Terjadi kesalahan saat mengimport data: ' . $e->getMessage()
+                'success' => 0,
+                'total' => count($request->input('data', [])),
+                'errors' => ['Terjadi kesalahan saat mengimport data: ' . $e->getMessage()],
+                'message' => 'Terjadi kesalahan saat mengimport data'
             ], 500);
         }
+    }
+
+    /**
+     * Helper function untuk mengecek bentrok antar data dalam batch import
+     */
+    private function isDataBentrok($data1, $data2): bool
+    {
+        // Cek apakah tanggal sama
+        if ($data1['tanggal'] !== $data2['tanggal']) {
+            return false;
+        }
+
+        // Cek apakah jam bentrok
+        $jamMulai1 = $data1['jam_mulai'];
+        $jamSelesai1 = $data1['jam_selesai'];
+        $jamMulai2 = $data2['jam_mulai'];
+        $jamSelesai2 = $data2['jam_selesai'];
+
+        // Konversi jam ke format yang bisa dibandingkan
+        $jamMulai1Formatted = str_replace('.', ':', $jamMulai1);
+        $jamSelesai1Formatted = str_replace('.', ':', $jamSelesai1);
+        $jamMulai2Formatted = str_replace('.', ':', $jamMulai2);
+        $jamSelesai2Formatted = str_replace('.', ':', $jamSelesai2);
+
+        // Cek apakah jam bentrok
+        $jamBentrok = ($jamMulai1Formatted < $jamSelesai2Formatted && $jamSelesai1Formatted > $jamMulai2Formatted);
+
+        if (!$jamBentrok) {
+            return false;
+        }
+
+        // Cek bentrok dosen
+        $dosenBentrok = false;
+        if (isset($data1['dosen_id']) && isset($data2['dosen_id']) && $data1['dosen_id'] == $data2['dosen_id']) {
+            $dosenBentrok = true;
+        }
+
+        // Cek bentrok ruangan
+        $ruanganBentrok = false;
+        if (isset($data1['ruangan_id']) && isset($data2['ruangan_id']) && $data1['ruangan_id'] == $data2['ruangan_id']) {
+            $ruanganBentrok = true;
+        }
+
+        return $dosenBentrok || $ruanganBentrok;
     }
 
     /**

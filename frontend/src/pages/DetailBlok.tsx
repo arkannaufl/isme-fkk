@@ -26,7 +26,6 @@ const DEFAULT_PAGE_SIZE = 10;
 const EXCEL_COLUMN_WIDTHS = {
   TANGGAL: 12,
   JAM_MULAI: 10,
-  JAM_SELESAI: 10,
   MATERI: 25,
   TOPIK: 30,
   KELAS_PRAKTIKUM: 15,
@@ -4098,7 +4097,6 @@ export default function DetailBlok() {
         return {
           'Tanggal': row.tanggal ? new Date(row.tanggal).toISOString().split('T')[0] : '',
           'Jam Mulai': row.jam_mulai,
-          'Jam Selesai': row.jam_selesai,
           'Materi': row.materi || '',
           'Topik': row.topik || '',
           'Dosen': dosen?.name || '',
@@ -4109,11 +4107,11 @@ export default function DetailBlok() {
       });
 
       const kuliahBesarWs = XLSX.utils.json_to_sheet(kuliahBesarData, {
-        header: ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Materi', 'Topik', 'Dosen', 'Ruangan', 'Kelompok Besar', 'Sesi']
+        header: ['Tanggal', 'Jam Mulai', 'Materi', 'Topik', 'Dosen', 'Ruangan', 'Kelompok Besar', 'Sesi']
       });
       
       const kuliahBesarColWidths = [
-        { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 30 }, { wch: 25 }, { wch: 25 }, { wch: 20 }, { wch: 20 }, { wch: 6 }
+        { wch: 12 }, { wch: 10 }, { wch: 30 }, { wch: 25 }, { wch: 25 }, { wch: 20 }, { wch: 20 }, { wch: 6 }
       ];
       kuliahBesarWs['!cols'] = kuliahBesarColWidths;
       
@@ -4172,7 +4170,6 @@ export default function DetailBlok() {
         return {
           'Tanggal': row.tanggal ? new Date(row.tanggal).toISOString().split('T')[0] : '',
           'Jam Mulai': row.jam_mulai,
-          'Jam Selesai': row.jam_selesai,
           'Materi': row.materi || '',
           'Topik': row.topik || '',
           'Kelas Praktikum': row.kelas_praktikum || '',
@@ -4183,11 +4180,11 @@ export default function DetailBlok() {
       });
 
       const praktikumWs = XLSX.utils.json_to_sheet(praktikumData, {
-        header: ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Materi', 'Topik', 'Kelas Praktikum', 'Dosen', 'Ruangan', 'Sesi']
+        header: ['Tanggal', 'Jam Mulai', 'Materi', 'Topik', 'Kelas Praktikum', 'Dosen', 'Ruangan', 'Sesi']
       });
       
       const praktikumColWidths = [
-        { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 30 }, { wch: 30 }, { wch: 15 }, { wch: 25 }, { wch: 20 }, { wch: 6 }
+        { wch: 12 }, { wch: 10 }, { wch: 30 }, { wch: 30 }, { wch: 15 }, { wch: 25 }, { wch: 20 }, { wch: 6 }
       ];
       praktikumWs['!cols'] = praktikumColWidths;
       
@@ -4242,7 +4239,6 @@ export default function DetailBlok() {
         return {
           'Tanggal': row.tanggal ? new Date(row.tanggal).toISOString().split('T')[0] : '',
           'Jam Mulai': row.jam_mulai,
-          'Jam Selesai': row.jam_selesai,
           'Agenda': row.agenda || '',
           'Ruangan': row.use_ruangan ? (ruangan?.nama || '') : '',
           'Kelompok Besar': row.kelompok_besar_id || '',
@@ -4251,11 +4247,11 @@ export default function DetailBlok() {
       });
 
       const agendaKhususWs = XLSX.utils.json_to_sheet(agendaKhususData, {
-        header: ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Agenda', 'Ruangan', 'Kelompok Besar', 'Sesi']
+        header: ['Tanggal', 'Jam Mulai', 'Agenda', 'Ruangan', 'Kelompok Besar', 'Sesi']
       });
       
       const agendaKhususColWidths = [
-        { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 6 }
+        { wch: 12 }, { wch: 10 }, { wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 6 }
       ];
       agendaKhususWs['!cols'] = agendaKhususColWidths;
       
@@ -4313,7 +4309,6 @@ export default function DetailBlok() {
         return {
           'Tanggal': row.tanggal ? new Date(row.tanggal).toISOString().split('T')[0] : '',
           'Jam Mulai': row.jam_mulai,
-          'Jam Selesai': row.jam_selesai,
           'Modul PBL': modul?.nama_modul || '',
           'Kelompok Kecil': kelompok?.nama_kelompok || '',
           'Dosen': dosen?.name || '',
@@ -4323,11 +4318,11 @@ export default function DetailBlok() {
       });
 
       const pblWs = XLSX.utils.json_to_sheet(pblData, {
-        header: ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Modul PBL', 'Kelompok Kecil', 'Dosen', 'Ruangan', 'PBL Tipe']
+        header: ['Tanggal', 'Jam Mulai', 'Modul PBL', 'Kelompok Kecil', 'Dosen', 'Ruangan', 'PBL Tipe']
       });
       
       const pblColWidths = [
-        { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 30 }, { wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 10 }
+        { wch: 12 }, { wch: 10 }, { wch: 30 }, { wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 10 }
       ];
       pblWs['!cols'] = pblColWidths;
       
@@ -4383,7 +4378,6 @@ export default function DetailBlok() {
         return {
           'Tanggal': row.tanggal ? new Date(row.tanggal).toISOString().split('T')[0] : '',
           'Jam Mulai': row.jam_mulai,
-          'Jam Selesai': row.jam_selesai,
           'Sesi': row.jumlah_sesi,
           'Dosen': dosen?.name || '',
           'Ruangan': ruangan?.nama || '',
@@ -4393,11 +4387,11 @@ export default function DetailBlok() {
       });
 
       const jurnalReadingWs = XLSX.utils.json_to_sheet(jurnalReadingData, {
-        header: ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Sesi', 'Dosen', 'Ruangan', 'Kelompok Kecil', 'Topik']
+        header: ['Tanggal', 'Jam Mulai', 'Sesi', 'Dosen', 'Ruangan', 'Kelompok Kecil', 'Topik']
       });
       
       const jurnalReadingColWidths = [
-        { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 6 }, { wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 30 }
+        { wch: 12 }, { wch: 10 }, { wch: 6 }, { wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 30 }
       ];
       jurnalReadingWs['!cols'] = jurnalReadingColWidths;
       
@@ -4491,8 +4485,6 @@ export default function DetailBlok() {
 
           jam_mulai: "08:00",
 
-          jam_selesai: "10:00",
-
           modul_pbl: modulPBLOptions[0]?.nama_modul || "Modul 1: Anatomi",
 
           kelompok_kecil: kelompokKecilOptions[0]?.nama_kelompok || "Kelompok A1",
@@ -4510,8 +4502,6 @@ export default function DetailBlok() {
           tanggal: generateContohTanggal(),
 
           jam_mulai: "10:00",
-
-          jam_selesai: "12:30",
 
           modul_pbl: modulPBLOptions[1]?.nama_modul || "Modul 2: Fisiologi",
 
@@ -4533,7 +4523,6 @@ export default function DetailBlok() {
         return {
           'Tanggal': row.tanggal,
           'Jam Mulai': row.jam_mulai,
-          'Jam Selesai': row.jam_selesai,
           'Modul PBL': row.modul_pbl,
           'Kelompok Kecil': row.kelompok_kecil,
           'Dosen': row.dosen,
@@ -4551,7 +4540,7 @@ export default function DetailBlok() {
 
       // Sheet template dengan header yang eksplisit (Title Case dengan spasi)
       const ws = XLSX.utils.json_to_sheet(templateData, {
-        header: ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Modul PBL', 'Kelompok Kecil', 'Dosen', 'Ruangan', 'PBL Tipe']
+        header: ['Tanggal', 'Jam Mulai', 'Modul PBL', 'Kelompok Kecil', 'Dosen', 'Ruangan', 'PBL Tipe']
       });
       
 
@@ -4562,8 +4551,6 @@ export default function DetailBlok() {
         { wch: 12 }, // tanggal
 
         { wch: 10 }, // jam_mulai
-
-        { wch: 10 }, // jam_selesai
 
         { wch: 25 }, // modul_pbl
 
@@ -4800,7 +4787,6 @@ export default function DetailBlok() {
       const templateData = rawTemplateData.map(row => ({
         'Tanggal': row.tanggal,
         'Jam Mulai': row.jam_mulai,
-        'Jam Selesai': row.jam_selesai,
         'Materi': row.materi,
         'Topik': row.topik,
         'Kelas Praktikum': row.kelas_praktikum,
@@ -4814,14 +4800,13 @@ export default function DetailBlok() {
       
       // Sheet template dengan header yang eksplisit (Title Case dengan spasi)
       const ws = XLSX.utils.json_to_sheet(templateData, {
-        header: ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Materi', 'Topik', 'Kelas Praktikum', 'Dosen', 'Ruangan', 'Sesi']
+        header: ['Tanggal', 'Jam Mulai', 'Materi', 'Topik', 'Kelas Praktikum', 'Dosen', 'Ruangan', 'Sesi']
       });
       
       // Set column widths
       const colWidths = [
         { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
         { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
-        { wch: EXCEL_COLUMN_WIDTHS.JAM_SELESAI },
         { wch: EXCEL_COLUMN_WIDTHS.TOPIK },
         { wch: EXCEL_COLUMN_WIDTHS.TOPIK },
         { wch: EXCEL_COLUMN_WIDTHS.KELOMPOK_BESAR },
@@ -5037,8 +5022,6 @@ export default function DetailBlok() {
 
           jam_mulai: "08:00",
 
-          jam_selesai: hitungJamSelesai("08:00", 2),
-
           materi: materiTersedia[0] || "Materi 1",
 
           topik: "Topik 1",
@@ -5058,8 +5041,6 @@ export default function DetailBlok() {
           tanggal: contohTanggal2,
 
           jam_mulai: "10:00",
-
-          jam_selesai: hitungJamSelesai("10:00", 2),
 
           materi: materiTersedia[1] || materiTersedia[0] || "Materi 2",
 
@@ -5084,7 +5065,6 @@ export default function DetailBlok() {
         return {
           'Tanggal': row.tanggal,
           'Jam Mulai': row.jam_mulai,
-          'Jam Selesai': row.jam_selesai,
           'Materi': row.materi,
           'Topik': row.topik,
           'Dosen': row.nama_dosen,
@@ -5097,7 +5077,7 @@ export default function DetailBlok() {
       // Buat worksheet dengan header yang eksplisit (Title Case dengan spasi)
       const ws = XLSX.utils.json_to_sheet(templateData, {
 
-        header: ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Materi', 'Topik', 'Dosen', 'Ruangan', 'Kelompok Besar', 'Jumlah Sesi']
+        header: ['Tanggal', 'Jam Mulai', 'Materi', 'Topik', 'Dosen', 'Ruangan', 'Kelompok Besar', 'Jumlah Sesi']
       });
 
       
@@ -5109,8 +5089,6 @@ export default function DetailBlok() {
         { wch: 12 }, // tanggal
 
         { wch: 10 }, // jam_mulai
-
-        { wch: 10 }, // jam_selesai
 
         { wch: 25 }, // materi
 
@@ -5282,7 +5260,6 @@ export default function DetailBlok() {
         {
           tanggal: contohTanggal1,
           jam_mulai: '07.20',
-          jam_selesai: '09.00',
           agenda: 'Ujian Tengah Semester',
           ruangan: ruanganList[0]?.nama || 'Ruang 1',
           kelompok_besar_id: kelompokBesarTersedia[0]?.id || 1,
@@ -5291,7 +5268,6 @@ export default function DetailBlok() {
         {
           tanggal: contohTanggal2,
           jam_mulai: '10.40',
-          jam_selesai: '12.20',
           agenda: 'Seminar Kesehatan Online',
           ruangan: '', // Tidak menggunakan ruangan
           kelompok_besar_id: kelompokBesarTersedia[1]?.id || kelompokBesarTersedia[0]?.id || 1,
@@ -5303,7 +5279,6 @@ export default function DetailBlok() {
       const templateData = rawTemplateData.map(row => ({
         'Tanggal': row.tanggal,
         'Jam Mulai': row.jam_mulai,
-        'Jam Selesai': row.jam_selesai,
         'Agenda': row.agenda,
         'Ruangan': row.ruangan,
         'Kelompok Besar': row.kelompok_besar_id,
@@ -5315,14 +5290,13 @@ export default function DetailBlok() {
       
       // Sheet template dengan header yang eksplisit (Title Case dengan spasi)
       const ws = XLSX.utils.json_to_sheet(templateData, {
-        header: ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Agenda', 'Ruangan', 'Kelompok Besar', 'Jumlah Sesi']
+        header: ['Tanggal', 'Jam Mulai', 'Agenda', 'Ruangan', 'Kelompok Besar', 'Jumlah Sesi']
       });
       
       // Set column widths
       const colWidths = [
         { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
         { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
-        { wch: EXCEL_COLUMN_WIDTHS.JAM_SELESAI },
         { wch: EXCEL_COLUMN_WIDTHS.TOPIK },
         { wch: EXCEL_COLUMN_WIDTHS.RUANGAN },
         { wch: EXCEL_COLUMN_WIDTHS.KELOMPOK_BESAR },
@@ -5531,15 +5505,27 @@ export default function DetailBlok() {
 
           
 
-          // Skip header row dan filter baris kosong
+          // Deteksi apakah ada baris header kedua (berisi penjelasan dalam kurung)
+          let headerRowCount = 1;
+          if (jsonData.length > 1) {
+            const secondRow = jsonData[1];
+            if (Array.isArray(secondRow)) {
+              // Cek apakah baris kedua berisi penjelasan header (teks dalam kurung)
+              const hasParentheticalText = secondRow.some(cell => 
+                cell && cell.toString().includes('(') && cell.toString().includes(')')
+              );
+              if (hasParentheticalText) {
+                headerRowCount = 2;
+              }
+            }
+          }
 
-          const dataRows = jsonData.slice(1).filter((row: any[]) => 
-
+          // Skip header row(s) dan filter baris kosong
+          const dataRows = jsonData.slice(headerRowCount).filter((row: any[]) => 
             row.some(cell => cell && cell.toString().trim() !== '')
-
           );
 
-          
+          // DEBUG: Log untuk melihat struktur data
 
           resolve({ data: dataRows, headers });
         } catch (error) {
@@ -5638,35 +5624,6 @@ export default function DetailBlok() {
         cellErrors.push({ row: index, field: 'jam_mulai', message: jamMulaiError });
       }
 
-      // Validasi jam selesai jika ada
-      if (row.jam_selesai) {
-        const jamSelesaiError = validateTime(row.jam_selesai, rowNumber, 'jam selesai');
-        if (jamSelesaiError) {
-          cellErrors.push({ row: index, field: 'jam_selesai', message: jamSelesaiError });
-        } else if (row.jam_mulai) {
-          // Hitung jam selesai yang seharusnya berdasarkan perhitungan sesi (1 sesi = 50 menit)
-          const pblTipe = row.pbl_tipe || 'PBL 1';
-          const jumlahSesi = pblTipe === 'PBL 2' ? 3 : 2; // PBL 1 = 2 sesi, PBL 2 = 3 sesi
-          const jamSelesaiSeharusnya = hitungJamSelesai(row.jam_mulai, jumlahSesi);
-          
-          // Normalize format untuk perbandingan
-          const normalizeTime = (time: string): string => {
-            return time.replace(':', '.');
-          };
-          
-          const normalizedJamSelesai = normalizeTime(row.jam_selesai);
-          const normalizedJamSelesaiSeharusnya = normalizeTime(jamSelesaiSeharusnya);
-          
-          if (normalizedJamSelesai !== normalizedJamSelesaiSeharusnya) {
-            cellErrors.push({ 
-              row: index, 
-              field: 'jam_selesai', 
-              message: `Jam selesai seharusnya ${normalizedJamSelesaiSeharusnya} (${jumlahSesi} x 50 menit dari ${row.jam_mulai}) (Baris ${rowNumber}, Kolom Jam Selesai)` 
-            });
-          }
-        }
-
-      }
 
 
 
@@ -5784,25 +5741,6 @@ export default function DetailBlok() {
         cellErrors.push({ row: rowNumber, field: 'jam_mulai', message: jamMulaiError });
       }
 
-      // Validasi jam selesai
-      if (!row.jam_selesai) {
-        cellErrors.push({ row: rowNumber, field: 'jam_selesai', message: `Jam selesai wajib diisi (Baris ${rowNumber}, Kolom JAM_SELESAI)` });
-      } else {
-
-        const expectedJamSelesai = hitungJamSelesai(row.jam_mulai, row.jumlah_sesi);
-        
-        // Normalize format untuk perbandingan (konsisten dengan PBL dan Kuliah Besar)
-        const normalizeTime = (time: string): string => {
-          return time.replace(':', '.');
-        };
-        
-        const normalizedJamSelesai = normalizeTime(row.jam_selesai);
-        const normalizedExpectedJamSelesai = normalizeTime(expectedJamSelesai);
-        
-        if (normalizedJamSelesai !== normalizedExpectedJamSelesai) {
-          cellErrors.push({ row: rowNumber, field: 'jam_selesai', message: `Jam selesai seharusnya ${expectedJamSelesai} (${row.jumlah_sesi} x 50 menit dari ${row.jam_mulai}) (Baris ${rowNumber}, Kolom JAM_SELESAI)` });
-        }
-      }
 
       // Validasi materi - untuk SIAKAD template, materi HARUS diisi manual di preview table
       if (!row.materi || row.materi.trim() === '' || row.materi === 'Kosong (isi manual)') {
@@ -5899,25 +5837,6 @@ export default function DetailBlok() {
         cellErrors.push({ row: rowNumber, field: 'jam_mulai', message: jamMulaiError });
       }
 
-      // Validasi jam selesai
-      if (!row.jam_selesai) {
-        cellErrors.push({ row: rowNumber, field: 'jam_selesai', message: `Jam selesai wajib diisi (Baris ${rowNumber}, Kolom JAM_SELESAI)` });
-      } else {
-        const expectedJamSelesai = hitungJamSelesai(row.jam_mulai, row.jumlah_sesi);
-        
-        // Normalize format untuk perbandingan (konsisten dengan jadwal lain)
-        const normalizeTime = (time: string): string => {
-          return time.replace(':', '.');
-        };
-        
-        const normalizedJamSelesai = normalizeTime(row.jam_selesai);
-        const normalizedExpectedJamSelesai = normalizeTime(expectedJamSelesai);
-        
-        if (normalizedJamSelesai !== normalizedExpectedJamSelesai) {
-          cellErrors.push({ row: rowNumber, field: 'jam_selesai', message: `Jam selesai seharusnya ${expectedJamSelesai} (${row.jumlah_sesi} x 50 menit dari ${row.jam_mulai}) (Baris ${rowNumber}, Kolom JAM_SELESAI)` });
-        }
-      }
-
       // Validasi agenda
       if (!row.agenda || row.agenda.trim() === '') {
         cellErrors.push({ row: rowNumber, field: 'agenda', message: `Agenda wajib diisi (Baris ${rowNumber}, Kolom AGENDA)` });
@@ -5989,36 +5908,6 @@ export default function DetailBlok() {
         }
       }
       
-      // Validasi jam selesai wajib diisi
-      if (!row.jam_selesai || row.jam_selesai.trim() === '') {
-        cellErrors.push({ row: index, field: 'jam_selesai', message: `Jam selesai wajib diisi (Baris ${rowNumber}, Kolom Jam Selesai)` });
-      } else {
-        const jamSelesaiError = validateTime(row.jam_selesai, rowNumber, 'jam selesai');
-        if (jamSelesaiError) {
-          cellErrors.push({ row: index, field: 'jam_selesai', message: jamSelesaiError });
-        } else if (row.jam_mulai) {
-          // Hitung jam selesai yang seharusnya berdasarkan perhitungan sesi (1 sesi = 50 menit)
-          const jumlahSesi = row.jumlah_sesi || 2;
-
-          const jamSelesaiSeharusnya = hitungJamSelesai(row.jam_mulai, jumlahSesi);
-          
-          // Normalize format untuk perbandingan
-          const normalizeTime = (time: string): string => {
-            return time.replace('.', ':');
-          };
-          
-          const normalizedJamSelesai = normalizeTime(row.jam_selesai);
-          const normalizedJamSelesaiSeharusnya = normalizeTime(jamSelesaiSeharusnya);
-          
-          if (normalizedJamSelesai !== normalizedJamSelesaiSeharusnya) {
-            cellErrors.push({ 
-              row: index, 
-              field: 'jam_selesai', 
-              message: `Jam selesai seharusnya ${normalizedJamSelesaiSeharusnya} (${jumlahSesi} x 50 menit dari ${row.jam_mulai}) (Baris ${rowNumber}, Kolom Jam Selesai)` 
-            });
-          }
-        }
-      }
       
       // Validasi materi
       if (!row.materi || row.materi.trim() === '' || row.materi === 'Kosong (isi manual)') {
@@ -6170,7 +6059,7 @@ export default function DetailBlok() {
       const { data: rawData, headers } = await readExcelFile(targetFile);
       
       // Validate headers
-      const expectedHeaders = ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Materi', 'Topik', 'Kelas Praktikum', 'Dosen', 'Ruangan', 'Sesi'];
+      const expectedHeaders = ['Tanggal', 'Jam Mulai', 'Materi', 'Topik', 'Kelas Praktikum', 'Dosen', 'Ruangan', 'Sesi'];
       const headerMatch = expectedHeaders.every(header => headers.includes(header));
       
       if (!headerMatch) {
@@ -6179,6 +6068,32 @@ export default function DetailBlok() {
         setShowPraktikumImportModal(true);
         return;
       }
+
+      // Helper function untuk konversi format jam (menambahkan leading zero)
+      const convertTimeFormat = (timeStr: string) => {
+        if (!timeStr || timeStr.trim() === '') return '';
+        
+        // Hapus spasi dan konversi ke string
+        const time = timeStr.toString().trim();
+        
+        // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
+        if (time.match(/^\d{2}[:.]\d{2}$/)) {
+          return time.replace('.', ':');
+        }
+        
+        // Cek apakah format H:MM atau H.MM (1 digit jam)
+        if (time.match(/^\d{1}[:.]\d{2}$/)) {
+          return '0' + time.replace('.', ':');
+        }
+        
+        // Cek apakah format HH:MM atau HH.MM (2 digit jam)
+        if (time.match(/^\d{2}[:.]\d{2}$/)) {
+          return time.replace('.', ':');
+        }
+        
+        // Jika tidak sesuai format, return as is
+        return time;
+      };
 
       // Konversi data Excel ke format yang diharapkan
       const convertedData: JadwalPraktikumType[] = rawData.map((row: any[], index: number) => {
@@ -6190,8 +6105,8 @@ export default function DetailBlok() {
 
         // Mapping untuk header baru (Title Case) dan fallback ke header lama (snake_case)
         const tanggal = rowObj['Tanggal'] || rowObj.tanggal || '';
-        const jamMulai = rowObj['Jam Mulai'] || rowObj.jam_mulai || '';
-        const jamSelesai = rowObj['Jam Selesai'] || rowObj.jam_selesai || '';
+        const jamMulaiRaw = rowObj['Jam Mulai'] || rowObj.jam_mulai || '';
+        const jamMulai = convertTimeFormat(jamMulaiRaw);
         const materi = rowObj['Materi'] || rowObj.materi || '';
         const topik = rowObj['Topik'] || rowObj.topik || '';
         const kelasPraktikum = rowObj['Kelas Praktikum'] || rowObj.kelas_praktikum || '';
@@ -6286,14 +6201,56 @@ export default function DetailBlok() {
           rowObj[header] = row[idx] || '';
         });
 
+        // Helper function untuk mendapatkan nilai dari berbagai format header
+        const getValueFromMultipleFormats = (baseKey: string, rowObj: any) => {
+          // Coba format asli dengan \n
+          if (rowObj[baseKey]) return rowObj[baseKey];
+          
+          // Coba format dengan \r\n
+          const withWindowsLineBreak = baseKey.replace(/\n/g, '\r\n');
+          if (rowObj[withWindowsLineBreak]) return rowObj[withWindowsLineBreak];
+          
+          // Coba format tanpa line break
+          const withoutLineBreak = baseKey.replace(/\n.*/, '');
+          if (rowObj[withoutLineBreak]) return rowObj[withoutLineBreak];
+          
+          return '';
+        };
+
+        // Helper function untuk konversi format jam (menambahkan leading zero)
+        const convertTimeFormat = (timeStr: string) => {
+          if (!timeStr || timeStr.trim() === '') return '';
+          
+          // Hapus spasi dan konversi ke string
+          const time = timeStr.toString().trim();
+          
+          // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
+          if (time.match(/^\d{2}[:.]\d{2}$/)) {
+            return time.replace('.', ':');
+          }
+          
+          // Cek apakah format H:MM atau H.MM (1 digit jam)
+          if (time.match(/^\d{1}[:.]\d{2}$/)) {
+            return '0' + time.replace('.', ':');
+          }
+          
+          // Cek apakah format HH:MM atau HH.MM (2 digit jam)
+          if (time.match(/^\d{2}[:.]\d{2}$/)) {
+            return time.replace('.', ':');
+          }
+          
+          // Jika tidak sesuai format, return as is
+          return time;
+        };
+
         // Mapping untuk template SIAKAD (menggunakan format header yang sebenarnya ada di file Excel)
-        const tanggal = rowObj['Tanggal\n(YYYY-MM-DD)'] || '';
-        const jamMulai = rowObj['Waktu Mulai\n(Lihat Daftar Waktu Mulai)'] || '';
-        const jamSelesai = rowObj['Waktu Selesai\n(Lihat Daftar Waktu Selesai)'] || '';
+        const tanggal = getValueFromMultipleFormats('Tanggal\n(YYYY-MM-DD)', rowObj);
+        const jamMulaiRaw = getValueFromMultipleFormats('Waktu Mulai\n(Lihat Daftar Waktu Mulai)', rowObj);
+        const jamMulai = convertTimeFormat(jamMulaiRaw);
         const topik = rowObj['Topik'] || '';
         const kelasPraktikum = rowObj['Nama Kelas'] || '';
-        const kelompok = rowObj['Kelompok\n(Contoh: 1)'] || '';
-        const ruangan = rowObj['Ruang\n(Lihat Daftar Ruang)'] || '';
+        const kelompok = getValueFromMultipleFormats('Kelompok\n(Contoh: 1)', rowObj);
+        const ruangan = getValueFromMultipleFormats('Ruang\n(Lihat Daftar Ruang)', rowObj);
         
 
         // Find ruangan data
@@ -6301,6 +6258,10 @@ export default function DetailBlok() {
 
         // Find kelompok besar data
         const kelompokBesarData = kelompokBesarOptions?.find(kb => kb.label.toLowerCase() === kelompok.toLowerCase());
+
+        // Hitung jam selesai otomatis berdasarkan sistem
+        const jumlahSesi = 2; // Default untuk praktikum
+        const jamSelesai = hitungJamSelesai(jamMulai, jumlahSesi);
 
         return {
           tanggal: tanggal,
@@ -6313,7 +6274,7 @@ export default function DetailBlok() {
           nama_dosen: 'Kosong (isi manual)', // User isi manual di preview
           ruangan_id: ruanganData?.id || 0,
           nama_ruangan: ruangan || ruanganData?.nama || '',
-          jumlah_sesi: 2, // Default untuk praktikum
+          jumlah_sesi: jumlahSesi,
           kelompok_besar_id: kelompokBesarData?.id || null
         };
       });
@@ -6414,6 +6375,32 @@ export default function DetailBlok() {
 
 
 
+      // Helper function untuk konversi format jam (menambahkan leading zero)
+      const convertTimeFormat = (timeStr: string) => {
+        if (!timeStr || timeStr.trim() === '') return '';
+        
+        // Hapus spasi dan konversi ke string
+        const time = timeStr.toString().trim();
+        
+        // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
+        if (time.match(/^\d{2}[:.]\d{2}$/)) {
+          return time.replace('.', ':');
+        }
+        
+        // Cek apakah format H:MM atau H.MM (1 digit jam)
+        if (time.match(/^\d{1}[:.]\d{2}$/)) {
+          return '0' + time.replace('.', ':');
+        }
+        
+        // Cek apakah format HH:MM atau HH.MM (2 digit jam)
+        if (time.match(/^\d{2}[:.]\d{2}$/)) {
+          return time.replace('.', ':');
+        }
+        
+        // Jika tidak sesuai format, return as is
+        return time;
+      };
+
       // Konversi data Excel ke format yang diharapkan
 
       const convertedData: JadwalPBLType[] = rawData.map((row: any[], index: number) => {
@@ -6425,8 +6412,8 @@ export default function DetailBlok() {
 
         // Mapping untuk header baru (Title Case) dan fallback ke header lama (snake_case)
         const tanggal = rowObj['Tanggal'] || rowObj.tanggal || '';
-        const jamMulai = rowObj['Jam Mulai'] || rowObj.jam_mulai || '';
-        const jamSelesai = rowObj['Jam Selesai'] || rowObj.jam_selesai || '';
+        const jamMulaiRaw = rowObj['Jam Mulai'] || rowObj.jam_mulai || '';
+        const jamMulai = convertTimeFormat(jamMulaiRaw);
         const modulPBL = rowObj['Modul PBL'] || rowObj.modul_pbl || '';
         const kelompokKecil = rowObj['Kelompok Kecil'] || rowObj.kelompok_kecil || '';
         const dosen = rowObj['Dosen'] || rowObj.dosen || '';
@@ -6475,10 +6462,8 @@ export default function DetailBlok() {
 
 
         // Hitung jam selesai berdasarkan PBL tipe
-
         const jumlahSesi = pblTipe === 'PBL 2' ? 3 : 2;
-
-        const calculatedJamSelesai = jamSelesai || hitungJamSelesai(jamMulai || '08:00', jumlahSesi);
+        const calculatedJamSelesai = hitungJamSelesai(jamMulai || '08:00', jumlahSesi);
 
 
         return {
@@ -6580,14 +6565,56 @@ export default function DetailBlok() {
           rowObj[header] = row[idx] || '';
         });
 
+        // Helper function untuk mendapatkan nilai dari berbagai format header
+        const getValueFromMultipleFormats = (baseKey: string, rowObj: any) => {
+          // Coba format asli dengan \n
+          if (rowObj[baseKey]) return rowObj[baseKey];
+          
+          // Coba format dengan \r\n
+          const withWindowsLineBreak = baseKey.replace(/\n/g, '\r\n');
+          if (rowObj[withWindowsLineBreak]) return rowObj[withWindowsLineBreak];
+          
+          // Coba format tanpa line break
+          const withoutLineBreak = baseKey.replace(/\n.*/, '');
+          if (rowObj[withoutLineBreak]) return rowObj[withoutLineBreak];
+          
+          return '';
+        };
+
+        // Helper function untuk konversi format jam (menambahkan leading zero)
+        const convertTimeFormat = (timeStr: string) => {
+          if (!timeStr || timeStr.trim() === '') return '';
+          
+          // Hapus spasi dan konversi ke string
+          const time = timeStr.toString().trim();
+          
+          // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
+          if (time.match(/^\d{2}[:.]\d{2}$/)) {
+            return time.replace('.', ':');
+          }
+          
+          // Cek apakah format H:MM atau H.MM (1 digit jam)
+          if (time.match(/^\d{1}[:.]\d{2}$/)) {
+            return '0' + time.replace('.', ':');
+          }
+          
+          // Cek apakah format HH:MM atau HH.MM (2 digit jam)
+          if (time.match(/^\d{2}[:.]\d{2}$/)) {
+            return time.replace('.', ':');
+          }
+          
+          // Jika tidak sesuai format, return as is
+          return time;
+        };
+
         // Mapping untuk template SIAKAD PBL
-        const tanggal = rowObj['Tanggal\n(YYYY-MM-DD)'] || '';
-        const jamMulai = rowObj['Waktu Mulai\n(Lihat Daftar Waktu Mulai)'] || '';
-        const jamSelesai = rowObj['Waktu Selesai\n(Lihat Daftar Waktu Selesai)'] || '';
+        const tanggal = getValueFromMultipleFormats('Tanggal\n(YYYY-MM-DD)', rowObj);
+        const jamMulaiRaw = getValueFromMultipleFormats('Waktu Mulai\n(Lihat Daftar Waktu Mulai)', rowObj);
+        const jamMulai = convertTimeFormat(jamMulaiRaw);
         const topik = rowObj['Topik'] || '';
         const namaKelas = rowObj['Nama Kelas'] || '';
-        const kelompok = rowObj['Kelompok\n(Contoh: 1)'] || '';
-        const ruangan = rowObj['Ruang\n(Lihat Daftar Ruang)'] || '';
+        const kelompok = getValueFromMultipleFormats('Kelompok\n(Contoh: 1)', rowObj);
+        const ruangan = getValueFromMultipleFormats('Ruang\n(Lihat Daftar Ruang)', rowObj);
         const nipPengajar = rowObj['NIP Pengajar'] || '';
 
         // Find ruangan data
@@ -6601,10 +6628,15 @@ export default function DetailBlok() {
         // Find dosen data berdasarkan NID
         const dosenData = allDosenList?.find(d => d.nid === nipPengajar);
 
+        // Hitung jam selesai otomatis berdasarkan PBL tipe (default PBL 1 = 2 sesi)
+        const pblTipe = 'PBL 1'; // Default untuk SIAKAD template
+        const jumlahSesi = 2; // Default untuk PBL 1
+        const calculatedJamSelesai = hitungJamSelesai(jamMulai || '08:00', jumlahSesi);
+
         return {
           tanggal: tanggal,
           jam_mulai: jamMulai,
-          jam_selesai: jamSelesai,
+          jam_selesai: calculatedJamSelesai,
           modul_pbl_id: 0, // User isi manual di preview
           nama_modul: 'Kosong (isi manual)', // User isi manual di preview
           kelompok_kecil_id: kelompokKecilData?.id || 0,
@@ -6613,8 +6645,8 @@ export default function DetailBlok() {
           nama_dosen: dosenData?.name || 'Kosong (isi manual)', // User isi manual di preview
           ruangan_id: ruanganData?.id || 0,
           nama_ruangan: ruangan || ruanganData?.nama || '',
-          pbl_tipe: 'Kosong (isi manual)', // User isi manual di preview
-          jumlah_sesi: 2 // Default untuk PBL
+          pbl_tipe: pblTipe, // Default PBL 1
+          jumlah_sesi: jumlahSesi
         };
       });
 
@@ -6644,24 +6676,29 @@ export default function DetailBlok() {
   };
 
   // Fungsi untuk validasi format template
-  const validateTemplateFormat = async (file: File, expectedFormat: 'LAMA' | 'SIAKAD', type: 'kuliah-besar' | 'praktikum' | 'pbl' = 'kuliah-besar'): Promise<boolean> => {
+  const validateTemplateFormat = async (file: File, expectedFormat: 'LAMA' | 'SIAKAD', type: 'kuliah-besar' | 'praktikum' | 'pbl' | 'agenda-khusus' = 'kuliah-besar'): Promise<boolean> => {
     try {
       const { headers } = await readExcelFile(file);
       
       if (expectedFormat === 'LAMA') {
         if (type === 'kuliah-besar') {
-          // Template lama kuliah besar harus memiliki header: Tanggal, Jam Mulai, Jam Selesai, Materi, Dosen, Ruangan, Kelompok Besar
-          const requiredHeaders = ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Materi', 'Dosen', 'Ruangan', 'Kelompok Besar'];
+           // Template lama kuliah besar harus memiliki header: Tanggal, Jam Mulai, Materi, Dosen, Ruangan, Kelompok Besar
+           const requiredHeaders = ['Tanggal', 'Jam Mulai', 'Materi', 'Dosen', 'Ruangan', 'Kelompok Besar'];
           const isValid = requiredHeaders.every(header => headers.includes(header));
           return isValid;
         } else if (type === 'praktikum') {
-          // Template lama praktikum harus memiliki header: Tanggal, Jam Mulai, Jam Selesai, Materi, Topik, Kelas Praktikum, Dosen, Ruangan, Sesi
-          const requiredHeaders = ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Materi', 'Topik', 'Kelas Praktikum', 'Dosen', 'Ruangan', 'Sesi'];
+          // Template lama praktikum harus memiliki header: Tanggal, Jam Mulai, Materi, Topik, Kelas Praktikum, Dosen, Ruangan, Sesi
+          const requiredHeaders = ['Tanggal', 'Jam Mulai', 'Materi', 'Topik', 'Kelas Praktikum', 'Dosen', 'Ruangan', 'Sesi'];
           const isValid = requiredHeaders.every(header => headers.includes(header));
           return isValid;
         } else if (type === 'pbl') {
-          // Template lama PBL harus memiliki header: Tanggal, Jam Mulai, Jam Selesai, Modul PBL, Kelompok Kecil, Dosen, Ruangan, PBL Tipe
-          const requiredHeaders = ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Modul PBL', 'Kelompok Kecil', 'Dosen', 'Ruangan', 'PBL Tipe'];
+          // Template lama PBL harus memiliki header: Tanggal, Jam Mulai, Modul PBL, Kelompok Kecil, Dosen, Ruangan, PBL Tipe
+          const requiredHeaders = ['Tanggal', 'Jam Mulai', 'Modul PBL', 'Kelompok Kecil', 'Dosen', 'Ruangan', 'PBL Tipe'];
+          const isValid = requiredHeaders.every(header => headers.includes(header));
+          return isValid;
+        } else if (type === 'agenda-khusus') {
+          // Template lama agenda khusus harus memiliki header: Tanggal, Jam Mulai, Agenda, Ruangan, Kelompok Besar, Jumlah Sesi
+          const requiredHeaders = ['Tanggal', 'Jam Mulai', 'Agenda', 'Ruangan', 'Kelompok Besar', 'Jumlah Sesi'];
           const isValid = requiredHeaders.every(header => headers.includes(header));
           return isValid;
         }
@@ -6671,12 +6708,43 @@ export default function DetailBlok() {
           const requiredHeaders = [
             'Tanggal\n(YYYY-MM-DD)', 
             'Waktu Mulai\n(Lihat Daftar Waktu Mulai)', 
-            'Waktu Selesai\n(Lihat Daftar Waktu Selesai)', 
             'Topik', 
             'NIP Pengajar', 
             'Ruang\n(Lihat Daftar Ruang)'
           ];
-          const isValid = requiredHeaders.every(header => headers.includes(header));
+          
+          // DEBUG: Log detail validasi untuk kuliah besar
+          
+          // Fungsi untuk mengecek header dengan berbagai format line break
+          const checkHeaderExists = (requiredHeader: string) => {
+            // Cek format asli
+            if (headers.includes(requiredHeader)) return true;
+            
+            // Cek format tanpa line break (Template 1)
+            const withoutLineBreak = requiredHeader.replace(/\n.*/, '');
+            if (headers.includes(withoutLineBreak)) return true;
+            
+            // Cek format dengan \r\n (Template 2 & 3)
+            const withWindowsLineBreak = requiredHeader.replace(/\n/g, '\r\n');
+            if (headers.includes(withWindowsLineBreak)) return true;
+            
+            // Cek format dengan \r\n dan tanpa parenthetical
+            const withWindowsLineBreakNoParenthetical = withWindowsLineBreak.replace(/\([^)]*\)/g, '');
+            if (headers.includes(withWindowsLineBreakNoParenthetical.trim())) return true;
+            
+            return false;
+          };
+          
+          requiredHeaders.forEach(requiredHeader => {
+            const found = checkHeaderExists(requiredHeader);
+            
+            // Debug: cek berbagai format
+            const withoutLineBreak = requiredHeader.replace(/\n.*/, '');
+            const withWindowsLineBreak = requiredHeader.replace(/\n/g, '\r\n');
+          });
+          
+          const isValid = requiredHeaders.every(header => checkHeaderExists(header));
+          
           return isValid;
         } else if (type === 'praktikum') {
           // Template SIAKAD praktikum harus memiliki header yang sesuai dengan format SIAKAD
@@ -6697,7 +6765,39 @@ export default function DetailBlok() {
             'Waktu Mulai\n(Lihat Daftar Waktu Mulai)',
             'Waktu Selesai\n(Lihat Daftar Waktu Selesai)'
           ];
-          const isValid = requiredHeaders.every(header => headers.includes(header));
+          
+          // DEBUG: Log detail validasi untuk praktikum
+          
+          // Fungsi untuk mengecek header dengan berbagai format line break
+          const checkHeaderExists = (requiredHeader: string) => {
+            // Cek format asli
+            if (headers.includes(requiredHeader)) return true;
+            
+            // Cek format tanpa line break
+            const withoutLineBreak = requiredHeader.replace(/\n.*/, '');
+            if (headers.includes(withoutLineBreak)) return true;
+            
+            // Cek format dengan \r\n
+            const withWindowsLineBreak = requiredHeader.replace(/\n/g, '\r\n');
+            if (headers.includes(withWindowsLineBreak)) return true;
+            
+            // Cek format dengan \r\n dan tanpa parenthetical
+            const withWindowsLineBreakNoParenthetical = withWindowsLineBreak.replace(/\([^)]*\)/g, '');
+            if (headers.includes(withWindowsLineBreakNoParenthetical.trim())) return true;
+            
+            return false;
+          };
+          
+          requiredHeaders.forEach(requiredHeader => {
+            const found = checkHeaderExists(requiredHeader);
+            
+            // Debug: cek berbagai format
+            const withoutLineBreak = requiredHeader.replace(/\n.*/, '');
+            const withWindowsLineBreak = requiredHeader.replace(/\n/g, '\r\n');
+          });
+          
+          const isValid = requiredHeaders.every(header => checkHeaderExists(header));
+          
           return isValid;
         } else if (type === 'pbl') {
           // Template SIAKAD PBL harus memiliki header yang sesuai dengan format SIAKAD
@@ -6717,7 +6817,39 @@ export default function DetailBlok() {
             'Waktu Mulai\n(Lihat Daftar Waktu Mulai)',
             'Waktu Selesai\n(Lihat Daftar Waktu Selesai)'
           ];
-          const isValid = requiredHeaders.every(header => headers.includes(header));
+          
+          // DEBUG: Log detail validasi untuk PBL
+          
+          // Fungsi untuk mengecek header dengan berbagai format line break
+          const checkHeaderExists = (requiredHeader: string) => {
+            // Cek format asli
+            if (headers.includes(requiredHeader)) return true;
+            
+            // Cek format tanpa line break
+            const withoutLineBreak = requiredHeader.replace(/\n.*/, '');
+            if (headers.includes(withoutLineBreak)) return true;
+            
+            // Cek format dengan \r\n
+            const withWindowsLineBreak = requiredHeader.replace(/\n/g, '\r\n');
+            if (headers.includes(withWindowsLineBreak)) return true;
+            
+            // Cek format dengan \r\n dan tanpa parenthetical
+            const withWindowsLineBreakNoParenthetical = withWindowsLineBreak.replace(/\([^)]*\)/g, '');
+            if (headers.includes(withWindowsLineBreakNoParenthetical.trim())) return true;
+            
+            return false;
+          };
+          
+          requiredHeaders.forEach(requiredHeader => {
+            const found = checkHeaderExists(requiredHeader);
+            
+            // Debug: cek berbagai format
+            const withoutLineBreak = requiredHeader.replace(/\n.*/, '');
+            const withWindowsLineBreak = requiredHeader.replace(/\n/g, '\r\n');
+          });
+          
+          const isValid = requiredHeaders.every(header => checkHeaderExists(header));
+          
           return isValid;
         }
       }
@@ -6846,18 +6978,45 @@ export default function DetailBlok() {
 
 
 
+      // Helper function untuk konversi format jam (menambahkan leading zero)
+      const convertTimeFormat = (timeStr: string) => {
+        if (!timeStr || timeStr.trim() === '') return '';
+        
+        // Hapus spasi dan konversi ke string
+        const time = timeStr.toString().trim();
+        
+        // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
+        if (time.match(/^\d{2}[:.]\d{2}$/)) {
+          return time.replace('.', ':');
+        }
+        
+        // Cek apakah format H:MM atau H.MM (1 digit jam)
+        if (time.match(/^\d{1}[:.]\d{2}$/)) {
+          return '0' + time.replace('.', ':');
+        }
+        
+        // Cek apakah format HH:MM atau HH.MM (2 digit jam)
+        if (time.match(/^\d{2}[:.]\d{2}$/)) {
+          return time.replace('.', ':');
+        }
+        
+        // Jika tidak sesuai format, return as is
+        return time;
+      };
+
       // Konversi ke format JadwalKuliahBesarType menggunakan format legacy
       const convertedData: JadwalKuliahBesarType[] = excelData.map(row => {
 
-          const namaDosen = row[5].toString().trim();
+          const namaDosen = row[4].toString().trim();
 
-          const namaRuangan = row[6].toString().trim();
+          const namaRuangan = row[5].toString().trim();
 
-          const kelompokBesarId = parseInt(row[7]);
+          const kelompokBesarId = parseInt(row[6]);
 
-          const jumlahSesi = parseInt(row[8]) || 2;
+          const jumlahSesi = parseInt(row[7]) || 2;
 
-          const jamMulai = row[1].toString();
+          const jamMulaiRaw = row[1].toString();
+          const jamMulai = convertTimeFormat(jamMulaiRaw);
 
           
 
@@ -6869,25 +7028,7 @@ export default function DetailBlok() {
 
           // Hitung jam selesai otomatis berdasarkan sistem
 
-          let jamSelesai = hitungJamSelesai(jamMulai, jumlahSesi);
-
-          
-
-          // Jika ada jam selesai di Excel, gunakan yang ada (dengan konversi format)
-
-          if (row[2]) {
-
-            jamSelesai = row[2].toString();
-
-            // Konversi format titik (.) ke titik dua (:) jika perlu
-
-            if (jamSelesai.includes('.')) {
-
-              jamSelesai = jamSelesai.replace('.', ':');
-
-            }
-
-          }
+          const jamSelesai = hitungJamSelesai(jamMulai, jumlahSesi);
 
           
 
@@ -6898,9 +7039,9 @@ export default function DetailBlok() {
 
             jam_selesai: jamSelesai,
 
-            materi: row[3].toString(),
+            materi: row[2].toString(),
 
-            topik: row[4] ? row[4].toString() : '',
+            topik: row[3] ? row[3].toString() : '',
 
             dosen_id: dosen?.id || 0,
 
@@ -7004,6 +7145,8 @@ export default function DetailBlok() {
     try {
       const { data: rawData, headers } = await readExcelFile(file);
 
+      // DEBUG: Log data yang dibaca dari file Excel
+
       if (rawData.length === 0) {
         setSiakadImportErrors(['File Excel kosong atau tidak memiliki data']);
         setShowSIAKADImportModal(true);
@@ -7017,15 +7160,69 @@ export default function DetailBlok() {
           rowObj[header] = row[idx] || '';
         });
 
-        const tanggal = rowObj['Tanggal\n(YYYY-MM-DD)'] || '';
-        const jamMulai = rowObj['Waktu Mulai\n(Lihat Daftar Waktu Mulai)'] || '';
-        const jamSelesai = rowObj['Waktu Selesai\n(Lihat Daftar Waktu Selesai)'] || '';
+        // DEBUG: Log konversi data untuk baris pertama
+        if (index === 0) {
+        }
+
+        // Helper function untuk mendapatkan nilai dari berbagai format header
+        const getValueFromMultipleFormats = (baseKey: string, rowObj: any) => {
+          // Coba format asli dengan \n
+          if (rowObj[baseKey]) return rowObj[baseKey];
+          
+          // Coba format dengan \r\n
+          const withWindowsLineBreak = baseKey.replace(/\n/g, '\r\n');
+          if (rowObj[withWindowsLineBreak]) return rowObj[withWindowsLineBreak];
+          
+          // Coba format tanpa line break
+          const withoutLineBreak = baseKey.replace(/\n.*/, '');
+          if (rowObj[withoutLineBreak]) return rowObj[withoutLineBreak];
+          
+          return '';
+        };
+
+        // Helper function untuk konversi format jam (menambahkan leading zero)
+        const convertTimeFormat = (timeStr: string) => {
+          if (!timeStr || timeStr.trim() === '') return '';
+          
+          // Hapus spasi dan konversi ke string
+          const time = timeStr.toString().trim();
+          
+          // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
+          if (time.match(/^\d{2}[:.]\d{2}$/)) {
+            return time.replace('.', ':');
+          }
+          
+          // Cek apakah format H:MM atau H.MM (1 digit jam)
+          if (time.match(/^\d{1}[:.]\d{2}$/)) {
+            return '0' + time.replace('.', ':');
+          }
+          
+          // Cek apakah format HH:MM atau HH.MM (2 digit jam)
+          if (time.match(/^\d{2}[:.]\d{2}$/)) {
+            return time.replace('.', ':');
+          }
+          
+          // Jika tidak sesuai format, return as is
+          return time;
+        };
+
+        const tanggal = getValueFromMultipleFormats('Tanggal\n(YYYY-MM-DD)', rowObj);
+        const jamMulaiRaw = getValueFromMultipleFormats('Waktu Mulai\n(Lihat Daftar Waktu Mulai)', rowObj);
+        const jamMulai = convertTimeFormat(jamMulaiRaw);
         const topik = rowObj['Topik'] || '';
-        const namaRuangan = rowObj['Ruang\n(Lihat Daftar Ruang)'] || '';
-        const kelompokBesarId = rowObj['Kelompok\n(Contoh: 1)'] || '';
+        const namaRuangan = getValueFromMultipleFormats('Ruang\n(Lihat Daftar Ruang)', rowObj);
+        const kelompokBesarId = getValueFromMultipleFormats('Kelompok\n(Contoh: 1)', rowObj);
+
+        // DEBUG: Log nilai yang diekstrak untuk baris pertama
+        if (index === 0) {
+        }
 
         // Cari ruangan berdasarkan nama
         const ruangan = ruanganList.find(r => r.nama.toLowerCase() === namaRuangan.toLowerCase());
+
+        // Hitung jam selesai otomatis berdasarkan sistem
+        const jumlahSesi = 2; // Default 2 sesi
+        const jamSelesai = hitungJamSelesai(jamMulai, jumlahSesi);
 
         return {
           tanggal: tanggal,
@@ -7038,7 +7235,7 @@ export default function DetailBlok() {
           ruangan_id: ruangan?.id || 0,
           nama_ruangan: namaRuangan || 'Kosong (isi manual)',
           kelompok_besar_id: kelompokBesarId ? parseInt(kelompokBesarId) : 0,
-          jumlah_sesi: 2 // Default 2 sesi
+          jumlah_sesi: jumlahSesi
         };
       });
 
@@ -7103,9 +7300,21 @@ export default function DetailBlok() {
       if (response.data.success) {
         setPraktikumImportedCount(praktikumImportData.length);
         setShowPraktikumImportModal(false);
+        // Reset semua data setelah import berhasil
+        setPraktikumImportData([]);
+        setPraktikumImportErrors([]);
+        setPraktikumCellErrors([]);
+        setPraktikumEditingCell(null);
+        setPraktikumImportPage(1);
+        setPraktikumImportFile(null);
+        setSelectedPraktikumTemplate(null);
+        if (praktikumFileInputRef.current) {
+          praktikumFileInputRef.current.value = '';
+        }
         await fetchBatchData(); // Refresh data
       } else {
         setPraktikumImportErrors([response.data.message || 'Terjadi kesalahan saat mengimport data']);
+        // Tidak import data jika ada error - all or nothing
       }
     } catch (error: any) {
       if (error.response?.status === 422) {
@@ -7130,90 +7339,59 @@ export default function DetailBlok() {
   };
 
   const handlePBLSubmitImport = async () => {
-
     if (pblImportData.length === 0) return;
 
-
+    setIsPBLImporting(true);
+    setPBLImportErrors([]);
 
     try {
-
-      setIsPBLImporting(true);
-
-      
+      // Final validation
+      const { cellErrors } = validatePBLExcelData(pblImportData);
+      if (cellErrors.length > 0) {
+        setPBLCellErrors(cellErrors);
+        setIsPBLImporting(false);
+        return;
+      }
 
       const response = await api.post(`/mata-kuliah/${kode}/jadwal-pbl/import`, {
-
         data: pblImportData
-
       });
 
-
-
-      if (response.status === 200) {
-
+      if (response.data.success) {
         setPBLImportedCount(response.data.success || pblImportData.length);
-
-        await fetchBatchData(); // Refresh data
-
         setShowPBLImportModal(false);
-
         setPBLImportData([]);
-
         setPBLImportFile(null);
-
         setPBLImportErrors([]);
         setPBLCellErrors([]);
-
         setPBLEditingCell(null);
-
         setPBLImportSuccess(false);
-
         setPBLImportPage(1);
-
-      }
-
-    } catch (error: any) {
-
-      
-
-      if (error.response?.status === 422) {
-
-        // Handle validation errors
-
-        const errorData = error.response.data;
-
-        if (errorData.errors && Array.isArray(errorData.errors)) {
-
-          const cellErrors = errorData.errors.map((err: string, idx: number) => ({
-
-            row: idx,
-
-            field: 'api',
-
-            message: err
-
-          }));
-
-          setPBLCellErrors(cellErrors);
-
-        } else {
-
-          setPBLCellErrors([{ row: 0, field: 'api', message: 'Terjadi kesalahan validasi data' }]);
-
-        }
-
+        await fetchBatchData(); // Refresh data
       } else {
-
-        setPBLCellErrors([{ row: 0, field: 'api', message: 'Gagal mengimpor data. Silakan coba lagi.' }]);
-
+        setPBLImportErrors([response.data.message || 'Terjadi kesalahan saat mengimport data']);
+        // Tidak import data jika ada error - all or nothing
       }
-
+    } catch (error: any) {
+      if (error.response?.status === 422) {
+        // Handle validation errors
+        const errorData = error.response.data;
+        if (errorData.errors && Array.isArray(errorData.errors)) {
+          const cellErrors = errorData.errors.map((err: string, idx: number) => ({
+            row: idx + 1,
+            field: 'api',
+            message: err
+          }));
+          setPBLCellErrors(cellErrors);
+        } else {
+          setPBLImportErrors([errorData.message || 'Terjadi kesalahan validasi']);
+        }
+      } else {
+        setPBLImportErrors([error.response?.data?.message || 'Gagal mengimpor data. Silakan coba lagi.']);
+      }
     } finally {
-
       setIsPBLImporting(false);
-
     }
-
   };
 
   // Fungsi untuk download template Excel Jurnal Reading
@@ -7253,7 +7431,6 @@ export default function DetailBlok() {
         {
           tanggal: contohTanggal1,
           jam_mulai: '07.20',
-          jam_selesai: '09.00',
           topik: 'Anatomi Sistem Kardiovaskular',
           dosen: allDosenList[0]?.name || 'Dr. John Doe',
           ruangan: ruanganList[0]?.nama || 'Ruang 1',
@@ -7263,7 +7440,6 @@ export default function DetailBlok() {
         {
           tanggal: contohTanggal2,
           jam_mulai: '10.40',
-          jam_selesai: '12.20',
           topik: 'Fisiologi Sistem Pernapasan',
           dosen: allDosenList[1]?.name || 'Dr. Jane Smith',
           ruangan: ruanganList[1]?.nama || 'Ruang 2',
@@ -7276,7 +7452,6 @@ export default function DetailBlok() {
       const templateData = rawTemplateData.map(row => ({
         'Tanggal': row.tanggal,
         'Jam Mulai': row.jam_mulai,
-        'Jam Selesai': row.jam_selesai,
         'Topik': row.topik,
         'Dosen': row.dosen,
         'Ruangan': row.ruangan,
@@ -7289,14 +7464,13 @@ export default function DetailBlok() {
       
       // Sheet template dengan header yang eksplisit (Title Case dengan spasi)
       const ws = XLSX.utils.json_to_sheet(templateData, {
-        header: ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Topik', 'Dosen', 'Ruangan', 'Kelompok Kecil', 'Jumlah Sesi']
+        header: ['Tanggal', 'Jam Mulai', 'Topik', 'Dosen', 'Ruangan', 'Kelompok Kecil', 'Jumlah Sesi']
       });
       
       // Set column widths
       const colWidths = [
         { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
         { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
-        { wch: EXCEL_COLUMN_WIDTHS.JAM_SELESAI },
         { wch: EXCEL_COLUMN_WIDTHS.TOPIK },
         { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
         { wch: EXCEL_COLUMN_WIDTHS.RUANGAN },
@@ -7454,25 +7628,6 @@ export default function DetailBlok() {
         cellErrors.push({ row: rowNumber, field: 'jam_mulai', message: jamMulaiError });
       }
 
-      // Validasi jam selesai
-      if (!row.jam_selesai) {
-        cellErrors.push({ row: rowNumber, field: 'jam_selesai', message: `Jam selesai wajib diisi (Baris ${rowNumber}, Kolom JAM_SELESAI)` });
-      } else {
-        const expectedJamSelesai = hitungJamSelesai(row.jam_mulai, row.jumlah_sesi);
-        
-        // Normalize format untuk perbandingan (konsisten dengan jadwal lain)
-        const normalizeTime = (time: string): string => {
-          return time.replace(':', '.');
-        };
-        
-        const normalizedJamSelesai = normalizeTime(row.jam_selesai);
-        const normalizedExpectedJamSelesai = normalizeTime(expectedJamSelesai);
-        
-        if (normalizedJamSelesai !== normalizedExpectedJamSelesai) {
-          cellErrors.push({ row: rowNumber, field: 'jam_selesai', message: `Jam selesai seharusnya ${expectedJamSelesai} (${row.jumlah_sesi} x 50 menit dari ${row.jam_mulai}) (Baris ${rowNumber}, Kolom JAM_SELESAI)` });
-        }
-      }
-
       // Validasi topik
       if (!row.topik || row.topik.trim() === '') {
         cellErrors.push({ row: rowNumber, field: 'topik', message: `Topik wajib diisi (Baris ${rowNumber}, Kolom TOPIK)` });
@@ -7541,6 +7696,32 @@ export default function DetailBlok() {
     try {
       const { data: rows, headers } = await readExcelFile(file);
 
+      // Helper function untuk konversi format jam (menambahkan leading zero)
+      const convertTimeFormat = (timeStr: string) => {
+        if (!timeStr || timeStr.trim() === '') return '';
+        
+        // Hapus spasi dan konversi ke string
+        const time = timeStr.toString().trim();
+        
+        // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
+        if (time.match(/^\d{2}[:.]\d{2}$/)) {
+          return time.replace('.', ':');
+        }
+        
+        // Cek apakah format H:MM atau H.MM (1 digit jam)
+        if (time.match(/^\d{1}[:.]\d{2}$/)) {
+          return '0' + time.replace('.', ':');
+        }
+        
+        // Cek apakah format HH:MM atau HH.MM (2 digit jam)
+        if (time.match(/^\d{2}[:.]\d{2}$/)) {
+          return time.replace('.', ':');
+        }
+        
+        // Jika tidak sesuai format, return as is
+        return time;
+      };
+
       // Convert data Excel ke format Jurnal Reading
       const convertedData = rows.map((row: any[]) => {
         // Helper function untuk mencari ruangan berdasarkan nama
@@ -7558,26 +7739,34 @@ export default function DetailBlok() {
           return kelompokKecilList?.find(k => k.nama_kelompok.toLowerCase() === namaKelompok.toLowerCase());
         };
 
-        const namaRuangan = row[5]?.toString() || '';
-        const namaDosen = row[4]?.toString() || '';
-        const namaKelompok = row[6]?.toString() || '';
+        const namaRuangan = row[4]?.toString() || '';
+        const namaDosen = row[3]?.toString() || '';
+        const namaKelompok = row[5]?.toString() || '';
 
         const ruangan = findRuangan(namaRuangan);
         const dosen = findDosen(namaDosen);
         const kelompokKecil = findKelompokKecil(namaKelompok);
 
+        // Konversi format jam
+        const jamMulaiRaw = row[1]?.toString() || '';
+        const jamMulai = convertTimeFormat(jamMulaiRaw);
+
+        // Hitung jam selesai otomatis berdasarkan sistem
+        const jumlahSesi = parseInt(row[6]?.toString() || '1');
+        const jamSelesai = hitungJamSelesai(jamMulai, jumlahSesi);
+
         return {
           tanggal: row[0]?.toString() || '',
-          jam_mulai: row[1]?.toString() || '',
-          jam_selesai: row[2]?.toString() || '',
-          topik: row[3]?.toString() || '',
+          jam_mulai: jamMulai,
+          jam_selesai: jamSelesai,
+          topik: row[2]?.toString() || '',
           nama_dosen: namaDosen,
           dosen_id: dosen?.id || null,
           nama_ruangan: namaRuangan,
           ruangan_id: ruangan?.id || null,
           nama_kelompok: namaKelompok,
           kelompok_kecil_id: kelompokKecil?.id || null,
-          jumlah_sesi: parseInt(row[7]?.toString() || '1')
+          jumlah_sesi: jumlahSesi
         } as JadwalJurnalReadingType;
       });
 
@@ -7651,6 +7840,14 @@ export default function DetailBlok() {
       (row as any)[key] = value;
     }
 
+    // Jika mengedit jam_mulai atau jumlah_sesi, hitung ulang jam selesai
+    if (key === 'jam_mulai' || key === 'jumlah_sesi') {
+      const jamMulai = key === 'jam_mulai' ? value : row.jam_mulai;
+      const jumlahSesi = key === 'jumlah_sesi' ? value : row.jumlah_sesi;
+      const jamSelesai = hitungJamSelesai(jamMulai || '08:00', jumlahSesi || 1);
+      row.jam_selesai = jamSelesai;
+    }
+
     setJurnalReadingImportData(updatedData);
 
     // Re-validasi data
@@ -7697,6 +7894,7 @@ export default function DetailBlok() {
         await fetchBatchData(); // Refresh data
       } else {
         setJurnalReadingImportErrors([response.data.message || 'Terjadi kesalahan saat mengimport data']);
+        // Tidak import data jika ada error - all or nothing
       }
     } catch (error: any) {
       if (error.response?.status === 422) {
@@ -7747,6 +7945,32 @@ export default function DetailBlok() {
     try {
       const { data: rows, headers } = await readExcelFile(file);
 
+      // Helper function untuk konversi format jam (menambahkan leading zero)
+      const convertTimeFormat = (timeStr: string) => {
+        if (!timeStr || timeStr.trim() === '') return '';
+        
+        // Hapus spasi dan konversi ke string
+        const time = timeStr.toString().trim();
+        
+        // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
+        if (time.match(/^\d{2}[:.]\d{2}$/)) {
+          return time.replace('.', ':');
+        }
+        
+        // Cek apakah format H:MM atau H.MM (1 digit jam)
+        if (time.match(/^\d{1}[:.]\d{2}$/)) {
+          return '0' + time.replace('.', ':');
+        }
+        
+        // Cek apakah format HH:MM atau HH.MM (2 digit jam)
+        if (time.match(/^\d{2}[:.]\d{2}$/)) {
+          return time.replace('.', ':');
+        }
+        
+        // Jika tidak sesuai format, return as is
+        return time;
+      };
+
       // Convert data Excel ke format Agenda Khusus
       const convertedData = rows.map((row: any[]) => {
         // Helper function untuk mencari ruangan berdasarkan nama
@@ -7754,18 +7978,26 @@ export default function DetailBlok() {
           return allRuanganList?.find(r => r.nama.toLowerCase() === namaRuangan.toLowerCase());
         };
 
-        const namaRuangan = row[4]?.toString() || '';
+        const namaRuangan = row[3]?.toString() || '';
         const ruangan = findRuangan(namaRuangan);
+
+        // Konversi format jam
+        const jamMulaiRaw = row[1]?.toString() || '';
+        const jamMulai = convertTimeFormat(jamMulaiRaw);
+
+        // Hitung jam selesai otomatis berdasarkan sistem
+        const jumlahSesi = parseInt(row[5]?.toString() || '1');
+        const jamSelesai = hitungJamSelesai(jamMulai, jumlahSesi);
 
         return {
           tanggal: row[0]?.toString() || '',
-          jam_mulai: row[1]?.toString() || '',
-          jam_selesai: row[2]?.toString() || '',
-          agenda: row[3]?.toString() || '',
+          jam_mulai: jamMulai,
+          jam_selesai: jamSelesai,
+          agenda: row[2]?.toString() || '',
           nama_ruangan: namaRuangan,
           ruangan_id: ruangan?.id || null,
-          kelompok_besar_id: parseInt(row[5]?.toString() || '0'),
-          jumlah_sesi: parseInt(row[6]?.toString() || '1'),
+          kelompok_besar_id: parseInt(row[4]?.toString() || '0'),
+          jumlah_sesi: jumlahSesi,
           use_ruangan: !!(namaRuangan && namaRuangan.trim() !== '' && ruangan?.id)
         } as JadwalAgendaKhususType;
       });
@@ -7890,6 +8122,7 @@ export default function DetailBlok() {
         await fetchBatchData(); // Refresh data
       } else {
         setAgendaKhususImportErrors([response.data.message || 'Terjadi kesalahan saat mengimport data']);
+        // Tidak import data jika ada error - all or nothing
       }
     } catch (error: any) {
       if (error.response?.status === 422) {
@@ -7944,34 +8177,35 @@ export default function DetailBlok() {
       if (response.data.errors && response.data.errors.length > 0) {
 
         setImportErrors(response.data.errors);
+        // Tidak import data jika ada error - all or nothing
 
-      }
+      } else {
 
-      
+        // Hanya import jika tidak ada error sama sekali
 
-      // Jika berhasil import sebagian atau semua
+        if (response.data.success > 0) {
 
-      if (response.data.success > 0) {
+          setImportedCount(response.data.success);
 
-        setImportedCount(response.data.success);
+          await fetchBatchData(); // Refresh data
 
-        await fetchBatchData(); // Refresh data
+          setImportSuccess(true); // Set success flag sebelum close modal
 
-        setShowImportModal(false);
+          setShowImportModal(false);
 
-        setImportData([]);
+          setImportData([]);
 
-        setImportFile(null);
+          setImportFile(null);
 
-        setImportErrors([]);
+          setImportErrors([]);
 
-        setCellErrors([]);
+          setCellErrors([]);
 
-        setEditingCell(null);
+          setEditingCell(null);
 
-        setImportSuccess(false);
+          setImportPage(1);
 
-        setImportPage(1);
+        }
 
       }
 
@@ -8015,20 +8249,21 @@ export default function DetailBlok() {
       // Tampilkan error jika ada
       if (response.data.errors && response.data.errors.length > 0) {
         setSiakadImportErrors(response.data.errors);
-      }
-
-      // Jika berhasil import sebagian atau semua
-      if (response.data.success > 0) {
-        setImportedCount(response.data.success);
-        await fetchBatchData(); // Refresh data
-        setShowSIAKADImportModal(false);
-        setSiakadImportData([]);
-        setSiakadImportFile(null);
-        setSiakadImportErrors([]);
-        setSiakadCellErrors([]);
-        setSiakadEditingCell(null);
-        setSiakadImportSuccess(false);
-        setImportPage(1);
+        // Tidak import data jika ada error - all or nothing
+      } else {
+        // Hanya import jika tidak ada error sama sekali
+        if (response.data.success > 0) {
+          setImportedCount(response.data.success);
+          await fetchBatchData(); // Refresh data
+          setSiakadImportSuccess(true); // Set success flag sebelum close modal
+          setShowSIAKADImportModal(false);
+          setSiakadImportData([]);
+          setSiakadImportFile(null);
+          setSiakadImportErrors([]);
+          setSiakadCellErrors([]);
+          setSiakadEditingCell(null);
+          setImportPage(1);
+        }
       }
 
     } catch (error: any) {
@@ -8204,6 +8439,29 @@ export default function DetailBlok() {
       }
     }
     
+    // Jika mengedit pbl_tipe, hitung ulang jam selesai dan jumlah sesi
+    if (key === 'pbl_tipe') {
+      const jumlahSesi = value === 'PBL 2' ? 3 : 2;
+      const jamMulai = newData[rowIdx].jam_mulai || '08:00';
+      const jamSelesai = hitungJamSelesai(jamMulai, jumlahSesi);
+      newData[rowIdx] = { 
+        ...newData[rowIdx], 
+        jam_selesai: jamSelesai,
+        jumlah_sesi: jumlahSesi
+      };
+    }
+    
+    // Jika mengedit jam_mulai, hitung ulang jam selesai berdasarkan pbl_tipe
+    if (key === 'jam_mulai') {
+      const pblTipe = newData[rowIdx].pbl_tipe || 'PBL 1';
+      const jumlahSesi = pblTipe === 'PBL 2' ? 3 : 2;
+      const jamSelesai = hitungJamSelesai(value, jumlahSesi);
+      newData[rowIdx] = { 
+        ...newData[rowIdx], 
+        jam_selesai: jamSelesai
+      };
+    }
+    
     setPBLImportData(newData);
 
 
@@ -8245,6 +8503,29 @@ export default function DetailBlok() {
       } else {
         newData[rowIdx] = { ...newData[rowIdx], dosen_id: null };
       }
+    }
+
+    // Jika mengedit pbl_tipe, hitung ulang jam selesai dan jumlah sesi
+    if (key === 'pbl_tipe') {
+      const jumlahSesi = value === 'PBL 2' ? 3 : 2;
+      const jamMulai = newData[rowIdx].jam_mulai || '08:00';
+      const jamSelesai = hitungJamSelesai(jamMulai, jumlahSesi);
+      newData[rowIdx] = { 
+        ...newData[rowIdx], 
+        jam_selesai: jamSelesai,
+        jumlah_sesi: jumlahSesi
+      };
+    }
+    
+    // Jika mengedit jam_mulai, hitung ulang jam selesai berdasarkan pbl_tipe
+    if (key === 'jam_mulai') {
+      const pblTipe = newData[rowIdx].pbl_tipe || 'PBL 1';
+      const jumlahSesi = pblTipe === 'PBL 2' ? 3 : 2;
+      const jamSelesai = hitungJamSelesai(value, jumlahSesi);
+      newData[rowIdx] = { 
+        ...newData[rowIdx], 
+        jam_selesai: jamSelesai
+      };
     }
 
     setPBLImportData(newData);
@@ -8353,17 +8634,8 @@ export default function DetailBlok() {
 
 
   const handleCloseImportModal = () => {
-
     setShowImportModal(false);
-
-    // Tidak mereset importData, importFile, cellErrors, editingCell, dan importErrors
-    // agar data dan error validasi tetap tersimpan ketika modal dibuka kembali
-    setImportSuccess(false);
-
-    setImportPage(1);
-
-    // Tidak mereset file input agar file tetap tersimpan
-
+    // Don't reset data - preserve file and edited data for next time modal opens
   };
 
   // Fungsi untuk mereset data import
@@ -8397,11 +8669,7 @@ export default function DetailBlok() {
   // Handler untuk close modal import SIAKAD
   const handleSIAKADCloseImportModal = () => {
     setShowSIAKADImportModal(false);
-    // Tidak mereset siakadImportData, siakadImportFile, siakadCellErrors, siakadEditingCell, dan siakadImportErrors
-    // agar data dan error validasi tetap tersimpan ketika modal dibuka kembali
-    setSiakadImportSuccess(false);
-    setSiakadImportPage(1);
-    // Tidak mereset file input agar file tetap tersimpan
+    // Don't reset data - preserve file and edited data for next time modal opens
   };
 
   // Handler untuk edit cell SIAKAD
@@ -8554,70 +8822,6 @@ export default function DetailBlok() {
             field: 'jam_mulai', 
             message: jamMulaiError 
           }]);
-        } else {
-          // Re-validate jam selesai when jam mulai changes
-          if (row.jam_selesai && row.jumlah_sesi) {
-            // Clear existing jam_selesai errors for this row first
-            setSiakadCellErrors(prev => prev.filter(err => !(err.row === rowIndex && err.field === 'jam_selesai')));
-            
-            const jumlahSesi = parseInt(row.jumlah_sesi.toString());
-            const jamSelesaiSeharusnya = hitungJamSelesai(row.jam_mulai, jumlahSesi);
-            
-            const normalizeTime = (time: string): string => {
-              return time.replace('.', ':');
-            };
-            
-            const normalizedJamSelesai = normalizeTime(row.jam_selesai);
-            const normalizedJamSelesaiSeharusnya = normalizeTime(jamSelesaiSeharusnya);
-            
-            if (normalizedJamSelesai !== normalizedJamSelesaiSeharusnya) {
-              setSiakadCellErrors(prev => [...prev, { 
-                row: rowIndex, 
-                field: 'jam_selesai', 
-                message: `Jam selesai seharusnya ${normalizedJamSelesaiSeharusnya} (${jumlahSesi} x 50 menit dari ${row.jam_mulai}) (Baris ${rowNumber}, Kolom Jam Selesai)` 
-              }]);
-            }
-          }
-        }
-      }
-    } else if (field === 'jam_selesai') {
-      // Clear existing errors for this field first
-      setSiakadCellErrors(prev => prev.filter(err => !(err.row === rowIndex && err.field === 'jam_selesai')));
-      
-      // Validate jam selesai
-      if (!row.jam_selesai || row.jam_selesai.trim() === '') {
-        setSiakadCellErrors(prev => [...prev, { 
-          row: rowIndex, 
-          field: 'jam_selesai', 
-          message: `Jam selesai wajib diisi (Baris ${rowNumber}, Kolom Jam Selesai)` 
-        }]);
-      } else {
-        const jamSelesaiError = validateTime(row.jam_selesai, rowNumber, 'jam selesai');
-        if (jamSelesaiError) {
-          setSiakadCellErrors(prev => [...prev, { 
-            row: rowIndex, 
-            field: 'jam_selesai', 
-            message: jamSelesaiError 
-          }]);
-        } else if (row.jam_mulai) {
-          // Validate jam selesai calculation
-          const jumlahSesi = row.jumlah_sesi || 2;
-          const jamSelesaiSeharusnya = hitungJamSelesai(row.jam_mulai, jumlahSesi);
-          
-          const normalizeTime = (time: string): string => {
-            return time.replace('.', ':');
-          };
-          
-          const normalizedJamSelesai = normalizeTime(row.jam_selesai);
-          const normalizedJamSelesaiSeharusnya = normalizeTime(jamSelesaiSeharusnya);
-          
-          if (normalizedJamSelesai !== normalizedJamSelesaiSeharusnya) {
-            setSiakadCellErrors(prev => [...prev, { 
-              row: rowIndex, 
-              field: 'jam_selesai', 
-              message: `Jam selesai seharusnya ${normalizedJamSelesaiSeharusnya} (${jumlahSesi} x 50 menit dari ${row.jam_mulai}) (Baris ${rowNumber}, Kolom Jam Selesai)` 
-            }]);
-          }
         }
       }
     } else if (field === 'jumlah_sesi') {
@@ -8639,29 +8843,6 @@ export default function DetailBlok() {
             field: 'jumlah_sesi', 
             message: `Jumlah sesi harus antara 1-6 (Baris ${rowNumber}, Kolom SESI)` 
           }]);
-        } else {
-          // Re-validate jam selesai when sesi changes
-          if (row.jam_mulai && row.jam_selesai) {
-            // Clear existing jam_selesai errors for this row first
-            setSiakadCellErrors(prev => prev.filter(err => !(err.row === rowIndex && err.field === 'jam_selesai')));
-            
-            const jamSelesaiSeharusnya = hitungJamSelesai(row.jam_mulai, jumlahSesi);
-            
-            const normalizeTime = (time: string): string => {
-              return time.replace('.', ':');
-            };
-            
-            const normalizedJamSelesai = normalizeTime(row.jam_selesai);
-            const normalizedJamSelesaiSeharusnya = normalizeTime(jamSelesaiSeharusnya);
-            
-            if (normalizedJamSelesai !== normalizedJamSelesaiSeharusnya) {
-              setSiakadCellErrors(prev => [...prev, { 
-                row: rowIndex, 
-                field: 'jam_selesai', 
-                message: `Jam selesai seharusnya ${normalizedJamSelesaiSeharusnya} (${jumlahSesi} x 50 menit dari ${row.jam_mulai}) (Baris ${rowNumber}, Kolom Jam Selesai)` 
-              }]);
-            }
-          }
         }
       }
     }
@@ -15528,37 +15709,8 @@ export default function DetailBlok() {
                     ) : (
                       /* Preview Section */
                       <>
-                        {/* File Info atau Upload Section */}
-                        {siakadImportErrors.length > 0 ? (
-                          /* Upload Section ketika ada error */
-                          <div className="mb-6">
-                            <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
-                              <div className="space-y-4">
-                                <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
-                                  <FontAwesomeIcon icon={faFileExcel} className="w-8 h-8 text-brand-600 dark:text-brand-400" />
-                                </div>
-                                <div>
-                                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Upload File Excel SIAKAD</h3>
-                                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                    Pilih file Excel dengan format SIAKAD (.xlsx, .xls)
-                                  </p>
-                                </div>
-                                <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
-                                  <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
-                                  Pilih File
-                                  <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept=".xlsx,.xls"
-                                    onChange={handleSIAKADImportExcel}
-                                    className="hidden"
-                                  />
-                                </label>
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          /* File Info ketika tidak ada error */
+                        {/* File Info */}
+                        {siakadImportFile && (
                           <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                             <div className="flex items-center gap-3">
                               <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-500" />
@@ -15568,6 +15720,25 @@ export default function DetailBlok() {
                                   {(siakadImportFile.size / 1024).toFixed(1)} KB
                                 </p>
                               </div>
+                              <button
+                                onClick={() => {
+                                  setSiakadImportFile(null);
+                                  setSiakadImportData([]);
+                                  setSiakadImportErrors([]);
+                                  setSiakadCellErrors([]);
+                                  setSiakadEditingCell(null);
+                                  setSiakadImportPage(1);
+                                  if (fileInputRef.current) {
+                                    fileInputRef.current.value = '';
+                                  }
+                                }}
+                                className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                                title="Hapus file"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
                             </div>
                           </div>
                         )}
@@ -15607,12 +15778,6 @@ export default function DetailBlok() {
                                 <div className="text-sm text-gray-500 dark:text-gray-400">
                                   File: {siakadImportFile?.name}
                                 </div>
-                                <button
-                                  onClick={resetSIAKADImportData}
-                                  className="px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                                >
-                                  Reset Data
-                                </button>
                               </div>
                             </div>
                             
@@ -15624,7 +15789,6 @@ export default function DetailBlok() {
                                       <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                                       <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
                                       <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Mulai</th>
-                                      <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Selesai</th>
                                       <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Materi</th>
                                       <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Topik</th>
                                       <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Dosen</th>
@@ -15680,7 +15844,6 @@ export default function DetailBlok() {
                                           <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{actualIndex + 1}</td>
                                           {renderEditableCell('tanggal', row.tanggal)}
                                           {renderEditableCell('jam_mulai', row.jam_mulai)}
-                                          {renderEditableCell('jam_selesai', row.jam_selesai)}
                                           {renderEditableCell('materi', row.materi)}
                                           {renderEditableCell('topik', row.topik)}
                                           
@@ -17135,6 +17298,26 @@ export default function DetailBlok() {
 
                         </div>
 
+                        <button
+                          onClick={() => {
+                            setImportFile(null);
+                            setImportData([]);
+                            setImportErrors([]);
+                            setCellErrors([]);
+                            setEditingCell(null);
+                            setImportPage(1);
+                            if (fileInputRef.current) {
+                              fileInputRef.current.value = '';
+                            }
+                          }}
+                          className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                          title="Hapus file"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+
                       </div>
 
                     </div>
@@ -17217,18 +17400,6 @@ export default function DetailBlok() {
 
                           </div>
 
-                          <button
-
-                            onClick={resetImportData}
-
-                            className="px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-
-                          >
-
-                            Reset Data
-
-                          </button>
-
                         </div>
 
                       </div>
@@ -17250,8 +17421,6 @@ export default function DetailBlok() {
                                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
 
                                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Mulai</th>
-
-                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Selesai</th>
 
                                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Materi</th>
 
@@ -17351,8 +17520,6 @@ export default function DetailBlok() {
                                     {renderEditableCell('tanggal', row.tanggal)}
 
                                     {renderEditableCell('jam_mulai', row.jam_mulai)}
-
-                                    {renderEditableCell('jam_selesai', row.jam_selesai)}
 
                                     {renderEditableCell('materi', row.materi)}
 
@@ -18191,55 +18358,20 @@ export default function DetailBlok() {
 
                 <>
 
-                  {/* File Info atau Upload Section */}
+                  {/* File Info */}
 
                   {pblImportFile && (
-
-                    <>
-                      {(pblImportErrors.length > 0 || pblCellErrors.length > 0) ? (
-                        /* Upload Section ketika ada error */
-                        <div className="mb-6">
-                          <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
-                            <div className="space-y-4">
-                              <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
-                                <FontAwesomeIcon icon={faFileExcel} className="w-8 h-8 text-brand-600 dark:text-brand-400" />
-                              </div>
-                              <div>
-                                <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Upload File Excel SIAKAD</h3>
-                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                  Pilih file Excel dengan format SIAKAD (.xlsx, .xls)
-                                </p>
-                              </div>
-                              <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
-                                <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
-                                Pilih File
-                                <input
-                                  ref={fileInputRef}
-                                  type="file"
-                                  accept=".xlsx,.xls"
-                                  onChange={handlePBLSIAKADImportExcelFromInput}
-                                  className="hidden"
-                                />
-                              </label>
-                            </div>
-                          </div>
+                    <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-500" />
+                        <div>
+                          <p className="font-medium text-blue-800 dark:text-blue-200">{pblImportFile.name}</p>
+                          <p className="text-sm text-blue-600 dark:text-blue-300">
+                            {(pblImportFile.size / 1024).toFixed(1)} KB
+                          </p>
                         </div>
-                      ) : (
-                        /* File Info ketika tidak ada error */
-                        <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-500" />
-                            <div>
-                              <p className="font-medium text-blue-800 dark:text-blue-200">{pblImportFile.name}</p>
-                              <p className="text-sm text-blue-600 dark:text-blue-300">
-                                {(pblImportFile.size / 1024).toFixed(1)} KB
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </>
-
+                      </div>
+                    </div>
                   )}
 
 
@@ -18328,8 +18460,6 @@ export default function DetailBlok() {
                                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
 
                                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Mulai</th>
-
-                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Selesai</th>
 
                                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Modul PBL</th>
 
@@ -18448,8 +18578,6 @@ export default function DetailBlok() {
                                     {renderEditableCell('tanggal', row.tanggal)}
 
                                     {renderEditableCell('jam_mulai', row.jam_mulai)}
-
-                                    {renderEditableCell('jam_selesai', row.jam_selesai)}
 
                                     
 
@@ -19082,7 +19210,6 @@ export default function DetailBlok() {
                             <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Mulai</th>
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Selesai</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Materi</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Topik</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Kelas Praktikum</th>
@@ -19164,7 +19291,6 @@ export default function DetailBlok() {
                                 <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{actualIndex + 1}</td>
                                 {renderEditableCell('tanggal', row.tanggal)}
                                 {renderEditableCell('jam_mulai', row.jam_mulai)}
-                                {renderEditableCell('jam_selesai', row.jam_selesai)}
                                 {renderEditableCell('materi', row.materi)}
                                 {renderEditableCell('topik', row.topik)}
                                 {renderEditableCell('kelas_praktikum', row.kelas_praktikum)}
@@ -19365,7 +19491,6 @@ export default function DetailBlok() {
                             <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Mulai</th>
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Selesai</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Agenda</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Kelompok Besar</th>
@@ -19420,7 +19545,6 @@ export default function DetailBlok() {
                                 <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{actualIndex + 1}</td>
                                 {renderEditableCell('tanggal', row.tanggal)}
                                 {renderEditableCell('jam_mulai', row.jam_mulai)}
-                                {renderEditableCell('jam_selesai', row.jam_selesai)}
                                 {renderEditableCell('agenda', row.agenda)}
                                 {renderEditableCell('ruangan_id', row.nama_ruangan)}
                                 {renderEditableCell('kelompok_besar_id', 
@@ -19580,7 +19704,6 @@ export default function DetailBlok() {
                             <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Mulai</th>
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Selesai</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Topik</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Dosen</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
@@ -19636,7 +19759,6 @@ export default function DetailBlok() {
                                 <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{actualIndex + 1}</td>
                                 {renderEditableCell('tanggal', row.tanggal)}
                                 {renderEditableCell('jam_mulai', row.jam_mulai)}
-                                {renderEditableCell('jam_selesai', row.jam_selesai)}
                                 {renderEditableCell('topik', row.topik)}
                                 {renderEditableCell('dosen_id', row.nama_dosen)}
                                 {renderEditableCell('ruangan_id', row.nama_ruangan)}

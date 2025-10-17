@@ -375,6 +375,15 @@ class JadwalPBLController extends Controller
                      $errors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;
                  }
 
+                 // Validasi bentrok dengan data dalam batch import yang sama
+                 for ($j = 0; $j < $index; $j++) {
+                     $previousData = $data['data'][$j];
+                     if ($this->isDataBentrok($row, $previousData)) {
+                         $errors[] = "Baris " . ($index + 1) . ": Jadwal bentrok dengan data pada baris " . ($j + 1) . " (Dosen: " . (\App\Models\User::find($row['dosen_id'])->name ?? 'N/A') . ", Ruangan: " . (\App\Models\Ruangan::find($row['ruangan_id'])->nama ?? 'N/A') . ")";
+                         break;
+                     }
+                 }
+
                  // Validasi tanggal dalam rentang mata kuliah
                  $mataKuliah = \App\Models\MataKuliah::where('kode', $kode)->first();
                  if ($mataKuliah && $mataKuliah->tanggal_mulai && $mataKuliah->tanggal_akhir) {
@@ -398,9 +407,10 @@ class JadwalPBLController extends Controller
                  ], 422);
              }
 
-             // Jika tidak ada error, import semua data
-             foreach ($data['data'] as $index => $row) {
-                 try {
+             // Jika tidak ada error, import semua data menggunakan database transaction
+             \DB::beginTransaction();
+             try {
+                 foreach ($data['data'] as $index => $row) {
                      // Set jumlah_sesi berdasarkan pbl_tipe jika tidak disediakan
                      if (!isset($row['jumlah_sesi'])) {
                          $row['jumlah_sesi'] = $row['pbl_tipe'] === 'PBL 2' ? 3 : 2;
@@ -456,26 +466,26 @@ class JadwalPBLController extends Controller
                              'pbl_tipe' => $row['pbl_tipe']
                          ])
                          ->log("Jadwal PBL imported: {$jadwal->modulPBL->nama}");
-
-                 } catch (\Exception $e) {
-                     $errors[] = "Baris " . ($index + 1) . ": " . $e->getMessage();
                  }
-             }
 
-             if (count($errors) > 0) {
+                 \DB::commit();
+
                  return response()->json([
                      'success' => count($importedData),
                      'total' => count($data['data']),
-                     'errors' => $errors,
-                     'message' => 'Gagal mengimport ' . (count($data['data']) - count($importedData)) . ' dari ' . count($data['data']) . ' jadwal'
+                     'errors' => [],
+                     'message' => "Berhasil mengimport " . count($importedData) . " dari " . count($data['data']) . " jadwal PBL"
+                 ]);
+
+             } catch (\Exception $e) {
+                 \DB::rollback();
+                 return response()->json([
+                     'success' => 0,
+                     'total' => count($data['data']),
+                     'errors' => ["Terjadi kesalahan saat menyimpan data: " . $e->getMessage()],
+                     'message' => "Gagal mengimport data. Terjadi kesalahan saat menyimpan."
                  ], 422);
              }
-
-             return response()->json([
-                 'success' => count($importedData),
-                 'total' => count($data['data']),
-                 'message' => 'Berhasil mengimport ' . count($importedData) . ' jadwal PBL'
-             ]);
 
          } catch (\Exception $e) {
              Log::error('Error importing PBL data: ' . $e->getMessage());
@@ -1458,5 +1468,43 @@ class JadwalPBLController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Helper function untuk mengecek bentrok antar data dalam batch import
+     */
+    private function isDataBentrok($data1, $data2): bool
+    {
+        // Cek apakah tanggal sama
+        if ($data1['tanggal'] !== $data2['tanggal']) {
+            return false;
+        }
+
+        // Cek apakah jam bentrok
+        $jamMulai1 = $data1['jam_mulai'];
+        $jamSelesai1 = $data1['jam_selesai'];
+        $jamMulai2 = $data2['jam_mulai'];
+        $jamSelesai2 = $data2['jam_selesai'];
+
+        // Cek apakah jam bentrok
+        $jamBentrok = ($jamMulai1 < $jamSelesai2 && $jamSelesai1 > $jamMulai2);
+
+        if (!$jamBentrok) {
+            return false;
+        }
+
+        // Cek bentrok dosen
+        $dosenBentrok = false;
+        if (isset($data1['dosen_id']) && isset($data2['dosen_id']) && $data1['dosen_id'] == $data2['dosen_id']) {
+            $dosenBentrok = true;
+        }
+
+        // Cek bentrok ruangan
+        $ruanganBentrok = false;
+        if (isset($data1['ruangan_id']) && isset($data2['ruangan_id']) && $data1['ruangan_id'] == $data2['ruangan_id']) {
+            $ruanganBentrok = true;
+        }
+
+        return $dosenBentrok || $ruanganBentrok;
     }
 }

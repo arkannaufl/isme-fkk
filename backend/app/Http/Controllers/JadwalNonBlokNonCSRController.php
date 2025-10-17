@@ -634,83 +634,98 @@ class JadwalNonBlokNonCSRController extends Controller
                 'data.*.use_ruangan' => 'boolean'
             ]);
 
-                $mataKuliah = \App\Models\MataKuliah::where('kode', $kode)->first();
-                if (!$mataKuliah) {
-                    return response()->json([
-                        'message' => 'Mata kuliah tidak ditemukan'
-                    ], 404);
-                }
+            $mataKuliah = \App\Models\MataKuliah::where('kode', $kode)->first();
+            if (!$mataKuliah) {
+                return response()->json([
+                    'success' => 0,
+                    'message' => 'Mata kuliah tidak ditemukan'
+                ], 404);
+            }
 
-                // Debug: Log mata kuliah info
-                \Log::info("Import Excel - Mata Kuliah: {$kode}, Semester: {$mataKuliah->semester}");
-
-            $importedCount = 0;
+            $data = $request->input('data');
             $errors = [];
 
+            // Validasi semua data terlebih dahulu (all-or-nothing approach)
+            foreach ($data as $index => $row) {
+                // Validasi tanggal dalam rentang mata kuliah
+                $tanggal = Carbon::parse($row['tanggal']);
+                if ($tanggal < Carbon::parse($mataKuliah->tanggal_mulai) || $tanggal > Carbon::parse($mataKuliah->tanggal_akhir)) {
+                    $errors[] = "Baris " . ($index + 1) . ": Tanggal di luar rentang mata kuliah";
+                }
+
+                // Validasi khusus untuk jenis materi
+                if ($row['jenis_baris'] === 'materi') {
+                    if (!$row['dosen_id']) {
+                        $errors[] = "Baris " . ($index + 1) . ": Dosen wajib diisi untuk jenis materi";
+                    }
+                    if (!$row['materi']) {
+                        $errors[] = "Baris " . ($index + 1) . ": Materi wajib diisi untuk jenis materi";
+                    }
+                    if (!$row['ruangan_id']) {
+                        $errors[] = "Baris " . ($index + 1) . ": Ruangan wajib diisi untuk jenis materi";
+                    }
+                }
+
+                // Validasi khusus untuk jenis agenda
+                if ($row['jenis_baris'] === 'agenda') {
+                    if (!$row['agenda']) {
+                        $errors[] = "Baris " . ($index + 1) . ": Keterangan agenda wajib diisi untuk jenis agenda";
+                    }
+                }
+
+                // Validasi kelompok besar sesuai semester
+                if ($row['kelompok_besar_id']) {
+                    $semesterKelompokBesar = $row['kelompok_besar_id'];
+
+                    $kelompokBesarExists = KelompokBesar::where('semester', $semesterKelompokBesar)->exists();
+                    if (!$kelompokBesarExists) {
+                        $errors[] = "Baris " . ($index + 1) . ": Kelompok besar semester {$semesterKelompokBesar} tidak ditemukan";
+                    }
+
+                    if ($semesterKelompokBesar != $mataKuliah->semester) {
+                        $errors[] = "Baris " . ($index + 1) . ": Kelompok besar semester {$semesterKelompokBesar} tidak sesuai dengan semester mata kuliah ({$mataKuliah->semester})";
+                    }
+                }
+
+                // Validasi konflik jadwal
+                $conflict = $this->checkConflict($row, $kode);
+                if ($conflict) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . $conflict;
+                }
+
+                // Validasi kapasitas ruangan
+                if ($row['ruangan_id'] && $row['kelompok_besar_id']) {
+                    $capacityError = $this->validateRuanganCapacity($row['ruangan_id'], $row['kelompok_besar_id']);
+                    if ($capacityError) {
+                        $errors[] = "Baris " . ($index + 1) . ": " . $capacityError;
+                    }
+                }
+
+                // Validasi bentrok dengan data dalam batch import yang sama
+                for ($j = 0; $j < $index; $j++) {
+                    $previousData = $data[$j];
+                    if ($this->isDataBentrok($row, $previousData)) {
+                        $errors[] = "Baris " . ($index + 1) . ": Jadwal bentrok dengan data pada baris " . ($j + 1) . " (Dosen: " . (\App\Models\User::find($row['dosen_id'])->name ?? 'N/A') . ", Ruangan: " . (\App\Models\Ruangan::find($row['ruangan_id'])->nama ?? 'N/A') . ")";
+                        break;
+                    }
+                }
+            }
+
+            // Jika ada error validasi, return error tanpa import apapun (all-or-nothing)
+            if (count($errors) > 0) {
+                return response()->json([
+                    'success' => 0,
+                    'total' => count($data),
+                    'errors' => $errors,
+                    'message' => "Gagal mengimport data. Semua data harus valid untuk dapat diimport."
+                ], 422);
+            }
+
+            // Jika tidak ada error, import semua data menggunakan database transaction
             \DB::beginTransaction();
-
-            foreach ($request->data as $index => $row) {
-                try {
-                    // Validasi tanggal dalam rentang mata kuliah
-                    $tanggal = Carbon::parse($row['tanggal']);
-                    if ($tanggal < Carbon::parse($mataKuliah->tanggal_mulai) || $tanggal > Carbon::parse($mataKuliah->tanggal_akhir)) {
-                        throw new \Exception("Tanggal di luar rentang mata kuliah (Baris " . ($index + 1) . ")");
-                    }
-
-                    // Validasi khusus untuk jenis materi
-                    if ($row['jenis_baris'] === 'materi') {
-                        if (!$row['dosen_id']) {
-                            throw new \Exception("Dosen wajib diisi untuk jenis materi (Baris " . ($index + 1) . ")");
-                        }
-                        if (!$row['materi']) {
-                            throw new \Exception("Materi wajib diisi untuk jenis materi (Baris " . ($index + 1) . ")");
-                        }
-                        if (!$row['ruangan_id']) {
-                            throw new \Exception("Ruangan wajib diisi untuk jenis materi (Baris " . ($index + 1) . ")");
-                        }
-                    }
-
-                    // Validasi khusus untuk jenis agenda
-                    if ($row['jenis_baris'] === 'agenda') {
-                        if (!$row['agenda']) {
-                            throw new \Exception("Keterangan agenda wajib diisi untuk jenis agenda (Baris " . ($index + 1) . ")");
-                        }
-                    }
-
-                    // Validasi kelompok besar sesuai semester
-                    if ($row['kelompok_besar_id']) {
-                        // kelompok_besar_id yang dikirim dari frontend adalah semester
-                        $semesterKelompokBesar = $row['kelompok_besar_id'];
-
-                        // Cek apakah ada kelompok besar untuk semester tersebut
-                        $kelompokBesarExists = KelompokBesar::where('semester', $semesterKelompokBesar)->exists();
-                        if (!$kelompokBesarExists) {
-                            throw new \Exception("Kelompok besar semester {$semesterKelompokBesar} tidak ditemukan (Baris " . ($index + 1) . ")");
-                        }
-
-                        // Cek apakah semester kelompok besar sesuai dengan semester mata kuliah
-                        if ($semesterKelompokBesar != $mataKuliah->semester) {
-                            // Debug: Log detail validasi
-                            \Log::info("Import Excel - Validasi Kelompok Besar: Row " . ($index + 1) . ", Kelompok Besar Semester: {$semesterKelompokBesar}, Mata Kuliah Semester: {$mataKuliah->semester}");
-                            throw new \Exception("Kelompok besar semester {$semesterKelompokBesar} tidak sesuai dengan semester mata kuliah ({$mataKuliah->semester}) (Baris " . ($index + 1) . ")");
-                        }
-                    }
-
-                    // Validasi konflik jadwal
-                    $conflict = $this->checkConflict($row, $kode);
-                    if ($conflict) {
-                        throw new \Exception($conflict . " (Baris " . ($index + 1) . ")");
-                    }
-
-                    // Validasi kapasitas ruangan
-                    if ($row['ruangan_id'] && $row['kelompok_besar_id']) {
-                        $capacityError = $this->validateRuanganCapacity($row['ruangan_id'], $row['kelompok_besar_id']);
-                        if ($capacityError) {
-                            throw new \Exception($capacityError . " (Baris " . ($index + 1) . ")");
-                        }
-                    }
-
-                    // Create jadwal
+            try {
+                $importedData = [];
+                foreach ($data as $row) {
                     $jadwal = JadwalNonBlokNonCSR::create([
                         'mata_kuliah_kode' => $kode,
                         'tanggal' => $row['tanggal'],
@@ -728,41 +743,85 @@ class JadwalNonBlokNonCSRController extends Controller
                     ]);
 
                     $this->sendJadwalNotifications($jadwal);
-                    $importedCount++;
-
-                } catch (\Exception $e) {
-                    $errors[] = $e->getMessage();
+                    $importedData[] = $jadwal;
                 }
-            }
 
-            if (!empty($errors)) {
-                \DB::rollBack();
+                \DB::commit();
+
+                // Log activity
+                activity()
+                    ->log("Imported " . count($importedData) . " jadwal Non Blok Non CSR for mata kuliah {$kode}");
+
                 return response()->json([
-                    'success' => false,
-                    'message' => 'Terjadi kesalahan saat mengimport data: ' . implode(', ', $errors)
+                    'success' => count($importedData),
+                    'total' => count($data),
+                    'errors' => [],
+                    'message' => "Berhasil mengimport " . count($importedData) . " dari " . count($data) . " jadwal Non Blok Non CSR"
+                ]);
+
+            } catch (\Exception $e) {
+                \DB::rollback();
+                return response()->json([
+                    'success' => 0,
+                    'total' => count($data),
+                    'errors' => ["Terjadi kesalahan saat menyimpan data: " . $e->getMessage()],
+                    'message' => "Gagal mengimport data. Terjadi kesalahan saat menyimpan."
                 ], 422);
             }
 
-            \DB::commit();
-
-            // Log activity
-            activity()
-                ->log("Imported {$importedCount} jadwal Non Blok Non CSR for mata kuliah {$kode}");
-
+        } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
-                'success' => true,
-                'message' => "Berhasil mengimport {$importedCount} jadwal Non Blok Non CSR",
-                'imported_count' => $importedCount
-            ]);
-
+                'success' => 0,
+                'total' => count($request->input('data', [])),
+                'errors' => $e->validator->errors()->all(),
+                'message' => 'Terjadi kesalahan validasi data'
+            ], 422);
         } catch (\Exception $e) {
-            \DB::rollBack();
-            Log::error('Error importing jadwal Non Blok Non CSR: ' . $e->getMessage());
             return response()->json([
-                'success' => false,
-                'message' => 'Terjadi kesalahan saat mengimport data: ' . $e->getMessage()
+                'success' => 0,
+                'total' => count($request->input('data', [])),
+                'errors' => ['Terjadi kesalahan saat mengimport data: ' . $e->getMessage()],
+                'message' => 'Terjadi kesalahan saat mengimport data'
             ], 500);
         }
+    }
+
+    /**
+     * Helper function untuk mengecek bentrok antar data dalam batch import
+     */
+    private function isDataBentrok($data1, $data2): bool
+    {
+        // Cek apakah tanggal sama
+        if ($data1['tanggal'] !== $data2['tanggal']) {
+            return false;
+        }
+
+        // Cek apakah jam bentrok
+        $jamMulai1 = $data1['jam_mulai'];
+        $jamSelesai1 = $data1['jam_selesai'];
+        $jamMulai2 = $data2['jam_mulai'];
+        $jamSelesai2 = $data2['jam_selesai'];
+
+        // Cek apakah jam bentrok
+        $jamBentrok = ($jamMulai1 < $jamSelesai2 && $jamSelesai1 > $jamMulai2);
+
+        if (!$jamBentrok) {
+            return false;
+        }
+
+        // Cek bentrok dosen
+        $dosenBentrok = false;
+        if (isset($data1['dosen_id']) && isset($data2['dosen_id']) && $data1['dosen_id'] == $data2['dosen_id']) {
+            $dosenBentrok = true;
+        }
+
+        // Cek bentrok ruangan
+        $ruanganBentrok = false;
+        if (isset($data1['ruangan_id']) && isset($data2['ruangan_id']) && $data1['ruangan_id'] == $data2['ruangan_id']) {
+            $ruanganBentrok = true;
+        }
+
+        return $dosenBentrok || $ruanganBentrok;
     }
 
     private function checkConflict($row, $kode)

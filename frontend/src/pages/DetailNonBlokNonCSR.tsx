@@ -18,7 +18,6 @@ const DEFAULT_PAGE_SIZE = 10;
 const EXCEL_COLUMN_WIDTHS = {
   TANGGAL: 12,
   JAM_MULAI: 10,
-  JAM_SELESAI: 10,
   JENIS_BARIS: 12,
   SESI: 6,
   KELOMPOK_BESAR: 15,
@@ -263,11 +262,10 @@ export default function DetailNonBlokNonCSR() {
 
       // Template data
       const templateData = [
-        ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Jenis Baris', 'Sesi', 'Kelompok Besar', 'Dosen', 'Materi', 'Ruangan', 'Keterangan Agenda'],
+        ['Tanggal', 'Jam Mulai', 'Jenis Baris', 'Sesi', 'Kelompok Besar', 'Dosen', 'Materi', 'Ruangan', 'Keterangan Agenda'],
         [
           exampleDate1.toISOString().split('T')[0],
           '07.20',
-          '08.10',
           'materi',
           '1',
           '1',
@@ -278,7 +276,6 @@ export default function DetailNonBlokNonCSR() {
         [
           exampleDate2.toISOString().split('T')[0],
           '08.20',
-          '09.10',
           'agenda',
           '1',
           '1',
@@ -299,7 +296,6 @@ export default function DetailNonBlokNonCSR() {
       const colWidths = [
         { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
         { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
-        { wch: EXCEL_COLUMN_WIDTHS.JAM_SELESAI },
         { wch: EXCEL_COLUMN_WIDTHS.JENIS_BARIS },
         { wch: EXCEL_COLUMN_WIDTHS.SESI },
         { wch: EXCEL_COLUMN_WIDTHS.KELOMPOK_BESAR },
@@ -412,6 +408,32 @@ export default function DetailNonBlokNonCSR() {
     }
   };
 
+  // Helper function untuk konversi format waktu
+  const convertTimeFormat = (timeStr: string) => {
+    if (!timeStr || timeStr.trim() === '') return '';
+    
+    // Hapus spasi dan konversi ke string
+    const time = timeStr.toString().trim();
+    
+    // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
+    if (time.match(/^\d{2}[:.]\d{2}$/)) {
+      return time.replace('.', ':');
+    }
+    
+    // Cek apakah format H:MM atau H.MM (1 digit jam)
+    if (time.match(/^\d{1}[:.]\d{2}$/)) {
+      return '0' + time.replace('.', ':');
+    }
+    
+    // Cek apakah format HH:MM atau HH.MM (2 digit jam)
+    if (time.match(/^\d{2}[:.]\d{2}$/)) {
+      return time.replace('.', ':');
+    }
+    
+    // Jika tidak sesuai format, return as is
+    return time;
+  };
+
   // Read Excel file untuk Non-Blok Non-CSR
   const readNonBlokExcelFile = (file: File): Promise<{ headers: string[], data: any[][] }> => {
     return new Promise((resolve, reject) => {
@@ -484,18 +506,6 @@ export default function DetailNonBlokNonCSR() {
         }
       }
 
-      // Validasi jam selesai
-      if (!row.jam_selesai) {
-        errors.push({ row: rowNum, field: 'jam_selesai', message: `Jam selesai wajib diisi (Baris ${rowNum}, Kolom Jam Selesai)` });
-      } else if (!/^\d{1,2}[.:]\d{2}$/.test(row.jam_selesai)) {
-        errors.push({ row: rowNum, field: 'jam_selesai', message: `Format jam tidak valid (Baris ${rowNum}, Kolom Jam Selesai)` });
-      } else {
-        const jamSelesaiInput = row.jam_selesai.replace(':', '.');
-        const expectedJamSelesai = hitungJamSelesai(row.jam_mulai, row.jumlah_sesi);
-        if (jamSelesaiInput !== expectedJamSelesai) {
-          errors.push({ row: rowNum, field: 'jam_selesai', message: `Jam selesai tidak sesuai perhitungan sesi. Seharusnya: ${expectedJamSelesai} (Baris ${rowNum}, Kolom Jam Selesai)` });
-        }
-      }
 
       // Validasi jenis baris
       if (!row.jenis_baris) {
@@ -596,7 +606,7 @@ export default function DetailNonBlokNonCSR() {
       
       
       // Validate headers
-      const expectedHeaders = ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Jenis Baris', 'Sesi', 'Kelompok Besar', 'Dosen', 'Materi', 'Ruangan', 'Keterangan Agenda'];
+      const expectedHeaders = ['Tanggal', 'Jam Mulai', 'Jenis Baris', 'Sesi', 'Kelompok Besar', 'Dosen', 'Materi', 'Ruangan', 'Keterangan Agenda'];
       
       const headerMatch = expectedHeaders.every(header => headers.includes(header));
       
@@ -613,22 +623,22 @@ export default function DetailNonBlokNonCSR() {
         
         // Parse kelompok besar ID
         let kelompokBesarId = null;
-        if (row[5] && row[5] !== '') {
-          const kelompokBesarOption = kelompokBesarAgendaOptions.find(kb => kb.label === row[5].toString() || kb.label.includes(row[5].toString()) || kb.id.toString() === row[5].toString() || kb.label.includes(`Semester ${row[5]}`) || kb.label.includes(`Kelompok Besar Semester ${row[5]}`) || kb.label.includes(`Kelompok Besar ${row[5]}`) || kb.label.includes(`Kelompok ${row[5]}`) || kb.label.includes(`Kelompok Besar ${row[5]} (${kb.jumlah_mahasiswa} mahasiswa)`));
+        if (row[4] && row[4] !== '') {
+          const kelompokBesarOption = kelompokBesarAgendaOptions.find(kb => kb.label === row[4].toString() || kb.label.includes(row[4].toString()) || kb.id.toString() === row[4].toString() || kb.label.includes(`Semester ${row[4]}`) || kb.label.includes(`Kelompok Besar Semester ${row[4]}`) || kb.label.includes(`Kelompok Besar ${row[4]}`) || kb.label.includes(`Kelompok ${row[4]}`) || kb.label.includes(`Kelompok Besar ${row[4]} (${kb.jumlah_mahasiswa} mahasiswa)`));
           kelompokBesarId = kelompokBesarOption ? Number(kelompokBesarOption.id) : null;
         }
 
         // Parse dosen ID
         let dosenId = null;
-        if (row[6] && row[6] !== '') {
-          const dosenOption = dosenList.find(d => d.name === row[6] || `${d.name} (${d.nid})` === row[6] || d.name.includes(row[6]) || d.nid === row[6]);
+        if (row[5] && row[5] !== '') {
+          const dosenOption = dosenList.find(d => d.name === row[5] || `${d.name} (${d.nid})` === row[5] || d.name.includes(row[5]) || d.nid === row[5]);
           dosenId = dosenOption ? dosenOption.id : null;
         }
 
         // Parse ruangan ID
         let ruanganId = null;
-        if (row[8] && row[8] !== '') {
-          const ruanganOption = ruanganList.find(r => r.nama === row[8] || r.nama.includes(row[8]) || r.id.toString() === row[8]);
+        if (row[7] && row[7] !== '') {
+          const ruanganOption = ruanganList.find(r => r.nama === row[7] || r.nama.includes(row[7]) || r.id.toString() === row[7]);
           ruanganId = ruanganOption ? ruanganOption.id : null;
         }
 
@@ -648,20 +658,25 @@ export default function DetailNonBlokNonCSR() {
           }
         }
 
+        const jamMulaiRaw = row[1] || '';
+        const jamMulai = convertTimeFormat(jamMulaiRaw);
+        const jumlahSesi = parseInt(row[3]) || 0;
+        const jamSelesai = hitungJamSelesai(jamMulai, jumlahSesi);
+
         const convertedRow = {
           tanggal: tanggal,
-          jam_mulai: row[1] || '',
-          jam_selesai: row[2] || '',
-          jenis_baris: row[3] || '',
-          jumlah_sesi: parseInt(row[4]) || 0,
+          jam_mulai: jamMulai,
+          jam_selesai: jamSelesai,
+          jenis_baris: row[2] || '',
+          jumlah_sesi: jumlahSesi,
           kelompok_besar_id: kelompokBesarId,
-          nama_kelompok_besar: row[5] || '',
+          nama_kelompok_besar: row[4] || '',
           dosen_id: dosenId,
-          nama_dosen: row[6] || '',
-          materi: row[7] || '',
+          nama_dosen: row[5] || '',
+          materi: row[6] || '',
           ruangan_id: ruanganId,
-          nama_ruangan: row[8] || '',
-          agenda: row[9] || '',
+          nama_ruangan: row[7] || '',
+          agenda: row[8] || '',
           use_ruangan: row[8] && row[8] !== '' ? true : false
         };
         
@@ -726,10 +741,25 @@ export default function DetailNonBlokNonCSR() {
         await fetchBatchData(); // Refresh data
       } else {
         setNonBlokImportErrors([response.data.message || 'Terjadi kesalahan saat mengimport data']);
+        // Tidak import data jika ada error - all or nothing
       }
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 'Terjadi kesalahan saat mengimport data';
-      setNonBlokImportErrors([errorMessage]);
+      if (error.response?.status === 422) {
+        const errorData = error.response.data;
+        if (errorData.errors && Array.isArray(errorData.errors)) {
+          const cellErrors = errorData.errors.map((err: string, idx: number) => ({
+            row: idx + 1,
+            field: 'api',
+            message: err
+          }));
+          setNonBlokCellErrors(cellErrors);
+        } else {
+          setNonBlokImportErrors([errorData.message || 'Terjadi kesalahan validasi']);
+        }
+      } else {
+        const errorMessage = error.response?.data?.message || 'Terjadi kesalahan saat mengimport data';
+        setNonBlokImportErrors([errorMessage]);
+      }
     } finally {
       setIsNonBlokImporting(false);
     }
@@ -752,6 +782,14 @@ export default function DetailNonBlokNonCSR() {
   const handleNonBlokEditCell = (rowIndex: number, field: string, value: any) => {
     const updatedData = [...nonBlokImportData];
     updatedData[rowIndex] = { ...updatedData[rowIndex], [field]: value };
+    
+    // Recalculate jam_selesai if jam_mulai or jumlah_sesi is edited
+    if (field === 'jam_mulai' || field === 'jumlah_sesi') {
+      const jamMulai = field === 'jam_mulai' ? value : updatedData[rowIndex].jam_mulai;
+      const jumlahSesi = field === 'jumlah_sesi' ? value : updatedData[rowIndex].jumlah_sesi;
+      updatedData[rowIndex].jam_selesai = hitungJamSelesai(jamMulai, jumlahSesi);
+    }
+    
     setNonBlokImportData(updatedData);
     
     // Re-validate
@@ -907,7 +945,6 @@ export default function DetailNonBlokNonCSR() {
         return {
           'Tanggal': row.tanggal ? new Date(row.tanggal).toISOString().split('T')[0] : '',
           'Jam Mulai': row.jam_mulai,
-          'Jam Selesai': row.jam_selesai,
           'Jenis Baris': row.jenis_baris,
           'Sesi': row.jumlah_sesi,
           'Kelompok Besar': row.kelompok_besar_id || '',
@@ -923,14 +960,13 @@ export default function DetailNonBlokNonCSR() {
       
       // Sheet 1: Data Non-Blok Non-CSR
       const ws = XLSX.utils.json_to_sheet(exportData, {
-        header: ['Tanggal', 'Jam Mulai', 'Jam Selesai', 'Jenis Baris', 'Sesi', 'Kelompok Besar', 'Dosen', 'Materi', 'Ruangan', 'Keterangan Agenda']
+        header: ['Tanggal', 'Jam Mulai', 'Jenis Baris', 'Sesi', 'Kelompok Besar', 'Dosen', 'Materi', 'Ruangan', 'Keterangan Agenda']
       });
       
       // Set lebar kolom
       const colWidths = [
         { wch: 12 }, // Tanggal
         { wch: 10 }, // Jam Mulai
-        { wch: 10 }, // Jam Selesai
         { wch: 12 }, // Jenis Baris
         { wch: 6 },  // Sesi
         { wch: 15 }, // Kelompok Besar
@@ -2097,7 +2133,6 @@ export default function DetailNonBlokNonCSR() {
                             <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Mulai</th>
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Selesai</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jenis Baris</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Sesi</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Kelompok Besar</th>
@@ -2155,7 +2190,6 @@ export default function DetailNonBlokNonCSR() {
                                 <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{actualIndex + 1}</td>
                                 {renderEditableCell('tanggal', row.tanggal)}
                                 {renderEditableCell('jam_mulai', row.jam_mulai)}
-                                {renderEditableCell('jam_selesai', row.jam_selesai)}
                                 {renderEditableCell('jenis_baris', row.jenis_baris)}
                                 {renderEditableCell('jumlah_sesi', row.jumlah_sesi, true)}
                                 {(() => {

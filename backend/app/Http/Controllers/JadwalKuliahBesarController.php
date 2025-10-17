@@ -1870,6 +1870,58 @@ class JadwalKuliahBesarController extends Controller
     }
 
     /**
+     * Cek apakah dua data bentrok (untuk validasi import)
+     */
+    private function isDataBentrok($data1, $data2, $isSemesterAntara = false): bool
+    {
+        // Cek apakah tanggal sama
+        if ($data1['tanggal'] !== $data2['tanggal']) {
+            return false;
+        }
+
+        // Cek apakah jam bentrok
+        $jamMulai1 = $data1['jam_mulai'];
+        $jamSelesai1 = $data1['jam_selesai'];
+        $jamMulai2 = $data2['jam_mulai'];
+        $jamSelesai2 = $data2['jam_selesai'];
+
+        // Konversi jam ke format yang bisa dibandingkan
+        $jamMulai1Formatted = str_replace('.', ':', $jamMulai1);
+        $jamSelesai1Formatted = str_replace('.', ':', $jamSelesai1);
+        $jamMulai2Formatted = str_replace('.', ':', $jamMulai2);
+        $jamSelesai2Formatted = str_replace('.', ':', $jamSelesai2);
+
+        // Cek apakah jam bentrok
+        $jamBentrok = ($jamMulai1Formatted < $jamSelesai2Formatted && $jamSelesai1Formatted > $jamMulai2Formatted);
+
+        if (!$jamBentrok) {
+            return false;
+        }
+
+        // Cek bentrok dosen
+        $dosenBentrok = false;
+        if ($isSemesterAntara) {
+            // Untuk semester antara, cek multiple dosen
+            if (isset($data1['dosen_id']) && isset($data2['dosen_id']) && $data1['dosen_id'] == $data2['dosen_id']) {
+                $dosenBentrok = true;
+            }
+        } else {
+            // Untuk semester biasa, cek single dosen
+            if (isset($data1['dosen_id']) && isset($data2['dosen_id']) && $data1['dosen_id'] == $data2['dosen_id']) {
+                $dosenBentrok = true;
+            }
+        }
+
+        // Cek bentrok ruangan
+        $ruanganBentrok = false;
+        if (isset($data1['ruangan_id']) && isset($data2['ruangan_id']) && $data1['ruangan_id'] == $data2['ruangan_id']) {
+            $ruanganBentrok = true;
+        }
+
+        return $dosenBentrok || $ruanganBentrok;
+    }
+
+    /**
      * Import jadwal kuliah besar dari Excel
      */
     public function importExcel(Request $request, $kode)
@@ -1898,7 +1950,7 @@ class JadwalKuliahBesarController extends Controller
             }
             $isSemesterAntara = $mataKuliah->semester === "Antara";
 
-            // Validasi dan import data satu per satu
+            // Validasi semua data terlebih dahulu (all-or-nothing approach)
             foreach ($excelData as $index => $data) {
                 try {
                     // Validasi tanggal dalam rentang mata kuliah
@@ -1915,11 +1967,20 @@ class JadwalKuliahBesarController extends Controller
                         continue;
                     }
 
-                    // Validasi bentrok
+                    // Validasi bentrok dengan data yang sudah ada di database
                     $bentrokMessage = $this->checkBentrokWithDetail($data, null, $isSemesterAntara);
                     if ($bentrokMessage) {
                         $errors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;
                         continue;
+                    }
+
+                    // Validasi bentrok antar data yang sedang di-import
+                    for ($j = 0; $j < $index; $j++) {
+                        $previousData = $excelData[$j];
+                        if ($this->isDataBentrok($data, $previousData, $isSemesterAntara)) {
+                            $errors[] = "Baris " . ($index + 1) . ": Jadwal bentrok dengan data pada baris " . ($j + 1) . " (Dosen: " . ($data['dosen_id'] ? \App\Models\User::find($data['dosen_id'])->name : 'N/A') . ", Ruangan: " . (\App\Models\Ruangan::find($data['ruangan_id'])->nama ?? 'N/A') . ")";
+                            break;
+                        }
                     }
 
                     // Validasi keahlian dosen dengan materi (hanya untuk semester biasa)
@@ -1948,6 +2009,28 @@ class JadwalKuliahBesarController extends Controller
                         }
                     }
 
+                    // Jika semua validasi berhasil, data akan diimport setelah loop selesai
+                    $successCount++;
+                } catch (\Exception $e) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . $e->getMessage();
+                }
+            }
+
+            // Jika ada error validasi, return status 422 dan tidak import data sama sekali (all-or-nothing)
+            if (count($errors) > 0) {
+                return response()->json([
+                    'success' => 0, // Tidak ada data yang diimport jika ada error
+                    'total' => count($excelData),
+                    'errors' => $errors,
+                    'message' => "Gagal mengimport data. Semua data harus valid untuk dapat diimport."
+                ], 422);
+            }
+
+            // Jika tidak ada error, import semua data menggunakan database transaction
+            \DB::beginTransaction();
+            try {
+                $importedData = [];
+                foreach ($excelData as $index => $data) {
                     // Siapkan data untuk disimpan
                     $jadwalData = [
                         'mata_kuliah_kode' => $kode,
@@ -1972,6 +2055,7 @@ class JadwalKuliahBesarController extends Controller
 
                     // Simpan data
                     $jadwal = JadwalKuliahBesar::create($jadwalData);
+                    $importedData[] = $jadwal;
 
                     // Kirim notifikasi ke dosen yang di-assign
                     if (!$isSemesterAntara && isset($data['dosen_id']) && $data['dosen_id']) {
@@ -1998,30 +2082,26 @@ class JadwalKuliahBesarController extends Controller
                             'import_type' => 'excel'
                         ])
                         ->log('Jadwal kuliah besar diimport dari Excel');
-
-                    $successCount++;
-                } catch (\Exception $e) {
-                    $errors[] = "Baris " . ($index + 1) . ": " . $e->getMessage();
                 }
-            }
 
-            // Jika ada error validasi, return status 422
-            if (count($errors) > 0) {
+                \DB::commit();
+
+                // Jika tidak ada error, return status 200
                 return response()->json([
-                    'success' => $successCount,
+                    'success' => count($importedData),
                     'total' => count($excelData),
                     'errors' => $errors,
-                    'message' => "Gagal mengimport {$successCount} dari " . count($excelData) . " jadwal"
+                    'message' => "Berhasil mengimport " . count($importedData) . " dari " . count($excelData) . " jadwal"
+                ]);
+            } catch (\Exception $e) {
+                \DB::rollback();
+                return response()->json([
+                    'success' => 0,
+                    'total' => count($excelData),
+                    'errors' => ["Terjadi kesalahan saat menyimpan data: " . $e->getMessage()],
+                    'message' => "Gagal mengimport data. Terjadi kesalahan saat menyimpan."
                 ], 422);
             }
-
-            // Jika tidak ada error, return status 200
-            return response()->json([
-                'success' => $successCount,
-                'total' => count($excelData),
-                'errors' => $errors,
-                'message' => "Berhasil mengimport {$successCount} dari " . count($excelData) . " jadwal"
-            ]);
         } catch (\Exception $e) {
             \Log::error('Error importing jadwal kuliah besar: ' . $e->getMessage());
             return response()->json([

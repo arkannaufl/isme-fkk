@@ -1420,6 +1420,15 @@ class JadwalJurnalReadingController extends Controller
                      $rowErrors[] = $bentrokMessage;
                  }
 
+                 // Validasi bentrok dengan data dalam batch import yang sama
+                 for ($j = 0; $j < $index; $j++) {
+                     $previousData = $data['data'][$j];
+                     if ($this->isDataBentrok($row, $previousData)) {
+                         $rowErrors[] = "Jadwal bentrok dengan data pada baris " . ($j + 1) . " (Dosen: " . (\App\Models\User::find($row['dosen_id'])->name ?? 'N/A') . ", Ruangan: " . (\App\Models\Ruangan::find($row['ruangan_id'])->nama ?? 'N/A') . ")";
+                         break;
+                     }
+                 }
+
                  if (!empty($rowErrors)) {
                      $errors[] = "Baris " . ($index + 1) . ": " . implode(', ', $rowErrors);
                  } else {
@@ -1437,69 +1446,84 @@ class JadwalJurnalReadingController extends Controller
                  ], 422);
              }
 
-             // Jika semua data valid, import semua data
-             $importedCount = 0;
-             foreach ($validData as $row) {
-                 $jadwalData = [
-                     'mata_kuliah_kode' => $kode,
-                     'tanggal' => $row['tanggal'],
-                     'jam_mulai' => $row['jam_mulai'],
-                     'jam_selesai' => $row['jam_selesai'],
-                     'jumlah_sesi' => $row['jumlah_sesi'],
-                     'kelompok_kecil_id' => $row['kelompok_kecil_id'],
-                     'dosen_id' => $row['dosen_id'],
-                     'ruangan_id' => $row['ruangan_id'],
-                     'topik' => $row['topik'],
-                 ];
+             // Jika semua data valid, import semua data menggunakan database transaction
+             \DB::beginTransaction();
+             try {
+                 $importedCount = 0;
+                 foreach ($validData as $row) {
+                     $jadwalData = [
+                         'mata_kuliah_kode' => $kode,
+                         'tanggal' => $row['tanggal'],
+                         'jam_mulai' => $row['jam_mulai'],
+                         'jam_selesai' => $row['jam_selesai'],
+                         'jumlah_sesi' => $row['jumlah_sesi'],
+                         'kelompok_kecil_id' => $row['kelompok_kecil_id'],
+                         'dosen_id' => $row['dosen_id'],
+                         'ruangan_id' => $row['ruangan_id'],
+                         'topik' => $row['topik'],
+                     ];
 
-                 $jadwal = \App\Models\JadwalJurnalReading::create($jadwalData);
-                
-                // Kirim notifikasi ke dosen yang di-assign
-                if ($row['dosen_id']) {
-                    $dosen = \App\Models\User::find($row['dosen_id']);
-                    if ($dosen) {
-                        \App\Models\Notification::create([
-                            'user_id' => $row['dosen_id'],
-                            'title' => 'Jadwal Jurnal Reading Baru',
-                            'message' => "Anda telah di-assign untuk mengajar Jurnal Reading {$mataKuliah->nama} pada tanggal {$row['tanggal']} jam {$row['jam_mulai']}-{$row['jam_selesai']} di ruangan {$jadwal->ruangan->nama}. Silakan konfirmasi ketersediaan Anda.",
-                            'type' => 'info',
-                            'data' => [
-                                'topik' => $row['topik'],
-                                'materi' => $row['topik'],
-                                'ruangan' => $jadwal->ruangan->nama,
-                                'tanggal' => $row['tanggal'],
-                                'jadwal_id' => $jadwal->id,
-                                'jam_mulai' => $row['jam_mulai'],
-                                'jadwal_type' => 'jurnal_reading',
-                                'jam_selesai' => $row['jam_selesai'],
-                                'mata_kuliah_kode' => $kode,
-                                'mata_kuliah_nama' => $mataKuliah->nama,
-                                'kelompok_kecil_id' => $row['kelompok_kecil_id'],
-                                'dosen_id' => $dosen->id,
-                                'dosen_name' => $dosen->name,
-                                'dosen_role' => $dosen->role
-                            ]
-                        ]);
+                     $jadwal = \App\Models\JadwalJurnalReading::create($jadwalData);
+                    
+                    // Kirim notifikasi ke dosen yang di-assign
+                    if ($row['dosen_id']) {
+                        $dosen = \App\Models\User::find($row['dosen_id']);
+                        if ($dosen) {
+                            \App\Models\Notification::create([
+                                'user_id' => $row['dosen_id'],
+                                'title' => 'Jadwal Jurnal Reading Baru',
+                                'message' => "Anda telah di-assign untuk mengajar Jurnal Reading {$mataKuliah->nama} pada tanggal {$row['tanggal']} jam {$row['jam_mulai']}-{$row['jam_selesai']} di ruangan {$jadwal->ruangan->nama}. Silakan konfirmasi ketersediaan Anda.",
+                                'type' => 'info',
+                                'data' => [
+                                    'topik' => $row['topik'],
+                                    'materi' => $row['topik'],
+                                    'ruangan' => $jadwal->ruangan->nama,
+                                    'tanggal' => $row['tanggal'],
+                                    'jadwal_id' => $jadwal->id,
+                                    'jam_mulai' => $row['jam_mulai'],
+                                    'jadwal_type' => 'jurnal_reading',
+                                    'jam_selesai' => $row['jam_selesai'],
+                                    'mata_kuliah_kode' => $kode,
+                                    'mata_kuliah_nama' => $mataKuliah->nama,
+                                    'kelompok_kecil_id' => $row['kelompok_kecil_id'],
+                                    'dosen_id' => $dosen->id,
+                                    'dosen_name' => $dosen->name,
+                                    'dosen_role' => $dosen->role
+                                ]
+                            ]);
+                        }
                     }
-                }
-                
-                 $importedCount++;
+                    
+                     $importedCount++;
+                 }
+
+                 \DB::commit();
+
+                 // Log activity
+                 activity()
+                     ->withProperties([
+                         'mata_kuliah_kode' => $kode,
+                         'imported_count' => $importedCount,
+                         'total_data' => count($data['data'])
+                     ])
+                     ->log('Import Excel Jadwal Jurnal Reading');
+
+                 return response()->json([
+                     'success' => $importedCount,
+                     'total' => count($data['data']),
+                     'errors' => [],
+                     'message' => "Berhasil mengimport {$importedCount} dari " . count($data['data']) . " jadwal jurnal reading"
+                 ]);
+
+             } catch (\Exception $e) {
+                 \DB::rollback();
+                 return response()->json([
+                     'success' => 0,
+                     'total' => count($data['data']),
+                     'errors' => ["Terjadi kesalahan saat menyimpan data: " . $e->getMessage()],
+                     'message' => "Gagal mengimport data. Terjadi kesalahan saat menyimpan."
+                 ], 422);
              }
-
-             // Log activity
-             activity()
-                 ->withProperties([
-                     'mata_kuliah_kode' => $kode,
-                     'imported_count' => $importedCount,
-                     'total_data' => count($data['data'])
-                 ])
-                 ->log('Import Excel Jadwal Jurnal Reading');
-
-             return response()->json([
-                 'success' => $importedCount,
-                 'total' => count($data['data']),
-                 'message' => "Berhasil mengimport {$importedCount} dari " . count($data['data']) . " jadwal jurnal reading"
-             ]);
 
          } catch (\Exception $e) {
              \Log::error('Error importing Jurnal Reading Excel: ' . $e->getMessage());
@@ -1641,5 +1665,43 @@ class JadwalJurnalReadingController extends Controller
         } catch (\Exception $e) {
             \Log::error("Gagal mengirim notifikasi replacement: " . $e->getMessage());
         }
+    }
+
+    /**
+     * Helper function untuk mengecek bentrok antar data dalam batch import
+     */
+    private function isDataBentrok($data1, $data2): bool
+    {
+        // Cek apakah tanggal sama
+        if ($data1['tanggal'] !== $data2['tanggal']) {
+            return false;
+        }
+
+        // Cek apakah jam bentrok
+        $jamMulai1 = $data1['jam_mulai'];
+        $jamSelesai1 = $data1['jam_selesai'];
+        $jamMulai2 = $data2['jam_mulai'];
+        $jamSelesai2 = $data2['jam_selesai'];
+
+        // Cek apakah jam bentrok
+        $jamBentrok = ($jamMulai1 < $jamSelesai2 && $jamSelesai1 > $jamMulai2);
+
+        if (!$jamBentrok) {
+            return false;
+        }
+
+        // Cek bentrok dosen
+        $dosenBentrok = false;
+        if (isset($data1['dosen_id']) && isset($data2['dosen_id']) && $data1['dosen_id'] == $data2['dosen_id']) {
+            $dosenBentrok = true;
+        }
+
+        // Cek bentrok ruangan
+        $ruanganBentrok = false;
+        if (isset($data1['ruangan_id']) && isset($data2['ruangan_id']) && $data1['ruangan_id'] == $data2['ruangan_id']) {
+            $ruanganBentrok = true;
+        }
+
+        return $dosenBentrok || $ruanganBentrok;
     }
 }
