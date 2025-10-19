@@ -11,7 +11,7 @@ import Select from 'react-select';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 
-import { faPenToSquare, faTrash, faStar, faFileExcel, faDownload, faUpload, faExclamationTriangle, faTimes, faSpinner } from '@fortawesome/free-solid-svg-icons';
+import { faPenToSquare, faTrash, faFileExcel, faDownload, faUpload, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
 
 import { getRuanganOptions } from '../utils/ruanganHelper';
 
@@ -23,6 +23,26 @@ const MAX_SESSIONS = 6;
 const MIN_SESSIONS = 1;
 const TEMPLATE_DISPLAY_LIMIT = 10;
 const DEFAULT_PAGE_SIZE = 10;
+
+// Helper function untuk konversi format waktu
+const convertTimeFormat = (timeStr: string) => {
+  if (!timeStr?.trim()) return '';
+  
+  const time = timeStr.toString().trim();
+  
+  // Normalize format: H.MM atau HH.MM → HH:MM
+  if (time.match(/^\d{1,2}\.\d{2}$/)) {
+    const [hours, minutes] = time.split('.');
+    return `${hours.padStart(2, '0')}:${minutes}`;
+  }
+  
+  // Already in HH:MM format
+  if (time.match(/^\d{2}:\d{2}$/)) {
+    return time;
+  }
+  
+  return time;
+};
 const EXCEL_COLUMN_WIDTHS = {
   TANGGAL: 12,
   JAM_MULAI: 10,
@@ -224,7 +244,6 @@ export default function DetailBlok() {
   const [loading, setLoading] = useState(true);
 
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   
   // State untuk pesan sukses per section
   const [kuliahBesarSuccess, setKuliahBesarSuccess] = useState<string | null>(null);
@@ -233,43 +252,21 @@ export default function DetailBlok() {
   const [pblSuccess, setPblSuccess] = useState<string | null>(null);
   const [jurnalReadingSuccess, setJurnalReadingSuccess] = useState<string | null>(null);
 
-  // Auto-hide pesan sukses bulk delete
+  // Auto-hide pesan sukses bulk delete (refactored dengan custom logic)
   useEffect(() => {
-    if (kuliahBesarSuccess) {
-      const timer = setTimeout(() => {
-        setKuliahBesarSuccess(null);
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [kuliahBesarSuccess]);
+    const successStates = [
+      { value: kuliahBesarSuccess, setter: setKuliahBesarSuccess },
+      { value: praktikumSuccess, setter: setPraktikumSuccess },
+      { value: agendaKhususSuccess, setter: setAgendaKhususSuccess },
+      { value: jurnalReadingSuccess, setter: setJurnalReadingSuccess }
+    ];
 
-  useEffect(() => {
-    if (praktikumSuccess) {
-      const timer = setTimeout(() => {
-        setPraktikumSuccess(null);
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [praktikumSuccess]);
+    const timers = successStates
+      .filter(state => state.value)
+      .map(state => setTimeout(() => state.setter(null), 5000));
 
-  useEffect(() => {
-    if (agendaKhususSuccess) {
-      const timer = setTimeout(() => {
-        setAgendaKhususSuccess(null);
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [agendaKhususSuccess]);
-
-
-  useEffect(() => {
-    if (jurnalReadingSuccess) {
-      const timer = setTimeout(() => {
-        setJurnalReadingSuccess(null);
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [jurnalReadingSuccess]);
+    return () => timers.forEach(timer => clearTimeout(timer));
+  }, [kuliahBesarSuccess, praktikumSuccess, agendaKhususSuccess, jurnalReadingSuccess]);
 
 
 
@@ -431,7 +428,6 @@ export default function DetailBlok() {
   const [cellErrors, setCellErrors] = useState<{ row: number, field: string, message: string }[]>([]);
   const [editingCell, setEditingCell] = useState<{ row: number; key: string } | null>(null);
   const [isImporting, setIsImporting] = useState(false);
-  const [importSuccess, setImportSuccess] = useState(false);
 
   // State untuk import Excel SIAKAD
   const [siakadImportFile, setSiakadImportFile] = useState<File | null>(null);
@@ -440,7 +436,6 @@ export default function DetailBlok() {
   const [siakadCellErrors, setSiakadCellErrors] = useState<{ row: number, field: string, message: string }[]>([]);
   const [siakadEditingCell, setSiakadEditingCell] = useState<{ row: number; key: string } | null>(null);
   const [isSiakadImporting, setIsSiakadImporting] = useState(false);
-  const [siakadImportSuccess, setSiakadImportSuccess] = useState(false);
   const [siakadImportPage, setSiakadImportPage] = useState(1);
   const [siakadImportPageSize, setSiakadImportPageSize] = useState(DEFAULT_PAGE_SIZE);
 
@@ -455,11 +450,19 @@ export default function DetailBlok() {
   const [praktikumCellErrors, setPraktikumCellErrors] = useState<{ row: number, field: string, message: string }[]>([]);
   const [praktikumEditingCell, setPraktikumEditingCell] = useState<{ row: number; key: string } | null>(null);
   const [isPraktikumImporting, setIsPraktikumImporting] = useState(false);
-  const [praktikumImportSuccess, setPraktikumImportSuccess] = useState(false);
   const [praktikumImportedCount, setPraktikumImportedCount] = useState(0);
   const [importedCount, setImportedCount] = useState(0);
+  const [siakadImportedCount, setSiakadImportedCount] = useState(0);
 
-  
+  // State untuk import Excel Praktikum SIAKAD
+  const [showPraktikumSiakadImportModal, setShowPraktikumSiakadImportModal] = useState(false);
+  const [praktikumSiakadImportFile, setPraktikumSiakadImportFile] = useState<File | null>(null);
+  const [praktikumSiakadImportData, setPraktikumSiakadImportData] = useState<JadwalPraktikumType[]>([]);
+  const [praktikumSiakadImportErrors, setPraktikumSiakadImportErrors] = useState<string[]>([]);
+  const [praktikumSiakadCellErrors, setPraktikumSiakadCellErrors] = useState<{ row: number, field: string, message: string }[]>([]);
+  const [praktikumSiakadEditingCell, setPraktikumSiakadEditingCell] = useState<{ row: number; key: string } | null>(null);
+  const [praktikumSiakadImportPage, setPraktikumSiakadImportPage] = useState(1);
+  const [praktikumSiakadImportedCount, setPraktikumSiakadImportedCount] = useState(0);
 
   // State untuk import PBL Excel
   const [showPBLTemplateSelectionModal, setShowPBLTemplateSelectionModal] = useState(false);
@@ -506,12 +509,18 @@ export default function DetailBlok() {
   const [bulkDeleteType, setBulkDeleteType] = useState<'kuliah-besar' | 'praktikum' | 'agenda-khusus' | 'pbl' | 'jurnal-reading'>('kuliah-besar');
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
-  const [pblImportSuccess, setPBLImportSuccess] = useState(false);
 
 
   const [pblImportedCount, setPBLImportedCount] = useState(0);
 
-  
+  // State untuk import Excel PBL SIAKAD
+  const [pblSiakadImportFile, setPBLSiakadImportFile] = useState<File | null>(null);
+  const [pblSiakadImportData, setPBLSiakadImportData] = useState<JadwalPBLType[]>([]);
+  const [pblSiakadImportErrors, setPBLSiakadImportErrors] = useState<string[]>([]);
+  const [pblSiakadCellErrors, setPBLSiakadCellErrors] = useState<{ row: number, field: string, message: string }[]>([]);
+  const [pblSiakadEditingCell, setPBLSiakadEditingCell] = useState<{ row: number; key: string } | null>(null);
+  const [pblSiakadImportPage, setPBLSiakadImportPage] = useState(1);
+  const [pblSiakadImportedCount, setPBLSiakadImportedCount] = useState(0);
 
   // State untuk pagination PBL import preview
 
@@ -540,8 +549,13 @@ export default function DetailBlok() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const pblFileInputRef = useRef<HTMLInputElement>(null);
+  const pblSiakadFileInputRef = useRef<HTMLInputElement>(null);
 
   const praktikumFileInputRef = useRef<HTMLInputElement>(null);
+  const praktikumSiakadFileInputRef = useRef<HTMLInputElement>(null);
+
+  const agendaKhususFileInputRef = useRef<HTMLInputElement>(null);
+  const jurnalReadingFileInputRef = useRef<HTMLInputElement>(null);
 
 
   // Fetch materi (keahlian) dari mata kuliah yang sedang dipilih
@@ -1753,24 +1767,19 @@ export default function DetailBlok() {
       setRuanganList(Array.isArray(batchData.ruangan) ? batchData.ruangan : []);
 
       const kelasPraktikumData = Array.isArray(batchData.kelas_praktikum) ? batchData.kelas_praktikum.map((k: any) => k.nama || k) : [];
+      // Hanya set jika ada data, jika tidak biarkan fetchKelasPraktikum yang mengisi
+      if (kelasPraktikumData.length > 0) {
       setKelasPraktikumOptions(kelasPraktikumData);
+      }
       setMateriPraktikumOptions(Array.isArray(batchData.materi_praktikum) ? batchData.materi_praktikum : []);
 
       setJamOptions(Array.isArray(batchData.jam_options) ? batchData.jam_options : []);
 
-      
-
       // Set dosen data
-
       if (batchData.dosen) {
-
         setAllDosenList(Array.isArray(batchData.dosen.all) ? batchData.dosen.all : []);
-
         setDosenList(Array.isArray(batchData.dosen.matching) ? batchData.dosen.matching : []);
-
       }
-
-      
 
     } catch (err) {
 
@@ -1912,89 +1921,46 @@ export default function DetailBlok() {
 
   useEffect(() => {
 
-    fetchBatchData();
+    const loadData = async () => {
+      await fetchBatchData();
+      // Pastikan kelas praktikum ter-load setelah batch data
+      await fetchKelasPraktikum();
+    };
+    
+    loadData();
 
   }, [fetchBatchData]);
 
-
-
-  // Auto-hide success message
-
+  // Auto-hide imported counts and PBL success message (consolidated)
   useEffect(() => {
+    const countsToReset = [
+      { value: importedCount, setter: setImportedCount, resetValue: 0 },
+      { value: siakadImportedCount, setter: setSiakadImportedCount, resetValue: 0 },
+      { value: praktikumImportedCount, setter: setPraktikumImportedCount, resetValue: 0 },
+      { value: praktikumSiakadImportedCount, setter: setPraktikumSiakadImportedCount, resetValue: 0 },
+      { value: pblImportedCount, setter: setPBLImportedCount, resetValue: 0 },
+      { value: pblSiakadImportedCount, setter: setPBLSiakadImportedCount, resetValue: 0 },
+      { value: agendaKhususImportedCount, setter: setAgendaKhususImportedCount, resetValue: 0 },
+      { value: jurnalReadingImportedCount, setter: setJurnalReadingImportedCount, resetValue: 0 },
+      { value: pblSuccess, setter: setPblSuccess, resetValue: null }
+    ];
 
-    if (success) {
+    const timers = countsToReset
+      .filter(item => item.value)
+      .map(item => setTimeout(() => item.setter(item.resetValue as any), 5000));
 
-      const timer = setTimeout(() => {
-
-        setSuccess(null);
-
-      }, 5000);
-
-      return () => clearTimeout(timer);
-
-    }
-
-  }, [success]);
-
-
-
-  // Auto-hide imported count
-
-  useEffect(() => {
-
-    if (importedCount > 0) {
-
-      const timer = setTimeout(() => {
-
-        setImportedCount(0);
-
-      }, 5000);
-
-      return () => clearTimeout(timer);
-
-    }
-
-  }, [importedCount]);
-
-
-
-  // Auto-hide PBL success message
-
-  useEffect(() => {
-
-    if (pblSuccess) {
-
-      const timer = setTimeout(() => {
-
-        setPblSuccess(null);
-
-      }, 5000);
-
-      return () => clearTimeout(timer);
-
-    }
-
-  }, [pblSuccess]);
-
-
-
-  // Auto-hide PBL imported count
-
-  useEffect(() => {
-
-    if (pblImportedCount > 0) {
-
-      const timer = setTimeout(() => {
-
-        setPBLImportedCount(0);
-
-      }, 5000);
-
-      return () => clearTimeout(timer);
-
-    }
-
-  }, [pblImportedCount]);
+    return () => timers.forEach(timer => clearTimeout(timer));
+  }, [
+    importedCount, 
+    siakadImportedCount, 
+    praktikumImportedCount, 
+    praktikumSiakadImportedCount,
+    pblImportedCount,
+    pblSiakadImportedCount,
+    agendaKhususImportedCount,
+    jurnalReadingImportedCount,
+    pblSuccess
+  ]);
 
 
 
@@ -3914,7 +3880,6 @@ export default function DetailBlok() {
     if (!kode) return;
     
     setIsBulkDeleting(true);
-    setShowBulkDeleteModal(false);
     
     try {
       let selectedItems: number[] = [];
@@ -3952,6 +3917,25 @@ export default function DetailBlok() {
       // Delete all selected items
       await Promise.all(selectedItems.map(id => api.delete(`${endpoint}/${id}`)));
       
+      // Show success message per section
+      switch (bulkDeleteType) {
+        case 'kuliah-besar':
+          setKuliahBesarSuccess(successMessage);
+          break;
+        case 'praktikum':
+          setPraktikumSuccess(successMessage);
+          break;
+        case 'agenda-khusus':
+          setAgendaKhususSuccess(successMessage);
+          break;
+        case 'pbl':
+          setPblSuccess(successMessage);
+          break;
+        case 'jurnal-reading':
+          setJurnalReadingSuccess(successMessage);
+          break;
+      }
+      
       // Clear selected items
       switch (bulkDeleteType) {
         case 'kuliah-besar':
@@ -3971,27 +3955,11 @@ export default function DetailBlok() {
           break;
       }
       
+      // Close modal after successful delete
+      setShowBulkDeleteModal(false);
+      
       // Refresh data
       await fetchBatchData();
-      
-      // Show success message per section
-      switch (bulkDeleteType) {
-        case 'kuliah-besar':
-          setKuliahBesarSuccess(successMessage);
-          break;
-        case 'praktikum':
-          setPraktikumSuccess(successMessage);
-          break;
-        case 'agenda-khusus':
-          setAgendaKhususSuccess(successMessage);
-          break;
-        case 'pbl':
-          setPblSuccess(successMessage);
-          break;
-        case 'jurnal-reading':
-          setJurnalReadingSuccess(successMessage);
-          break;
-      }
       
     } catch (err: any) {
       setErrorBackend('Gagal menghapus jadwal terpilih');
@@ -5774,7 +5742,14 @@ export default function DetailBlok() {
         const dosen = allDosenList?.find(d => d.name.toLowerCase() === namaDosen.toLowerCase());
         if (!dosen) {
           cellErrors.push({ row: rowNumber, field: 'dosen_id', message: `Dosen "${namaDosen}" tidak ditemukan (Baris ${rowNumber}, Kolom DOSEN)` });
-        } else if (row.materi && row.materi !== 'Kosong (isi manual)') {
+        } else {
+          // Cek apakah dosen standby
+          const isStandbyDosen = dosen.name.toLowerCase().includes('standby') || 
+            (Array.isArray(dosen.keahlian) ? dosen.keahlian.some((k: string) => k.toLowerCase().includes("standby")) : 
+             (dosen.keahlian || "").toLowerCase().includes("standby"));
+          
+          // Jika bukan dosen standby, validasi keahlian dengan materi
+          if (!isStandbyDosen && row.materi && row.materi !== 'Kosong (isi manual)') {
           // Validasi keahlian dosen dengan materi (konsisten dengan Kuliah Besar)
           const keahlianDosen = Array.isArray(dosen.keahlian) 
             ? dosen.keahlian 
@@ -5782,16 +5757,14 @@ export default function DetailBlok() {
           
           if (!keahlianDosen.includes(row.materi)) {
             cellErrors.push({ 
-
               row: rowNumber, 
               field: 'materi', 
               message: `Materi "${row.materi}" tidak sesuai dengan keahlian dosen "${dosen.name}". Keahlian dosen: ${keahlianDosen.join(', ')} (Baris ${rowNumber}, Kolom MATERI)` 
             });
-
           }
-
         }
-
+          // Dosen standby tidak perlu validasi keahlian
+        }
       }
 
       
@@ -5987,29 +5960,28 @@ export default function DetailBlok() {
         if (!dosen) {
           const dosenName = row.nama_dosen || 'ID ' + row.dosen_id;
           cellErrors.push({ row: index, field: 'dosen_id', message: `Dosen "${dosenName}" tidak ditemukan (Baris ${rowNumber}, Kolom Dosen)` });
-        } else if (row.materi && row.materi !== 'Kosong (isi manual)') {
+        } else {
+          // Cek apakah dosen standby
+          const isStandbyDosen = dosen.name.toLowerCase().includes('standby') || 
+            (Array.isArray(dosen.keahlian) ? dosen.keahlian.some((k: string) => k.toLowerCase().includes("standby")) : 
+             (dosen.keahlian || "").toLowerCase().includes("standby"));
+          
+          // Jika bukan dosen standby, validasi keahlian dengan materi
+          if (!isStandbyDosen && row.materi && row.materi !== 'Kosong (isi manual)') {
           // Validasi keahlian dosen dengan materi
           const keahlianDosen = Array.isArray(dosen.keahlian) 
-
             ? dosen.keahlian 
-
             : (dosen.keahlian || '').split(',').map((k: string) => k.trim());
 
-          
-
           if (!keahlianDosen.includes(row.materi)) {
-
             cellErrors.push({ 
-
               row: index, 
-
               field: 'materi', 
-
               message: `Materi "${row.materi}" tidak sesuai dengan keahlian dosen "${dosen.name}". Keahlian dosen: ${keahlianDosen.join(', ')} (Baris ${rowNumber}, Kolom MATERI)` 
             });
-
           }
-
+          }
+          // Dosen standby tidak perlu validasi keahlian
         }
       }
 
@@ -6064,36 +6036,12 @@ export default function DetailBlok() {
       
       if (!headerMatch) {
         const missingHeaders = expectedHeaders.filter(header => !headers.includes(header));
-        setPraktikumImportErrors([`Format file Excel tidak dikenali. Kolom yang hilang: ${missingHeaders.join(', ')}. Pastikan kolom sesuai dengan template yang didownload`]);
+        setPraktikumImportErrors(['Format file Excel tidak sesuai dengan template aplikasi. Pastikan kolom sesuai dengan template yang didownload.']);
         setShowPraktikumImportModal(true);
         return;
       }
 
       // Helper function untuk konversi format jam (menambahkan leading zero)
-      const convertTimeFormat = (timeStr: string) => {
-        if (!timeStr || timeStr.trim() === '') return '';
-        
-        // Hapus spasi dan konversi ke string
-        const time = timeStr.toString().trim();
-        
-        // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
-        if (time.match(/^\d{2}[:.]\d{2}$/)) {
-          return time.replace('.', ':');
-        }
-        
-        // Cek apakah format H:MM atau H.MM (1 digit jam)
-        if (time.match(/^\d{1}[:.]\d{2}$/)) {
-          return '0' + time.replace('.', ':');
-        }
-        
-        // Cek apakah format HH:MM atau HH.MM (2 digit jam)
-        if (time.match(/^\d{2}[:.]\d{2}$/)) {
-          return time.replace('.', ':');
-        }
-        
-        // Jika tidak sesuai format, return as is
-        return time;
-      };
 
       // Konversi data Excel ke format yang diharapkan
       const convertedData: JadwalPraktikumType[] = rawData.map((row: any[], index: number) => {
@@ -6161,13 +6109,13 @@ export default function DetailBlok() {
 
   // Handler untuk import Excel praktikum template SIAKAD
   const handlePraktikumSIAKADImportExcel = async (file?: File) => {
-    const targetFile = file || praktikumImportFile;
+    const targetFile = file || praktikumSiakadImportFile;
     if (!targetFile) return;
 
     setIsPraktikumImporting(true);
-    setPraktikumImportErrors([]);
-    setPraktikumCellErrors([]);
-    // setPraktikumImportData([]); // Jangan reset data, biarkan data yang sudah ada
+    setPraktikumSiakadImportErrors([]);
+    setPraktikumSiakadCellErrors([]);
+    // setPraktikumSiakadImportData([]); // Jangan reset data, biarkan data yang sudah ada
 
     try {
       // Fetch kelas praktikum terlebih dahulu untuk validasi
@@ -6185,11 +6133,11 @@ export default function DetailBlok() {
         // Debug: Tampilkan headers yang sebenarnya ada di file
         const { headers } = await readExcelFile(targetFile);
         
-        setPraktikumImportErrors([
+        setPraktikumSiakadImportErrors([
           'Format file Excel tidak sesuai dengan template SIAKAD. Pastikan kolom sesuai dengan template yang didownload.',
           `Headers found: ${headers.join(', ')}`
         ]);
-        setShowPraktikumImportModal(true);
+        setShowPraktikumSiakadImportModal(true);
         return;
       }
 
@@ -6280,17 +6228,17 @@ export default function DetailBlok() {
       });
 
       // Set data terlebih dahulu
-      setPraktikumImportData(convertedData);
-      setPraktikumImportFile(targetFile);
+      setPraktikumSiakadImportData(convertedData);
+      setPraktikumSiakadImportFile(targetFile);
       
       // Validate data setelah fetch kelas praktikum selesai
       const { cellErrors } = validatePraktikumExcelData(convertedData, kelasPraktikumData);
-      setPraktikumCellErrors(cellErrors);
+      setPraktikumSiakadCellErrors(cellErrors);
       
-      setShowPraktikumImportModal(true);
+      setShowPraktikumSiakadImportModal(true);
     } catch (error) {
-      setPraktikumImportErrors(['Gagal membaca file Excel. Pastikan format file benar.']);
-      setShowPraktikumImportModal(true);
+      setPraktikumSiakadImportErrors(['Gagal membaca file Excel. Pastikan format file benar.']);
+      setShowPraktikumSiakadImportModal(true);
     } finally {
       setIsPraktikumImporting(false);
       // Reset file input
@@ -6304,6 +6252,8 @@ export default function DetailBlok() {
   const handlePBLTemplateSelection = (template: 'LAMA' | 'SIAKAD') => {
     setSelectedPBLTemplate(template);
     setShowPBLTemplateSelectionModal(false);
+    
+    // Selalu buka modal yang sama untuk kedua template
     setShowPBLImportModal(true);
   };
 
@@ -6322,15 +6272,21 @@ export default function DetailBlok() {
     }
   };
 
-  // Handler untuk upload file Excel PBL
+  // Handler untuk upload file Excel PBL (template aplikasi dan SIAKAD)
   const handlePBLFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     // Validate file type
     if (!file.name.toLowerCase().endsWith('.xlsx') && !file.name.toLowerCase().endsWith('.xls')) {
+      // Set error berdasarkan template yang dipilih
+      if (selectedPBLTemplate === 'LAMA') {
       setPBLCellErrors([{ row: 0, field: 'file', message: 'Format file Excel tidak dikenali. Harap gunakan file .xlsx atau .xls' }]);
       setPBLImportFile(file);
+      } else {
+        setPBLSiakadCellErrors([{ row: 0, field: 'file', message: 'Format file Excel tidak dikenali. Harap gunakan file .xlsx atau .xls' }]);
+        setPBLSiakadImportFile(file);
+      }
       return;
     }
 
@@ -6350,12 +6306,12 @@ export default function DetailBlok() {
 
     try {
 
-    setIsPBLImporting(true);
+      setIsPBLImporting(true);
 
     setPBLImportErrors([]);
-    setPBLCellErrors([]);
+      setPBLCellErrors([]);
 
-    setPBLImportData([]);
+      setPBLImportData([]);
 
 
 
@@ -6376,30 +6332,6 @@ export default function DetailBlok() {
 
 
       // Helper function untuk konversi format jam (menambahkan leading zero)
-      const convertTimeFormat = (timeStr: string) => {
-        if (!timeStr || timeStr.trim() === '') return '';
-        
-        // Hapus spasi dan konversi ke string
-        const time = timeStr.toString().trim();
-        
-        // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
-        if (time.match(/^\d{2}[:.]\d{2}$/)) {
-          return time.replace('.', ':');
-        }
-        
-        // Cek apakah format H:MM atau H.MM (1 digit jam)
-        if (time.match(/^\d{1}[:.]\d{2}$/)) {
-          return '0' + time.replace('.', ':');
-        }
-        
-        // Cek apakah format HH:MM atau HH.MM (2 digit jam)
-        if (time.match(/^\d{2}[:.]\d{2}$/)) {
-          return time.replace('.', ':');
-        }
-        
-        // Jika tidak sesuai format, return as is
-        return time;
-      };
 
       // Konversi data Excel ke format yang diharapkan
 
@@ -6531,12 +6463,12 @@ export default function DetailBlok() {
 
   // Handler untuk import Excel template SIAKAD PBL
   const handlePBLSIAKADImportExcel = async (file?: File) => {
-    const targetFile = file || pblImportFile;
+    const targetFile = file || pblSiakadImportFile;
     if (!targetFile) return;
 
     setIsPBLImporting(true);
-    setPBLImportErrors([]);
-    setPBLCellErrors([]);
+    setPBLSiakadImportErrors([]);
+    setPBLSiakadCellErrors([]);
 
     try {
       // Read Excel file
@@ -6548,11 +6480,11 @@ export default function DetailBlok() {
         // Debug: Tampilkan headers yang sebenarnya ada di file
         const { headers } = await readExcelFile(targetFile);
         
-        setPBLImportErrors([
+        setPBLSiakadImportErrors([
           'Format file Excel tidak sesuai dengan template SIAKAD. Pastikan kolom sesuai dengan template yang didownload.',
           `Headers found: ${headers.join(', ')}`
         ]);
-        setPBLImportFile(targetFile);
+        setPBLSiakadImportFile(targetFile);
         setShowPBLImportModal(true);
         return;
       }
@@ -6651,16 +6583,16 @@ export default function DetailBlok() {
       });
 
       // Set data
-      setPBLImportData(convertedData);
-      setPBLImportFile(targetFile);
+      setPBLSiakadImportData(convertedData);
+      setPBLSiakadImportFile(targetFile);
       
       // Validate data
       const { cellErrors } = validatePBLExcelData(convertedData);
-      setPBLCellErrors(cellErrors);
+      setPBLSiakadCellErrors(cellErrors);
       
       setShowPBLImportModal(true);
     } catch (error) {
-      setPBLCellErrors([{ 
+      setPBLSiakadCellErrors([{ 
         row: 0, 
         field: 'file', 
         message: 'Gagal membaca file Excel. Pastikan format file benar.' 
@@ -6669,8 +6601,8 @@ export default function DetailBlok() {
     } finally {
       setIsPBLImporting(false);
       // Reset file input
-      if (pblFileInputRef.current) {
-        pblFileInputRef.current.value = '';
+      if (pblSiakadFileInputRef.current) {
+        pblSiakadFileInputRef.current.value = '';
       }
     }
   };
@@ -6865,11 +6797,8 @@ export default function DetailBlok() {
     setSelectedTemplate(template);
     setShowTemplateSelectionModal(false);
     
-    if (template === 'LAMA') {
+    // Selalu buka modal yang sama untuk kedua template
       setShowImportModal(true);
-    } else {
-      setShowSIAKADImportModal(true);
-    }
   };
 
   // Handler untuk template selection praktikum
@@ -6877,7 +6806,7 @@ export default function DetailBlok() {
     setSelectedPraktikumTemplate(template);
     setShowPraktikumTemplateSelectionModal(false);
     
-    // Show import modal untuk upload file
+    // Selalu buka modal yang sama untuk kedua template
     setShowPraktikumImportModal(true);
   };
 
@@ -6885,18 +6814,10 @@ export default function DetailBlok() {
   const handlePraktikumCloseTemplateSelectionModal = () => {
     setShowPraktikumTemplateSelectionModal(false);
     setSelectedPraktikumTemplate(null);
-    setPraktikumImportFile(null);
-    setPraktikumImportData([]);
-    setPraktikumImportErrors([]);
-    setPraktikumCellErrors([]);
-    setPraktikumEditingCell(null);
-    setPraktikumImportPage(1);
-    if (praktikumFileInputRef.current) {
-      praktikumFileInputRef.current.value = '';
-    }
+    // Tidak menghapus data untuk file persistence
   };
 
-  // Handler untuk upload file Excel praktikum
+  // Handler untuk upload file Excel praktikum Template Aplikasi
   const handlePraktikumFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -6908,15 +6829,27 @@ export default function DetailBlok() {
       return;
     }
 
-    // Proses file sesuai template yang dipilih (file akan di-set di dalam handler masing-masing setelah validasi berhasil)
-    if (selectedPraktikumTemplate === 'LAMA') {
+    // Proses file template aplikasi
       handlePraktikumLamaImportExcel(file);
-    } else {
-      handlePraktikumSIAKADImportExcel(file);
-    }
   };
 
-  // Handler untuk import Excel template lama
+  // Handler untuk upload file Excel praktikum SIAKAD
+  const handlePraktikumSiakadFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.name.toLowerCase().endsWith('.xlsx') && !file.name.toLowerCase().endsWith('.xls')) {
+      setPraktikumSiakadImportErrors(['Format file Excel tidak dikenali. Harap gunakan file .xlsx atau .xls']);
+      setPraktikumSiakadImportFile(file);
+      return;
+    }
+
+    // Proses file SIAKAD
+    handlePraktikumSIAKADImportExcel(file);
+  };
+
+  // Handler untuk import Excel kuliah besar (template aplikasi dan SIAKAD)
   const handleImportExcel = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -6925,39 +6858,63 @@ export default function DetailBlok() {
     await fetchBatchData();
 
     if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      // Set error berdasarkan template yang dipilih
+      if (selectedTemplate === 'LAMA') {
       setImportErrors(['File harus berformat Excel (.xlsx atau .xls)']);
+      } else {
+        setSiakadImportErrors(['File harus berformat Excel (.xlsx atau .xls)']);
+      }
       setShowImportModal(true);
       return;
     }
 
-    // Validasi template
-    const isValidTemplate = await validateTemplateFormat(file, 'LAMA');
+    // Validasi template berdasarkan template yang dipilih
+    const templateType = selectedTemplate === 'LAMA' ? 'LAMA' : 'SIAKAD';
+    const isValidTemplate = await validateTemplateFormat(file, templateType);
     if (!isValidTemplate) {
+      // Set error berdasarkan template yang dipilih
+      if (selectedTemplate === 'LAMA') {
       setImportErrors(['Template tidak valid. Pastikan menggunakan template dari aplikasi ini.']);
+      } else {
+        setSiakadImportErrors(['Template tidak valid. Pastikan menggunakan template SIAKAD yang benar.']);
+      }
       setShowImportModal(true);
       return;
     }
 
     // Jika file yang dipilih sama dengan file sebelumnya dan sudah ada data yang diedit,
     // tidak perlu memproses ulang file
-    const isSameFile = importFile && 
-      importFile.name === file.name && 
-      importFile.size === file.size && 
-      importFile.lastModified === file.lastModified;
+    const currentFile = selectedTemplate === 'LAMA' ? importFile : siakadImportFile;
+    const currentData = selectedTemplate === 'LAMA' ? importData : siakadImportData;
+    
+    const isSameFile = currentFile && 
+      currentFile.name === file.name && 
+      currentFile.size === file.size && 
+      currentFile.lastModified === file.lastModified;
 
-    if (isSameFile && importData.length > 0) {
+    if (isSameFile && currentData.length > 0) {
       // File sama dan sudah ada data, langsung buka modal dengan data yang sudah ada
       setShowImportModal(true);
       return;
     }
 
     // Jika file berbeda, reset data sebelumnya
-    if (importFile && !isSameFile) {
-      resetImportData();
+    if (currentFile && !isSameFile) {
+      if (selectedTemplate === 'LAMA') {
+        resetImportData();
+      } else {
+        resetSIAKADImportData();
+      }
     }
 
+    // Set file dan error berdasarkan template yang dipilih
+    if (selectedTemplate === 'LAMA') {
     setImportFile(file);
     setImportErrors([]);
+    } else {
+      setSiakadImportFile(file);
+      setSiakadImportErrors([]);
+    }
 
     
 
@@ -6967,118 +6924,77 @@ export default function DetailBlok() {
       
 
       if (excelData.length === 0) {
-
+        // Set error berdasarkan template yang dipilih
+        if (selectedTemplate === 'LAMA') {
         setImportErrors(['File Excel kosong atau tidak memiliki data']);
-
+        } else {
+          setSiakadImportErrors(['File Excel kosong atau tidak memiliki data']);
+        }
         setShowImportModal(true);
-
         return;
-
       }
 
 
 
       // Helper function untuk konversi format jam (menambahkan leading zero)
-      const convertTimeFormat = (timeStr: string) => {
-        if (!timeStr || timeStr.trim() === '') return '';
-        
-        // Hapus spasi dan konversi ke string
-        const time = timeStr.toString().trim();
-        
-        // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
-        if (time.match(/^\d{2}[:.]\d{2}$/)) {
-          return time.replace('.', ':');
-        }
-        
-        // Cek apakah format H:MM atau H.MM (1 digit jam)
-        if (time.match(/^\d{1}[:.]\d{2}$/)) {
-          return '0' + time.replace('.', ':');
-        }
-        
-        // Cek apakah format HH:MM atau HH.MM (2 digit jam)
-        if (time.match(/^\d{2}[:.]\d{2}$/)) {
-          return time.replace('.', ':');
-        }
-        
-        // Jika tidak sesuai format, return as is
-        return time;
-      };
 
-      // Konversi ke format JadwalKuliahBesarType menggunakan format legacy
-      const convertedData: JadwalKuliahBesarType[] = excelData.map(row => {
-
+      // Proses data berdasarkan template yang dipilih
+      if (selectedTemplate === 'LAMA') {
+        // Konversi ke format JadwalKuliahBesarType menggunakan format legacy
+        const convertedData: JadwalKuliahBesarType[] = excelData.map(row => {
           const namaDosen = row[4].toString().trim();
-
           const namaRuangan = row[5].toString().trim();
-
           const kelompokBesarId = parseInt(row[6]);
-
           const jumlahSesi = parseInt(row[7]) || 2;
-
           const jamMulaiRaw = row[1].toString();
           const jamMulai = convertTimeFormat(jamMulaiRaw);
 
-          
-
           const dosen = dosenList.find(d => d.name.toLowerCase() === namaDosen.toLowerCase());
-
           const ruangan = ruanganList.find(r => r.nama.toLowerCase() === namaRuangan.toLowerCase());
 
-          
-
           // Hitung jam selesai otomatis berdasarkan sistem
-
           const jamSelesai = hitungJamSelesai(jamMulai, jumlahSesi);
-
-          
 
         return {
             tanggal: row[0].toString(),
-
             jam_mulai: jamMulai,
-
             jam_selesai: jamSelesai,
-
             materi: row[2].toString(),
-
             topik: row[3] ? row[3].toString() : '',
-
             dosen_id: dosen?.id || 0,
-
-            nama_dosen: namaDosen, // Set nama_dosen field
+            nama_dosen: namaDosen,
             ruangan_id: ruangan?.id || 0,
-
-            nama_ruangan: namaRuangan, // Set nama_ruangan field
+            nama_ruangan: namaRuangan,
             kelompok_besar_id: kelompokBesarId || 1,
-
             jumlah_sesi: jumlahSesi
-
           };
-
       });
 
-      
-
       // Validasi data setelah konversi
-
       const validationResult = validateExcelData(convertedData, jadwalKuliahBesar);
-
       setImportErrors(validationResult.errors);
-
       setCellErrors(validationResult.cellErrors);
-
-      
-
       setImportData(convertedData);
+      } else {
+        // Proses data SIAKAD - panggil handler SIAKAD langsung dengan file
+        // Buat event object sederhana untuk handler SIAKAD
+        const fakeEvent = {
+          target: { files: [file] }
+        } as unknown as ChangeEvent<HTMLInputElement>;
+        await handleSIAKADImportExcel(fakeEvent);
+        return;
+      }
 
       setShowImportModal(true);
 
     } catch (error) {
-
+      // Set error berdasarkan template yang dipilih
+      if (selectedTemplate === 'LAMA') {
       setImportErrors(['Gagal membaca file Excel: ' + (error as Error).message]);
-
+      } else {
+        setSiakadImportErrors(['Gagal membaca file Excel: ' + (error as Error).message]);
+      }
       setShowImportModal(true);
-
     } finally {
 
       if (fileInputRef.current) {
@@ -7259,27 +7175,49 @@ export default function DetailBlok() {
 
 
   // Handler untuk submit import
-
   // Handler untuk submit import PBL
-
   // Submit import Excel untuk Praktikum
   const handlePraktikumSubmitImport = async () => {
-    if (!kode || praktikumImportData.length === 0) return;
+    const currentData = selectedPraktikumTemplate === 'LAMA' ? praktikumImportData : praktikumSiakadImportData;
+    if (!kode || currentData.length === 0) return;
 
     setIsPraktikumImporting(true);
+    if (selectedPraktikumTemplate === 'LAMA') {
     setPraktikumImportErrors([]);
+    } else {
+      setPraktikumSiakadImportErrors([]);
+    }
 
     try {
       // Final validation
-      const { cellErrors } = validatePraktikumExcelData(praktikumImportData);
+      const { cellErrors } = validatePraktikumExcelData(currentData);
       if (cellErrors.length > 0) {
+        if (selectedPraktikumTemplate === 'LAMA') {
         setPraktikumCellErrors(cellErrors);
+        } else {
+          setPraktikumSiakadCellErrors(cellErrors);
+        }
         setIsPraktikumImporting(false);
         return;
       }
 
         // Transform data for API
-        const apiData = praktikumImportData.map(row => ({
+        const apiData = currentData.map(row => {
+          // Untuk template SIAKAD, konversi nama ruangan/dosen ke ID
+          let dosenId = row.dosen_id;
+          let ruanganId = row.ruangan_id;
+          
+          if (selectedPraktikumTemplate === 'SIAKAD') {
+            // Cari dosen berdasarkan nama
+            const dosen = pengampuPraktikumOptions.find(d => d.name === row.nama_dosen);
+            if (dosen) dosenId = dosen.id;
+            
+            // Cari ruangan berdasarkan nama
+            const ruangan = ruanganList.find(r => r.nama === row.nama_ruangan);
+            if (ruangan) ruanganId = ruangan.id;
+          }
+          
+          return {
           tanggal: row.tanggal,
           jam_mulai: row.jam_mulai,
           jam_selesai: row.jam_selesai,
@@ -7287,10 +7225,11 @@ export default function DetailBlok() {
           materi: row.materi,
           topik: row.topik,
           kelas_praktikum: row.kelas_praktikum,
-          dosen_id: row.dosen_id,
-          ruangan_id: row.ruangan_id,
+            dosen_id: dosenId,
+            ruangan_id: ruanganId,
           jumlah_sesi: row.jumlah_sesi
-        }));
+          };
+        });
 
       // Send to API
       const response = await api.post(`/praktikum/jadwal/${kode}/import`, {
@@ -7298,22 +7237,38 @@ export default function DetailBlok() {
       });
 
       if (response.data.success) {
-        setPraktikumImportedCount(praktikumImportData.length);
+        setPraktikumImportedCount(currentData.length);
         setShowPraktikumImportModal(false);
+        setShowPraktikumTemplateSelectionModal(false);
         // Reset semua data setelah import berhasil
-        setPraktikumImportData([]);
-        setPraktikumImportErrors([]);
-        setPraktikumCellErrors([]);
-        setPraktikumEditingCell(null);
-        setPraktikumImportPage(1);
-        setPraktikumImportFile(null);
-        setSelectedPraktikumTemplate(null);
-        if (praktikumFileInputRef.current) {
-          praktikumFileInputRef.current.value = '';
+        if (selectedPraktikumTemplate === 'LAMA') {
+          setPraktikumImportData([]);
+          setPraktikumImportErrors([]);
+          setPraktikumCellErrors([]);
+          setPraktikumEditingCell(null);
+          setPraktikumImportFile(null);
+          if (praktikumFileInputRef.current) {
+            praktikumFileInputRef.current.value = '';
+          }
+        } else {
+          setPraktikumSiakadImportData([]);
+          setPraktikumSiakadImportErrors([]);
+          setPraktikumSiakadCellErrors([]);
+          setPraktikumSiakadEditingCell(null);
+          setPraktikumSiakadImportFile(null);
+          if (praktikumSiakadFileInputRef.current) {
+            praktikumSiakadFileInputRef.current.value = '';
+          }
         }
+        setPraktikumImportPage(1);
+        setSelectedPraktikumTemplate(null);
         await fetchBatchData(); // Refresh data
       } else {
+        if (selectedPraktikumTemplate === 'LAMA') {
         setPraktikumImportErrors([response.data.message || 'Terjadi kesalahan saat mengimport data']);
+        } else {
+          setPraktikumSiakadImportErrors([response.data.message || 'Terjadi kesalahan saat mengimport data']);
+        }
         // Tidak import data jika ada error - all or nothing
       }
     } catch (error: any) {
@@ -7326,12 +7281,24 @@ export default function DetailBlok() {
             field: 'general',
             message: err
           }));
+          if (selectedPraktikumTemplate === 'LAMA') {
           setPraktikumCellErrors(cellErrors);
         } else {
+            setPraktikumSiakadCellErrors(cellErrors);
+          }
+        } else {
+          if (selectedPraktikumTemplate === 'LAMA') {
           setPraktikumImportErrors([errorData.message || 'Terjadi kesalahan validasi']);
+          } else {
+            setPraktikumSiakadImportErrors([errorData.message || 'Terjadi kesalahan validasi']);
+          }
         }
       } else {
+        if (selectedPraktikumTemplate === 'LAMA') {
         setPraktikumImportErrors([error.response?.data?.message || 'Terjadi kesalahan saat mengimport data']);
+        } else {
+          setPraktikumSiakadImportErrors([error.response?.data?.message || 'Terjadi kesalahan saat mengimport data']);
+        }
       }
     } finally {
       setIsPraktikumImporting(false);
@@ -7339,37 +7306,65 @@ export default function DetailBlok() {
   };
 
   const handlePBLSubmitImport = async () => {
-    if (pblImportData.length === 0) return;
+    const currentData = selectedPBLTemplate === 'LAMA' ? pblImportData : pblSiakadImportData;
+    const currentErrors = selectedPBLTemplate === 'LAMA' ? pblCellErrors : pblSiakadCellErrors;
+    const currentImportErrors = selectedPBLTemplate === 'LAMA' ? pblImportErrors : pblSiakadImportErrors;
+    
+    if (currentData.length === 0) return;
 
     setIsPBLImporting(true);
-    setPBLImportErrors([]);
+    if (selectedPBLTemplate === 'LAMA') {
+      setPBLImportErrors([]);
+    } else {
+      setPBLSiakadImportErrors([]);
+    }
 
     try {
       // Final validation
-      const { cellErrors } = validatePBLExcelData(pblImportData);
+      const { cellErrors } = validatePBLExcelData(currentData);
       if (cellErrors.length > 0) {
-        setPBLCellErrors(cellErrors);
+        if (selectedPBLTemplate === 'LAMA') {
+          setPBLCellErrors(cellErrors);
+        } else {
+          setPBLSiakadCellErrors(cellErrors);
+        }
         setIsPBLImporting(false);
         return;
       }
 
       const response = await api.post(`/mata-kuliah/${kode}/jadwal-pbl/import`, {
-        data: pblImportData
+        data: currentData
       });
 
       if (response.data.success) {
-        setPBLImportedCount(response.data.success || pblImportData.length);
+        if (selectedPBLTemplate === 'LAMA') {
+          setPBLImportedCount(response.data.success || currentData.length);
+        } else {
+          setPBLSiakadImportedCount(response.data.success || currentData.length);
+        }
         setShowPBLImportModal(false);
+        if (selectedPBLTemplate === 'LAMA') {
         setPBLImportData([]);
         setPBLImportFile(null);
-        setPBLImportErrors([]);
+          setPBLImportErrors([]);
         setPBLCellErrors([]);
         setPBLEditingCell(null);
-        setPBLImportSuccess(false);
         setPBLImportPage(1);
+        } else {
+          setPBLSiakadImportData([]);
+          setPBLSiakadImportFile(null);
+          setPBLSiakadImportErrors([]);
+          setPBLSiakadCellErrors([]);
+          setPBLSiakadEditingCell(null);
+          setPBLSiakadImportPage(1);
+        }
         await fetchBatchData(); // Refresh data
       } else {
-        setPBLImportErrors([response.data.message || 'Terjadi kesalahan saat mengimport data']);
+        if (selectedPBLTemplate === 'LAMA') {
+          setPBLImportErrors([response.data.message || 'Terjadi kesalahan saat mengimport data']);
+        } else {
+          setPBLSiakadImportErrors([response.data.message || 'Terjadi kesalahan saat mengimport data']);
+        }
         // Tidak import data jika ada error - all or nothing
       }
     } catch (error: any) {
@@ -7382,12 +7377,24 @@ export default function DetailBlok() {
             field: 'api',
             message: err
           }));
+          if (selectedPBLTemplate === 'LAMA') {
           setPBLCellErrors(cellErrors);
         } else {
-          setPBLImportErrors([errorData.message || 'Terjadi kesalahan validasi']);
+            setPBLSiakadCellErrors(cellErrors);
         }
       } else {
-        setPBLImportErrors([error.response?.data?.message || 'Gagal mengimpor data. Silakan coba lagi.']);
+          if (selectedPBLTemplate === 'LAMA') {
+            setPBLImportErrors([errorData.message || 'Terjadi kesalahan validasi']);
+          } else {
+            setPBLSiakadImportErrors([errorData.message || 'Terjadi kesalahan validasi']);
+          }
+        }
+      } else {
+        if (selectedPBLTemplate === 'LAMA') {
+          setPBLImportErrors([error.response?.data?.message || 'Gagal mengimpor data. Silakan coba lagi.']);
+        } else {
+          setPBLSiakadImportErrors([error.response?.data?.message || 'Gagal mengimpor data. Silakan coba lagi.']);
+        }
       }
     } finally {
       setIsPBLImporting(false);
@@ -7697,30 +7704,6 @@ export default function DetailBlok() {
       const { data: rows, headers } = await readExcelFile(file);
 
       // Helper function untuk konversi format jam (menambahkan leading zero)
-      const convertTimeFormat = (timeStr: string) => {
-        if (!timeStr || timeStr.trim() === '') return '';
-        
-        // Hapus spasi dan konversi ke string
-        const time = timeStr.toString().trim();
-        
-        // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
-        if (time.match(/^\d{2}[:.]\d{2}$/)) {
-          return time.replace('.', ':');
-        }
-        
-        // Cek apakah format H:MM atau H.MM (1 digit jam)
-        if (time.match(/^\d{1}[:.]\d{2}$/)) {
-          return '0' + time.replace('.', ':');
-        }
-        
-        // Cek apakah format HH:MM atau HH.MM (2 digit jam)
-        if (time.match(/^\d{2}[:.]\d{2}$/)) {
-          return time.replace('.', ':');
-        }
-        
-        // Jika tidak sesuai format, return as is
-        return time;
-      };
 
       // Convert data Excel ke format Jurnal Reading
       const convertedData = rows.map((row: any[]) => {
@@ -7891,6 +7874,12 @@ export default function DetailBlok() {
       if (response.data.success) {
         setJurnalReadingImportedCount(jurnalReadingImportData.length);
         setShowJurnalReadingImportModal(false);
+        // Cleanup data setelah import berhasil
+        setJurnalReadingImportData([]);
+        setJurnalReadingImportFile(null);
+        setJurnalReadingImportErrors([]);
+        setJurnalReadingCellErrors([]);
+        setJurnalReadingEditingCell(null);
         await fetchBatchData(); // Refresh data
       } else {
         setJurnalReadingImportErrors([response.data.message || 'Terjadi kesalahan saat mengimport data']);
@@ -7921,10 +7910,19 @@ export default function DetailBlok() {
   // Close import modal untuk Jurnal Reading
   const handleJurnalReadingCloseImportModal = () => {
     setShowJurnalReadingImportModal(false);
+    // Tidak menghapus data untuk file persistence
+  };
+
+  // Handler untuk hapus file Jurnal Reading
+  const handleJurnalReadingRemoveFile = () => {
+    setJurnalReadingImportFile(null);
     setJurnalReadingImportData([]);
     setJurnalReadingImportErrors([]);
     setJurnalReadingCellErrors([]);
     setJurnalReadingEditingCell(null);
+    if (jurnalReadingFileInputRef.current) {
+      jurnalReadingFileInputRef.current.value = '';
+    }
   };
 
   // Finish editing cell untuk Jurnal Reading
@@ -7946,30 +7944,6 @@ export default function DetailBlok() {
       const { data: rows, headers } = await readExcelFile(file);
 
       // Helper function untuk konversi format jam (menambahkan leading zero)
-      const convertTimeFormat = (timeStr: string) => {
-        if (!timeStr || timeStr.trim() === '') return '';
-        
-        // Hapus spasi dan konversi ke string
-        const time = timeStr.toString().trim();
-        
-        // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
-        if (time.match(/^\d{2}[:.]\d{2}$/)) {
-          return time.replace('.', ':');
-        }
-        
-        // Cek apakah format H:MM atau H.MM (1 digit jam)
-        if (time.match(/^\d{1}[:.]\d{2}$/)) {
-          return '0' + time.replace('.', ':');
-        }
-        
-        // Cek apakah format HH:MM atau HH.MM (2 digit jam)
-        if (time.match(/^\d{2}[:.]\d{2}$/)) {
-          return time.replace('.', ':');
-        }
-        
-        // Jika tidak sesuai format, return as is
-        return time;
-      };
 
       // Convert data Excel ke format Agenda Khusus
       const convertedData = rows.map((row: any[]) => {
@@ -8076,6 +8050,13 @@ export default function DetailBlok() {
       (row as any)[key] = value;
     }
 
+    // Jika mengedit jam_mulai atau jumlah_sesi, hitung ulang jam selesai
+    if (key === 'jam_mulai' || key === 'jumlah_sesi') {
+      const jamMulai = key === 'jam_mulai' ? value : row.jam_mulai;
+      const jumlahSesi = key === 'jumlah_sesi' ? value : row.jumlah_sesi;
+      row.jam_selesai = hitungJamSelesai(jamMulai || '08:00', jumlahSesi || 1);
+    }
+
     setAgendaKhususImportData(updatedData);
 
     // Re-validasi data
@@ -8119,6 +8100,12 @@ export default function DetailBlok() {
       if (response.data.success) {
         setAgendaKhususImportedCount(agendaKhususImportData.length);
         setShowAgendaKhususImportModal(false);
+        // Cleanup data setelah import berhasil
+        setAgendaKhususImportData([]);
+        setAgendaKhususImportFile(null);
+        setAgendaKhususImportErrors([]);
+        setAgendaKhususCellErrors([]);
+        setAgendaKhususEditingCell(null);
         await fetchBatchData(); // Refresh data
       } else {
         setAgendaKhususImportErrors([response.data.message || 'Terjadi kesalahan saat mengimport data']);
@@ -8149,14 +8136,17 @@ export default function DetailBlok() {
 
 
   const handleSubmitImport = async () => {
-
-    if (importData.length === 0) return;
-
-    
+    const currentData = selectedTemplate === 'LAMA' ? importData : siakadImportData;
+    if (currentData.length === 0) return;
 
     setIsImporting(true);
 
+    // Set error berdasarkan template yang dipilih
+    if (selectedTemplate === 'LAMA') {
     setImportErrors([]);
+    } else {
+      setSiakadImportErrors([]);
+    }
 
     
 
@@ -8166,7 +8156,7 @@ export default function DetailBlok() {
 
       const response = await api.post(`/kuliah-besar/import/${data!.kode}`, {
 
-        data: importData
+        data: currentData
 
       });
 
@@ -8175,35 +8165,47 @@ export default function DetailBlok() {
       // Tampilkan error jika ada
 
       if (response.data.errors && response.data.errors.length > 0) {
-
+        // Set error berdasarkan template yang dipilih
+        if (selectedTemplate === 'LAMA') {
         setImportErrors(response.data.errors);
+        } else {
+          setSiakadImportErrors(response.data.errors);
+      }
         // Tidak import data jika ada error - all or nothing
 
       } else {
-
+      
         // Hanya import jika tidak ada error sama sekali
 
-        if (response.data.success > 0) {
+      if (response.data.success > 0) {
+          // Set imported count berdasarkan template yang dipilih
+          if (selectedTemplate === 'LAMA') {
+        setImportedCount(response.data.success);
+          } else {
+            setSiakadImportedCount(response.data.success);
+          }
 
-          setImportedCount(response.data.success);
+        await fetchBatchData(); // Refresh data
 
-          await fetchBatchData(); // Refresh data
 
-          setImportSuccess(true); // Set success flag sebelum close modal
+        setShowImportModal(false);
 
-          setShowImportModal(false);
-
-          setImportData([]);
-
-          setImportFile(null);
-
-          setImportErrors([]);
-
-          setCellErrors([]);
-
-          setEditingCell(null);
-
-          setImportPage(1);
+          // Reset data berdasarkan template yang dipilih
+          if (selectedTemplate === 'LAMA') {
+        setImportData([]);
+        setImportFile(null);
+        setImportErrors([]);
+        setCellErrors([]);
+        setEditingCell(null);
+        setImportPage(1);
+          } else {
+            setSiakadImportData([]);
+            setSiakadImportFile(null);
+            setSiakadImportErrors([]);
+            setSiakadCellErrors([]);
+            setSiakadEditingCell(null);
+            setSiakadImportPage(1);
+          }
 
         }
 
@@ -8214,14 +8216,23 @@ export default function DetailBlok() {
       // Handle error response (termasuk status 422)
 
       if (error.response?.data?.errors && error.response.data.errors.length > 0) {
-
+        // Set error berdasarkan template yang dipilih
+        if (selectedTemplate === 'LAMA') {
         setImportErrors(error.response.data.errors);
+        } else {
+          setSiakadImportErrors(error.response.data.errors);
+        }
 
       } else {
 
         const errorMessage = error.response?.data?.message || 'Gagal mengimport data';
 
+        // Set error berdasarkan template yang dipilih
+        if (selectedTemplate === 'LAMA') {
         setImportErrors([errorMessage]);
+        } else {
+          setSiakadImportErrors([errorMessage]);
+        }
 
       }
 
@@ -8252,17 +8263,16 @@ export default function DetailBlok() {
         // Tidak import data jika ada error - all or nothing
       } else {
         // Hanya import jika tidak ada error sama sekali
-        if (response.data.success > 0) {
-          setImportedCount(response.data.success);
-          await fetchBatchData(); // Refresh data
-          setSiakadImportSuccess(true); // Set success flag sebelum close modal
-          setShowSIAKADImportModal(false);
-          setSiakadImportData([]);
-          setSiakadImportFile(null);
-          setSiakadImportErrors([]);
-          setSiakadCellErrors([]);
-          setSiakadEditingCell(null);
-          setImportPage(1);
+      if (response.data.success > 0) {
+        setImportedCount(response.data.success);
+        await fetchBatchData(); // Refresh data
+        setShowSIAKADImportModal(false);
+        setSiakadImportData([]);
+        setSiakadImportFile(null);
+        setSiakadImportErrors([]);
+        setSiakadCellErrors([]);
+        setSiakadEditingCell(null);
+        setImportPage(1);
         }
       }
 
@@ -8283,18 +8293,41 @@ export default function DetailBlok() {
 
   // Handler untuk close modal import PBL
 
-  // Close import modal untuk Praktikum
+  // Close import modal untuk Praktikum Template Aplikasi
   const handlePraktikumCloseImportModal = () => {
     setShowPraktikumImportModal(false);
+    // Tidak menghapus data untuk file persistence
+  };
+
+  // Close import modal untuk Praktikum SIAKAD
+  const handlePraktikumSiakadCloseImportModal = () => {
+    setShowPraktikumSiakadImportModal(false);
+    // Tidak menghapus data untuk file persistence
+  };
+
+  // Handler untuk menghapus file Praktikum Template Aplikasi
+  const handlePraktikumRemoveFile = () => {
+    setPraktikumImportFile(null);
     setPraktikumImportData([]);
     setPraktikumImportErrors([]);
     setPraktikumCellErrors([]);
     setPraktikumEditingCell(null);
     setPraktikumImportPage(1);
-    setPraktikumImportFile(null);
-    setSelectedPraktikumTemplate(null);
     if (praktikumFileInputRef.current) {
       praktikumFileInputRef.current.value = '';
+    }
+  };
+
+  // Handler untuk menghapus file Praktikum SIAKAD
+  const handlePraktikumSiakadRemoveFile = () => {
+    setPraktikumSiakadImportFile(null);
+    setPraktikumSiakadImportData([]);
+    setPraktikumSiakadImportErrors([]);
+    setPraktikumSiakadCellErrors([]);
+    setPraktikumSiakadEditingCell(null);
+    setPraktikumSiakadImportPage(1);
+    if (praktikumSiakadFileInputRef.current) {
+      praktikumSiakadFileInputRef.current.value = '';
     }
   };
 
@@ -8317,6 +8350,14 @@ export default function DetailBlok() {
       updatedData[rowIdx] = { ...updatedData[rowIdx], [key]: value };
     }
     
+    // Jika mengedit jam_mulai atau jumlah_sesi, hitung ulang jam selesai
+    if (key === 'jam_mulai' || key === 'jumlah_sesi') {
+      const jamMulai = key === 'jam_mulai' ? value as string : updatedData[rowIdx].jam_mulai;
+      const jumlahSesi = key === 'jumlah_sesi' ? value as number : updatedData[rowIdx].jumlah_sesi;
+      const jamSelesai = hitungJamSelesai(jamMulai || '08:00', jumlahSesi || 2);
+      updatedData[rowIdx].jam_selesai = jamSelesai;
+    }
+    
     setPraktikumImportData(updatedData);
     
     // Re-validate
@@ -8331,20 +8372,40 @@ export default function DetailBlok() {
 
   // Handler untuk edit manual SIAKAD praktikum (mirip dengan kuliah besar)
   const handlePraktikumSiakadMateriEdit = (rowIndex: number, materi: string) => {
-    const newData = [...praktikumImportData];
+    const newData = [...praktikumSiakadImportData];
     newData[rowIndex] = { 
       ...newData[rowIndex], 
       materi: materi 
     };
-    setPraktikumImportData(newData);
+    setPraktikumSiakadImportData(newData);
     
     // Re-validate
     const { cellErrors } = validatePraktikumExcelData(newData);
-    setPraktikumCellErrors(cellErrors);
+    setPraktikumSiakadCellErrors(cellErrors);
+  };
+
+  // Edit cell untuk Praktikum SIAKAD
+  const handlePraktikumSiakadCellEdit = (rowIdx: number, key: string, value: string | number) => {
+    const updatedData = [...praktikumSiakadImportData];
+    updatedData[rowIdx] = { ...updatedData[rowIdx], [key]: value };
+    
+    // Jika mengedit jam_mulai atau jumlah_sesi, hitung ulang jam selesai
+    if (key === 'jam_mulai' || key === 'jumlah_sesi') {
+      const jamMulai = key === 'jam_mulai' ? value as string : updatedData[rowIdx].jam_mulai;
+      const jumlahSesi = key === 'jumlah_sesi' ? value as number : updatedData[rowIdx].jumlah_sesi;
+      const jamSelesai = hitungJamSelesai(jamMulai || '08:00', jumlahSesi || 2);
+      updatedData[rowIdx].jam_selesai = jamSelesai;
+    }
+    
+    setPraktikumSiakadImportData(updatedData);
+    
+    // Re-validate
+    const { cellErrors } = validatePraktikumExcelData(updatedData);
+    setPraktikumSiakadCellErrors(cellErrors);
   };
 
   const handlePraktikumSiakadDosenEdit = (rowIndex: number, namaDosen: string) => {
-    const newData = [...praktikumImportData];
+    const newData = [...praktikumSiakadImportData];
     const dosen = allDosenList.find(d => d.name.toLowerCase() === namaDosen.toLowerCase());
     
     newData[rowIndex] = { 
@@ -8352,33 +8413,55 @@ export default function DetailBlok() {
       nama_dosen: namaDosen,
       dosen_id: dosen?.id || null
     };
-    setPraktikumImportData(newData);
+    setPraktikumSiakadImportData(newData);
     
     // Re-validate
     const { cellErrors } = validatePraktikumExcelData(newData);
-    setPraktikumCellErrors(cellErrors);
+    setPraktikumSiakadCellErrors(cellErrors);
   };
 
   const handlePraktikumSiakadTopikEdit = (rowIndex: number, topik: string) => {
-    const newData = [...praktikumImportData];
+    const newData = [...praktikumSiakadImportData];
     newData[rowIndex] = { 
       ...newData[rowIndex], 
       topik: topik 
     };
-    setPraktikumImportData(newData);
+    setPraktikumSiakadImportData(newData);
     
     // Re-validate
     const { cellErrors } = validatePraktikumExcelData(newData);
-    setPraktikumCellErrors(cellErrors);
+    setPraktikumSiakadCellErrors(cellErrors);
+  };
+
+  const handlePraktikumSiakadRuanganEdit = (rowIndex: number, namaRuangan: string) => {
+    const newData = [...praktikumSiakadImportData];
+    newData[rowIndex] = { 
+      ...newData[rowIndex], 
+      nama_ruangan: namaRuangan 
+    };
+    setPraktikumSiakadImportData(newData);
+    
+    // Re-validate
+    const { cellErrors } = validatePraktikumExcelData(newData);
+    setPraktikumSiakadCellErrors(cellErrors);
   };
 
   // Close import modal untuk Agenda Khusus
   const handleAgendaKhususCloseImportModal = () => {
     setShowAgendaKhususImportModal(false);
+    // Tidak menghapus data untuk file persistence
+  };
+
+  // Handler untuk menghapus file Agenda Khusus
+  const handleAgendaKhususRemoveFile = () => {
+    setAgendaKhususImportFile(null);
     setAgendaKhususImportData([]);
     setAgendaKhususImportErrors([]);
     setAgendaKhususCellErrors([]);
     setAgendaKhususEditingCell(null);
+    if (agendaKhususFileInputRef.current) {
+      agendaKhususFileInputRef.current.value = '';
+    }
   };
 
   // Finish editing cell untuk Agenda Khusus
@@ -8390,31 +8473,37 @@ export default function DetailBlok() {
 
     setShowPBLImportModal(false);
 
-    setPBLImportData([]);
-
-    setPBLImportErrors([]);
-    setPBLCellErrors([]);
-
-    setPBLImportFile(null);
-
-    setPBLImportSuccess(false);
-
-    setPBLEditingCell(null);
-
-    setPBLImportPage(1);
+    // Tidak menghapus data untuk file persistence
 
     setSelectedPBLTemplate(null); // Reset template selection
 
-    
+  };
 
-    // Reset file input
-
+  // Handler untuk hapus file PBL
+  const handlePBLRemoveFile = () => {
+    if (selectedPBLTemplate === 'LAMA') {
+      // Reset Template Aplikasi
+      setPBLImportFile(null);
+      setPBLImportData([]);
+      setPBLImportErrors([]);
+      setPBLCellErrors([]);
+    setPBLEditingCell(null);
+    setPBLImportPage(1);
     if (pblFileInputRef.current) {
-
       pblFileInputRef.current.value = '';
-
+      }
+    } else if (selectedPBLTemplate === 'SIAKAD') {
+      // Reset SIAKAD
+      setPBLSiakadImportFile(null);
+      setPBLSiakadImportData([]);
+      setPBLSiakadImportErrors([]);
+      setPBLSiakadCellErrors([]);
+      setPBLSiakadEditingCell(null);
+      setPBLSiakadImportPage(1);
+      if (pblSiakadFileInputRef.current) {
+        pblSiakadFileInputRef.current.value = '';
+      }
     }
-
   };
 
 
@@ -8476,7 +8565,7 @@ export default function DetailBlok() {
 
   // Handler untuk edit cell PBL SIAKAD
   const handlePBLSIAKADCellEdit = (rowIdx: number, key: string, value: string) => {
-    const newData = [...pblImportData];
+    const newData = [...pblSiakadImportData];
     newData[rowIdx] = { ...newData[rowIdx], [key]: value };
 
     // Jika mengedit nama_modul, cari modul yang cocok dan set ID
@@ -8528,11 +8617,11 @@ export default function DetailBlok() {
       };
     }
 
-    setPBLImportData(newData);
+    setPBLSiakadImportData(newData);
 
     // Re-validate data
     const { cellErrors } = validatePBLExcelData(newData);
-    setPBLCellErrors(cellErrors);
+    setPBLSiakadCellErrors(cellErrors);
   };
 
   const handlePBLDosenEdit = (rowIdx: number, value: string) => {
@@ -8571,7 +8660,40 @@ export default function DetailBlok() {
 
   };
 
+  // Handler untuk edit dosen PBL SIAKAD
+  const handlePBLSiakadDosenEdit = (rowIdx: number, value: string) => {
 
+    const newData = [...pblSiakadImportData];
+
+    const dosen = allDosenList?.find(d => d.name.toLowerCase() === value.toLowerCase());
+
+    
+    // Cek apakah dosen valid (assigned dosen atau standby)
+    let isValidDosen = false;
+    if (dosen) {
+      const isAssignedDosen = assignedDosenPBL?.some(d => d.id === dosen.id);
+      const isStandbyDosen = dosen.name.toLowerCase().includes('standby');
+      isValidDosen = isAssignedDosen || isStandbyDosen;
+    }
+    
+    newData[rowIdx] = { 
+
+      ...newData[rowIdx], 
+
+      dosen_id: isValidDosen ? (dosen?.id || 0) : 0,
+      nama_dosen: value 
+
+    };
+
+    setPBLSiakadImportData(newData);
+
+    // Re-validate data
+
+    const { cellErrors } = validatePBLExcelData(newData);
+
+    setPBLSiakadCellErrors(cellErrors);
+
+  };
 
   const handlePBLRuanganEdit = (rowIdx: number, value: string) => {
 
@@ -8601,7 +8723,32 @@ export default function DetailBlok() {
 
   };
 
+  // Handler untuk edit ruangan PBL SIAKAD
+  const handlePBLSiakadRuanganEdit = (rowIdx: number, value: string) => {
 
+    const newData = [...pblSiakadImportData];
+
+    const ruangan = allRuanganList?.find(r => r.nama.toLowerCase() === value.toLowerCase());
+
+    newData[rowIdx] = { 
+
+      ...newData[rowIdx], 
+
+      ruangan_id: ruangan?.id || 0,
+
+      nama_ruangan: value 
+
+    };
+
+    setPBLSiakadImportData(newData);
+
+    // Re-validate data
+
+    const { cellErrors } = validatePBLExcelData(newData);
+
+    setPBLSiakadCellErrors(cellErrors);
+
+  };
 
   const handlePBLKelompokKecilEdit = (rowIdx: number, value: string) => {
 
@@ -8631,7 +8778,32 @@ export default function DetailBlok() {
 
   };
 
+  // Handler untuk edit kelompok kecil PBL SIAKAD
+  const handlePBLSiakadKelompokKecilEdit = (rowIdx: number, value: string) => {
 
+    const newData = [...pblSiakadImportData];
+
+    const kelompokKecil = kelompokKecilList?.find(k => k.nama_kelompok.toLowerCase() === value.toLowerCase());
+
+    newData[rowIdx] = { 
+
+      ...newData[rowIdx], 
+
+      kelompok_kecil_id: kelompokKecil?.id || 0,
+
+      nama_kelompok: value 
+
+    };
+
+    setPBLSiakadImportData(newData);
+
+    // Re-validate data
+
+    const { cellErrors } = validatePBLExcelData(newData);
+
+    setPBLSiakadCellErrors(cellErrors);
+
+  };
 
   const handleCloseImportModal = () => {
     setShowImportModal(false);
@@ -8645,7 +8817,6 @@ export default function DetailBlok() {
     setCellErrors([]);
     setEditingCell(null);
     setImportErrors([]);
-    setImportSuccess(false);
     setImportPage(1);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -8659,7 +8830,6 @@ export default function DetailBlok() {
     setSiakadCellErrors([]);
     setSiakadEditingCell(null);
     setSiakadImportErrors([]);
-    setSiakadImportSuccess(false);
     setSiakadImportPage(1);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -8676,6 +8846,15 @@ export default function DetailBlok() {
   const handleSiakadCellEdit = (rowIndex: number, field: string, value: any) => {
     const newData = [...siakadImportData];
     newData[rowIndex] = { ...newData[rowIndex], [field]: value };
+    
+    // Jika mengedit jam_mulai atau jumlah_sesi, hitung ulang jam selesai
+    if (field === 'jam_mulai' || field === 'jumlah_sesi') {
+      const jamMulai = field === 'jam_mulai' ? value : newData[rowIndex].jam_mulai;
+      const jumlahSesi = field === 'jumlah_sesi' ? parseInt(value) : newData[rowIndex].jumlah_sesi;
+      const jamSelesai = hitungJamSelesai(jamMulai || '08:00', jumlahSesi || 2);
+      newData[rowIndex].jam_selesai = jamSelesai;
+    }
+    
     setSiakadImportData(newData);
     
     // Clear cell error jika ada
@@ -8842,10 +9021,10 @@ export default function DetailBlok() {
             row: rowIndex, 
             field: 'jumlah_sesi', 
             message: `Jumlah sesi harus antara 1-6 (Baris ${rowNumber}, Kolom SESI)` 
-          }]);
+              }]);
+            }
+          }
         }
-      }
-    }
     
     // Jalankan validasi lengkap untuk semua data setelah edit
     const validationResult = validateExcelData(newData, jadwalKuliahBesar);
@@ -8979,6 +9158,18 @@ export default function DetailBlok() {
 
   );
 
+  // Logika pagination untuk PBL SIAKAD import preview
+
+  const pblSiakadImportTotalPages = Math.ceil(pblSiakadImportData.length / pblImportPageSize);
+
+  const pblSiakadImportPaginatedData = pblSiakadImportData.slice(
+
+    (pblSiakadImportPage - 1) * pblImportPageSize,
+
+    pblSiakadImportPage * pblImportPageSize
+
+  );
+
 
 
   // Edit cell preview
@@ -8998,6 +9189,22 @@ export default function DetailBlok() {
       if (key === 'kelompok_besar_id') {
 
         newData[rowIdx][key] = parseInt(value) || 0;
+
+      }
+
+      
+
+      // Jika mengedit jam_mulai atau jumlah_sesi, hitung ulang jam selesai
+
+      if (key === 'jam_mulai' || key === 'jumlah_sesi') {
+
+        const jamMulai = key === 'jam_mulai' ? value : newData[rowIdx].jam_mulai;
+
+        const jumlahSesi = key === 'jumlah_sesi' ? parseInt(value) : newData[rowIdx].jumlah_sesi;
+
+        const jamSelesai = hitungJamSelesai(jamMulai || '08:00', jumlahSesi || 2);
+
+        newData[rowIdx].jam_selesai = jamSelesai;
 
       }
 
@@ -9025,7 +9232,11 @@ export default function DetailBlok() {
 
       const newData = [...prev];
 
-      const selectedDosen = dosenList.find(d => d.name.toLowerCase() === value.toLowerCase());
+      // Cari dosen di dosenList dulu, jika tidak ditemukan cari di allDosenList (untuk dosen standby)
+      let selectedDosen = dosenList.find(d => d.name.toLowerCase() === value.toLowerCase());
+      if (!selectedDosen) {
+        selectedDosen = allDosenList.find(d => d.name.toLowerCase() === value.toLowerCase());
+      }
 
       
 
@@ -9365,31 +9576,6 @@ export default function DetailBlok() {
 
         {/* Success Messages */}
 
-        <AnimatePresence>
-
-          {success && (
-
-            <motion.div
-
-              initial={{ opacity: 0, y: -10 }}
-
-              animate={{ opacity: 1, y: 0 }}
-
-              exit={{ opacity: 0, y: -10 }}
-
-              transition={{ duration: 0.2 }}
-
-              className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
-
-            >
-
-              {success}
-
-            </motion.div>
-
-          )}
-
-        </AnimatePresence>
 
 
 
@@ -9638,7 +9824,7 @@ export default function DetailBlok() {
 
           <div className="flex gap-2 items-center">
             <button
-              onClick={handlePraktikumImportExcel}
+              onClick={() => setShowPraktikumTemplateSelectionModal(true)}
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform cursor-pointer"
             >
               <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-brand-700 dark:text-brand-200" />
@@ -9949,16 +10135,12 @@ export default function DetailBlok() {
 
           <div className="flex items-center gap-2">
             {/* Import Excel Button */}
-            <label className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform cursor-pointer">
+            <button 
+              onClick={() => setShowAgendaKhususImportModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform cursor-pointer">
               <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-brand-700 dark:text-brand-200" />
               Import Excel
-              <input
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleAgendaKhususFileUpload}
-                className="hidden"
-              />
-            </label>
+            </button>
 
             {/* Download Template Button */}
             <button
@@ -15668,16 +15850,6 @@ export default function DetailBlok() {
                   </div>
                 </div>
 
-                {siakadImportSuccess ? (
-                  <div className="text-center py-12">
-                    <div className="w-20 h-20 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                      <FontAwesomeIcon icon={faStar} className="w-10 h-10 text-green-500" />
-                    </div>
-                    <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-2">Import Berhasil!</h3>
-                    <p className="text-gray-500 dark:text-gray-400">Data jadwal kuliah besar berhasil diimport.</p>
-                  </div>
-                ) : (
-                  <>
                     {!siakadImportFile ? (
                       /* Upload Section */
                       <div className="mb-6">
@@ -15711,15 +15883,15 @@ export default function DetailBlok() {
                       <>
                         {/* File Info */}
                         {siakadImportFile && (
-                          <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                            <div className="flex items-center gap-3">
-                              <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-500" />
-                              <div className="flex-1">
-                                <p className="font-medium text-blue-800 dark:text-blue-200">{siakadImportFile.name}</p>
-                                <p className="text-sm text-blue-600 dark:text-blue-300">
-                                  {(siakadImportFile.size / 1024).toFixed(1)} KB
-                                </p>
-                              </div>
+                        <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-500" />
+                            <div className="flex-1">
+                              <p className="font-medium text-blue-800 dark:text-blue-200">{siakadImportFile.name}</p>
+                              <p className="text-sm text-blue-600 dark:text-blue-300">
+                                {(siakadImportFile.size / 1024).toFixed(1)} KB
+                              </p>
+                            </div>
                               <button
                                 onClick={() => {
                                   setSiakadImportFile(null);
@@ -15739,8 +15911,8 @@ export default function DetailBlok() {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                 </svg>
                               </button>
-                            </div>
                           </div>
+                        </div>
                         )}
 
                         {/* Error Messages */}
@@ -15775,8 +15947,8 @@ export default function DetailBlok() {
                                 Preview Data ({siakadImportData.length} jadwal)
                               </h3>
                               <div className="flex items-center gap-3">
-                                <div className="text-sm text-gray-500 dark:text-gray-400">
-                                  File: {siakadImportFile?.name}
+                              <div className="text-sm text-gray-500 dark:text-gray-400">
+                                File: {siakadImportFile?.name}
                                 </div>
                               </div>
                             </div>
@@ -15817,7 +15989,22 @@ export default function DetailBlok() {
                                               <input
                                                 className="w-full px-1 border-none outline-none text-xs md:text-sm"
                                                 type={isNumeric ? "number" : "text"}
-                                                value={value === 'Kosong (isi manual)' || value === 'Wajib diisi' || (field === 'dosen_id' && (!value || value === 0 || value === null)) || (field === 'jam_mulai' && (!value || value.trim() === '')) || (field === 'jam_selesai' && (!value || value.trim() === '')) || (field === 'tanggal' && (!value || value.trim() === '')) ? "" : (value || "")}
+                                                value={(() => {
+                                                  // Jika value adalah placeholder text, kosongkan input
+                                                  if (value === 'Kosong (isi manual)' || value === 'Wajib diisi') {
+                                                    return "";
+                                                  }
+                                                  // Jika field adalah dosen_id dan tidak ada value
+                                                  if (field === 'dosen_id' && (!value || value === 0 || value === null)) {
+                                                    return "";
+                                                  }
+                                                  // Jika field adalah jam/tanggal dan kosong
+                                                  if ((field === 'jam_mulai' || field === 'jam_selesai' || field === 'tanggal') && (!value || value.trim() === '')) {
+                                                    return "";
+                                                  }
+                                                  // Return value as is
+                                                  return value || "";
+                                                })()}
                                                 onChange={e => handleSiakadCellEdit(actualIndex, field, isNumeric ? parseInt(e.target.value) || 0 : e.target.value)}
                                                 onBlur={() => setSiakadEditingCell(null)}
                                                 autoFocus
@@ -16085,8 +16272,6 @@ export default function DetailBlok() {
                           </button>
                         )}
                       </div>
-                    )}
-                  </>
                 )}
               </motion.div>
             </div>
@@ -16334,7 +16519,9 @@ export default function DetailBlok() {
 
                           >
 
-                            <FontAwesomeIcon icon={faStar} className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400" />
+                            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
 
                             <span className="hidden sm:inline">Nilai</span>
 
@@ -16403,11 +16590,12 @@ export default function DetailBlok() {
           <h2 className="text-lg font-bold text-gray-800 dark:text-white">Jurnal Reading</h2>
           <div className="flex items-center gap-2">
             {/* Import Excel Button */}
-            <label className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform cursor-pointer">
+            <button 
+              onClick={() => setShowJurnalReadingImportModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform cursor-pointer">
               <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-brand-700 dark:text-brand-200" />
               Import Excel
-              <input type="file" accept=".xlsx,.xls" onChange={handleJurnalReadingFileUpload} className="hidden" />
-            </label>
+            </button>
             {/* Download Template Button */}
             <button onClick={downloadJurnalReadingTemplate} className="px-4 py-2 rounded-lg bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 text-sm font-medium shadow-theme-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition flex items-center gap-2">
               <FontAwesomeIcon icon={faDownload} className="w-5 h-5" />
@@ -16811,7 +16999,9 @@ export default function DetailBlok() {
 
                         >
 
-                          <FontAwesomeIcon icon={faStar} className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400" />
+                          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
 
                           <span className="hidden sm:inline">Nilai</span>
 
@@ -17220,34 +17410,55 @@ export default function DetailBlok() {
 
                 <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Import Jadwal Kuliah Besar</h2>
 
-                <p className="text-sm text-gray-500 dark:text-gray-400">Template Aplikasi - Preview dan validasi data sebelum import</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {selectedTemplate === 'LAMA' ? 'Template Aplikasi' : 'Template SIAKAD'} - Preview dan validasi data sebelum import
+                </p>
 
               </div>
 
-
-
-              {importSuccess ? (
-
-                <div className="text-center py-12">
-
-                  <div className="w-20 h-20 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-6">
-
-                    <FontAwesomeIcon icon={faStar} className="w-10 h-10 text-green-500" />
-
+              {/* Info Box untuk Template SIAKAD Kuliah Besar */}
+              {selectedTemplate === 'SIAKAD' && (
+                <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-5 h-5 mt-0.5">
+                      <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                      </svg>
                   </div>
-
-                  <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-2">Import Berhasil!</h3>
-
-                  <p className="text-gray-500 dark:text-gray-400">Data jadwal kuliah besar berhasil diimport.</p>
-
+                    <div className="flex-1">
+                      <h3 className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">
+                        Informasi Mapping Template SIAKAD Kuliah Besar
+                      </h3>
+                      <div className="text-sm text-green-700 dark:text-green-300 space-y-2">
+                        <div>
+                          <strong>Kolom yang tersedia di SIAKAD:</strong>
+                          <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
+                            <li>Tanggal → Tanggal</li>
+                            <li>Waktu Mulai → Jam mulai</li>
+                            <li>Topik → Topik</li>
+                            <li>Ruang → Ruangan</li>
+                            <li>Kelompok Besar → Kelompok besar</li>
+                          </ul>
                 </div>
-
-              ) : (
-
-                <>
+                        <div>
+                          <strong>Kolom yang <span className="text-red-600 dark:text-red-400">WAJIB diisi manual</span> (tidak ada di SIAKAD):</strong>
+                          <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
+                            <li>Materi → Klik kolom "Kosong (isi manual)" untuk mengisi</li>
+                            <li>Dosen → Klik kolom "Kosong (isi manual)" untuk memilih dosen</li>
+                            <li>Sesi → Klik kolom "Kosong (isi manual)" untuk mengisi</li>
+                          </ul>
+                        </div>
+                        <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                          💡 <strong>Tips:</strong> Klik pada kolom yang menampilkan "Kosong (isi manual)" untuk mengisi data yang diperlukan. Jam selesai akan otomatis dihitung berdasarkan jam mulai dan sesi.
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
                   {/* Upload Section */}
-                  {!importFile && (
+                  {!(selectedTemplate === 'LAMA' ? importFile : siakadImportFile) && (
                     <div className="mb-6">
                       <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
                         <div className="space-y-4">
@@ -17255,9 +17466,11 @@ export default function DetailBlok() {
                             <FontAwesomeIcon icon={faFileExcel} className="w-8 h-8 text-brand-600 dark:text-brand-400" />
                           </div>
                           <div>
-                            <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Upload File Excel</h3>
+                            <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                              Upload File Excel {selectedTemplate === 'LAMA' ? '' : 'SIAKAD'}
+                            </h3>
                             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                              Pilih file Excel dengan format template aplikasi (.xlsx, .xls)
+                              Pilih file Excel dengan format {selectedTemplate === 'LAMA' ? 'template aplikasi' : 'SIAKAD'} (.xlsx, .xls)
                             </p>
                           </div>
                           <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
@@ -17278,7 +17491,7 @@ export default function DetailBlok() {
 
                   {/* File Info */}
 
-                  {importFile && (
+                  {(selectedTemplate === 'LAMA' ? importFile : siakadImportFile) && (
 
                     <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
 
@@ -17288,11 +17501,13 @@ export default function DetailBlok() {
 
                         <div className="flex-1">
 
-                          <p className="font-medium text-blue-800 dark:text-blue-200">{importFile.name}</p>
+                          <p className="font-medium text-blue-800 dark:text-blue-200">
+                            {(selectedTemplate === 'LAMA' ? importFile : siakadImportFile)?.name}
+                          </p>
 
                           <p className="text-sm text-blue-600 dark:text-blue-300">
 
-                            {(importFile.size / 1024).toFixed(1)} KB
+                            {(((selectedTemplate === 'LAMA' ? importFile : siakadImportFile)?.size || 0) / 1024).toFixed(1)} KB
 
                           </p>
 
@@ -17300,12 +17515,21 @@ export default function DetailBlok() {
 
                         <button
                           onClick={() => {
-                            setImportFile(null);
-                            setImportData([]);
-                            setImportErrors([]);
-                            setCellErrors([]);
-                            setEditingCell(null);
-                            setImportPage(1);
+                            if (selectedTemplate === 'LAMA') {
+                              setImportFile(null);
+                              setImportData([]);
+                              setImportErrors([]);
+                              setCellErrors([]);
+                              setEditingCell(null);
+                              setImportPage(1);
+                            } else {
+                              setSiakadImportFile(null);
+                              setSiakadImportData([]);
+                              setSiakadImportErrors([]);
+                              setSiakadCellErrors([]);
+                              setSiakadEditingCell(null);
+                              setSiakadImportPage(1);
+                            }
                             if (fileInputRef.current) {
                               fileInputRef.current.value = '';
                             }
@@ -17328,7 +17552,7 @@ export default function DetailBlok() {
 
                   {/* Error Messages */}
 
-                  {(importErrors.length > 0 || cellErrors.length > 0) && (
+                  {((selectedTemplate === 'LAMA' ? importErrors : siakadImportErrors).length > 0 || (selectedTemplate === 'LAMA' ? cellErrors : siakadCellErrors).length > 0) && (
 
                     <div className="mb-6">
 
@@ -17340,7 +17564,7 @@ export default function DetailBlok() {
 
                           <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
 
-                            Error Validasi ({importErrors.length + cellErrors.length} error)
+                            Error Validasi ({(selectedTemplate === 'LAMA' ? importErrors : siakadImportErrors).length + (selectedTemplate === 'LAMA' ? cellErrors : siakadCellErrors).length} error)
 
                           </h3>
 
@@ -17350,7 +17574,7 @@ export default function DetailBlok() {
 
                           {/* Error dari API response */}
 
-                          {importErrors.map((err, idx) => (
+                          {(selectedTemplate === 'LAMA' ? importErrors : siakadImportErrors).map((err, idx) => (
 
                             <p key={idx} className="text-sm text-red-600 dark:text-red-400 mb-1">• {err}</p>
 
@@ -17358,7 +17582,7 @@ export default function DetailBlok() {
 
                           {/* Error cell/detail */}
 
-                          {cellErrors.map((err, idx) => (
+                          {(selectedTemplate === 'LAMA' ? cellErrors : siakadCellErrors).map((err, idx) => (
 
                             <p key={idx} className="text-sm text-red-600 dark:text-red-400 mb-1">
 
@@ -17380,7 +17604,7 @@ export default function DetailBlok() {
 
                   {/* Preview Data Table */}
 
-                  {importData.length > 0 && (
+                  {(selectedTemplate === 'LAMA' ? importData : siakadImportData).length > 0 && (
 
                     <div className="mb-6">
 
@@ -17388,15 +17612,15 @@ export default function DetailBlok() {
 
                         <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
 
-                          Preview Data ({importData.length} jadwal)
+                          Preview Data ({(selectedTemplate === 'LAMA' ? importData : siakadImportData).length} jadwal)
 
                         </h3>
 
                         <div className="flex items-center gap-3">
 
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
 
-                            File: {importFile?.name}
+                          File: {importFile?.name}
 
                           </div>
 
@@ -17440,9 +17664,9 @@ export default function DetailBlok() {
 
                             <tbody>
 
-                              {importPaginatedData.map((row, index) => {
+                              {(selectedTemplate === 'LAMA' ? importPaginatedData : siakadImportPaginatedData).map((row, index) => {
 
-                                const actualIndex = (importPage - 1) * importPageSize + index;
+                                const actualIndex = ((selectedTemplate === 'LAMA' ? importPage : siakadImportPage) - 1) * importPageSize + index;
 
                                 const dosen = dosenList.find(d => d.id === row.dosen_id);
 
@@ -17454,9 +17678,9 @@ export default function DetailBlok() {
 
                                 const renderEditableCell = (field: string, value: any, isNumeric = false) => {
 
-                                  const isEditing = editingCell?.row === actualIndex && editingCell?.key === field;
+                                  const isEditing = (selectedTemplate === 'LAMA' ? editingCell : siakadEditingCell)?.row === actualIndex && (selectedTemplate === 'LAMA' ? editingCell : siakadEditingCell)?.key === field;
 
-                                  const cellError = cellErrors.find(err => err.row === actualIndex && err.field === field);
+                                  const cellError = (selectedTemplate === 'LAMA' ? cellErrors : siakadCellErrors).find(err => err.row === actualIndex && err.field === field);
 
                                   
 
@@ -17466,7 +17690,7 @@ export default function DetailBlok() {
 
                                       className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
 
-                                      onClick={() => setEditingCell({ row: actualIndex, key: field })}
+                                      onClick={() => selectedTemplate === 'LAMA' ? setEditingCell({ row: actualIndex, key: field }) : setSiakadEditingCell({ row: actualIndex, key: field })}
 
                                       title={cellError ? cellError.message : ''}
 
@@ -17480,11 +17704,26 @@ export default function DetailBlok() {
 
                                           type={isNumeric ? "number" : "text"}
 
-                                          value={value || ""}
+                                          value={(() => {
+                                            // Jika value adalah placeholder text, kosongkan input
+                                            if (value === 'Kosong (isi manual)' || value === 'Wajib diisi') {
+                                              return "";
+                                            }
+                                            // Jika field adalah dosen_id dan tidak ada value
+                                            if (field === 'dosen_id' && (!value || value === 0 || value === null)) {
+                                              return "";
+                                            }
+                                            // Jika field adalah jam/tanggal dan kosong
+                                            if ((field === 'jam_mulai' || field === 'jam_selesai' || field === 'tanggal') && (!value || value.trim() === '')) {
+                                              return "";
+                                            }
+                                            // Return value as is
+                                            return value || "";
+                                          })()}
 
-                                          onChange={e => handleCellEdit(actualIndex, field, e.target.value)}
+                                          onChange={e => selectedTemplate === 'LAMA' ? handleCellEdit(actualIndex, field, e.target.value) : handleSiakadCellEdit(actualIndex, field, e.target.value)}
 
-                                          onBlur={() => setEditingCell(null)}
+                                          onBlur={() => selectedTemplate === 'LAMA' ? setEditingCell(null) : setSiakadEditingCell(null)}
 
                                           autoFocus
 
@@ -17533,9 +17772,9 @@ export default function DetailBlok() {
 
                                       const field = 'nama_dosen';
 
-                                      const isEditing = editingCell?.row === index && editingCell?.key === field;
+                                      const isEditing = (selectedTemplate === 'LAMA' ? editingCell : siakadEditingCell)?.row === index && (selectedTemplate === 'LAMA' ? editingCell : siakadEditingCell)?.key === field;
 
-                                      const cellError = cellErrors.find(err => err.row === index && err.field === 'dosen_id');
+                                      const cellError = (selectedTemplate === 'LAMA' ? cellErrors : siakadCellErrors).find(err => err.row === index && err.field === 'dosen_id');
                                       
 
                                       return (
@@ -17544,7 +17783,7 @@ export default function DetailBlok() {
 
                                           className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
 
-                                          onClick={() => setEditingCell({ row: index, key: field })}
+                                          onClick={() => selectedTemplate === 'LAMA' ? setEditingCell({ row: index, key: field }) : setSiakadEditingCell({ row: index, key: field })}
 
                                           title={cellError ? cellError.message : ''}
 
@@ -17558,9 +17797,9 @@ export default function DetailBlok() {
 
                                               value={row.nama_dosen || dosen?.name || ""}
 
-                                              onChange={e => handleDosenEdit(actualIndex, e.target.value)}
+                                              onChange={e => selectedTemplate === 'LAMA' ? handleDosenEdit(actualIndex, e.target.value) : handleSiakadDosenEdit(actualIndex, e.target.value)}
 
-                                              onBlur={() => setEditingCell(null)}
+                                              onBlur={() => selectedTemplate === 'LAMA' ? setEditingCell(null) : setSiakadEditingCell(null)}
 
                                               autoFocus
 
@@ -17568,7 +17807,7 @@ export default function DetailBlok() {
 
                                           ) : (
 
-                                            <span className={cellError ? 'text-red-500' : (dosen ? 'text-gray-800 dark:text-white/90' : 'text-red-500')}>
+                                            <span className={cellError ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
                                               {dosen?.name || (row as any).nama_dosen || 'Tidak ditemukan'}
                                             </span>
 
@@ -17588,9 +17827,9 @@ export default function DetailBlok() {
 
                                       const field = 'nama_ruangan';
 
-                                      const isEditing = editingCell?.row === index && editingCell?.key === field;
+                                      const isEditing = (selectedTemplate === 'LAMA' ? editingCell : siakadEditingCell)?.row === index && (selectedTemplate === 'LAMA' ? editingCell : siakadEditingCell)?.key === field;
 
-                                      const cellError = cellErrors.find(err => err.row === index && err.field === 'ruangan_id');
+                                      const cellError = (selectedTemplate === 'LAMA' ? cellErrors : siakadCellErrors).find(err => err.row === index && err.field === 'ruangan_id');
                                       
 
                                       return (
@@ -17599,7 +17838,7 @@ export default function DetailBlok() {
 
                                           className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
 
-                                          onClick={() => setEditingCell({ row: index, key: field })}
+                                          onClick={() => selectedTemplate === 'LAMA' ? setEditingCell({ row: index, key: field }) : setSiakadEditingCell({ row: index, key: field })}
 
                                           title={cellError ? cellError.message : ''}
 
@@ -17613,9 +17852,9 @@ export default function DetailBlok() {
 
                                               value={row.nama_ruangan || ruangan?.nama || ""}
 
-                                              onChange={e => handleRuanganEdit(actualIndex, e.target.value)}
+                                              onChange={e => selectedTemplate === 'LAMA' ? handleRuanganEdit(actualIndex, e.target.value) : handleSiakadRuanganEdit(actualIndex, e.target.value)}
 
-                                              onBlur={() => setEditingCell(null)}
+                                              onBlur={() => selectedTemplate === 'LAMA' ? setEditingCell(null) : setSiakadEditingCell(null)}
 
                                               autoFocus
 
@@ -17641,9 +17880,9 @@ export default function DetailBlok() {
 
                                       const field = 'kelompok_besar_id';
 
-                                      const isEditing = editingCell?.row === index && editingCell?.key === field;
+                                      const isEditing = (selectedTemplate === 'LAMA' ? editingCell : siakadEditingCell)?.row === index && (selectedTemplate === 'LAMA' ? editingCell : siakadEditingCell)?.key === field;
 
-                                      const cellError = cellErrors.find(err => err.row === index && err.field === field);
+                                      const cellError = (selectedTemplate === 'LAMA' ? cellErrors : siakadCellErrors).find(err => err.row === index && err.field === field);
 
                                       
 
@@ -17653,7 +17892,7 @@ export default function DetailBlok() {
 
                                           className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
 
-                                          onClick={() => setEditingCell({ row: index, key: field })}
+                                          onClick={() => selectedTemplate === 'LAMA' ? setEditingCell({ row: index, key: field }) : setSiakadEditingCell({ row: index, key: field })}
 
                                           title={cellError ? cellError.message : ''}
 
@@ -17669,9 +17908,21 @@ export default function DetailBlok() {
 
                                               value={row.kelompok_besar_id || ""}
 
-                                              onChange={e => handleCellEdit(actualIndex, field, e.target.value)}
+                                              onChange={e => {
+                                                if (selectedTemplate === 'LAMA') {
+                                                  handleCellEdit(actualIndex, field, e.target.value);
+                                                } else {
+                                                  handleSiakadCellEdit(actualIndex, field, parseInt(e.target.value) || 0);
+                                                }
+                                              }}
 
-                                              onBlur={() => setEditingCell(null)}
+                                              onBlur={() => {
+                                                if (selectedTemplate === 'LAMA') {
+                                                  setEditingCell(null);
+                                                } else {
+                                                  setSiakadEditingCell(null);
+                                                }
+                                              }}
 
                                               autoFocus
 
@@ -17712,7 +17963,7 @@ export default function DetailBlok() {
 
                       {/* Pagination untuk Import Preview */}
 
-                      {importData.length > importPageSize && (
+                      {(selectedTemplate === 'LAMA' ? importData : siakadImportData).length > importPageSize && (
 
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
 
@@ -17740,7 +17991,7 @@ export default function DetailBlok() {
 
                             <span className="text-sm text-gray-500 dark:text-gray-400">
 
-                              Menampilkan {((importPage - 1) * importPageSize) + 1}-{Math.min(importPage * importPageSize, importData.length)} dari {importData.length} jadwal
+                              Menampilkan {((selectedTemplate === 'LAMA' ? importPage : siakadImportPage) - 1) * importPageSize + 1}-{Math.min((selectedTemplate === 'LAMA' ? importPage : siakadImportPage) * importPageSize, (selectedTemplate === 'LAMA' ? importData : siakadImportData).length)} dari {(selectedTemplate === 'LAMA' ? importData : siakadImportData).length} jadwal
 
                             </span>
 
@@ -18002,7 +18253,7 @@ export default function DetailBlok() {
 
                     </button>
 
-                    {importData.length > 0 && importErrors.length === 0 && cellErrors.length === 0 && (
+                    {(selectedTemplate === 'LAMA' ? importData : siakadImportData).length > 0 && (selectedTemplate === 'LAMA' ? importErrors : siakadImportErrors).length === 0 && (selectedTemplate === 'LAMA' ? cellErrors : siakadCellErrors).length === 0 && (
 
                       <button
 
@@ -18030,7 +18281,7 @@ export default function DetailBlok() {
 
                             <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
 
-                            Import Data ({importData.length} jadwal)
+                            Import Data ({(selectedTemplate === 'LAMA' ? importData : siakadImportData).length} jadwal)
 
                           </>
 
@@ -18041,10 +18292,6 @@ export default function DetailBlok() {
                     )}
 
                   </div>
-
-                </>
-
-              )}
 
             </motion.div>
 
@@ -18295,10 +18542,11 @@ export default function DetailBlok() {
                             <li>Modul PBL → Klik kolom "Kosong (isi manual)" untuk memilih modul</li>
                             <li>Dosen → Klik kolom "Kosong (isi manual)" untuk memilih dosen</li>
                             <li>PBL Tipe → Klik kolom "Kosong (isi manual)" untuk memilih tipe (PBL 1/PBL 2)</li>
+                            <li>Sesi → Klik kolom "Kosong (isi manual)" untuk mengisi</li>
                           </ul>
                         </div>
                         <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-                          💡 <strong>Tips:</strong> Klik pada kolom yang menampilkan "Kosong (isi manual)" untuk mengisi data yang diperlukan.
+                          💡 <strong>Tips:</strong> Klik pada kolom yang menampilkan "Kosong (isi manual)" untuk mengisi data yang diperlukan. Jam selesai akan otomatis dihitung berdasarkan tipe PBL: PBL 1 = 2x50 menit, PBL 2 = 3x50 menit.
                         </div>
                       </div>
                     </div>
@@ -18307,7 +18555,7 @@ export default function DetailBlok() {
               )}
 
               {/* Upload File Section */}
-              {!pblImportFile && (
+              {!(selectedPBLTemplate === 'LAMA' ? pblImportFile : pblSiakadImportFile) && (
                 <div className="mb-6">
                   <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
                     <div className="space-y-4">
@@ -18338,38 +18586,29 @@ export default function DetailBlok() {
                 </div>
               )}
 
-              {pblImportSuccess ? (
-
-                <div className="text-center py-12">
-
-                  <div className="w-20 h-20 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-6">
-
-                    <FontAwesomeIcon icon={faStar} className="w-10 h-10 text-green-500" />
-
-                  </div>
-
-                  <h3 className="text-xl font-semibold text-gray-800 dark:text-white mb-2">Import Berhasil!</h3>
-
-                  <p className="text-gray-500 dark:text-gray-400">Data jadwal PBL berhasil diimport.</p>
-
-                </div>
-
-              ) : (
-
-                <>
-
                   {/* File Info */}
 
-                  {pblImportFile && (
+                  {(selectedPBLTemplate === 'LAMA' ? pblImportFile : pblSiakadImportFile) && (
                     <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                       <div className="flex items-center gap-3">
                         <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-500" />
-                        <div>
-                          <p className="font-medium text-blue-800 dark:text-blue-200">{pblImportFile.name}</p>
+                        <div className="flex-1">
+                          <p className="font-medium text-blue-800 dark:text-blue-200">
+                            {(selectedPBLTemplate === 'LAMA' ? pblImportFile : pblSiakadImportFile)?.name}
+                          </p>
                           <p className="text-sm text-blue-600 dark:text-blue-300">
-                            {(pblImportFile.size / 1024).toFixed(1)} KB
+                            {(((selectedPBLTemplate === 'LAMA' ? pblImportFile : pblSiakadImportFile)?.size || 0) / 1024).toFixed(1)} KB
                           </p>
                         </div>
+                        <button
+                          onClick={handlePBLRemoveFile}
+                          className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                          title="Hapus file"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
                       </div>
                     </div>
                   )}
@@ -18378,7 +18617,7 @@ export default function DetailBlok() {
 
                   {/* Error Messages */}
 
-                  {(pblImportErrors.length > 0 || pblCellErrors.length > 0) && (
+                  {((selectedPBLTemplate === 'LAMA' ? pblImportErrors : pblSiakadImportErrors).length > 0 || (selectedPBLTemplate === 'LAMA' ? pblCellErrors : pblSiakadCellErrors).length > 0) && (
 
                     <div className="mb-6">
 
@@ -18390,18 +18629,18 @@ export default function DetailBlok() {
 
                           <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
 
-                            Error Validasi ({pblImportErrors.length + pblCellErrors.length} error)
+                            Error Validasi ({(selectedPBLTemplate === 'LAMA' ? pblImportErrors : pblSiakadImportErrors).length + (selectedPBLTemplate === 'LAMA' ? pblCellErrors : pblSiakadCellErrors).length} error)
 
                           </h3>
 
                         </div>
 
                         <div className="max-h-40 overflow-y-auto space-y-2">
-                          {pblImportErrors.map((error, index) => (
+                          {(selectedPBLTemplate === 'LAMA' ? pblImportErrors : pblSiakadImportErrors).map((error, index) => (
                             <p key={index} className="text-sm text-red-600 dark:text-red-400">• {error}</p>
                           ))}
 
-                          {pblCellErrors.map((err, idx) => (
+                          {(selectedPBLTemplate === 'LAMA' ? pblCellErrors : pblSiakadCellErrors).map((err, idx) => (
 
                             <p key={idx} className="text-sm text-red-600 dark:text-red-400 mb-1">
 
@@ -18423,7 +18662,7 @@ export default function DetailBlok() {
 
                   {/* Preview Data Table */}
 
-                  {pblImportData.length > 0 && (
+                  {(selectedPBLTemplate === 'LAMA' ? pblImportData : pblSiakadImportData).length > 0 && (
 
                     <div className="mb-6">
 
@@ -18431,13 +18670,13 @@ export default function DetailBlok() {
 
                         <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
 
-                          Preview Data ({pblImportData.length} jadwal)
+                          Preview Data ({(selectedPBLTemplate === 'LAMA' ? pblImportData : pblSiakadImportData).length} jadwal)
 
                         </h3>
 
                         <div className="text-sm text-gray-500 dark:text-gray-400">
 
-                          File: {pblImportFile?.name}
+                          File: {(selectedPBLTemplate === 'LAMA' ? pblImportFile : pblSiakadImportFile)?.name}
 
                         </div>
 
@@ -18477,9 +18716,9 @@ export default function DetailBlok() {
 
                             <tbody>
 
-                              {pblImportPaginatedData.map((row, index) => {
+                              {(selectedPBLTemplate === 'LAMA' ? pblImportPaginatedData : pblSiakadImportPaginatedData).map((row, index) => {
 
-                                const actualIndex = (pblImportPage - 1) * pblImportPageSize + index;
+                                const actualIndex = ((selectedPBLTemplate === 'LAMA' ? pblImportPage : pblSiakadImportPage) - 1) * pblImportPageSize + index;
 
                                 const modulPBL = modulPBLList?.find(m => m.id === row.modul_pbl_id);
 
@@ -18494,9 +18733,9 @@ export default function DetailBlok() {
 
                                 const renderEditableCell = (field: string, value: any, isNumeric = false) => {
 
-                                  const isEditing = pblEditingCell?.row === actualIndex && pblEditingCell?.key === field;
+                                  const isEditing = (selectedPBLTemplate === 'LAMA' ? pblEditingCell : pblSiakadEditingCell)?.row === actualIndex && (selectedPBLTemplate === 'LAMA' ? pblEditingCell : pblSiakadEditingCell)?.key === field;
 
-                                  const cellError = pblCellErrors.find(err => err.row === actualIndex && err.field === field);
+                                  const cellError = (selectedPBLTemplate === 'LAMA' ? pblCellErrors : pblSiakadCellErrors).find(err => err.row === actualIndex && err.field === field);
 
                                   
 
@@ -18506,7 +18745,7 @@ export default function DetailBlok() {
 
                                       className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
 
-                                      onClick={() => setPBLEditingCell({ row: actualIndex, key: field })}
+                                      onClick={() => (selectedPBLTemplate === 'LAMA' ? setPBLEditingCell : setPBLSiakadEditingCell)({ row: actualIndex, key: field })}
 
                                       title={cellError ? cellError.message : ''}
 
@@ -18536,7 +18775,7 @@ export default function DetailBlok() {
                                             }
                                           }}
 
-                                          onBlur={() => setPBLEditingCell(null)}
+                                          onBlur={() => (selectedPBLTemplate === 'LAMA' ? setPBLEditingCell(null) : setPBLSiakadEditingCell(null))}
 
                                           autoFocus
 
@@ -18585,9 +18824,9 @@ export default function DetailBlok() {
                                     {(() => {
 
                                       const field = 'nama_modul';
-                                      const isEditing = pblEditingCell?.row === actualIndex && pblEditingCell?.key === field;
+                                      const isEditing = (selectedPBLTemplate === 'LAMA' ? pblEditingCell : pblSiakadEditingCell)?.row === actualIndex && (selectedPBLTemplate === 'LAMA' ? pblEditingCell : pblSiakadEditingCell)?.key === field;
 
-                                      const cellError = pblCellErrors.find(err => err.row === actualIndex && err.field === 'modul_pbl_id');
+                                      const cellError = (selectedPBLTemplate === 'LAMA' ? pblCellErrors : pblSiakadCellErrors).find(err => err.row === actualIndex && err.field === 'modul_pbl_id');
                                       
 
                                       return (
@@ -18596,7 +18835,7 @@ export default function DetailBlok() {
 
                                           className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
 
-                                          onClick={() => setPBLEditingCell({ row: actualIndex, key: field })}
+                                          onClick={() => (selectedPBLTemplate === 'LAMA' ? setPBLEditingCell : setPBLSiakadEditingCell)({ row: actualIndex, key: field })}
 
                                           title={cellError ? cellError.message : ''}
 
@@ -18609,8 +18848,8 @@ export default function DetailBlok() {
                                               className="w-full px-1 border-none outline-none text-xs md:text-sm"
 
                                               value={(row as any).nama_modul === 'Kosong (isi manual)' ? "" : ((row as any).nama_modul || "")}
-                                              onChange={e => handlePBLCellEdit(actualIndex, field, e.target.value)}
-                                              onBlur={() => setPBLEditingCell(null)}
+                                              onChange={e => (selectedPBLTemplate === 'LAMA' ? handlePBLCellEdit(actualIndex, field, e.target.value) : handlePBLSIAKADCellEdit(actualIndex, field, e.target.value))}
+                                              onBlur={() => (selectedPBLTemplate === 'LAMA' ? setPBLEditingCell(null) : setPBLSiakadEditingCell(null))}
 
                                               autoFocus
 
@@ -18638,9 +18877,9 @@ export default function DetailBlok() {
 
                                       const field = 'kelompok_kecil_id';
 
-                                      const isEditing = pblEditingCell?.row === actualIndex && pblEditingCell?.key === field;
+                                      const isEditing = (selectedPBLTemplate === 'LAMA' ? pblEditingCell : pblSiakadEditingCell)?.row === actualIndex && (selectedPBLTemplate === 'LAMA' ? pblEditingCell : pblSiakadEditingCell)?.key === field;
 
-                                      const cellError = pblCellErrors.find(err => err.row === actualIndex && err.field === field);
+                                      const cellError = (selectedPBLTemplate === 'LAMA' ? pblCellErrors : pblSiakadCellErrors).find(err => err.row === actualIndex && err.field === field);
 
                                       
 
@@ -18650,7 +18889,7 @@ export default function DetailBlok() {
 
                                           className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
 
-                                          onClick={() => setPBLEditingCell({ row: actualIndex, key: field })}
+                                          onClick={() => (selectedPBLTemplate === 'LAMA' ? setPBLEditingCell : setPBLSiakadEditingCell)({ row: actualIndex, key: field })}
 
                                           title={cellError ? cellError.message : ''}
 
@@ -18664,9 +18903,9 @@ export default function DetailBlok() {
 
                                               value={namaKelompokAsli || ""}
 
-                                              onChange={e => handlePBLKelompokKecilEdit(actualIndex, e.target.value)}
+                                              onChange={e => (selectedPBLTemplate === 'LAMA' ? handlePBLKelompokKecilEdit(actualIndex, e.target.value) : handlePBLSiakadKelompokKecilEdit(actualIndex, e.target.value))}
 
-                                              onBlur={() => setPBLEditingCell(null)}
+                                              onBlur={() => (selectedPBLTemplate === 'LAMA' ? setPBLEditingCell(null) : setPBLSiakadEditingCell(null))}
 
                                               autoFocus
 
@@ -18695,9 +18934,9 @@ export default function DetailBlok() {
 
                                       const field = 'dosen_id';
 
-                                      const isEditing = pblEditingCell?.row === actualIndex && pblEditingCell?.key === field;
+                                      const isEditing = (selectedPBLTemplate === 'LAMA' ? pblEditingCell : pblSiakadEditingCell)?.row === actualIndex && (selectedPBLTemplate === 'LAMA' ? pblEditingCell : pblSiakadEditingCell)?.key === field;
 
-                                      const cellError = pblCellErrors.find(err => err.row === actualIndex && err.field === field);
+                                      const cellError = (selectedPBLTemplate === 'LAMA' ? pblCellErrors : pblSiakadCellErrors).find(err => err.row === actualIndex && err.field === field);
 
                                       
 
@@ -18708,7 +18947,7 @@ export default function DetailBlok() {
                                           className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
 
                                           onClick={() => {
-                                            setPBLEditingCell({ row: actualIndex, key: field });
+                                            (selectedPBLTemplate === 'LAMA' ? setPBLEditingCell : setPBLSiakadEditingCell)({ row: actualIndex, key: field });
                                             const currentValue = dosen?.name || (row as any).nama_dosen || "";
                                             setPBLDosenInput(currentValue === 'Kosong (isi manual)' ? "" : currentValue);
                                           }}
@@ -18726,10 +18965,10 @@ export default function DetailBlok() {
                                               onChange={e => {
                                                 const inputValue = e.target.value;
                                                 setPBLDosenInput(inputValue);
-                                                handlePBLDosenEdit(actualIndex, inputValue);
+                                                (selectedPBLTemplate === 'LAMA' ? handlePBLDosenEdit : handlePBLSiakadDosenEdit)(actualIndex, inputValue);
                                               }}
                                               onBlur={() => {
-                                                setPBLEditingCell(null);
+                                                (selectedPBLTemplate === 'LAMA' ? setPBLEditingCell : setPBLSiakadEditingCell)(null);
                                                 setPBLDosenInput('');
                                               }}
                                               autoFocus
@@ -18758,9 +18997,9 @@ export default function DetailBlok() {
 
                                       const field = 'ruangan_id';
 
-                                      const isEditing = pblEditingCell?.row === actualIndex && pblEditingCell?.key === field;
+                                      const isEditing = (selectedPBLTemplate === 'LAMA' ? pblEditingCell : pblSiakadEditingCell)?.row === actualIndex && (selectedPBLTemplate === 'LAMA' ? pblEditingCell : pblSiakadEditingCell)?.key === field;
 
-                                      const cellError = pblCellErrors.find(err => err.row === actualIndex && err.field === field);
+                                      const cellError = (selectedPBLTemplate === 'LAMA' ? pblCellErrors : pblSiakadCellErrors).find(err => err.row === actualIndex && err.field === field);
 
                                       
 
@@ -18771,7 +19010,7 @@ export default function DetailBlok() {
                                           className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
 
                                           onClick={() => {
-                                            setPBLEditingCell({ row: actualIndex, key: field });
+                                            (selectedPBLTemplate === 'LAMA' ? setPBLEditingCell : setPBLSiakadEditingCell)({ row: actualIndex, key: field });
                                             setPBLRuanganInput(ruangan?.nama || (row as any).nama_ruangan || "");
                                           }}
                                           title={cellError ? cellError.message : ''}
@@ -18788,10 +19027,10 @@ export default function DetailBlok() {
                                               onChange={e => {
                                                 const inputValue = e.target.value;
                                                 setPBLRuanganInput(inputValue);
-                                                handlePBLRuanganEdit(actualIndex, inputValue);
+                                                (selectedPBLTemplate === 'LAMA' ? handlePBLRuanganEdit : handlePBLSiakadRuanganEdit)(actualIndex, inputValue);
                                               }}
                                               onBlur={() => {
-                                                setPBLEditingCell(null);
+                                                (selectedPBLTemplate === 'LAMA' ? setPBLEditingCell : setPBLSiakadEditingCell)(null);
                                                 setPBLRuanganInput('');
                                               }}
                                               autoFocus
@@ -18852,7 +19091,7 @@ export default function DetailBlok() {
 
                     </button>
 
-                    {pblImportData.length > 0 && pblCellErrors.length === 0 && (
+                    {(selectedPBLTemplate === 'LAMA' ? pblImportData : pblSiakadImportData).length > 0 && (selectedPBLTemplate === 'LAMA' ? pblCellErrors : pblSiakadCellErrors).length === 0 && (
 
                       <button
 
@@ -18880,7 +19119,7 @@ export default function DetailBlok() {
 
                             <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
 
-                            Import Data ({pblImportData.length} jadwal)
+                            Import Data ({(selectedPBLTemplate === 'LAMA' ? pblImportData : pblSiakadImportData).length} jadwal)
 
                           </>
 
@@ -18891,10 +19130,6 @@ export default function DetailBlok() {
                     )}
 
                   </div>
-
-                </>
-
-              )}
 
             </motion.div>
 
@@ -19102,11 +19337,11 @@ export default function DetailBlok() {
                           <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
                             <li>Materi → Klik kolom "Kosong (isi manual)" untuk mengisi</li>
                             <li>Dosen → Klik kolom "Kosong (isi manual)" untuk memilih dosen</li>
-                            <li>Sesi → Otomatis dihitung berdasarkan durasi</li>
+                            <li>Sesi → Klik kolom "Kosong (isi manual)" untuk mengisi</li>
                           </ul>
                         </div>
                         <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-                          💡 <strong>Tips:</strong> Klik pada kolom yang menampilkan "Kosong (isi manual)" untuk mengisi data yang diperlukan.
+                          💡 <strong>Tips:</strong> Klik pada kolom yang menampilkan "Kosong (isi manual)" untuk mengisi data yang diperlukan. Jam selesai akan otomatis dihitung berdasarkan jam mulai dan sesi.
                         </div>
                       </div>
                     </div>
@@ -19115,7 +19350,7 @@ export default function DetailBlok() {
               )}
 
               {/* Upload File Section */}
-              {!praktikumImportFile && (
+              {!(selectedPraktikumTemplate === 'LAMA' ? praktikumImportFile : praktikumSiakadImportFile) && (
                 <div className="mb-6">
                   <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
                     <div className="space-y-4">
@@ -19134,10 +19369,10 @@ export default function DetailBlok() {
                         <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
                         Pilih File
                         <input
-                          ref={praktikumFileInputRef}
+                          ref={selectedPraktikumTemplate === 'LAMA' ? praktikumFileInputRef : praktikumSiakadFileInputRef}
                           type="file"
                           accept=".xlsx,.xls"
-                          onChange={handlePraktikumFileUpload}
+                          onChange={selectedPraktikumTemplate === 'LAMA' ? handlePraktikumFileUpload : handlePraktikumSiakadFileUpload}
                           className="hidden"
                         />
                       </label>
@@ -19148,22 +19383,58 @@ export default function DetailBlok() {
 
 
               {/* File Info */}
-              {praktikumImportFile && (
+              {(selectedPraktikumTemplate === 'LAMA' ? praktikumImportFile : praktikumSiakadImportFile) && (
                 <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                   <div className="flex items-center gap-3">
                     <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-500" />
                     <div className="flex-1">
-                      <p className="font-medium text-blue-800 dark:text-blue-200">{praktikumImportFile.name}</p>
+                      <p className="font-medium text-blue-800 dark:text-blue-200">
+                        {(selectedPraktikumTemplate === 'LAMA' ? praktikumImportFile : praktikumSiakadImportFile)?.name}
+                      </p>
                       <p className="text-sm text-blue-600 dark:text-blue-300">
-                        {(praktikumImportFile.size / 1024).toFixed(1)} KB
+                        {(((selectedPraktikumTemplate === 'LAMA' ? praktikumImportFile : praktikumSiakadImportFile)?.size || 0) / 1024).toFixed(1)} KB
                       </p>
                     </div>
+                    <button
+                      onClick={() => {
+                        if (selectedPraktikumTemplate === 'LAMA') {
+                          setPraktikumImportFile(null);
+                          setPraktikumImportData([]);
+                          setPraktikumImportErrors([]);
+                          setPraktikumCellErrors([]);
+                          setPraktikumEditingCell(null);
+                          setPraktikumImportPage(1);
+                        } else {
+                          setPraktikumSiakadImportFile(null);
+                          setPraktikumSiakadImportData([]);
+                          setPraktikumSiakadImportErrors([]);
+                          setPraktikumSiakadCellErrors([]);
+                          setPraktikumSiakadEditingCell(null);
+                          setPraktikumSiakadImportPage(1);
+                        }
+                        if (selectedPraktikumTemplate === 'LAMA') {
+                          if (praktikumFileInputRef.current) {
+                            praktikumFileInputRef.current.value = '';
+                          }
+                        } else {
+                          if (praktikumSiakadFileInputRef.current) {
+                            praktikumSiakadFileInputRef.current.value = '';
+                          }
+                        }
+                      }}
+                      className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                      title="Hapus file"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               )}
 
               {/* Error Messages */}
-              {(praktikumImportErrors.length > 0 || praktikumCellErrors.length > 0) && (
+              {((selectedPraktikumTemplate === 'LAMA' ? praktikumImportErrors : praktikumSiakadImportErrors).length > 0 || (selectedPraktikumTemplate === 'LAMA' ? praktikumCellErrors : praktikumSiakadCellErrors).length > 0) && (
                 <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                   <div className="flex items-start gap-3">
                     <div className="flex-shrink-0">
@@ -19171,15 +19442,15 @@ export default function DetailBlok() {
                     </div>
                     <div className="flex-1">
                       <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
-                        Error Validasi ({praktikumImportErrors.length + praktikumCellErrors.length} error)
+                        Error Validasi ({(selectedPraktikumTemplate === 'LAMA' ? praktikumImportErrors : praktikumSiakadImportErrors).length + (selectedPraktikumTemplate === 'LAMA' ? praktikumCellErrors : praktikumSiakadCellErrors).length} error)
                       </h3>
                       <div className="max-h-40 overflow-y-auto">
                         {/* Error dari API response */}
-                        {praktikumImportErrors.map((err, idx) => (
+                        {(selectedPraktikumTemplate === 'LAMA' ? praktikumImportErrors : praktikumSiakadImportErrors).map((err, idx) => (
                           <p key={idx} className="text-sm text-red-600 dark:text-red-400 mb-1">• {err}</p>
                         ))}
                         {/* Error cell/detail */}
-                        {praktikumCellErrors.map((err, idx) => (
+                        {(selectedPraktikumTemplate === 'LAMA' ? praktikumCellErrors : praktikumSiakadCellErrors).map((err, idx) => (
                           <p key={idx} className="text-sm text-red-600 dark:text-red-400 mb-1">
                             • {err.message} (Baris {err.row}, Kolom {err.field.toUpperCase()})
                           </p>
@@ -19191,14 +19462,14 @@ export default function DetailBlok() {
               )}
 
               {/* Preview Table */}
-              {praktikumImportData.length > 0 && (
+              {(selectedPraktikumTemplate === 'LAMA' ? praktikumImportData : praktikumSiakadImportData).length > 0 && (
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
-                      Preview Data ({praktikumImportData.length} jadwal)
+                      Preview Data ({(selectedPraktikumTemplate === 'LAMA' ? praktikumImportData : praktikumSiakadImportData).length} jadwal)
                     </h3>
                     <div className="text-sm text-gray-500 dark:text-gray-400">
-                      File: {praktikumImportFile?.name}
+                      File: {(selectedPraktikumTemplate === 'LAMA' ? praktikumImportFile : praktikumSiakadImportFile)?.name}
                     </div>
                   </div>
                   
@@ -19219,14 +19490,14 @@ export default function DetailBlok() {
                           </tr>
                         </thead>
                         <tbody>
-                          {praktikumImportData
+                          {(selectedPraktikumTemplate === 'LAMA' ? praktikumImportData : praktikumSiakadImportData)
                             .slice((praktikumImportPage - 1) * praktikumImportPageSize, praktikumImportPage * praktikumImportPageSize)
                             .map((row, index) => {
                               const actualIndex = (praktikumImportPage - 1) * praktikumImportPageSize + index;
                               
                               const renderEditableCell = (field: string, value: any, isNumeric = false) => {
-                                const isEditing = praktikumEditingCell?.row === actualIndex && praktikumEditingCell?.key === field;
-                                const cellError = praktikumCellErrors.find(err => err.row === actualIndex + 1 && err.field === field);
+                                const isEditing = (selectedPraktikumTemplate === 'LAMA' ? praktikumEditingCell : praktikumSiakadEditingCell)?.row === actualIndex && (selectedPraktikumTemplate === 'LAMA' ? praktikumEditingCell : praktikumSiakadEditingCell)?.key === field;
+                                const cellError = (selectedPraktikumTemplate === 'LAMA' ? praktikumCellErrors : praktikumSiakadCellErrors).find(err => err.row === actualIndex + 1 && err.field === field);
                                 
                                 // Untuk template SIAKAD dan LAMA, semua kolom bisa diedit
                                 const isEditable = true;
@@ -19234,7 +19505,7 @@ export default function DetailBlok() {
                                 return (
                                   <td
                                     className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap ${isEditable ? 'cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20' : ''} ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError || (field === 'tanggal' && (!value || value.trim() === '')) || (field === 'jam_mulai' && (!value || value.trim() === '')) || (field === 'jam_selesai' && (!value || value.trim() === '')) || (field === 'kelas_praktikum' && (!value || value.trim() === '')) || (field === 'ruangan_id' && (!value || value.trim() === '')) ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
-                                    onClick={() => isEditable && setPraktikumEditingCell({ row: actualIndex, key: field })}
+                                    onClick={() => isEditable && (selectedPraktikumTemplate === 'LAMA' ? setPraktikumEditingCell : setPraktikumSiakadEditingCell)({ row: actualIndex, key: field })}
                                     title={cellError ? cellError.message : ''}
                                   >
                                     {isEditing ? (
@@ -19250,21 +19521,37 @@ export default function DetailBlok() {
                                               handlePraktikumSiakadDosenEdit(actualIndex, e.target.value);
                                             } else if (field === 'topik') {
                                               handlePraktikumSiakadTopikEdit(actualIndex, e.target.value);
+                                            } else if (field === 'ruangan_id') {
+                                              handlePraktikumSiakadRuanganEdit(actualIndex, e.target.value);
                                             } else {
-                                              // Untuk field lain (tanggal, jam_mulai, jam_selesai, dll), gunakan handler umum
-                                              handlePraktikumCellEdit(actualIndex, field, isNumeric ? parseInt(e.target.value) || 0 : e.target.value);
+                                              // Untuk field lain (tanggal, jam_mulai, jam_selesai, dll), gunakan handler SIAKAD
+                                              handlePraktikumSiakadCellEdit(actualIndex, field, isNumeric ? parseInt(e.target.value) || 0 : e.target.value);
                                             }
                                           } else {
                                             handlePraktikumCellEdit(actualIndex, field, isNumeric ? parseInt(e.target.value) || 0 : e.target.value);
                                           }
                                         }}
-                                        onBlur={handlePraktikumFinishEdit}
+                                        onBlur={() => {
+                                          if (selectedPraktikumTemplate === 'SIAKAD') {
+                                            setPraktikumSiakadEditingCell(null);
+                                          } else {
+                                            setPraktikumEditingCell(null);
+                                          }
+                                        }}
                                         onKeyDown={e => {
                                           if (e.key === 'Enter') {
-                                            handlePraktikumFinishEdit();
+                                            if (selectedPraktikumTemplate === 'SIAKAD') {
+                                              setPraktikumSiakadEditingCell(null);
+                                            } else {
+                                              setPraktikumEditingCell(null);
+                                            }
                                           }
                                           if (e.key === 'Escape') {
-                                            handlePraktikumFinishEdit();
+                                            if (selectedPraktikumTemplate === 'SIAKAD') {
+                                              setPraktikumSiakadEditingCell(null);
+                                            } else {
+                                              setPraktikumEditingCell(null);
+                                            }
                                           }
                                         }}
                                         autoFocus
@@ -19308,7 +19595,7 @@ export default function DetailBlok() {
               )}
               
               {/* Pagination untuk Import Preview */}
-              {praktikumImportData.length > praktikumImportPageSize && (
+              {(selectedPraktikumTemplate === 'LAMA' ? praktikumImportData : praktikumSiakadImportData).length > praktikumImportPageSize && (
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
                   <div className="flex items-center gap-4">
                     <select
@@ -19322,7 +19609,7 @@ export default function DetailBlok() {
                       <option value={50}>50 per halaman</option>
                     </select>
                     <span className="text-sm text-gray-500 dark:text-gray-400">
-                      Menampilkan {((praktikumImportPage - 1) * praktikumImportPageSize) + 1}-{Math.min(praktikumImportPage * praktikumImportPageSize, praktikumImportData.length)} dari {praktikumImportData.length} jadwal
+                      Menampilkan {((praktikumImportPage - 1) * praktikumImportPageSize) + 1}-{Math.min(praktikumImportPage * praktikumImportPageSize, (selectedPraktikumTemplate === 'LAMA' ? praktikumImportData : praktikumSiakadImportData).length)} dari {(selectedPraktikumTemplate === 'LAMA' ? praktikumImportData : praktikumSiakadImportData).length} jadwal
                     </span>
                   </div>
                   
@@ -19335,11 +19622,11 @@ export default function DetailBlok() {
                       Prev
                     </button>
                     <span className="text-sm text-gray-500 dark:text-gray-400">
-                      Halaman {praktikumImportPage} dari {Math.ceil(praktikumImportData.length / praktikumImportPageSize)}
+                      Halaman {praktikumImportPage} dari {Math.ceil((selectedPraktikumTemplate === 'LAMA' ? praktikumImportData : praktikumSiakadImportData).length / praktikumImportPageSize)}
                     </span>
                     <button
-                      onClick={() => setPraktikumImportPage(p => Math.min(Math.ceil(praktikumImportData.length / praktikumImportPageSize), p + 1))}
-                      disabled={praktikumImportPage >= Math.ceil(praktikumImportData.length / praktikumImportPageSize)}
+                      onClick={() => setPraktikumImportPage(p => Math.min(Math.ceil((selectedPraktikumTemplate === 'LAMA' ? praktikumImportData : praktikumSiakadImportData).length / praktikumImportPageSize), p + 1))}
+                      disabled={praktikumImportPage >= Math.ceil((selectedPraktikumTemplate === 'LAMA' ? praktikumImportData : praktikumSiakadImportData).length / praktikumImportPageSize)}
                       className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
                     >
                       Next
@@ -19356,7 +19643,7 @@ export default function DetailBlok() {
                 >
                   Batal
                 </button>
-                {praktikumImportData.length > 0 && praktikumCellErrors.length === 0 && (
+                {(selectedPraktikumTemplate === 'LAMA' ? praktikumImportData : praktikumSiakadImportData).length > 0 && (selectedPraktikumTemplate === 'LAMA' ? praktikumCellErrors : praktikumSiakadCellErrors).length === 0 && (
                   <button
                     onClick={handlePraktikumSubmitImport}
                     disabled={isPraktikumImporting}
@@ -19370,7 +19657,7 @@ export default function DetailBlok() {
                     ) : (
                       <>
                         <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
-                        Import Data ({praktikumImportData.length} jadwal)
+                        Import Data ({(selectedPraktikumTemplate === 'LAMA' ? praktikumImportData : praktikumSiakadImportData).length} jadwal)
                       </>
                     )}
                   </button>
@@ -19428,6 +19715,36 @@ export default function DetailBlok() {
                 <p className="text-sm text-gray-500 dark:text-gray-400">Preview dan validasi data sebelum import</p>
               </div>
 
+              {/* Upload File Section */}
+              {!agendaKhususImportFile && (
+                <div className="mb-6">
+                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
+                    <div className="space-y-4">
+                      <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
+                        <FontAwesomeIcon icon={faFileExcel} className="w-8 h-8 text-brand-600 dark:text-brand-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Upload File Excel</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          Pilih file Excel dengan format template aplikasi (.xlsx, .xls)
+                        </p>
+                      </div>
+                      <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
+                        <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                        Pilih File
+                        <input
+                          ref={agendaKhususFileInputRef}
+                          type="file"
+                          accept=".xlsx,.xls"
+                          onChange={handleAgendaKhususFileUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* File Info */}
               {agendaKhususImportFile && (
                 <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
@@ -19439,6 +19756,15 @@ export default function DetailBlok() {
                         {(agendaKhususImportFile.size / 1024).toFixed(1)} KB
                       </p>
                     </div>
+                    <button
+                      onClick={handleAgendaKhususRemoveFile}
+                      className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                      title="Hapus file"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               )}
@@ -19641,6 +19967,36 @@ export default function DetailBlok() {
                 <p className="text-sm text-gray-500 dark:text-gray-400">Preview dan validasi data sebelum import</p>
               </div>
 
+              {/* Upload File Section */}
+              {!jurnalReadingImportFile && (
+                <div className="mb-6">
+                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
+                    <div className="space-y-4">
+                      <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
+                        <FontAwesomeIcon icon={faFileExcel} className="w-8 h-8 text-brand-600 dark:text-brand-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Upload File Excel</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          Pilih file Excel dengan format template aplikasi (.xlsx, .xls)
+                        </p>
+                      </div>
+                      <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
+                        <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                        Pilih File
+                        <input
+                          ref={jurnalReadingFileInputRef}
+                          type="file"
+                          accept=".xlsx,.xls"
+                          onChange={handleJurnalReadingFileUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* File Info */}
               {jurnalReadingImportFile && (
                 <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
@@ -19652,6 +20008,15 @@ export default function DetailBlok() {
                         {(jurnalReadingImportFile.size / 1024).toFixed(1)} KB
                       </p>
                     </div>
+                    <button
+                      onClick={handleJurnalReadingRemoveFile}
+                      className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                      title="Hapus file"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               )}
@@ -19853,7 +20218,14 @@ export default function DetailBlok() {
                       className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition flex items-center justify-center"
                       disabled={isBulkDeleting}
                     >
-                      {isBulkDeleting ? 'Menghapus...' : 'Hapus'}
+                      {isBulkDeleting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                          Menghapus...
+                        </>
+                      ) : (
+                        'Hapus'
+                      )}
                     </button>
                   </div>
                 </div>
@@ -19872,9 +20244,27 @@ export default function DetailBlok() {
         className="hidden"
       />
 
+      {/* Hidden file input for praktikum SIAKAD import */}
+      <input
+        ref={praktikumSiakadFileInputRef}
+        type="file"
+        accept=".xlsx,.xls"
+        onChange={handlePraktikumSiakadFileUpload}
+        className="hidden"
+      />
+
       {/* Hidden file input for PBL import */}
       <input
         ref={pblFileInputRef}
+        type="file"
+        accept=".xlsx,.xls"
+        onChange={handlePBLFileUpload}
+        className="hidden"
+      />
+
+      {/* Hidden file input for PBL SIAKAD import */}
+      <input
+        ref={pblSiakadFileInputRef}
         type="file"
         accept=".xlsx,.xls"
         onChange={handlePBLFileUpload}

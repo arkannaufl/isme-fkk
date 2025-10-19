@@ -27,6 +27,26 @@ const EXCEL_COLUMN_WIDTHS = {
   INFO_COLUMN: 50
 };
 
+// Helper function untuk konversi format waktu
+const convertTimeFormat = (timeStr: string) => {
+  if (!timeStr?.trim()) return '';
+  
+  const time = timeStr.toString().trim();
+  
+  // Normalize format: H.MM atau HH.MM → HH:MM
+  if (time.match(/^\d{1,2}\.\d{2}$/)) {
+    const [hours, minutes] = time.split('.');
+    return `${hours.padStart(2, '0')}:${minutes}`;
+  }
+  
+  // Already in HH:MM format
+  if (time.match(/^\d{2}:\d{2}$/)) {
+    return time;
+  }
+  
+  return time;
+};
+
 interface MataKuliah {
   kode: string;
   nama: string;
@@ -173,7 +193,11 @@ export default function DetailNonBlokCSR() {
   
 
   // State untuk import Excel CSR
+  const [showCSRTemplateSelectionModal, setShowCSRTemplateSelectionModal] = useState(false);
   const [showCSRImportModal, setShowCSRImportModal] = useState(false);
+  const [showCSRSIAKADImportModal, setShowCSRSIAKADImportModal] = useState(false);
+  
+  // State untuk Template Aplikasi
   const [csrImportFile, setCSRImportFile] = useState<File | null>(null);
   const [csrImportData, setCSRImportData] = useState<JadwalCSRType[]>([]);
   const [csrImportErrors, setCSRImportErrors] = useState<string[]>([]);
@@ -184,6 +208,17 @@ export default function DetailNonBlokCSR() {
   const [csrImportedCount, setCSRImportedCount] = useState(0);
   const [isCSRImporting, setIsCSRImporting] = useState(false);
   const csrFileInputRef = useRef<HTMLInputElement>(null);
+  
+  // State untuk Template SIAKAD
+  const [csrSiakadImportFile, setCSRSiakadImportFile] = useState<File | null>(null);
+  const [csrSiakadImportData, setCSRSiakadImportData] = useState<JadwalCSRType[]>([]);
+  const [csrSiakadImportErrors, setCSRSiakadImportErrors] = useState<string[]>([]);
+  const [csrSiakadCellErrors, setCSRSiakadCellErrors] = useState<{ row: number, field: string, message: string }[]>([]);
+  const [csrSiakadEditingCell, setCSRSiakadEditingCell] = useState<{ row: number, key: string } | null>(null);
+  const [csrSiakadImportPage, setCSRSiakadImportPage] = useState(1);
+  const [csrSiakadImportedCount, setCSRSiakadImportedCount] = useState(0);
+  const [isCSRSiakadImporting, setIsCSRSiakadImporting] = useState(false);
+  const csrSiakadFileInputRef = useRef<HTMLInputElement>(null);
 
   // State untuk bulk delete CSR
   const [selectedCSRItems, setSelectedCSRItems] = useState<number[]>([]);
@@ -415,31 +450,6 @@ export default function DetailNonBlokCSR() {
     }
   };
 
-  // Helper function untuk konversi format waktu
-  const convertTimeFormat = (timeStr: string) => {
-    if (!timeStr || timeStr.trim() === '') return '';
-    
-    // Hapus spasi dan konversi ke string
-    const time = timeStr.toString().trim();
-    
-    // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
-    if (time.match(/^\d{2}[:.]\d{2}$/)) {
-      return time.replace('.', ':');
-    }
-    
-    // Cek apakah format H:MM atau H.MM (1 digit jam)
-    if (time.match(/^\d{1}[:.]\d{2}$/)) {
-      return '0' + time.replace('.', ':');
-    }
-    
-    // Cek apakah format HH:MM atau HH.MM (2 digit jam)
-    if (time.match(/^\d{2}[:.]\d{2}$/)) {
-      return time.replace('.', ':');
-    }
-    
-    // Jika tidak sesuai format, return as is
-    return time;
-  };
 
   // Fungsi untuk membaca file Excel CSR
   const readCSRExcelFile = async (file: File) => {
@@ -510,7 +520,7 @@ export default function DetailNonBlokCSR() {
       const headerMatch = expectedHeaders.every(header => headers.includes(header));
       
       if (!headerMatch) {
-        setCSRImportErrors(['Format file Excel tidak sesuai. Pastikan menggunakan template yang benar.']);
+        setCSRImportErrors(['Format file Excel tidak sesuai dengan template aplikasi. Pastikan kolom sesuai dengan template yang didownload.']);
         setShowCSRImportModal(true);
         return;
       }
@@ -811,9 +821,13 @@ export default function DetailNonBlokCSR() {
       if (response.data.success) {
         setCSRImportedCount(transformedData.length);
         setShowCSRImportModal(false);
+        // Cleanup data setelah import berhasil
         setCSRImportData([]);
-        setCSRCellErrors([]);
+        setCSRImportFile(null);
         setCSRImportErrors([]);
+        setCSRCellErrors([]);
+        setCSREditingCell(null);
+        setCSRImportPage(1);
         
         // Refresh data
         await fetchBatchData();
@@ -852,7 +866,7 @@ export default function DetailNonBlokCSR() {
     if (!file) return;
     
     if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
-      setCSRImportErrors(['File harus berformat Excel (.xlsx atau .xls)']);
+      setCSRImportErrors(['Format file Excel tidak dikenali. Harap gunakan file .xlsx atau .xls']);
       setShowCSRImportModal(true);
       return;
     }
@@ -861,9 +875,18 @@ export default function DetailNonBlokCSR() {
     await handleCSRImportExcel(file);
   };
 
-  // Handler untuk close modal CSR
-  const handleCSRCloseImportModal = () => {
-    setShowCSRImportModal(false);
+  // Handler untuk template selection
+  const handleCSRTemplateSelection = (template: 'LAMA' | 'SIAKAD') => {
+    setShowCSRTemplateSelectionModal(false);
+    if (template === 'LAMA') {
+      setShowCSRImportModal(true);
+    } else {
+      setShowCSRSIAKADImportModal(true);
+    }
+  };
+
+  // Handler untuk hapus file CSR
+  const handleCSRRemoveFile = () => {
     setCSRImportFile(null);
     setCSRImportData([]);
     setCSRImportErrors([]);
@@ -1005,6 +1028,443 @@ export default function DetailNonBlokCSR() {
     const { cellErrors } = validateCSRExcelData(updatedData);
     setCSRCellErrors(cellErrors);
   };
+
+  // ==================== SIAKAD TEMPLATE FUNCTIONS ====================
+  
+  // Validate SIAKAD template format
+  const validateCSRSIAKADTemplateFormat = async (file: File): Promise<boolean> => {
+    try {
+      const { headers } = await readCSRExcelFile(file);
+      
+      const requiredHeaders = [
+        'Tanggal\n(YYYY-MM-DD)',
+        'Waktu Mulai\n(Lihat Daftar Waktu Mulai)',
+        'Kelompok\n(Contoh: 1)',
+        'Topik',
+        'Ruang\n(Lihat Daftar Ruang)'
+      ];
+      
+      // Function to check header with various line break formats
+      const checkHeaderExists = (requiredHeader: string) => {
+        // Check original format
+        if (headers.includes(requiredHeader)) return true;
+        
+        // Check format without line break
+        const withoutLineBreak = requiredHeader.replace(/\n.*/, '');
+        if (headers.includes(withoutLineBreak)) return true;
+        
+        // Check format with \r\n
+        const withWindowsLineBreak = requiredHeader.replace(/\n/g, '\r\n');
+        if (headers.includes(withWindowsLineBreak)) return true;
+        
+        // Check format with \r\n and without parenthetical
+        const withWindowsLineBreakNoParenthetical = withWindowsLineBreak.replace(/\([^)]*\)/g, '');
+        if (headers.includes(withWindowsLineBreakNoParenthetical.trim())) return true;
+        
+        return false;
+      };
+      
+      const isValid = requiredHeaders.every(header => checkHeaderExists(header));
+      return isValid;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  // Read SIAKAD Excel file
+  const readCSRSIAKADExcelFile = async (file: File) => {
+    return new Promise<{ data: any[], headers: string[] }>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          
+          if (jsonData.length < 2) {
+            reject(new Error('File Excel kosong atau tidak memiliki header'));
+            return;
+          }
+          
+          const headers = jsonData[0] as string[];
+          const dataRows = jsonData.slice(1).filter(row => 
+            row && Array.isArray(row) && row.some(cell => cell !== undefined && cell !== '')
+          );
+          
+          resolve({ data: dataRows, headers });
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = () => reject(new Error('Gagal membaca file'));
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  // Handle SIAKAD Excel import
+  const handleCSRSIAKADImportExcel = async (file: File) => {
+    try {
+      // Validate template format
+      const isValid = await validateCSRSIAKADTemplateFormat(file);
+      if (!isValid) {
+        setCSRSiakadImportErrors(['Format file Excel tidak sesuai dengan template SIAKAD. Pastikan kolom sesuai dengan template yang benar.']);
+        return;
+      }
+
+      const { data: excelData, headers } = await readCSRSIAKADExcelFile(file);
+      
+      if (excelData.length === 0) {
+        setCSRSiakadImportErrors(['File Excel kosong atau tidak memiliki data']);
+        return;
+      }
+
+      // Find column indices
+      const findColumnIndex = (possibleNames: string[]) => {
+        for (const name of possibleNames) {
+          const index = headers.findIndex(h => {
+            const headerLower = h.toLowerCase().replace(/\s+/g, '');
+            const nameLower = name.toLowerCase().replace(/\s+/g, '');
+            return headerLower.includes(nameLower) || nameLower.includes(headerLower);
+          });
+          if (index !== -1) return index;
+        }
+        return -1;
+      };
+
+      const tanggalIdx = findColumnIndex(['tanggal', 'date']);
+      const jamMulaiIdx = findColumnIndex(['waktu mulai', 'waktumulai', 'jam mulai', 'jammulai']);
+      const kelompokIdx = findColumnIndex(['kelompok', 'group']);
+      const topikIdx = findColumnIndex(['topik', 'topic']);
+      const ruanganIdx = findColumnIndex(['ruang', 'ruangan', 'room']);
+
+      // Convert data
+      const convertedData: JadwalCSRType[] = excelData.map((row: any[]) => {
+        const tanggal = row[tanggalIdx]?.toString() || '';
+        let jamMulai = row[jamMulaiIdx]?.toString() || '';
+        const kelompokNama = row[kelompokIdx]?.toString() || '';
+        const topik = row[topikIdx]?.toString() || '';
+        const ruanganNama = row[ruanganIdx]?.toString() || '';
+
+        // Convert time format
+        if (jamMulai) {
+          jamMulai = convertTimeFormat(jamMulai);
+          if (jamMulai.includes(':')) {
+            jamMulai = jamMulai.replace(':', '.');
+          }
+        }
+
+        // Find IDs
+        const kelompokKecil = kelompokKecilList.find(k => k.nama_kelompok === kelompokNama);
+        const ruangan = ruanganList.find(r => r.nama === ruanganNama);
+
+        return {
+          jenis_csr: '' as 'reguler' | 'responsi', // Must be filled manually
+          tanggal: tanggal || '',
+          jam_mulai: jamMulai || '',
+          jam_selesai: '', // Will be calculated after jenis_csr is filled
+          jumlah_sesi: 0, // Will be set after jenis_csr is filled
+          kelompok_kecil_id: kelompokKecil?.id || 0,
+          topik: topik || '',
+          kategori_id: 0, // Must be filled manually (keahlian)
+          dosen_id: 0, // Must be filled manually
+          ruangan_id: ruangan?.id || 0,
+          nama_kelompok: kelompokNama,
+          nama_keahlian: '', // Must be filled manually
+          nama_dosen: '', // Must be filled manually
+          nama_ruangan: ruanganNama
+        };
+      });
+
+      setCSRSiakadImportData(convertedData);
+      
+      // Validate data
+      const { cellErrors } = validateCSRSIAKADExcelData(convertedData);
+      setCSRSiakadCellErrors(cellErrors);
+      setCSRSiakadImportErrors([]);
+    } catch (error) {
+      setCSRSiakadImportErrors(['Gagal membaca file Excel: ' + (error as Error).message]);
+    }
+  };
+
+  // Validate SIAKAD Excel data
+  const validateCSRSIAKADExcelData = (dataRows: JadwalCSRType[]) => {
+    const errors: { row: number, field: string, message: string }[] = [];
+
+    dataRows.forEach((row, index) => {
+      const rowNumber = index + 1;
+
+      // Validasi jenis CSR (wajib diisi manual)
+      if (!row.jenis_csr) {
+        errors.push({ row: rowNumber, field: 'jenis_csr', message: `Jenis CSR wajib diisi manual (Baris ${rowNumber}, Kolom JENIS_CSR)` });
+      } else if (!['reguler', 'responsi'].includes(row.jenis_csr)) {
+        errors.push({ row: rowNumber, field: 'jenis_csr', message: `Jenis CSR harus "reguler" atau "responsi" (Baris ${rowNumber}, Kolom JENIS_CSR)` });
+      }
+
+      // Validasi tanggal
+      const tanggalError = validateDate(row.tanggal, rowNumber);
+      if (tanggalError) {
+        errors.push({ row: rowNumber, field: 'tanggal', message: tanggalError });
+      }
+
+      // Validasi jam mulai
+      const jamMulaiError = validateTime(row.jam_mulai, rowNumber, 'jam mulai');
+      if (jamMulaiError) {
+        errors.push({ row: rowNumber, field: 'jam_mulai', message: jamMulaiError });
+      }
+
+      // Validasi kelompok kecil
+      if (!row.kelompok_kecil_id || row.kelompok_kecil_id === 0) {
+        errors.push({ row: rowNumber, field: 'kelompok_kecil_id', message: `Kelompok kecil wajib diisi (Baris ${rowNumber}, Kolom KELOMPOK_KECIL)` });
+      }
+
+      // Validasi topik
+      if (!row.topik) {
+        errors.push({ row: rowNumber, field: 'topik', message: `Topik wajib diisi (Baris ${rowNumber}, Kolom TOPIK)` });
+      }
+
+      // Validasi keahlian/kategori (wajib diisi manual)
+      if (!row.kategori_id || row.kategori_id === 0) {
+        errors.push({ row: rowNumber, field: 'kategori_id', message: `Keahlian wajib diisi manual (Baris ${rowNumber}, Kolom KEAHLIAN)` });
+      }
+
+      // Validasi dosen (wajib diisi manual)
+      if (!row.dosen_id || row.dosen_id === 0) {
+        errors.push({ row: rowNumber, field: 'dosen_id', message: `Dosen wajib diisi manual (Baris ${rowNumber}, Kolom DOSEN)` });
+      } else {
+        const dosen = dosenList.find(d => d.id === row.dosen_id);
+        if (dosen && row.kategori_id) {
+          const kategori = kategoriList.find(k => k.id === row.kategori_id);
+          if (kategori && kategori.keahlian_required && !kategori.keahlian_required.includes(dosen.keahlian)) {
+            errors.push({ 
+              row: rowNumber, 
+              field: 'dosen_id', 
+              message: `Dosen "${dosen.name}" tidak memiliki keahlian "${kategori.keahlian_required.join(', ')}" (Baris ${rowNumber}, Kolom DOSEN)` 
+            });
+          }
+        }
+      }
+
+      // Validasi ruangan
+      if (!row.ruangan_id || row.ruangan_id === 0) {
+        errors.push({ row: rowNumber, field: 'ruangan_id', message: `Ruangan wajib diisi (Baris ${rowNumber}, Kolom RUANGAN)` });
+      }
+    });
+
+    return { cellErrors: errors };
+  };
+
+  // Handle SIAKAD cell edit with auto-recalculate
+  const handleCSRSiakadCellEdit = (rowIndex: number, field: string, value: any) => {
+    const updatedData = [...csrSiakadImportData];
+    updatedData[rowIndex] = { ...updatedData[rowIndex], [field]: value };
+    
+    // Auto-recalculate jam_selesai when jenis_csr or jam_mulai changes
+    if (field === 'jenis_csr' || field === 'jam_mulai') {
+      const jenisCSR = field === 'jenis_csr' ? value : updatedData[rowIndex].jenis_csr;
+      const jamMulai = field === 'jam_mulai' ? value : updatedData[rowIndex].jam_mulai;
+      const jumlahSesi = jenisCSR === 'reguler' ? CSR_REGULER_SESSIONS : CSR_RESPONSI_SESSIONS;
+      const jamSelesai = hitungJamSelesai(jamMulai || '08:00', jumlahSesi);
+      
+      updatedData[rowIndex] = {
+        ...updatedData[rowIndex],
+        jam_selesai: jamSelesai,
+        jumlah_sesi: jumlahSesi
+      };
+    }
+    
+    setCSRSiakadImportData(updatedData);
+    
+    // Re-validate
+    const { cellErrors } = validateCSRSIAKADExcelData(updatedData);
+    setCSRSiakadCellErrors(cellErrors);
+  };
+
+  // Handler untuk edit kelompok kecil SIAKAD
+  const handleCSRSiakadKelompokKecilEdit = (rowIndex: number, value: string) => {
+    const kelompokKecil = kelompokKecilList.find(k => k.nama_kelompok === value);
+    
+    const updatedData = [...csrSiakadImportData];
+    updatedData[rowIndex] = {
+      ...updatedData[rowIndex],
+      kelompok_kecil_id: kelompokKecil?.id || 0,
+      nama_kelompok: value
+    };
+    
+    setCSRSiakadImportData(updatedData);
+    
+    const { cellErrors } = validateCSRSIAKADExcelData(updatedData);
+    setCSRSiakadCellErrors(cellErrors);
+  };
+
+  // Handler untuk edit keahlian SIAKAD
+  const handleCSRSiakadKeahlianEdit = (rowIndex: number, value: string) => {
+    const kategori = kategoriList.find(k => k.keahlian_required?.includes(value));
+    
+    const updatedData = [...csrSiakadImportData];
+    updatedData[rowIndex] = {
+      ...updatedData[rowIndex],
+      kategori_id: kategori?.id || 0,
+      nama_keahlian: value
+    };
+    
+    setCSRSiakadImportData(updatedData);
+    
+    const { cellErrors } = validateCSRSIAKADExcelData(updatedData);
+    setCSRSiakadCellErrors(cellErrors);
+  };
+
+  // Handler untuk edit dosen SIAKAD
+  const handleCSRSiakadDosenEdit = (rowIndex: number, value: string) => {
+    const dosen = dosenList.find(d => d.name === value);
+    
+    const updatedData = [...csrSiakadImportData];
+    updatedData[rowIndex] = {
+      ...updatedData[rowIndex],
+      dosen_id: dosen?.id || 0,
+      nama_dosen: value
+    };
+    
+    setCSRSiakadImportData(updatedData);
+    
+    const { cellErrors } = validateCSRSIAKADExcelData(updatedData);
+    setCSRSiakadCellErrors(cellErrors);
+  };
+
+  // Handler untuk edit ruangan SIAKAD
+  const handleCSRSiakadRuanganEdit = (rowIndex: number, value: string) => {
+    const ruangan = ruanganList.find(r => r.nama === value);
+    
+    const updatedData = [...csrSiakadImportData];
+    updatedData[rowIndex] = {
+      ...updatedData[rowIndex],
+      ruangan_id: ruangan?.id || 0,
+      nama_ruangan: value
+    };
+    
+    setCSRSiakadImportData(updatedData);
+    
+    const { cellErrors } = validateCSRSIAKADExcelData(updatedData);
+    setCSRSiakadCellErrors(cellErrors);
+  };
+
+  // Submit SIAKAD import
+  const handleCSRSiakadSubmitImport = async () => {
+    try {
+      setIsCSRSiakadImporting(true);
+      setCSRSiakadImportErrors([]);
+      
+      // Validate data
+      const { cellErrors } = validateCSRSIAKADExcelData(csrSiakadImportData);
+      
+      if (cellErrors.length > 0) {
+        setCSRSiakadCellErrors(cellErrors);
+        setIsCSRSiakadImporting(false);
+        return;
+      }
+
+      // Transform data for API
+      const transformedData = csrSiakadImportData.map((row) => {
+        let jamMulai = row.jam_mulai;
+        let jamSelesai = row.jam_selesai;
+        
+        if (jamMulai && jamMulai.includes(':')) {
+          jamMulai = jamMulai.replace(':', '.');
+        }
+        if (jamSelesai && jamSelesai.includes(':')) {
+          jamSelesai = jamSelesai.replace(':', '.');
+        }
+        
+        return {
+          jenis_csr: row.jenis_csr,
+          tanggal: row.tanggal,
+          jam_mulai: jamMulai,
+          jam_selesai: jamSelesai,
+          jumlah_sesi: row.jumlah_sesi,
+          kelompok_kecil_id: row.kelompok_kecil_id,
+          topik: row.topik,
+          kategori_id: row.kategori_id,
+          dosen_id: row.dosen_id,
+          ruangan_id: row.ruangan_id
+        };
+      });
+      
+      // Send to backend
+      const response = await api.post(`/csr/jadwal/${kode}/import`, {
+        data: transformedData
+      });
+
+      if (response.data.success) {
+        setCSRSiakadImportedCount(transformedData.length);
+        setShowCSRSIAKADImportModal(false);
+        
+        // Cleanup
+        setCSRSiakadImportData([]);
+        setCSRSiakadImportFile(null);
+        setCSRSiakadImportErrors([]);
+        setCSRSiakadCellErrors([]);
+        setCSRSiakadEditingCell(null);
+        setCSRSiakadImportPage(1);
+        
+        // Refresh data
+        await fetchBatchData();
+      } else {
+        setCSRSiakadImportErrors([response.data.message || 'Terjadi kesalahan saat mengimport data']);
+      }
+    } catch (error: any) {
+      if (error.response?.status === 422) {
+        const errorData = error.response.data;
+        if (errorData.errors && Array.isArray(errorData.errors)) {
+          const cellErrors = errorData.errors.map((err: string, idx: number) => ({
+            row: idx + 1,
+            field: 'api',
+            message: err
+          }));
+          setCSRSiakadCellErrors(cellErrors);
+        } else {
+          setCSRSiakadImportErrors([errorData.message || 'Terjadi kesalahan validasi']);
+        }
+      } else if (error.response?.data?.message) {
+        setCSRSiakadImportErrors([error.response.data.message]);
+      } else {
+        setCSRSiakadImportErrors([handleApiError(error, 'Mengimport data CSR SIAKAD')]);
+      }
+    } finally {
+      setIsCSRSiakadImporting(false);
+    }
+  };
+
+  // Handler untuk upload file SIAKAD
+  const handleCSRSiakadImportExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      setCSRSiakadImportErrors(['Format file Excel tidak dikenali. Harap gunakan file .xlsx atau .xls']);
+      return;
+    }
+
+    setCSRSiakadImportFile(file);
+    await handleCSRSIAKADImportExcel(file);
+  };
+
+  // Handler untuk remove file SIAKAD
+  const handleCSRSiakadRemoveFile = () => {
+    setCSRSiakadImportFile(null);
+    setCSRSiakadImportData([]);
+    setCSRSiakadImportErrors([]);
+    setCSRSiakadCellErrors([]);
+    setCSRSiakadImportPage(1);
+    setCSRSiakadEditingCell(null);
+    if (csrSiakadFileInputRef.current) {
+      csrSiakadFileInputRef.current.value = '';
+    }
+  };
+
+  // ==================== END SIAKAD TEMPLATE FUNCTIONS ====================
 
   function handleFormChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     const { name, value } = e.target;
@@ -1180,8 +1640,6 @@ export default function DetailNonBlokCSR() {
   const fetchBatchData = async () => {
     if (!kode) return;
     
-    setLoading(true);
-    
     try {
       const response = await api.get(`/csr/${kode}/batch-data`);
       const batchData = response.data;
@@ -1201,8 +1659,6 @@ export default function DetailNonBlokCSR() {
       
     } catch (error: any) {
       setError(handleApiError(error, 'Memuat data batch'));
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -1296,9 +1752,39 @@ export default function DetailNonBlokCSR() {
     }
   };
 
+  // Initial load dengan loading state
+  const initialLoad = async () => {
+    if (!kode) return;
+    
+    setLoading(true);
+    
+    try {
+      const response = await api.get(`/csr/${kode}/batch-data`);
+      const batchData = response.data;
+      
+      // Set mata kuliah data
+      setData(batchData.mata_kuliah);
+      
+      // Set jadwal CSR data
+      setJadwalCSR(batchData.jadwal_csr);
+      
+      // Set reference data
+      setDosenList(batchData.dosen_list);
+      setRuanganList(batchData.ruangan_list);
+      setKelompokKecilList(batchData.kelompok_kecil);
+      setKategoriList(batchData.kategori_list);
+      setJamOptions(batchData.jam_options);
+      
+    } catch (error: any) {
+      setError(handleApiError(error, 'Memuat data batch'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Fetch batch data on component mount
   useEffect(() => {
-    fetchBatchData();
+    initialLoad();
   }, [kode]);
 
   // Effect untuk memastikan selectedKeahlian diset dengan benar saat edit modal
@@ -1311,25 +1797,20 @@ export default function DetailNonBlokCSR() {
     }
   }, [showModal, editIndex, form.dosen_id, dosenList, selectedKeahlian]);
 
-  // Effect untuk auto-hide success message CSR import
+  // Auto-hide success messages and imported count (consolidated)
   useEffect(() => {
-    if (csrImportedCount > 0) {
-      const timer = setTimeout(() => {
-        setCSRImportedCount(0);
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [csrImportedCount]);
+    const itemsToReset = [
+      { value: csrImportedCount, setter: setCSRImportedCount, resetValue: 0 },
+      { value: csrSiakadImportedCount, setter: setCSRSiakadImportedCount, resetValue: 0 },
+      { value: csrSuccess, setter: setCSRSuccess, resetValue: null }
+    ];
 
-  // Effect untuk auto-hide success message CSR bulk delete
-  useEffect(() => {
-    if (csrSuccess) {
-      const timer = setTimeout(() => {
-        setCSRSuccess(null);
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [csrSuccess]);
+    const timers = itemsToReset
+      .filter(item => item.value)
+      .map(item => setTimeout(() => item.setter(item.resetValue as any), 5000));
+
+    return () => timers.forEach(timer => clearTimeout(timer));
+  }, [csrImportedCount, csrSiakadImportedCount, csrSuccess]);
 
   // Fungsi untuk membuka halaman absensi
   const handleOpenAbsensi = (jadwal: JadwalCSR) => {
@@ -1356,6 +1837,8 @@ export default function DetailNonBlokCSR() {
       
       // Clear selections
       setSelectedCSRItems([]);
+      
+      // Close modal after successful delete
       setShowCSRBulkDeleteModal(false);
       
       // Refresh data
@@ -1563,17 +2046,12 @@ export default function DetailNonBlokCSR() {
           <h2 className="text-lg font-bold text-gray-800 dark:text-white">Jadwal CSR</h2>
           <div className="flex items-center gap-3">
             {/* Import Excel Button */}
-            <label className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform cursor-pointer">
+            <button 
+              onClick={() => setShowCSRTemplateSelectionModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform cursor-pointer">
               <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-brand-700 dark:text-brand-200" />
               Import Excel
-              <input
-                ref={csrFileInputRef}
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleCSRImportExcelUpload}
-                className="hidden"
-              />
-            </label>
+            </button>
             
             {/* Download Template Button */}
             <button
@@ -2386,7 +2864,116 @@ export default function DetailNonBlokCSR() {
       </AnimatePresence>
 
 
-      {/* Modal Import Excel CSR */}
+      {/* Modal Pilihan Template CSR */}
+      <AnimatePresence>
+        {showCSRTemplateSelectionModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowCSRTemplateSelectionModal(false)}
+            />
+            
+            {/* Modal Content */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => setShowCSRTemplateSelectionModal(false)}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+              
+              <div>
+                <div className="flex items-center justify-between pb-4 sm:pb-6">
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
+                      Pilih Format Template
+                    </h2>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Pilih format template yang sesuai dengan file Excel Anda
+                    </p>
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="mb-3 sm:mb-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Pilih jenis template yang ingin digunakan
+                    </label>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {/* Template Aplikasi */}
+                    <div
+                      className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200"
+                      onClick={() => handleCSRTemplateSelection('LAMA')}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                          <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            Template Aplikasi
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            File dari download template atau export Excel aplikasi ini
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Template SIAKAD */}
+                    <div
+                      className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200"
+                      onClick={() => handleCSRTemplateSelection('SIAKAD')}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
+                          <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-green-600 dark:text-green-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            Template SIAKAD
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            File dari sistem SIAKAD dengan format standar
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Import Excel CSR - Template Aplikasi */}
       <AnimatePresence>
         {showCSRImportModal && (
           <div className="fixed inset-0 z-[100000] flex items-center justify-center">
@@ -2396,7 +2983,7 @@ export default function DetailNonBlokCSR() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
-              onClick={handleCSRCloseImportModal}
+              onClick={() => setShowCSRImportModal(false)}
             />
             {/* Modal Content */}
             <motion.div 
@@ -2408,7 +2995,7 @@ export default function DetailNonBlokCSR() {
             >
               {/* Close Button */}
               <button
-                onClick={handleCSRCloseImportModal}
+                onClick={() => setShowCSRImportModal(false)}
                 className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
               >
                 <svg
@@ -2429,21 +3016,59 @@ export default function DetailNonBlokCSR() {
 
               {/* Header */}
               <div className="mb-6">
-                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Import Jadwal CSR</h2>
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Import Jadwal CSR - Template Aplikasi</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Preview dan validasi data sebelum import</p>
               </div>
+                  {/* Upload File Section */}
+                  {!csrImportFile && (
+                    <div className="mb-6">
+                      <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
+                        <div className="space-y-4">
+                          <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
+                            <FontAwesomeIcon icon={faFileExcel} className="w-8 h-8 text-brand-600 dark:text-brand-400" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Upload File Excel</h3>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                              Pilih file Excel dengan format template aplikasi (.xlsx, .xls)
+                            </p>
+                          </div>
+                          <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
+                            <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                            Pilih File
+                            <input
+                              ref={csrFileInputRef}
+                              type="file"
+                              accept=".xlsx,.xls"
+                              onChange={handleCSRImportExcelUpload}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
               {/* File Info */}
               {csrImportFile && (
                 <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                   <div className="flex items-center gap-3">
                     <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-500" />
-                    <div>
+                    <div className="flex-1">
                       <p className="font-medium text-blue-800 dark:text-blue-200">{csrImportFile.name}</p>
                       <p className="text-sm text-blue-600 dark:text-blue-300">
                         {(csrImportFile.size / 1024).toFixed(1)} KB
                       </p>
                     </div>
+                    <button
+                      onClick={handleCSRRemoveFile}
+                      className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                      title="Hapus file"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               )}
@@ -2654,34 +3279,496 @@ export default function DetailNonBlokCSR() {
                 </div>
               )}
 
-              {/* Action Buttons */}
-              <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <button
-                  onClick={handleCSRCloseImportModal}
-                  className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition"
-                >
-                  Batal
-                </button>
-                {csrImportData.length > 0 && csrCellErrors.length === 0 && (
-                  <button
-                    onClick={handleCSRSubmitImport}
-                    disabled={isCSRImporting}
-                    className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  >
-                    {isCSRImporting ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Importing...
-                      </>
-                    ) : (
-                      <>
-                        <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
-                        Import Data ({csrImportData.length} jadwal)
-                      </>
+                  {/* Action Buttons - Template Aplikasi */}
+                  <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <button
+                      onClick={() => setShowCSRImportModal(false)}
+                      className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                    >
+                      Batal
+                    </button>
+                    {csrImportData.length > 0 && csrCellErrors.length === 0 && (
+                      <button
+                        onClick={handleCSRSubmitImport}
+                        disabled={isCSRImporting}
+                        className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {isCSRImporting ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            Importing...
+                          </>
+                        ) : (
+                          <>
+                            <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                            Import Data ({csrImportData.length} jadwal)
+                          </>
+                        )}
+                      </button>
                     )}
-                  </button>
-                )}
+                  </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Import Excel CSR - Template SIAKAD */}
+      <AnimatePresence>
+        {showCSRSIAKADImportModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowCSRSIAKADImportModal(false)}
+            />
+            {/* Modal Content */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => setShowCSRSIAKADImportModal(false)}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+
+              {/* Header */}
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Import Jadwal CSR</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Template SIAKAD - Preview dan validasi data sebelum import</p>
               </div>
+                  {/* Info Box untuk Template SIAKAD */}
+                  <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-5 h-5 mt-0.5">
+                        <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">
+                          Informasi Mapping Template SIAKAD
+                        </h3>
+                        <div className="text-sm text-green-700 dark:text-green-300 space-y-2">
+                          <div>
+                            <strong>Kolom yang tersedia di SIAKAD:</strong>
+                            <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
+                              <li>Tanggal → Tanggal</li>
+                              <li>Waktu Mulai → Jam mulai</li>
+                              <li>Kelompok → Kelompok kecil</li>
+                              <li>Topik → Topik</li>
+                              <li>Ruang → Ruangan</li>
+                            </ul>
+                          </div>
+                          <div>
+                            <strong>Kolom yang <span className="text-red-600 dark:text-red-400">WAJIB diisi manual</span> (tidak ada di SIAKAD):</strong>
+                            <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
+                              <li>Jenis CSR → Klik kolom "Kosong (isi manual)" untuk memilih (reguler/responsi)</li>
+                              <li>Keahlian → Klik kolom "Kosong (isi manual)" untuk memilih keahlian</li>
+                              <li>Dosen → Klik kolom "Kosong (isi manual)" untuk memilih dosen</li>
+                              <li>Sesi → Klik kolom "Kosong (isi manual)" untuk mengisi</li>
+                            </ul>
+                          </div>
+                          <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                            💡 <strong>Tips:</strong> Klik pada kolom yang menampilkan "Kosong (isi manual)" untuk mengisi data yang diperlukan. Jam selesai akan otomatis dihitung berdasarkan jenis CSR: reguler = 3x50 menit, responsi = 2x50 menit.
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Upload File Section - SIAKAD */}
+                  {!csrSiakadImportFile && (
+                    <div className="mb-6">
+                      <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
+                        <div className="space-y-4">
+                          <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
+                            <FontAwesomeIcon icon={faFileExcel} className="w-8 h-8 text-brand-600 dark:text-brand-400" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Upload File Excel SIAKAD</h3>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                              Pilih file Excel dengan format SIAKAD (.xlsx, .xls)
+                            </p>
+                          </div>
+                          <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
+                            <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                            Pilih File
+                            <input
+                              ref={csrSiakadFileInputRef}
+                              type="file"
+                              accept=".xlsx,.xls"
+                              onChange={handleCSRSiakadImportExcelUpload}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* File Info - SIAKAD */}
+                  {csrSiakadImportFile && (
+                    <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-500" />
+                        <div className="flex-1">
+                          <p className="font-medium text-blue-800 dark:text-blue-200">{csrSiakadImportFile.name}</p>
+                          <p className="text-sm text-blue-600 dark:text-blue-300">
+                            {(csrSiakadImportFile.size / 1024).toFixed(1)} KB
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleCSRSiakadRemoveFile}
+                          className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                          title="Hapus file"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Error Messages - SIAKAD */}
+                  {csrSiakadImportErrors.length > 0 && (
+                    <div className="mb-6">
+                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <FontAwesomeIcon icon={faExclamationTriangle} className="w-5 h-5 text-red-500" />
+                          <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                            Error Import
+                          </h3>
+                        </div>
+                        <div className="max-h-40 overflow-y-auto">
+                          {csrSiakadImportErrors.map((err, idx) => (
+                            <p key={idx} className="text-sm text-red-600 dark:text-red-400 mb-1">
+                              • {err}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Error Validasi - SIAKAD */}
+                  {csrSiakadCellErrors.length > 0 && (
+                    <div className="mb-6">
+                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <FontAwesomeIcon icon={faExclamationTriangle} className="w-5 h-5 text-red-500" />
+                          <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                            Error Validasi ({csrSiakadCellErrors.length} error)
+                          </h3>
+                        </div>
+                        <div className="max-h-40 overflow-y-auto">
+                          {csrSiakadCellErrors.map((err, idx) => (
+                            <p key={idx} className="text-sm text-red-600 dark:text-red-400 mb-1">
+                              • {err.message}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Preview Data Table - SIAKAD */}
+                  {csrSiakadImportData.length > 0 && (
+                    <div className="mb-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                          Preview Data ({csrSiakadImportData.length} jadwal)
+                        </h3>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          File: {csrSiakadImportFile?.name}
+                        </div>
+                      </div>
+                      
+                      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                        <div className="max-w-full overflow-x-auto hide-scroll">
+                          <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                            <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                              <tr>
+                                <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Mulai</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jenis CSR</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Kelompok Kecil</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Topik</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Keahlian</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Dosen</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                            {csrSiakadImportData.slice((csrSiakadImportPage - 1) * DEFAULT_PAGE_SIZE, csrSiakadImportPage * DEFAULT_PAGE_SIZE).map((row, index) => {
+                              const actualIndex = (csrSiakadImportPage - 1) * DEFAULT_PAGE_SIZE + index;
+                              const cellError = (field: string) => csrSiakadCellErrors.find(err => err.row === (actualIndex + 1) && err.field === field);
+                              
+                              return (
+                                <tr key={actualIndex} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                  <td className="px-4 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap">
+                                    {actualIndex + 1}
+                                  </td>
+                                  
+                                  {/* Tanggal */}
+                                  <td
+                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'tanggal' ? 'border-2 border-brand-500' : ''} ${cellError('tanggal') || (!row.tanggal || row.tanggal.trim() === '') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                    onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'tanggal' })}
+                                    title={cellError('tanggal')?.message || ''}
+                                  >
+                                    {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'tanggal' ? (
+                                      <input
+                                        type="text"
+                                        className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                        value={row.tanggal || ''}
+                                        onChange={e => handleCSRSiakadCellEdit(actualIndex, 'tanggal', e.target.value)}
+                                        onBlur={() => setCSRSiakadEditingCell(null)}
+                                        autoFocus
+                                        placeholder="YYYY-MM-DD"
+                                      />
+                                    ) : (
+                                      <span className={cellError('tanggal') || (!row.tanggal || row.tanggal.trim() === '') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
+                                        {row.tanggal || 'Wajib diisi'}
+                                      </span>
+                                    )}
+                                  </td>
+                                  
+                                  {/* Jam Mulai */}
+                                  <td
+                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'jam_mulai' ? 'border-2 border-brand-500' : ''} ${cellError('jam_mulai') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                    onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'jam_mulai' })}
+                                    title={cellError('jam_mulai')?.message || ''}
+                                  >
+                                    {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'jam_mulai' ? (
+                                      <input
+                                        className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                        value={row.jam_mulai || ''}
+                                        onChange={e => handleCSRSiakadCellEdit(actualIndex, 'jam_mulai', e.target.value)}
+                                        onBlur={() => setCSRSiakadEditingCell(null)}
+                                        autoFocus
+                                      />
+                                    ) : (
+                                      <span className={cellError('jam_mulai') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
+                                        {row.jam_mulai || '-'}
+                                      </span>
+                                    )}
+                                  </td>
+                                  
+                                  {/* Jenis CSR */}
+                                  <td
+                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'jenis_csr' ? 'border-2 border-brand-500' : ''} ${cellError('jenis_csr') || (!row.jenis_csr || row.jenis_csr.trim() === '') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                    onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'jenis_csr' })}
+                                    title={cellError('jenis_csr')?.message || ''}
+                                  >
+                                    {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'jenis_csr' ? (
+                                      <input
+                                        className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                        value={row.jenis_csr || ''}
+                                        onChange={e => handleCSRSiakadCellEdit(actualIndex, 'jenis_csr', e.target.value)}
+                                        onBlur={() => setCSRSiakadEditingCell(null)}
+                                        autoFocus
+                                      />
+                                    ) : (
+                                      <span className={cellError('jenis_csr') || (!row.jenis_csr || row.jenis_csr.trim() === '') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
+                                        {row.jenis_csr || 'Kosong (isi manual)'}
+                                      </span>
+                                    )}
+                                  </td>
+                                  
+                                  {/* Kelompok Kecil */}
+                                  <td
+                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_kelompok' ? 'border-2 border-brand-500' : ''} ${cellError('kelompok_kecil_id') || (!row.nama_kelompok || row.nama_kelompok.trim() === '') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                    onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'nama_kelompok' })}
+                                    title={cellError('kelompok_kecil_id')?.message || ''}
+                                  >
+                                    {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_kelompok' ? (
+                                      <input
+                                        className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                        value={row.nama_kelompok === 'Wajib diisi' ? "" : (row.nama_kelompok || "")}
+                                        onChange={e => handleCSRSiakadKelompokKecilEdit(actualIndex, e.target.value)}
+                                        onBlur={() => setCSRSiakadEditingCell(null)}
+                                        autoFocus
+                                      />
+                                    ) : (
+                                      <span className={cellError('kelompok_kecil_id') || (!row.nama_kelompok || row.nama_kelompok.trim() === '') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
+                                        {kelompokKecilList.find(k => k.id === row.kelompok_kecil_id)?.nama_kelompok || row.nama_kelompok || 'Wajib diisi'}
+                                      </span>
+                                    )}
+                                  </td>
+                                  
+                                  {/* Topik */}
+                                  <td
+                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'topik' ? 'border-2 border-brand-500' : ''} ${cellError('topik') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                    onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'topik' })}
+                                    title={cellError('topik')?.message || ''}
+                                  >
+                                    {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'topik' ? (
+                                      <input
+                                        type="text"
+                                        className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                        value={row.topik || ''}
+                                        onChange={e => handleCSRSiakadCellEdit(actualIndex, 'topik', e.target.value)}
+                                        onBlur={() => setCSRSiakadEditingCell(null)}
+                                        autoFocus
+                                      />
+                                    ) : (
+                                      <span className={cellError('topik') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
+                                        {row.topik || '-'}
+                                      </span>
+                                    )}
+                                  </td>
+                                  
+                                  {/* Keahlian */}
+                                  <td
+                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_keahlian' ? 'border-2 border-brand-500' : ''} ${cellError('kategori_id') || (!row.nama_keahlian || row.nama_keahlian.trim() === '') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                    onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'nama_keahlian' })}
+                                    title={cellError('kategori_id')?.message || ''}
+                                  >
+                                    {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_keahlian' ? (
+                                      <input
+                                        className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                        value={row.nama_keahlian || ''}
+                                        onChange={e => handleCSRSiakadKeahlianEdit(actualIndex, e.target.value)}
+                                        onBlur={() => setCSRSiakadEditingCell(null)}
+                                        autoFocus
+                                      />
+                                    ) : (
+                                      <span className={cellError('kategori_id') || (!row.nama_keahlian || row.nama_keahlian.trim() === '') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
+                                        {row.nama_keahlian || 'Kosong (isi manual)'}
+                                      </span>
+                                    )}
+                                  </td>
+                                  
+                                  {/* Dosen */}
+                                  <td
+                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_dosen' ? 'border-2 border-brand-500' : ''} ${cellError('dosen_id') || (!row.nama_dosen || row.nama_dosen.trim() === '') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                    onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'nama_dosen' })}
+                                    title={cellError('dosen_id')?.message || ''}
+                                  >
+                                    {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_dosen' ? (
+                                      <input
+                                        className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                        value={row.nama_dosen || ''}
+                                        onChange={e => handleCSRSiakadDosenEdit(actualIndex, e.target.value)}
+                                        onBlur={() => setCSRSiakadEditingCell(null)}
+                                        autoFocus
+                                      />
+                                    ) : (
+                                      <span className={cellError('dosen_id') || (!row.nama_dosen || row.nama_dosen.trim() === '') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
+                                        {dosenList.find(d => d.id === row.dosen_id)?.name || row.nama_dosen || 'Kosong (isi manual)'}
+                                      </span>
+                                    )}
+                                  </td>
+                                  
+                                  {/* Ruangan */}
+                                  <td
+                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_ruangan' ? 'border-2 border-brand-500' : ''} ${cellError('ruangan_id') || (!row.nama_ruangan || row.nama_ruangan.trim() === '') ? 'bg-red-100 dark:bg-red-900/30' : ''}`}
+                                    onClick={() => setCSRSiakadEditingCell({ row: actualIndex, key: 'nama_ruangan' })}
+                                    title={cellError('ruangan_id')?.message || ''}
+                                  >
+                                    {csrSiakadEditingCell?.row === actualIndex && csrSiakadEditingCell?.key === 'nama_ruangan' ? (
+                                      <input
+                                        className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                        value={row.nama_ruangan === 'Wajib diisi' ? "" : (row.nama_ruangan || "")}
+                                        onChange={e => handleCSRSiakadRuanganEdit(actualIndex, e.target.value)}
+                                        onBlur={() => setCSRSiakadEditingCell(null)}
+                                        autoFocus
+                                      />
+                                    ) : (
+                                      <span className={cellError('ruangan_id') || (!row.nama_ruangan || row.nama_ruangan.trim() === '') ? 'text-red-500' : 'text-gray-800 dark:text-gray-100'}>
+                                        {ruanganList.find(r => r.id === row.ruangan_id)?.nama || row.nama_ruangan || 'Wajib diisi'}
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Pagination - SIAKAD */}
+                      {csrSiakadImportData.length > DEFAULT_PAGE_SIZE && (
+                        <div className="flex items-center justify-between mt-4">
+                          <div className="text-sm text-gray-600 dark:text-gray-400">
+                            Menampilkan {((csrSiakadImportPage - 1) * DEFAULT_PAGE_SIZE) + 1} - {Math.min(csrSiakadImportPage * DEFAULT_PAGE_SIZE, csrSiakadImportData.length)} dari {csrSiakadImportData.length} jadwal
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setCSRSiakadImportPage(p => Math.max(1, p - 1))}
+                              disabled={csrSiakadImportPage === 1}
+                              className="px-3 py-1 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                            >
+                              Previous
+                            </button>
+                            <span className="px-3 py-1 text-sm text-gray-600 dark:text-gray-400">
+                              Page {csrSiakadImportPage} of {Math.ceil(csrSiakadImportData.length / DEFAULT_PAGE_SIZE)}
+                            </span>
+                            <button
+                              onClick={() => setCSRSiakadImportPage(p => Math.min(Math.ceil(csrSiakadImportData.length / DEFAULT_PAGE_SIZE), p + 1))}
+                              disabled={csrSiakadImportPage >= Math.ceil(csrSiakadImportData.length / DEFAULT_PAGE_SIZE)}
+                              className="px-3 py-1 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                            >
+                              Next
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Action Buttons - SIAKAD */}
+                  <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <button
+                      onClick={() => setShowCSRSIAKADImportModal(false)}
+                      className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                    >
+                      Batal
+                    </button>
+                    {csrSiakadImportData.length > 0 && csrSiakadCellErrors.length === 0 && (
+                      <button
+                        onClick={handleCSRSiakadSubmitImport}
+                        disabled={isCSRSiakadImporting}
+                        className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {isCSRSiakadImporting ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            Importing...
+                          </>
+                        ) : (
+                          <>
+                            <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                            Import Data ({csrSiakadImportData.length} jadwal)
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
             </motion.div>
           </div>
         )}

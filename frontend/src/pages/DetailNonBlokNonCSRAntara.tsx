@@ -481,21 +481,23 @@ export default function DetailNonBlokNonCSR() {
     if (!kode) return;
     
     setIsBulkDeleting(true);
-    setShowBulkDeleteModal(false);
     
     try {
       // Delete all selected items
       await Promise.all(selectedItems.map(id => api.delete(`/non-blok-non-csr/jadwal/${kode}/${id}`)));
       
-      // Clear selected items
-      setSelectedItems([]);
-      
-      // Refresh data
-      await fetchBatchData();
-      
       // Show success message
       setSuccessMessage(`${selectedItems.length} jadwal berhasil dihapus.`);
       setTimeout(() => setSuccessMessage(''), 3000);
+      
+      // Clear selected items
+      setSelectedItems([]);
+      
+      // Close modal after successful delete
+      setShowBulkDeleteModal(false);
+      
+      // Refresh data
+      await fetchBatchData();
       
     } catch (error) {
       console.error('Error bulk deleting:', error);
@@ -2339,7 +2341,14 @@ export default function DetailNonBlokNonCSR() {
                     className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition flex items-center justify-center"
                     disabled={isBulkDeleting}
                   >
-                    {isBulkDeleting ? 'Menghapus...' : 'Hapus'}
+                    {isBulkDeleting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                        Menghapus...
+                      </>
+                    ) : (
+                      'Hapus'
+                    )}
                   </button>
                 </div>
               </div>

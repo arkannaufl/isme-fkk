@@ -179,8 +179,6 @@ export default function DetailNonBlokNonCSR() {
   const fetchBatchData = async () => {
     if (!kode) return;
     
-    setLoading(true);
-    
     try {
       const response = await api.get(`/non-blok-non-csr/${kode}/batch-data`);
       const batchData = response.data;
@@ -200,8 +198,6 @@ export default function DetailNonBlokNonCSR() {
       
     } catch (error: any) {
       setError(handleApiError(error, 'Memuat data batch'));
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -410,27 +406,21 @@ export default function DetailNonBlokNonCSR() {
 
   // Helper function untuk konversi format waktu
   const convertTimeFormat = (timeStr: string) => {
-    if (!timeStr || timeStr.trim() === '') return '';
+    if (!timeStr?.trim()) return '';
     
-    // Hapus spasi dan konversi ke string
     const time = timeStr.toString().trim();
     
-    // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
-    if (time.match(/^\d{2}[:.]\d{2}$/)) {
-      return time.replace('.', ':');
+    // Normalize format: H.MM atau HH.MM → HH:MM
+    if (time.match(/^\d{1,2}\.\d{2}$/)) {
+      const [hours, minutes] = time.split('.');
+      return `${hours.padStart(2, '0')}:${minutes}`;
     }
     
-    // Cek apakah format H:MM atau H.MM (1 digit jam)
-    if (time.match(/^\d{1}[:.]\d{2}$/)) {
-      return '0' + time.replace('.', ':');
+    // Already in HH:MM format
+    if (time.match(/^\d{2}:\d{2}$/)) {
+      return time;
     }
     
-    // Cek apakah format HH:MM atau HH.MM (2 digit jam)
-    if (time.match(/^\d{2}[:.]\d{2}$/)) {
-      return time.replace('.', ':');
-    }
-    
-    // Jika tidak sesuai format, return as is
     return time;
   };
 
@@ -463,6 +453,11 @@ export default function DetailNonBlokNonCSR() {
       reader.readAsArrayBuffer(file);
     });
   };
+
+  // Helper functions untuk validasi
+  const getValidKelompokBesarIds = () => kelompokBesarAgendaOptions.map(kb => Number(kb.id));
+  const getValidDosenIds = () => dosenList.map(d => d.id);
+  const getValidRuanganIds = () => ruanganList.map(r => r.id);
 
   // Validasi data Excel Non-Blok Non-CSR
   const validateNonBlokExcelData = (importData: JadwalNonBlokNonCSRType[]): { row: number, field: string, message: string }[] => {
@@ -522,9 +517,10 @@ export default function DetailNonBlokNonCSR() {
       }
 
       // Validasi kelompok besar
-      if (row.kelompok_besar_id && row.kelompok_besar_id !== null) {
-        const validKelompokBesarIds = kelompokBesarAgendaOptions.map(kb => Number(kb.id));
-        if (!validKelompokBesarIds.includes(row.kelompok_besar_id)) {
+      if (!row.kelompok_besar_id || row.kelompok_besar_id === null) {
+        errors.push({ row: rowNum, field: 'kelompok_besar_id', message: `Kelompok besar wajib diisi (Baris ${rowNum}, Kolom Kelompok Besar)` });
+      } else {
+        if (!getValidKelompokBesarIds().includes(row.kelompok_besar_id)) {
           const availableIds = kelompokBesarAgendaOptions.map(kb => kb.id).join(', ');
           errors.push({ row: rowNum, field: 'kelompok_besar_id', message: `Kelompok besar ID ${row.kelompok_besar_id} tidak ditemukan. ID yang tersedia: ${availableIds} (Baris ${rowNum}, Kolom Kelompok Besar)` });
         } else if (data && data.semester) {
@@ -541,8 +537,7 @@ export default function DetailNonBlokNonCSR() {
         if (!row.dosen_id || row.dosen_id === null) {
           errors.push({ row: rowNum, field: 'dosen_id', message: `Dosen wajib diisi untuk jenis materi (Baris ${rowNum}, Kolom Dosen)` });
         } else {
-          const validDosenIds = dosenList.map(d => d.id);
-          if (!validDosenIds.includes(row.dosen_id)) {
+          if (!getValidDosenIds().includes(row.dosen_id)) {
             errors.push({ row: rowNum, field: 'dosen_id', message: `Dosen tidak ditemukan (Baris ${rowNum}, Kolom Dosen)` });
           }
         }
@@ -556,8 +551,7 @@ export default function DetailNonBlokNonCSR() {
         if (!row.ruangan_id || row.ruangan_id === null) {
           errors.push({ row: rowNum, field: 'ruangan_id', message: `Ruangan wajib diisi untuk jenis materi (Baris ${rowNum}, Kolom Ruangan)` });
         } else {
-          const validRuanganIds = ruanganList.map(r => r.id);
-          if (!validRuanganIds.includes(row.ruangan_id)) {
+          if (!getValidRuanganIds().includes(row.ruangan_id)) {
             errors.push({ row: rowNum, field: 'ruangan_id', message: `Ruangan tidak ditemukan (Baris ${rowNum}, Kolom Ruangan)` });
           }
         }
@@ -572,8 +566,7 @@ export default function DetailNonBlokNonCSR() {
 
         // Validasi ruangan (opsional untuk agenda)
         if (row.ruangan_id && row.ruangan_id !== null) {
-          const validRuanganIds = ruanganList.map(r => r.id);
-          if (!validRuanganIds.includes(row.ruangan_id)) {
+          if (!getValidRuanganIds().includes(row.ruangan_id)) {
             errors.push({ row: rowNum, field: 'ruangan_id', message: `Ruangan tidak ditemukan (Baris ${rowNum}, Kolom Ruangan)` });
           }
         }
@@ -612,7 +605,7 @@ export default function DetailNonBlokNonCSR() {
       
       if (!headerMatch) {
         const missingHeaders = expectedHeaders.filter(header => !headers.includes(header));
-        setNonBlokImportErrors([`Format file Excel tidak dikenali. Kolom yang hilang: ${missingHeaders.join(', ')}. Pastikan kolom sesuai dengan template yang didownload`]);
+        setNonBlokImportErrors(['Format file Excel tidak sesuai dengan template aplikasi. Pastikan kolom sesuai dengan template yang didownload.']);
         return;
       }
 
@@ -621,11 +614,13 @@ export default function DetailNonBlokNonCSR() {
         const rowNum = index + 1;
         
         
-        // Parse kelompok besar ID
+        // Parse kelompok besar ID - Mapping langsung dari Excel (biar user edit manual jika tidak valid)
         let kelompokBesarId = null;
         if (row[4] && row[4] !== '') {
-          const kelompokBesarOption = kelompokBesarAgendaOptions.find(kb => kb.label === row[4].toString() || kb.label.includes(row[4].toString()) || kb.id.toString() === row[4].toString() || kb.label.includes(`Semester ${row[4]}`) || kb.label.includes(`Kelompok Besar Semester ${row[4]}`) || kb.label.includes(`Kelompok Besar ${row[4]}`) || kb.label.includes(`Kelompok ${row[4]}`) || kb.label.includes(`Kelompok Besar ${row[4]} (${kb.jumlah_mahasiswa} mahasiswa)`));
-          kelompokBesarId = kelompokBesarOption ? Number(kelompokBesarOption.id) : null;
+          const kelompokBesarValue = row[4].toString().trim();
+          
+          // Mapping langsung dari Excel - biar user edit manual jika tidak valid
+          kelompokBesarId = parseInt(kelompokBesarValue) || null;
         }
 
         // Parse dosen ID
@@ -738,6 +733,12 @@ export default function DetailNonBlokNonCSR() {
       if (response.data.success) {
         setNonBlokImportedCount(nonBlokImportData.length);
         setShowNonBlokImportModal(false);
+        // Cleanup data setelah import berhasil
+        setNonBlokImportData([]);
+        setNonBlokImportFile(null);
+        setNonBlokImportErrors([]);
+        setNonBlokCellErrors([]);
+        setNonBlokEditingCell(null);
         await fetchBatchData(); // Refresh data
       } else {
         setNonBlokImportErrors([response.data.message || 'Terjadi kesalahan saat mengimport data']);
@@ -768,6 +769,12 @@ export default function DetailNonBlokNonCSR() {
   // Close import modal untuk Non-Blok Non-CSR
   const handleNonBlokCloseImportModal = () => {
     setShowNonBlokImportModal(false);
+    // Tidak menghapus data untuk file persistence
+  };
+
+  // Handler untuk hapus file Non-Blok Non-CSR
+  const handleNonBlokRemoveFile = () => {
+    setNonBlokImportFile(null);
     setNonBlokImportData([]);
     setNonBlokImportErrors([]);
     setNonBlokCellErrors([]);
@@ -1018,9 +1025,39 @@ export default function DetailNonBlokNonCSR() {
     }
   };
 
+  // Initial load dengan loading state
+  const initialLoad = async () => {
+    if (!kode) return;
+    
+    setLoading(true);
+    
+    try {
+      const response = await api.get(`/non-blok-non-csr/${kode}/batch-data`);
+      const batchData = response.data;
+      
+      // Set mata kuliah data
+      setData(batchData.mata_kuliah);
+      
+      // Set jadwal Non-Blok Non-CSR data
+      setJadwalMateri(batchData.jadwal_non_blok_non_csr);
+      
+      // Set reference data
+      setDosenList(batchData.dosen_list);
+      setRuanganList(batchData.ruangan_list);
+      setJamOptions(batchData.jam_options);
+      setKelompokBesarAgendaOptions(batchData.kelompok_besar_agenda_options || []);
+      setKelompokBesarMateriOptions(batchData.kelompok_besar_materi_options || []);
+      
+    } catch (error: any) {
+      setError(handleApiError(error, 'Memuat data batch'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Fetch batch data on component mount
   useEffect(() => {
-    fetchBatchData();
+    initialLoad();
   }, [kode]);
 
   // Effect untuk auto-hide success message Non Blok bulk delete
@@ -1052,6 +1089,8 @@ export default function DetailNonBlokNonCSR() {
       
       // Clear selections
       setSelectedNonBlokItems([]);
+      
+      // Close modal after successful delete
       setShowNonBlokBulkDeleteModal(false);
       
       // Refresh data
@@ -1241,17 +1280,12 @@ export default function DetailNonBlokNonCSR() {
 
       {/* TOMBOL TAMBAH JADWAL MATERI */}
       <div className="flex gap-2 items-center mb-4">
-        <label className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform cursor-pointer">
+        <button 
+          onClick={() => setShowNonBlokImportModal(true)}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform cursor-pointer">
           <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-brand-700 dark:text-brand-200" />
           Import Excel
-          <input
-            ref={nonBlokFileInputRef}
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={handleNonBlokImportExcel}
-            className="hidden"
-          />
-        </label>
+        </button>
         <button
           onClick={downloadNonBlokTemplate}
           className="px-4 py-2 rounded-lg bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 text-sm font-medium shadow-theme-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition flex items-center gap-2"
@@ -2070,6 +2104,36 @@ export default function DetailNonBlokNonCSR() {
                  <p className="text-sm text-gray-500 dark:text-gray-400">Preview dan validasi data sebelum import</p>
                </div>
 
+              {/* Upload File Section */}
+              {!nonBlokImportFile && (
+                <div className="mb-6">
+                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
+                    <div className="space-y-4">
+                      <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
+                        <FontAwesomeIcon icon={faFileExcel} className="w-8 h-8 text-brand-600 dark:text-brand-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Upload File Excel</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          Pilih file Excel dengan format template aplikasi (.xlsx, .xls)
+                        </p>
+                      </div>
+                      <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
+                        <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                        Pilih File
+                        <input
+                          ref={nonBlokFileInputRef}
+                          type="file"
+                          accept=".xlsx,.xls"
+                          onChange={handleNonBlokImportExcel}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* File Info */}
               {nonBlokImportFile && (
                 <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
@@ -2081,6 +2145,15 @@ export default function DetailNonBlokNonCSR() {
                         {(nonBlokImportFile.size / 1024).toFixed(1)} KB
                       </p>
                     </div>
+                    <button
+                      onClick={handleNonBlokRemoveFile}
+                      className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                      title="Hapus file"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               )}
@@ -2292,23 +2365,25 @@ export default function DetailNonBlokNonCSR() {
                 >
                   Batal
                 </button>
-                <button
-                  onClick={handleNonBlokSubmitImport}
-                  disabled={nonBlokImportData.length === 0 || nonBlokCellErrors.length > 0 || isNonBlokImporting}
-                  className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {isNonBlokImporting ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Importing...
-                    </>
-                  ) : (
-                    <>
-                      <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
-                      Import Data ({nonBlokImportData.length} jadwal)
-                    </>
-                  )}
-                </button>
+                {nonBlokImportData.length > 0 && nonBlokCellErrors.length === 0 && (
+                  <button
+                    onClick={handleNonBlokSubmitImport}
+                    disabled={isNonBlokImporting}
+                    className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {isNonBlokImporting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Importing...
+                      </>
+                    ) : (
+                      <>
+                        <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                        Import Data ({nonBlokImportData.length} jadwal)
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </motion.div>
           </div>
@@ -2366,9 +2441,6 @@ export default function DetailNonBlokNonCSR() {
           </div>
         )}
       </AnimatePresence>
-
-      {/* Placeholder untuk tabel/komponen lain */}
-      {/* <div className="mt-8">Tabel/komponen lain di sini</div> */}
     </div>
   );
 } 
