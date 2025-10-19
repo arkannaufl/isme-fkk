@@ -406,21 +406,27 @@ export default function DetailNonBlokNonCSR() {
 
   // Helper function untuk konversi format waktu
   const convertTimeFormat = (timeStr: string) => {
-    if (!timeStr?.trim()) return '';
+    if (!timeStr || timeStr.trim() === '') return '';
     
+    // Hapus spasi dan konversi ke string
     const time = timeStr.toString().trim();
     
-    // Normalize format: H.MM atau HH.MM → HH:MM
-    if (time.match(/^\d{1,2}\.\d{2}$/)) {
-      const [hours, minutes] = time.split('.');
-      return `${hours.padStart(2, '0')}:${minutes}`;
+    // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
+    if (time.match(/^\d{2}[:.]\d{2}$/)) {
+      return time.replace('.', ':');
     }
     
-    // Already in HH:MM format
-    if (time.match(/^\d{2}:\d{2}$/)) {
-      return time;
+    // Cek apakah format H:MM atau H.MM (1 digit jam)
+    if (time.match(/^\d{1}[:.]\d{2}$/)) {
+      return '0' + time.replace('.', ':');
     }
     
+    // Cek apakah format HH:MM atau HH.MM (2 digit jam)
+    if (time.match(/^\d{2}[:.]\d{2}$/)) {
+      return time.replace('.', ':');
+    }
+    
+    // Jika tidak sesuai format, return as is
     return time;
   };
 
@@ -453,11 +459,6 @@ export default function DetailNonBlokNonCSR() {
       reader.readAsArrayBuffer(file);
     });
   };
-
-  // Helper functions untuk validasi
-  const getValidKelompokBesarIds = () => kelompokBesarAgendaOptions.map(kb => Number(kb.id));
-  const getValidDosenIds = () => dosenList.map(d => d.id);
-  const getValidRuanganIds = () => ruanganList.map(r => r.id);
 
   // Validasi data Excel Non-Blok Non-CSR
   const validateNonBlokExcelData = (importData: JadwalNonBlokNonCSRType[]): { row: number, field: string, message: string }[] => {
@@ -520,7 +521,8 @@ export default function DetailNonBlokNonCSR() {
       if (!row.kelompok_besar_id || row.kelompok_besar_id === null) {
         errors.push({ row: rowNum, field: 'kelompok_besar_id', message: `Kelompok besar wajib diisi (Baris ${rowNum}, Kolom Kelompok Besar)` });
       } else {
-        if (!getValidKelompokBesarIds().includes(row.kelompok_besar_id)) {
+        const validKelompokBesarIds = kelompokBesarAgendaOptions.map(kb => Number(kb.id));
+        if (!validKelompokBesarIds.includes(row.kelompok_besar_id)) {
           const availableIds = kelompokBesarAgendaOptions.map(kb => kb.id).join(', ');
           errors.push({ row: rowNum, field: 'kelompok_besar_id', message: `Kelompok besar ID ${row.kelompok_besar_id} tidak ditemukan. ID yang tersedia: ${availableIds} (Baris ${rowNum}, Kolom Kelompok Besar)` });
         } else if (data && data.semester) {
@@ -537,7 +539,8 @@ export default function DetailNonBlokNonCSR() {
         if (!row.dosen_id || row.dosen_id === null) {
           errors.push({ row: rowNum, field: 'dosen_id', message: `Dosen wajib diisi untuk jenis materi (Baris ${rowNum}, Kolom Dosen)` });
         } else {
-          if (!getValidDosenIds().includes(row.dosen_id)) {
+          const validDosenIds = dosenList.map(d => d.id);
+          if (!validDosenIds.includes(row.dosen_id)) {
             errors.push({ row: rowNum, field: 'dosen_id', message: `Dosen tidak ditemukan (Baris ${rowNum}, Kolom Dosen)` });
           }
         }
@@ -551,7 +554,8 @@ export default function DetailNonBlokNonCSR() {
         if (!row.ruangan_id || row.ruangan_id === null) {
           errors.push({ row: rowNum, field: 'ruangan_id', message: `Ruangan wajib diisi untuk jenis materi (Baris ${rowNum}, Kolom Ruangan)` });
         } else {
-          if (!getValidRuanganIds().includes(row.ruangan_id)) {
+          const validRuanganIds = ruanganList.map(r => r.id);
+          if (!validRuanganIds.includes(row.ruangan_id)) {
             errors.push({ row: rowNum, field: 'ruangan_id', message: `Ruangan tidak ditemukan (Baris ${rowNum}, Kolom Ruangan)` });
           }
         }
@@ -566,7 +570,8 @@ export default function DetailNonBlokNonCSR() {
 
         // Validasi ruangan (opsional untuk agenda)
         if (row.ruangan_id && row.ruangan_id !== null) {
-          if (!getValidRuanganIds().includes(row.ruangan_id)) {
+          const validRuanganIds = ruanganList.map(r => r.id);
+          if (!validRuanganIds.includes(row.ruangan_id)) {
             errors.push({ row: rowNum, field: 'ruangan_id', message: `Ruangan tidak ditemukan (Baris ${rowNum}, Kolom Ruangan)` });
           }
         }

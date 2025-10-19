@@ -27,26 +27,6 @@ const EXCEL_COLUMN_WIDTHS = {
   INFO_COLUMN: 50
 };
 
-// Helper function untuk konversi format waktu
-const convertTimeFormat = (timeStr: string) => {
-  if (!timeStr?.trim()) return '';
-  
-  const time = timeStr.toString().trim();
-  
-  // Normalize format: H.MM atau HH.MM → HH:MM
-  if (time.match(/^\d{1,2}\.\d{2}$/)) {
-    const [hours, minutes] = time.split('.');
-    return `${hours.padStart(2, '0')}:${minutes}`;
-  }
-  
-  // Already in HH:MM format
-  if (time.match(/^\d{2}:\d{2}$/)) {
-    return time;
-  }
-  
-  return time;
-};
-
 interface MataKuliah {
   kode: string;
   nama: string;
@@ -450,6 +430,31 @@ export default function DetailNonBlokCSR() {
     }
   };
 
+  // Helper function untuk konversi format waktu
+  const convertTimeFormat = (timeStr: string) => {
+    if (!timeStr || timeStr.trim() === '') return '';
+    
+    // Hapus spasi dan konversi ke string
+    const time = timeStr.toString().trim();
+    
+    // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
+    if (time.match(/^\d{2}[:.]\d{2}$/)) {
+      return time.replace('.', ':');
+    }
+    
+    // Cek apakah format H:MM atau H.MM (1 digit jam)
+    if (time.match(/^\d{1}[:.]\d{2}$/)) {
+      return '0' + time.replace('.', ':');
+    }
+    
+    // Cek apakah format HH:MM atau HH.MM (2 digit jam)
+    if (time.match(/^\d{2}[:.]\d{2}$/)) {
+      return time.replace('.', ':');
+    }
+    
+    // Jika tidak sesuai format, return as is
+    return time;
+  };
 
   // Fungsi untuk membaca file Excel CSR
   const readCSRExcelFile = async (file: File) => {
