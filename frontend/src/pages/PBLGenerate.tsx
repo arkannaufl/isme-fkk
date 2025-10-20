@@ -1621,47 +1621,6 @@ export default function PBLGenerate() {
       semesters = [1, 3, 5, 7]; // Default ke semester ganjil
     }
 
-    // Validasi Jurnal Reading - cek apakah ada Jurnal Reading untuk mata kuliah yang akan di-generate
-    let hasJurnalReading = false;
-    let missingJurnalReadingMataKuliah: string[] = [];
-
-    for (const semester of semesters) {
-      const mkInSemester = filteredMataKuliah.filter(
-        (mk) =>
-          String(mk.semester) === String(semester) && mk.blok === currentBlok
-      );
-
-      if (mkInSemester.length === 0) {
-        continue;
-      }
-
-      for (const mk of mkInSemester) {
-        const jurnalCount = (jurnalReadingData[mk.kode] || []).length;
-        if (jurnalCount === 0) {
-          missingJurnalReadingMataKuliah.push(`${mk.kode} - ${mk.nama}`);
-        } else {
-          hasJurnalReading = true;
-        }
-      }
-    }
-
-    // Jika tidak ada Jurnal Reading sama sekali
-    if (!hasJurnalReading) {
-      setError(
-        "Tidak dapat generate dosen karena belum ada Jurnal Reading untuk mata kuliah yang akan di-generate. Silakan tambahkan Jurnal Reading terlebih dahulu di halaman Mata Kuliah."
-      );
-      return;
-    }
-
-    // Jika ada mata kuliah yang tidak memiliki Jurnal Reading
-    if (missingJurnalReadingMataKuliah.length > 0) {
-      setError(
-        `Tidak dapat generate dosen karena mata kuliah berikut belum memiliki Jurnal Reading: ${missingJurnalReadingMataKuliah.join(
-          ", "
-        )}. Silakan tambahkan Jurnal Reading terlebih dahulu di halaman Mata Kuliah.`
-      );
-      return;
-    }
     let hasKelompokKecil = false;
     let missingKelompokSemesters: number[] = [];
 

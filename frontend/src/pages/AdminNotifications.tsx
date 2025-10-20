@@ -180,6 +180,10 @@ const AdminNotifications: React.FC = () => {
   const [pendingDosenBlok, setPendingDosenBlok] = useState<string>("");
   const [pendingDosenReminderType, setPendingDosenReminderType] =
     useState<string>("all");
+  
+  // Success modal state for reminder
+  const [showReminderSuccessModal, setShowReminderSuccessModal] = useState(false);
+  const [reminderSuccessMessage, setReminderSuccessMessage] = useState("");
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -740,20 +744,24 @@ const AdminNotifications: React.FC = () => {
         `/notifications/send-reminder?${params.toString()}`
       );
 
-      // Show success message
-      alert(
+      // Set success message and show success modal
+      setReminderSuccessMessage(
         `Notifikasi pengingat berhasil dikirim ke ${response.data.reminder_count} dosen`
       );
+      
+      // Close reminder modal and show success modal
+      setShowReminderModal(false);
+      setShowReminderSuccessModal(true);
 
       // Refresh notifications to show new reminder notifications
       await loadNotifications(false);
       await loadStats();
-
-      // Don't close modal - allow repeat sending
-      // setShowReminderModal(false);
     } catch (error) {
       console.error("Failed to send reminder notifications:", error);
-      alert("Gagal mengirim notifikasi pengingat");
+      // Set error message and show success modal (for error case)
+      setReminderSuccessMessage("Gagal mengirim notifikasi pengingat");
+      setShowReminderModal(false);
+      setShowReminderSuccessModal(true);
     } finally {
       setIsSendingReminder(false);
     }
@@ -973,8 +981,6 @@ const AdminNotifications: React.FC = () => {
     } catch (e) {
       setRescheduleMinDate("");
       setRescheduleMaxDate("");
-      setRescheduleMkKode("");
-      setRescheduleMkNama("");
     }
   };
 
@@ -3130,6 +3136,7 @@ const AdminNotifications: React.FC = () => {
         )}
 
         {/* Reminder Notification Modal */}
+        <AnimatePresence>
         {showReminderModal && (
           <div className="fixed inset-0 z-[100000] flex items-center justify-center">
             {/* Overlay */}
@@ -3147,7 +3154,7 @@ const AdminNotifications: React.FC = () => {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-4xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
               <button
@@ -3171,35 +3178,40 @@ const AdminNotifications: React.FC = () => {
               </button>
 
               <div>
-                {/* Header */}
-                <div className="flex items-center space-x-4 mb-6">
-                  <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-2xl flex items-center justify-center">
-                    <FontAwesomeIcon
-                      icon={faRedo}
-                      className="w-6 h-6 text-orange-600 dark:text-orange-400"
-                    />
-                  </div>
+                <div className="flex items-center justify-between pb-4 sm:pb-6">
                   <div>
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
                       Kirim Ulang Notifikasi
                     </h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                       Kirim pengingat ke dosen yang belum konfirmasi
                     </p>
                   </div>
                 </div>
 
-                {/* Content */}
-                <div className="mb-6">
-                  <div className="p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-xl">
-                    <h4 className="text-sm font-semibold text-orange-800 dark:text-orange-200 mb-3">
-                      Dosen yang Akan Dikirim Pengingat:
-                    </h4>
+                <div>
+                  <div className="mb-3 sm:mb-4">
+                    <div className="flex items-center space-x-3 mb-4">
+                      <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
+                        <FontAwesomeIcon
+                          icon={faRedo}
+                          className="w-6 h-6 text-orange-600 dark:text-orange-400"
+                        />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-800 dark:text-white">
+                          Dosen yang Akan Dikirim Pengingat
+                        </h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Pilih filter untuk mengirim pengingat
+                        </p>
+                      </div>
+                    </div>
 
                     {/* Filter Semester dan Blok */}
-                    <div className="flex gap-4 mb-4">
-                      <div className="flex-1">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Semester
                         </label>
                         <select
@@ -3208,7 +3220,7 @@ const AdminNotifications: React.FC = () => {
                             setPendingDosenSemester(e.target.value);
                             setPendingDosenPage(1);
                           }}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                         >
                           <option value="">Semua Semester</option>
                           <option value="1">Semester 1</option>
@@ -3221,8 +3233,8 @@ const AdminNotifications: React.FC = () => {
                           <option value="8">Semester 8</option>
                         </select>
                       </div>
-                      <div className="flex-1">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Blok
                         </label>
                         <select
@@ -3231,7 +3243,7 @@ const AdminNotifications: React.FC = () => {
                             setPendingDosenBlok(e.target.value);
                             setPendingDosenPage(1);
                           }}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                          className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                         >
                           <option value="">Semua Blok</option>
                           <option value="1">Blok 1</option>
@@ -3240,39 +3252,172 @@ const AdminNotifications: React.FC = () => {
                           <option value="4">Blok 4</option>
                         </select>
                       </div>
-                      <div className="flex-1">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Jenis Pengingat
-                        </label>
-                        <select
-                          value={pendingDosenReminderType}
-                          onChange={(e) => {
-                            setPendingDosenReminderType(e.target.value);
-                            setPendingDosenPage(1);
-                          }}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                    </div>
+
+                    {/* Filter Tipe Pengingat */}
+                    <div className="mb-4">
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Tipe Pengingat
+                      </label>
+                      <div className="space-y-3">
+                        <div
+                          className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
+                            pendingDosenReminderType === "all"
+                              ? "bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-600"
+                              : ""
+                          }`}
+                          onClick={() => setPendingDosenReminderType("all")}
                         >
-                          <option value="all">Semua Pengingat</option>
-                          <option value="unconfirmed">Belum Konfirmasi</option>
-                          <option value="upcoming">Persiapan Mengajar</option>
-                        </select>
-                      </div>
-                      <div className="flex items-end">
-                        <button
-                          onClick={() =>
-                            loadPendingDosen(
-                              1,
-                              pendingDosenPageSize,
-                              pendingDosenSemester,
-                              pendingDosenBlok,
-                              pendingDosenReminderType
-                            )
-                          }
-                          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                          <div className="flex items-center space-x-3">
+                            <div
+                              className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                pendingDosenReminderType === "all"
+                                  ? "bg-orange-500 border-orange-500"
+                                  : "border-gray-300 dark:border-gray-600"
+                              }`}
+                            >
+                              {pendingDosenReminderType === "all" && (
+                                <svg
+                                  className="w-2.5 h-2.5 text-white"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              )}
+                            </div>
+                            <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
+                              <FontAwesomeIcon
+                                icon={faRedo}
+                                className="w-5 h-5 text-orange-600 dark:text-orange-400"
+                              />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                Semua
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                Kirim pengingat ke semua dosen
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div
+                          className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
+                            pendingDosenReminderType === "unconfirmed"
+                              ? "bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-600"
+                              : ""
+                          }`}
+                          onClick={() => setPendingDosenReminderType("unconfirmed")}
                         >
-                          Filter
-                        </button>
+                          <div className="flex items-center space-x-3">
+                            <div
+                              className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                pendingDosenReminderType === "unconfirmed"
+                                  ? "bg-orange-500 border-orange-500"
+                                  : "border-gray-300 dark:border-gray-600"
+                              }`}
+                            >
+                              {pendingDosenReminderType === "unconfirmed" && (
+                                <svg
+                                  className="w-2.5 h-2.5 text-white"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              )}
+                            </div>
+                            <div className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/20 rounded-lg flex items-center justify-center">
+                              <FontAwesomeIcon
+                                icon={faClock}
+                                className="w-5 h-5 text-yellow-600 dark:text-yellow-400"
+                              />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                Belum Konfirmasi
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                Kirim pengingat ke dosen yang belum konfirmasi
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div
+                          className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
+                            pendingDosenReminderType === "upcoming"
+                              ? "bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-600"
+                              : ""
+                          }`}
+                          onClick={() => setPendingDosenReminderType("upcoming")}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <div
+                              className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                pendingDosenReminderType === "upcoming"
+                                  ? "bg-orange-500 border-orange-500"
+                                  : "border-gray-300 dark:border-gray-600"
+                              }`}
+                            >
+                              {pendingDosenReminderType === "upcoming" && (
+                                <svg
+                                  className="w-2.5 h-2.5 text-white"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              )}
+                            </div>
+                            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                              <FontAwesomeIcon
+                                icon={faClock}
+                                className="w-5 h-5 text-blue-600 dark:text-blue-400"
+                              />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                Persiapan Mengajar
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                Kirim pengingat persiapan mengajar
+                              </p>
+                            </div>
+                          </div>
+                        </div>
                       </div>
+                    </div>
+
+                    <div className="flex justify-end mb-4">
+                      <button
+                        onClick={() =>
+                          loadPendingDosen(
+                            1,
+                            pendingDosenPageSize,
+                            pendingDosenSemester,
+                            pendingDosenBlok,
+                            pendingDosenReminderType
+                          )
+                        }
+                        className="px-3 sm:px-4 py-2 rounded-lg bg-orange-500 text-white text-xs sm:text-sm font-medium hover:bg-orange-600 transition-all duration-300 ease-in-out"
+                      >
+                        Filter
+                      </button>
                     </div>
 
                     {loadingPendingDosen ? (
@@ -3493,18 +3638,17 @@ const AdminNotifications: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Action Buttons */}
-                <div className="flex justify-end gap-3">
+                <div className="flex justify-end gap-2 pt-2 relative z-20">
                   <button
                     onClick={() => setShowReminderModal(false)}
-                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                    className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
                   >
                     Batal
                   </button>
                   <button
                     onClick={handleSendReminder}
                     disabled={isSendingReminder}
-                    className="px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-medium shadow-lg hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                    className="px-3 sm:px-4 py-2 rounded-lg bg-orange-500 text-white text-xs sm:text-sm font-medium hover:bg-orange-600 transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
                   >
                     {isSendingReminder ? (
                       <>
@@ -3518,18 +3662,79 @@ const AdminNotifications: React.FC = () => {
                       </>
                     )}
                   </button>
-                  <button
-                    onClick={() => setShowReminderModal(false)}
-                    className="px-4 py-2 rounded-lg bg-green-500 text-white text-sm font-medium hover:bg-green-600 transition-colors flex items-center space-x-2"
-                  >
-                    <FontAwesomeIcon icon={faCheck} className="w-4 h-4" />
-                    <span>Tutup</span>
-                  </button>
                 </div>
               </div>
             </motion.div>
           </div>
         )}
+        </AnimatePresence>
+
+        {/* Reminder Success Modal */}
+        <AnimatePresence>
+          {showReminderSuccessModal && (
+            <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+              {/* Overlay */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+                onClick={() => setShowReminderSuccessModal(false)}
+              />
+
+              {/* Modal Content */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              >
+                {/* Close Button */}
+                <button
+                  onClick={() => setShowReminderSuccessModal(false)}
+                  className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+                >
+                  <svg
+                    width="20"
+                    height="20"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    className="w-6 h-6"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      clipRule="evenodd"
+                      d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </button>
+
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <FontAwesomeIcon
+                      icon={faCheckCircle}
+                      className="w-8 h-8 text-green-600 dark:text-green-400"
+                    />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                    {reminderSuccessMessage.includes("berhasil") ? "Berhasil!" : "Terjadi Kesalahan"}
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400 mb-6">
+                    {reminderSuccessMessage}
+                  </p>
+                  <button
+                    onClick={() => setShowReminderSuccessModal(false)}
+                    className="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-4 rounded-xl transition-colors"
+                  >
+                    OK
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </AnimatePresence>
     </div>
   );
