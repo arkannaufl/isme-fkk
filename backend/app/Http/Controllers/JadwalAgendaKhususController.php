@@ -95,26 +95,12 @@ class JadwalAgendaKhususController extends Controller
 
         $jadwal->update($data);
 
+        // Send notification to mahasiswa
+        $this->sendNotificationToMahasiswa($jadwal);
 
         // Log activity
-
         activity()
-
-            ->log('Jadwal Agenda Khusus deleted');
-
-
-        // Log activity
-
-        activity()
-
             ->log('Jadwal Agenda Khusus updated');
-
-
-        // Log activity
-
-        activity()
-
-            ->log('Jadwal Agenda Khusus created');
         return response()->json($jadwal);
     }
 
@@ -124,26 +110,9 @@ class JadwalAgendaKhususController extends Controller
         $jadwal = JadwalAgendaKhusus::findOrFail($id);
         $jadwal->delete();
 
-
         // Log activity
-
         activity()
-
             ->log('Jadwal Agenda Khusus deleted');
-
-
-        // Log activity
-
-        activity()
-
-            ->log('Jadwal Agenda Khusus updated');
-
-
-        // Log activity
-
-        activity()
-
-            ->log('Jadwal Agenda Khusus created');
         return response()->json(['message' => 'Jadwal agenda khusus berhasil dihapus']);
     }
 
@@ -659,9 +628,11 @@ class JadwalAgendaKhususController extends Controller
                 ], 422);
             }
 
-            // Jika tidak ada error, import semua data
-            foreach ($excelData as $index => $data) {
-                try {
+            // Jika tidak ada error, import semua data menggunakan database transaction
+            \DB::beginTransaction();
+            try {
+                $importedData = [];
+                foreach ($excelData as $index => $data) {
                     // Siapkan data untuk disimpan
                     $jadwalData = [
                         'mata_kuliah_kode' => $kode,
@@ -678,6 +649,7 @@ class JadwalAgendaKhususController extends Controller
 
                     // Simpan data
                     $jadwal = JadwalAgendaKhusus::create($jadwalData);
+                    $importedData[] = $jadwal;
 
                     // Log activity
                     activity()
@@ -695,27 +667,35 @@ class JadwalAgendaKhususController extends Controller
                         ->log('Jadwal agenda khusus diimport dari Excel');
 
                     $successCount++;
-                } catch (\Exception $e) {
-                    $errors[] = "Baris " . ($index + 1) . ": " . $e->getMessage();
                 }
+
+                \DB::commit();
+            } catch (\Exception $e) {
+                \DB::rollback();
+                return response()->json([
+                    'success' => 0,
+                    'total' => count($excelData),
+                    'errors' => ["Terjadi kesalahan saat menyimpan data: " . $e->getMessage()],
+                    'message' => "Gagal mengimport data. Terjadi kesalahan saat menyimpan."
+                ], 422);
             }
 
-            // Jika ada error validasi, return status 422
+            // Jika ada error validasi, return status 422 dan tidak import data sama sekali (all-or-nothing)
             if (count($errors) > 0) {
                 return response()->json([
-                    'success' => $successCount,
+                    'success' => 0, // Tidak ada data yang diimport jika ada error
                     'total' => count($excelData),
                     'errors' => $errors,
-                    'message' => "Gagal mengimport {$successCount} dari " . count($excelData) . " jadwal agenda khusus"
+                    'message' => "Gagal mengimport data. Semua data harus valid untuk dapat diimport."
                 ], 422);
             }
 
             // Jika tidak ada error, return status 200
             return response()->json([
-                'success' => $successCount,
+                'success' => count($importedData),
                 'total' => count($excelData),
                 'errors' => $errors,
-                'message' => "Berhasil mengimport {$successCount} dari " . count($excelData) . " jadwal agenda khusus"
+                'message' => "Berhasil mengimport " . count($importedData) . " dari " . count($excelData) . " jadwal agenda khusus"
             ]);
         } catch (\Exception $e) {
             \Log::error('Error importing jadwal agenda khusus: ' . $e->getMessage());

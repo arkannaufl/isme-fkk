@@ -546,7 +546,7 @@ const MataKuliahMahasiswa: React.FC<MataKuliahMahasiswaProps> = () => {
                           {mataKuliah.semester >= 1 && mataKuliah.semester <= 7 
                             ? `Semester ${mataKuliah.semester}` 
                             : 'Semester Antara'}
-                        </span>
+                    </span>
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300 w-fit">
                       {mataKuliah.jenis}
                     </span>

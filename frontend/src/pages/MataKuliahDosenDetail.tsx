@@ -451,7 +451,7 @@ export default function MataKuliahDosenDetail() {
 
           {/* Main Info Card Skeleton */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 mb-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i}>
                   <div className="h-3 w-24 bg-gray-300 dark:bg-gray-600 rounded mb-2 animate-pulse"></div>
@@ -590,241 +590,241 @@ export default function MataKuliahDosenDetail() {
         )}
       </AnimatePresence>
 
-        {/* Header */}
+      {/* Header */}
         <div className="mb-8">
-          <button
-            onClick={() => navigate("/mata-kuliah-dosen")}
+        <button
+          onClick={() => navigate("/mata-kuliah-dosen")}
             className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition mb-4"
-          >
+        >
             <FontAwesomeIcon icon={faArrowLeft} className="w-4 h-4" />
-            Kembali ke Daftar Mata Kuliah
-          </button>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            {mataKuliah.nama}
-          </h1>
+          Kembali ke Daftar Mata Kuliah
+        </button>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+        {mataKuliah.nama}
+      </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Informasi lengkap mata kuliah untuk dosen
-          </p>
+        Informasi lengkap mata kuliah untuk dosen
+      </p>
         </div>
 
-        {/* Card Info Utama */}
+      {/* Card Info Utama */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
               <div className="mb-2 text-gray-500 dark:text-gray-400 text-xs font-semibold uppercase">Kode Mata Kuliah</div>
               <div className="text-lg font-bold text-gray-900 dark:text-white">{mataKuliah.kode}</div>
-            </div>
-            <div>
+          </div>
+          <div>
               <div className="mb-2 text-gray-500 dark:text-gray-400 text-xs font-semibold uppercase">Nama Mata Kuliah</div>
               <div className="text-lg font-bold text-gray-900 dark:text-white">{mataKuliah.nama}</div>
-            </div>
-            <div>
+          </div>
+          <div>
               <div className="mb-2 text-gray-500 dark:text-gray-400 text-xs font-semibold uppercase">Semester</div>
               <div className="text-base text-gray-900 dark:text-white">Semester {mataKuliah.semester}</div>
-            </div>
-            <div>
+          </div>
+          <div>
               <div className="mb-2 text-gray-500 dark:text-gray-400 text-xs font-semibold uppercase">Periode</div>
               <div className="text-base text-gray-900 dark:text-white">{mataKuliah.periode}</div>
-            </div>
-            <div>
+          </div>
+          <div>
               <div className="mb-2 text-gray-500 dark:text-gray-400 text-xs font-semibold uppercase">Jenis</div>
               <div className="text-base text-gray-900 dark:text-white">{mataKuliah.jenis}</div>
-            </div>
-            {mataKuliah.blok && (
-              <div>
+          </div>
+          {mataKuliah.blok && (
+            <div>
                 <div className="mb-2 text-gray-500 dark:text-gray-400 text-xs font-semibold uppercase">Blok ke-</div>
                 <div className="text-base text-gray-900 dark:text-white">{mataKuliah.blok}</div>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
+      </div>
 
-        {/* Section Info Tambahan */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      {/* Section Info Tambahan */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <div className="mb-2 text-gray-500 dark:text-gray-400 text-xs font-semibold uppercase">Tanggal Mulai</div>
             <div className="text-base text-gray-900 dark:text-white">{formatDate(mataKuliah.tanggal_mulai)}</div>
-          </div>
+        </div>
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <div className="mb-2 text-gray-500 dark:text-gray-400 text-xs font-semibold uppercase">Tanggal Akhir</div>
             <div className="text-base text-gray-900 dark:text-white">{formatDate(mataKuliah.tanggal_akhir)}</div>
-          </div>
+        </div>
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <div className="mb-2 text-gray-500 dark:text-gray-400 text-xs font-semibold uppercase">Durasi Minggu</div>
             <div className="text-base text-gray-900 dark:text-white">{mataKuliah.durasi_minggu} minggu</div>
-          </div>
         </div>
+      </div>
 
-        <div className="space-y-8">
-          {/* Informasi Tambahan */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Keahlian Required */}
-            {mataKuliah.keahlian_required && mataKuliah.keahlian_required.length > 0 && (
+      <div className="space-y-8">
+        {/* Informasi Tambahan */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Keahlian Required */}
+          {mataKuliah.keahlian_required && mataKuliah.keahlian_required.length > 0 && (
               <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
-                  Keahlian yang Dibutuhkan
-                </h2>
-                <div className="flex flex-wrap gap-2">
-                  {mataKuliah.keahlian_required.map((keahlian, idx) => (
-                    <span
-                      key={idx}
-                      className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300"
-                    >
-                      {keahlian}
-                    </span>
-                  ))}
-                </div>
+                Keahlian yang Dibutuhkan
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {mataKuliah.keahlian_required.map((keahlian, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300"
+                  >
+                    {keahlian}
+                  </span>
+                ))}
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Download RPS */}
+          {/* Download RPS */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
               <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
-                RPS (Rencana Pembelajaran Semester)
-              </h2>
+              RPS (Rencana Pembelajaran Semester)
+            </h2>
             
-              {mataKuliah.rps_file ? (
-                <>
-                  <button
-                    onClick={downloadRPS}
+            {mataKuliah.rps_file ? (
+              <>
+                <button
+                  onClick={downloadRPS}
                     className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors mb-3 shadow-sm"
-                  >
-                    <FontAwesomeIcon icon={faDownload} className="w-4 h-4" />
-                    Download RPS
-                  </button>
-                  
-                  {/* Upload/Replace RPS Button - Only for Koordinator */}
-                  {dosenPermissions?.can_upload_rps && (
-                    <button
-                      onClick={() => setShowUploadRpsModal(true)}
+                >
+                  <FontAwesomeIcon icon={faDownload} className="w-4 h-4" />
+                  Download RPS
+                </button>
+                
+                {/* Upload/Replace RPS Button - Only for Koordinator */}
+                {dosenPermissions?.can_upload_rps && (
+                  <button
+                    onClick={() => setShowUploadRpsModal(true)}
                       className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors shadow-sm"
-                    >
-                      <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
-                      Ganti RPS
-                    </button>
-                  )}
-                </>
-              ) : (
-                <>
-                  <p className="text-gray-500 dark:text-gray-400 text-center py-4">
-                    RPS belum tersedia
-                  </p>
-                  
-                  {/* Upload RPS Button - Only for Koordinator */}
-                  {dosenPermissions?.can_upload_rps && (
-                    <button
-                      onClick={() => setShowUploadRpsModal(true)}
+                  >
+                    <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                    Ganti RPS
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="text-gray-500 dark:text-gray-400 text-center py-4">
+                  RPS belum tersedia
+                </p>
+                
+                {/* Upload RPS Button - Only for Koordinator */}
+                {dosenPermissions?.can_upload_rps && (
+                  <button
+                    onClick={() => setShowUploadRpsModal(true)}
                       className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors shadow-sm"
-                    >
-                      <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
-                      Upload RPS
-                    </button>
-                  )}
-                </>
-              )}
+                  >
+                    <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                    Upload RPS
+                  </button>
+                )}
+              </>
+            )}
           </div>
         </div>
 
-          {/* Download Materi - Full Width */}
+        {/* Download Materi - Full Width */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                Materi Pembelajaran
-                {materi.length > 0 && (
-                  <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
-                    ({materi.length} file)
-                  </span>
-                )}
-              </h2>
-              
-              {/* Upload Materi Button - Only for Koordinator or Tim Blok */}
-              {dosenPermissions?.can_upload_materi && (
-                <button
-                  onClick={() => setShowUploadMateriModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors shadow-sm"
-                >
-                  <FontAwesomeIcon icon={faFileUpload} className="w-4 h-4" />
-                  Upload Materi
-                </button>
+              Materi Pembelajaran
+              {materi.length > 0 && (
+                <span className="ml-2 text-sm font-normal text-gray-500 dark:text-gray-400">
+                  ({materi.length} file)
+                </span>
               )}
-            </div>
-          
-            {materi.length > 0 ? (
-              <div>
-                {/* Search Bar */}
-                <div className="mb-4">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="Cari materi..."
-                      value={materiSearch}
-                      onChange={(e) => setMateriSearch(e.target.value)}
-                      className="w-full px-4 py-3 pl-10 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                    />
-                    <FontAwesomeIcon 
-                      icon={faSearch} 
-                      className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" 
-                    />
-                  </div>
-                </div>
-
-                {/* Materi List */}
-                <div className="space-y-3">
-                  {displayedMateri.map((m) => (
-                    <div
-                      key={m.id}
-                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                    >
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900 dark:text-white">{m.judul}</p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {m.file_type.toUpperCase()} • {formatFileSize(m.file_size)}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => downloadMateri(m.filename, m.judul)}
-                        className="ml-3 p-2 text-blue-500 hover:text-blue-600 transition-colors"
-                        title="Download materi"
-                      >
-                        <FontAwesomeIcon icon={faDownload} className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Show More/Less Button */}
-                {filteredMateri.length > materiLimit && (
-                  <div className="mt-4 text-center">
-                    <button
-                      onClick={() => setShowMateriModal(true)}
-                      className="px-6 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-sm"
-                    >
-                      Lihat Semua Materi ({filteredMateri.length} file)
-                    </button>
-                  </div>
-                )}
-
-                {/* No Results */}
-                {filteredMateri.length === 0 && materiSearch && (
-                  <div className="text-center py-8">
-                    <p className="text-gray-500 dark:text-gray-400">
-                      Tidak ada materi yang cocok dengan pencarian "{materiSearch}"
-                    </p>
-                    <button
-                      onClick={() => setMateriSearch("")}
-                      className="mt-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
-                    >
-                      Hapus filter
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-gray-500 dark:text-gray-400 text-center py-4">
-                Materi belum tersedia
-              </p>
+            </h2>
+            
+            {/* Upload Materi Button - Only for Koordinator or Tim Blok */}
+            {dosenPermissions?.can_upload_materi && (
+              <button
+                onClick={() => setShowUploadMateriModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-colors shadow-sm"
+              >
+                <FontAwesomeIcon icon={faFileUpload} className="w-4 h-4" />
+                Upload Materi
+              </button>
             )}
           </div>
+          
+          {materi.length > 0 ? (
+            <div>
+              {/* Search Bar */}
+              <div className="mb-4">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Cari materi..."
+                    value={materiSearch}
+                    onChange={(e) => setMateriSearch(e.target.value)}
+                      className="w-full px-4 py-3 pl-10 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  />
+                  <FontAwesomeIcon 
+                    icon={faSearch} 
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" 
+                  />
+                </div>
+              </div>
+
+              {/* Materi List */}
+              <div className="space-y-3">
+                {displayedMateri.map((m) => (
+                  <div
+                    key={m.id}
+                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                  >
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900 dark:text-white">{m.judul}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {m.file_type.toUpperCase()} • {formatFileSize(m.file_size)}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => downloadMateri(m.filename, m.judul)}
+                      className="ml-3 p-2 text-blue-500 hover:text-blue-600 transition-colors"
+                      title="Download materi"
+                    >
+                      <FontAwesomeIcon icon={faDownload} className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Show More/Less Button */}
+              {filteredMateri.length > materiLimit && (
+                <div className="mt-4 text-center">
+                  <button
+                    onClick={() => setShowMateriModal(true)}
+                      className="px-6 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-sm"
+                  >
+                    Lihat Semua Materi ({filteredMateri.length} file)
+                  </button>
+                </div>
+              )}
+
+              {/* No Results */}
+              {filteredMateri.length === 0 && materiSearch && (
+                <div className="text-center py-8">
+                  <p className="text-gray-500 dark:text-gray-400">
+                    Tidak ada materi yang cocok dengan pencarian "{materiSearch}"
+                  </p>
+                  <button
+                    onClick={() => setMateriSearch("")}
+                    className="mt-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                  >
+                    Hapus filter
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-gray-500 dark:text-gray-400 text-center py-4">
+              Materi belum tersedia
+            </p>
+          )}
+        </div>
 
         {/* Jadwal */}
         <div className="space-y-6">
