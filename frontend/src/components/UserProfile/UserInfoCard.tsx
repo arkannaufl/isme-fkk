@@ -16,7 +16,7 @@ export default function UserInfoCard() {
     ket: "",
     current_password: "",
     new_password: "",
-    confirm_password: ""
+    confirm_password: "",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -25,18 +25,55 @@ export default function UserInfoCard() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
-    const userData = JSON.parse(localStorage.getItem("user") || "{}");
-    setUser(userData);
-    setForm({
-      name: userData.name || "",
-      username: userData.username || "",
-      email: userData.email || "",
-      telp: userData.telp || "",
-      ket: userData.ket || "",
-      current_password: "",
-      new_password: "",
-      confirm_password: ""
-    });
+    const loadUserData = async () => {
+      try {
+        // Ambil data user terbaru dari API
+        const response = await api.get("/profile");
+        const userData = response.data.user;
+
+        // Update localStorage dengan data terbaru
+        localStorage.setItem("user", JSON.stringify(userData));
+        setUser(userData);
+        setForm({
+          name: userData.name || "",
+          username: userData.username || "",
+          email: userData.email || "",
+          telp: userData.telp || "",
+          ket: userData.ket || "",
+          current_password: "",
+          new_password: "",
+          confirm_password: "",
+        });
+      } catch (error) {
+        // Fallback ke localStorage jika API gagal
+        console.error("Error loading user data:", error);
+        const userData = JSON.parse(localStorage.getItem("user") || "{}");
+        setUser(userData);
+        setForm({
+          name: userData.name || "",
+          username: userData.username || "",
+          email: userData.email || "",
+          telp: userData.telp || "",
+          ket: userData.ket || "",
+          current_password: "",
+          new_password: "",
+          confirm_password: "",
+        });
+      }
+    };
+
+    loadUserData();
+
+    // Listener untuk event user-updated (dari email verification)
+    const handleUserUpdate = () => {
+      loadUserData();
+    };
+
+    window.addEventListener("user-updated", handleUserUpdate);
+
+    return () => {
+      window.removeEventListener("user-updated", handleUserUpdate);
+    };
   }, []);
 
   if (!user) return null;
@@ -54,7 +91,7 @@ export default function UserInfoCard() {
       ket: user.ket || "",
       current_password: "",
       new_password: "",
-      confirm_password: ""
+      confirm_password: "",
     });
     setIsModalOpen(true);
     setError("");
@@ -107,7 +144,7 @@ export default function UserInfoCard() {
       { label: "Nama", value: user.name },
       { label: "Username", value: user.username },
       { label: "Email", value: user.email },
-      { label: "Role", value: user.role }
+      { label: "Role", value: user.role },
     ];
 
     const roleSpecificFields = {
@@ -118,7 +155,7 @@ export default function UserInfoCard() {
       tim_akademik: [
         { label: "NIP", value: user.nip },
         { label: "No. Telepon", value: user.telp },
-        { label: "Keterangan", value: user.ket }
+        { label: "Keterangan", value: user.ket },
       ],
       dosen: [
         { label: "NID", value: user.nid },
@@ -134,19 +171,27 @@ export default function UserInfoCard() {
         { label: "IPK", value: user.ipk },
         { label: "Status", value: user.status },
         { label: "Angkatan", value: user.angkatan },
-        { label: "No. Telepon", value: user.telp }
-      ]
+        { label: "No. Telepon", value: user.telp },
+      ],
     };
 
-    const allFields = [...commonFields, ...(roleSpecificFields[user.role as keyof typeof roleSpecificFields] || [])];
+    const allFields = [
+      ...commonFields,
+      ...(roleSpecificFields[user.role as keyof typeof roleSpecificFields] ||
+        []),
+    ];
 
     return (
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-7 w-full md:max-w-xl">
         {allFields.map((field, index) => (
           <div key={index}>
-            <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">{field.label}</p>
+            <p className="mb-2 text-xs leading-normal text-gray-500 dark:text-gray-400">
+              {field.label}
+            </p>
             <p className="text-sm font-medium text-gray-800 dark:text-white/90">
-              {Array.isArray(field.value) ? field.value.join(', ') : field.value || "-"}
+              {Array.isArray(field.value)
+                ? field.value.join(", ")
+                : field.value || "-"}
             </p>
           </div>
         ))}
@@ -188,7 +233,9 @@ export default function UserInfoCard() {
       {user.role === "dosen" && (
         <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
           <button
-            onClick={() => navigate("/dosen-riwayat", { state: { dosenData: user } })}
+            onClick={() =>
+              navigate("/dosen-riwayat", { state: { dosenData: user } })
+            }
             className="flex items-center gap-2 px-4 py-2 bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors text-sm font-medium"
           >
             <svg
@@ -217,7 +264,7 @@ export default function UserInfoCard() {
               className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => setIsModalOpen(false)}
             ></div>
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
@@ -239,11 +286,15 @@ export default function UserInfoCard() {
               </button>
               <form onSubmit={handleSave}>
                 <div className="pb-4 sm:pb-6">
-                  <h2 className="text-xl font-bold text-gray-800 dark:text-white">Edit Profile</h2>
+                  <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                    Edit Profile
+                  </h2>
                 </div>
                 <div>
                   <div className="mb-3 sm:mb-4">
-                    <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">Nama</label>
+                    <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">
+                      Nama
+                    </label>
                     <input
                       type="text"
                       name="name"
@@ -254,7 +305,9 @@ export default function UserInfoCard() {
                     />
                   </div>
                   <div className="mb-3 sm:mb-4">
-                    <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">Username</label>
+                    <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">
+                      Username
+                    </label>
                     <input
                       type="text"
                       name="username"
@@ -265,7 +318,9 @@ export default function UserInfoCard() {
                     />
                   </div>
                   <div className="mb-3 sm:mb-4">
-                    <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">Email</label>
+                    <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">
+                      Email
+                    </label>
                     <input
                       type="email"
                       name="email"
@@ -277,10 +332,12 @@ export default function UserInfoCard() {
                   </div>
 
                   {/* Super Admin extra fields */}
-                  {user.role === 'super_admin' && (
+                  {user.role === "super_admin" && (
                     <>
                       <div className="mb-3 sm:mb-4">
-                        <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">Nomor Telepon</label>
+                        <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">
+                          Nomor Telepon
+                        </label>
                         <input
                           type="tel"
                           name="telp"
@@ -290,7 +347,9 @@ export default function UserInfoCard() {
                         />
                       </div>
                       <div className="mb-3 sm:mb-4">
-                        <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">Posisi/Jabatan</label>
+                        <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">
+                          Posisi/Jabatan
+                        </label>
                         <input
                           type="text"
                           name="ket"
@@ -302,7 +361,9 @@ export default function UserInfoCard() {
                     </>
                   )}
                   <div className="mb-3 sm:mb-4">
-                    <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">Password Saat Ini</label>
+                    <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">
+                      Password Saat Ini
+                    </label>
                     <div className="relative flex items-center">
                       <input
                         type={showCurrentPassword ? "text" : "password"}
@@ -316,7 +377,11 @@ export default function UserInfoCard() {
                         type="button"
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                         onClick={() => setShowCurrentPassword((v) => !v)}
-                        aria-label={showCurrentPassword ? "Sembunyikan Password" : "Tampilkan Password"}
+                        aria-label={
+                          showCurrentPassword
+                            ? "Sembunyikan Password"
+                            : "Tampilkan Password"
+                        }
                       >
                         {showCurrentPassword ? (
                           <EyeIcon className="size-5 fill-gray-500 dark:fill-gray-400" />
@@ -327,7 +392,9 @@ export default function UserInfoCard() {
                     </div>
                   </div>
                   <div className="mb-3 sm:mb-4">
-                    <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">Password Baru</label>
+                    <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">
+                      Password Baru
+                    </label>
                     <div className="relative flex items-center">
                       <input
                         type={showNewPassword ? "text" : "password"}
@@ -341,7 +408,11 @@ export default function UserInfoCard() {
                         type="button"
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                         onClick={() => setShowNewPassword((v) => !v)}
-                        aria-label={showNewPassword ? "Sembunyikan Password" : "Tampilkan Password"}
+                        aria-label={
+                          showNewPassword
+                            ? "Sembunyikan Password"
+                            : "Tampilkan Password"
+                        }
                       >
                         {showNewPassword ? (
                           <EyeIcon className="size-5 fill-gray-500 dark:fill-gray-400" />
@@ -352,7 +423,9 @@ export default function UserInfoCard() {
                     </div>
                   </div>
                   <div className="mb-3 sm:mb-4">
-                    <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">Konfirmasi Password Baru</label>
+                    <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">
+                      Konfirmasi Password Baru
+                    </label>
                     <div className="relative flex items-center">
                       <input
                         type={showConfirmPassword ? "text" : "password"}
@@ -366,7 +439,11 @@ export default function UserInfoCard() {
                         type="button"
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                         onClick={() => setShowConfirmPassword((v) => !v)}
-                        aria-label={showConfirmPassword ? "Sembunyikan Password" : "Tampilkan Password"}
+                        aria-label={
+                          showConfirmPassword
+                            ? "Sembunyikan Password"
+                            : "Tampilkan Password"
+                        }
                       >
                         {showConfirmPassword ? (
                           <EyeIcon className="size-5 fill-gray-500 dark:fill-gray-400" />

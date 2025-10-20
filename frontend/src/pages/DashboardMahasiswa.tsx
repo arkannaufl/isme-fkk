@@ -2,18 +2,17 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faCalendar,
+  faCalendarAlt,
   faClock,
   faBookOpen,
   faBell,
   faGraduationCap,
   faFlask,
-  faCheckCircle,
-  faTimesCircle,
-  faInfoCircle,
-  faEye,
   faMapMarkedAlt,
   faCalendarWeek,
   faExternalLinkAlt,
+  faCheckCircle,
+  faTimesCircle,
 } from "@fortawesome/free-solid-svg-icons";
 import { useNavigate } from "react-router-dom";
 import api, { getUser } from "../utils/api";
@@ -33,6 +32,12 @@ interface JadwalPBL {
   x50: number;
   pengampu: string;
   ruangan: string;
+  status_konfirmasi?:
+    | "belum_konfirmasi"
+    | "bisa"
+    | "tidak_bisa"
+    | "waiting_reschedule";
+  status_reschedule?: "waiting" | "approved" | "rejected";
   semester_type?: "reguler" | "antara";
 }
 
@@ -54,7 +59,18 @@ interface JadwalKuliahBesar {
     nama: string;
   };
   jumlah_sesi: number;
+  status_konfirmasi?:
+    | "belum_konfirmasi"
+    | "bisa"
+    | "tidak_bisa"
+    | "waiting_reschedule";
+  status_reschedule?: "waiting" | "approved" | "rejected";
   semester_type?: "reguler" | "antara";
+  kelompok_besar?: {
+    id: number;
+    semester: number;
+    nama_kelompok: string;
+  } | null;
 }
 
 interface JadwalPraktikum {
@@ -74,6 +90,12 @@ interface JadwalPraktikum {
     nama: string;
   };
   jumlah_sesi: number;
+  status_konfirmasi?:
+    | "belum_konfirmasi"
+    | "bisa"
+    | "tidak_bisa"
+    | "waiting_reschedule";
+  status_reschedule?: "waiting" | "approved" | "rejected";
   semester_type?: "reguler" | "antara";
 }
 
@@ -91,10 +113,79 @@ interface JadwalJurnalReading {
   ruangan: {
     id: number;
     nama: string;
-  };
+  } | null;
   jumlah_sesi: number;
+  status_konfirmasi?:
+    | "belum_konfirmasi"
+    | "bisa"
+    | "tidak_bisa"
+    | "waiting_reschedule";
+  status_reschedule?: "waiting" | "approved" | "rejected";
   semester_type?: "reguler" | "antara";
 }
+
+interface JadwalCSR {
+  id: number;
+  tanggal: string;
+  jam_mulai: string;
+  jam_selesai: string;
+  topik: string;
+  tipe: string;
+  pengampu: string;
+  ruangan: string;
+  status_konfirmasi?:
+    | "belum_konfirmasi"
+    | "bisa"
+    | "tidak_bisa"
+    | "waiting_reschedule";
+  status_reschedule?: "waiting" | "approved" | "rejected";
+  semester_type?: "reguler" | "antara";
+}
+
+interface JadwalNonBlokNonCSR {
+  id: number;
+  tanggal: string;
+  jam_mulai: string;
+  jam_selesai: string;
+  agenda: string;
+  materi: string;
+  pengampu: string;
+  ruangan: string;
+  tipe: string; // Added for jenis_baris
+  jenis_baris: "materi" | "agenda"; // Added for backend data
+  use_ruangan?: boolean; // Added for ruangan check
+  status_konfirmasi?:
+    | "belum_konfirmasi"
+    | "bisa"
+    | "tidak_bisa"
+    | "waiting_reschedule";
+  status_reschedule?: "waiting" | "approved" | "rejected";
+  semester_type?: "reguler" | "antara";
+}
+
+interface JadwalAgendaBesar {
+  id: number;
+  tanggal: string;
+  jam_mulai: string;
+  jam_selesai: string;
+  agenda: string;
+  dosen: any[];
+  ruangan: { id: number; nama: string } | null;
+  jumlah_sesi: number;
+  status_konfirmasi: string;
+  status_reschedule?: "waiting" | "approved" | "rejected";
+  semester_type?: "reguler" | "antara";
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type JadwalItem = any & {
+  status_konfirmasi?:
+    | "belum_konfirmasi"
+    | "bisa"
+    | "tidak_bisa"
+    | "waiting_reschedule";
+  status_reschedule?: "waiting" | "approved" | "rejected";
+};
 
 interface Notification {
   id: number;
@@ -126,15 +217,17 @@ export default function DashboardMahasiswa() {
   const [jadwalJurnalReading, setJadwalJurnalReading] = useState<
     JadwalJurnalReading[]
   >([]);
-  const [jadwalCSR, setJadwalCSR] = useState<any[]>([]);
-  const [jadwalNonBlokNonCSR, setJadwalNonBlokNonCSR] = useState<any[]>([]);
+  const [jadwalCSR, setJadwalCSR] = useState<JadwalCSR[]>([]);
+  const [jadwalNonBlokNonCSR, setJadwalNonBlokNonCSR] = useState<
+    JadwalNonBlokNonCSR[]
+  >([]);
+  const [jadwalAgendaBesar, setJadwalAgendaBesar] = useState<
+    JadwalAgendaBesar[]
+  >([]);
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Peta Akademik & Blok preview data
-  const [petaAkademikData, setPetaAkademikData] = useState<any>(null);
-  const [petaBlokData, setPetaBlokData] = useState<any>(null);
   const [currentSemester, setCurrentSemester] = useState<string>("ganjil"); // ganjil/genap
 
   // Guard role mahasiswa
@@ -161,11 +254,14 @@ export default function DashboardMahasiswa() {
     [activeSemesterType]
   );
 
-  const fetchDashboardData = useCallback(async () => {
+  useEffect(() => {
+    const fetchData = async () => {
     try {
       setLoading(true);
       const user = getUser();
-      if (!user) return;
+        if (!user) {
+          return;
+        }
 
       // Fetch profil akademik
       try {
@@ -194,7 +290,10 @@ export default function DashboardMahasiswa() {
         api.get(`/jadwal-pbl/mahasiswa/${user.id}${semesterParams}`),
         api.get(`/jadwal-kuliah-besar/mahasiswa/${user.id}${semesterParams}`),
         api.get(`/jadwal-praktikum/mahasiswa/${user.id}${semesterParams}`),
-        api.get(`/jadwal-jurnal-reading/mahasiswa/${user.id}${semesterParams}`),
+          api.get(
+            `/jadwal-jurnal-reading/mahasiswa/${user.id}${semesterParams}`
+          ),
+          api.get(`/jadwal-agenda-besar/mahasiswa/${user.id}${semesterParams}`),
         api.get(`/notifications/dosen/${user.id}`),
       ];
 
@@ -217,97 +316,93 @@ export default function DashboardMahasiswa() {
         jadwalKuliahBesarResult,
         jadwalPraktikumResult,
         jadwalJurnalReadingResult,
+          jadwalAgendaBesarResult,
         notifResult,
         ...otherResults
       ] = responses;
 
-      setJadwalPBL(
+        const pblData =
         jadwalPBLResult.status === "fulfilled"
           ? jadwalPBLResult.value.data.data || []
-          : []
-      );
+            : [];
+
+        // Filter out replaced lecturers (status_konfirmasi = "tidak_bisa")
+        const filterActiveLecturers = (data: JadwalItem[]) => {
+          return data.filter((item) => item.status_konfirmasi !== "tidak_bisa");
+        };
+
+        setJadwalPBL(filterActiveLecturers(pblData));
       setJadwalKuliahBesar(
+          filterActiveLecturers(
         jadwalKuliahBesarResult.status === "fulfilled"
           ? jadwalKuliahBesarResult.value.data.data || []
           : []
+          )
       );
       setJadwalPraktikum(
+          filterActiveLecturers(
         jadwalPraktikumResult.status === "fulfilled"
           ? jadwalPraktikumResult.value.data.data || []
           : []
+          )
       );
       setJadwalJurnalReading(
+          filterActiveLecturers(
         jadwalJurnalReadingResult.status === "fulfilled"
           ? jadwalJurnalReadingResult.value.data.data || []
+              : []
+          )
+        );
+        setJadwalAgendaBesar(
+          jadwalAgendaBesarResult.status === "fulfilled"
+            ? jadwalAgendaBesarResult.value.data.data || []
           : []
       );
       setNotifications(
         notifResult.status === "fulfilled" ? notifResult.value.data || [] : []
       );
 
+        // Handle CSR and Non Blok Non CSR based on semester type
       if (activeSemesterType !== "antara") {
         const jadwalCSRResult = otherResults[0];
         setJadwalCSR(
+            filterActiveLecturers(
           jadwalCSRResult?.status === "fulfilled"
             ? jadwalCSRResult.value.data.data || []
             : []
+            )
         );
         const jadwalNonBlokNonCSRResult = otherResults[1];
         setJadwalNonBlokNonCSR(
+            filterActiveLecturers(
           jadwalNonBlokNonCSRResult?.status === "fulfilled"
             ? jadwalNonBlokNonCSRResult.value.data.data || []
             : []
+            )
         );
       } else {
         setJadwalCSR([]);
         const jadwalNonBlokNonCSRResult = otherResults[0];
         setJadwalNonBlokNonCSR(
+            filterActiveLecturers(
           jadwalNonBlokNonCSRResult?.status === "fulfilled"
             ? jadwalNonBlokNonCSRResult.value.data.data || []
             : []
-        );
-      }
-
-      // Fetch Peta Akademik preview (filtered by current semester)
-      try {
-        const petaAkademik = await api.get(
-          `/mata-kuliah?semester=${currentSemester}`
-        );
-        const data = petaAkademik.data?.data || petaAkademik.data || [];
-
-        // Additional filtering to ensure only current semester is shown
-        const filteredData = data.filter((mk: any) => {
-          const semesterNum = parseInt(mk.semester || "1");
-          const isGanjil = semesterNum % 2 === 1;
-          return currentSemester === "ganjil" ? isGanjil : !isGanjil;
-        });
-
-        setPetaAkademikData(filteredData);
+            )
+          );
+        }
       } catch {
-        setPetaAkademikData(null);
-      }
-
-      // Fetch Peta Blok preview (filtered by current semester)
-      try {
-        const petaBlok = await api.get(
-          `/jadwal-harian/blok/1?semester=${currentSemester}`
-        );
-        setPetaBlokData(petaBlok.data || null);
-      } catch {
-        setPetaBlokData(null);
-      }
-    } catch (error: any) {
-      console.error("Gagal memuat data dashboard:", error);
+        // Error handling - could be logged to monitoring service
     } finally {
       setLoading(false);
     }
-  }, [semesterParams, activeSemesterType, currentSemester]);
+    };
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
+    fetchData();
+  }, [semesterParams, activeSemesterType]);
 
-  const getSemesterTypeBadge = (semesterType?: "reguler" | "antara") => {
+  const getSemesterTypeBadge = useCallback(
+    (semesterType?: "reguler" | "antara") => {
     if (!semesterType) return null;
 
     return (
@@ -321,13 +416,106 @@ export default function DashboardMahasiswa() {
         {semesterType === "reguler" ? "Reguler" : "Antara"}
       </span>
     );
-  };
+    },
+    []
+  );
+
+  const getStatusBadge = useCallback(
+    (
+      statusKonfirmasi?:
+        | "belum_konfirmasi"
+        | "bisa"
+        | "tidak_bisa"
+        | "waiting_reschedule",
+      statusReschedule?: "waiting" | "approved" | "rejected"
+    ) => {
+      if (!statusKonfirmasi) return null;
+
+      switch (statusKonfirmasi) {
+        case "bisa":
+          return (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-700">
+              <FontAwesomeIcon icon={faCheckCircle} className="w-3 h-3 mr-1" />
+              Dosen Bisa Mengajar
+            </span>
+          );
+        case "tidak_bisa":
+          return (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-700">
+              <FontAwesomeIcon icon={faTimesCircle} className="w-3 h-3 mr-1" />
+              Dosen Tidak Bisa (Diganti)
+            </span>
+          );
+        case "waiting_reschedule":
+          if (statusReschedule === "approved") {
+            return (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-700">
+                <FontAwesomeIcon
+                  icon={faCheckCircle}
+                  className="w-3 h-3 mr-1"
+                />
+                Reschedule Disetujui
+              </span>
+            );
+          } else if (statusReschedule === "rejected") {
+            return (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-700">
+                <FontAwesomeIcon
+                  icon={faTimesCircle}
+                  className="w-3 h-3 mr-1"
+                />
+                Reschedule Ditolak
+              </span>
+            );
+          } else {
+            return (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700">
+                <FontAwesomeIcon icon={faClock} className="w-3 h-3 mr-1" />
+                Dosen Ajukan Reschedule
+              </span>
+            );
+          }
+        case "belum_konfirmasi":
+          if (statusReschedule === "approved") {
+            return (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-700">
+                <FontAwesomeIcon
+                  icon={faCheckCircle}
+                  className="w-3 h-3 mr-1"
+                />
+                Reschedule Disetujui - Menunggu Dosen
+              </span>
+            );
+          } else if (statusReschedule === "rejected") {
+            return (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-700">
+                <FontAwesomeIcon
+                  icon={faTimesCircle}
+                  className="w-3 h-3 mr-1"
+                />
+                Reschedule Ditolak
+              </span>
+            );
+          } else {
+            return (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700">
+                <FontAwesomeIcon icon={faClock} className="w-3 h-3 mr-1" />
+                Menunggu Dosen
+              </span>
+            );
+          }
+        default:
+          return null;
+      }
+    },
+    []
+  );
 
   const renderJadwalTable = useCallback(
     (
       title: string,
-      icon: any,
-      jadwalData: any[],
+      icon: React.ComponentProps<typeof FontAwesomeIcon>["icon"],
+      jadwalData: JadwalItem[],
       headers: string[],
       jadwalType: string,
       emptyMessage: string
@@ -379,7 +567,7 @@ export default function DashboardMahasiswa() {
                   </td>
                 </tr>
               ) : (
-                jadwalData.map((item, index) => (
+                jadwalData.map((item: JadwalItem, index) => (
                   <tr
                     key={index}
                     className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
@@ -419,18 +607,32 @@ export default function DashboardMahasiswa() {
                         {`${item.jumlah_sesi || 1} x 50 menit`}
                       </td>
                     )}
-                    {jadwalType === "jurnal" ? (
+                    {jadwalType === "agenda_besar" ? (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {item.agenda || "N/A"}
+                      </td>
+                    ) : jadwalType === "jurnal" ? (
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {item.topik || "N/A"}
                       </td>
                     ) : jadwalType === "csr" ? (
+                      <>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {item.tipe || "N/A"}
+                        </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {item.topik || "N/A"}
                       </td>
+                      </>
                     ) : jadwalType === "non_blok_non_csr" ? (
+                      <>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {item.tipe || "N/A"}
+                        </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {item.agenda || item.materi || "N/A"}
                       </td>
+                      </>
                     ) : (
                       jadwalType !== "pbl" && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
@@ -439,17 +641,32 @@ export default function DashboardMahasiswa() {
                       )
                     )}
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {jadwalType === "kuliah_besar"
+                      {jadwalType === "agenda_besar"
+                        ? "-"
+                        : jadwalType === "kuliah_besar"
                         ? item.dosen?.name || "N/A"
                         : jadwalType === "praktikum"
-                        ? item.dosen?.map((d: any) => d.name).join(", ") ||
-                          "N/A"
+                        ? item.dosen
+                            ?.map((d: { id: number; name: string }) => d.name)
+                            .join(", ") || "N/A"
                         : jadwalType === "jurnal"
                         ? item.dosen?.name || "N/A"
                         : jadwalType === "pbl"
                         ? item.pengampu || "N/A"
                         : item.pengampu || item.dosen?.name || "N/A"}
                     </td>
+                    {jadwalType === "kuliah_besar" && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {item.topik || "N/A"}
+                      </td>
+                    )}
+                    {jadwalType === "kuliah_besar" && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {item.kelompok_besar?.semester
+                          ? `Semester ${item.kelompok_besar.semester}`
+                          : "N/A"}
+                      </td>
+                    )}
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {jadwalType === "kuliah_besar" ||
                       jadwalType === "praktikum" ||
@@ -457,7 +674,21 @@ export default function DashboardMahasiswa() {
                         ? item.ruangan?.nama || "N/A"
                         : jadwalType === "pbl"
                         ? item.ruangan || "N/A"
+                        : jadwalType === "non_blok_non_csr"
+                        ? item.ruangan?.nama ||
+                          (item.use_ruangan === false ? "-" : "N/A")
                         : item.ruangan?.nama || "N/A"}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      {jadwalType === "agenda_besar"
+                        ? "-"
+                        : jadwalType === "non_blok_non_csr" &&
+                          item.status_konfirmasi === "-"
+                        ? "-"
+                        : getStatusBadge(
+                            item.status_konfirmasi,
+                            item.status_reschedule
+                          )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {getSemesterTypeBadge(item.semester_type)}
@@ -470,7 +701,7 @@ export default function DashboardMahasiswa() {
         </div>
       </div>
     ),
-    [getSemesterTypeBadge]
+    [getSemesterTypeBadge, getStatusBadge]
   );
 
   if (loading) {
@@ -570,7 +801,10 @@ export default function DashboardMahasiswa() {
               </div>
               <div className="space-y-2">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="p-4 rounded-xl border border-gray-200 dark:border-gray-600">
+                  <div
+                    key={i}
+                    className="p-4 rounded-xl border border-gray-200 dark:border-gray-600"
+                  >
                     <div className="flex items-start gap-3">
                       <div className="w-2 h-2 bg-gray-300 dark:bg-gray-600 rounded-full mt-2 animate-pulse" />
                       <div className="flex-1">
@@ -608,7 +842,10 @@ export default function DashboardMahasiswa() {
 
               <div className="space-y-6">
                 {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <div
+                    key={i}
+                    className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+                  >
                     <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 bg-gray-300 dark:bg-gray-600 rounded-2xl animate-pulse" />
@@ -837,9 +1074,7 @@ export default function DashboardMahasiswa() {
             </div>
             {/* Embedded Peta Blok dengan scroll di dalam card */}
             <div className="max-h-[600px] overflow-y-auto">
-              <PetaBlok
-                key={semesterNumber}
-              />
+              <PetaBlok key={semesterNumber} />
             </div>
           </motion.div>
         </div>
@@ -1004,6 +1239,7 @@ export default function DashboardMahasiswa() {
                     "MODUL",
                     "PENGAMPU",
                     "RUANGAN",
+                    "STATUS",
                     "JENIS",
                   ],
                   "pbl",
@@ -1029,7 +1265,10 @@ export default function DashboardMahasiswa() {
                     "WAKTU",
                     "MATERI",
                     "PENGAMPU",
+                    "TOPIK",
+                    "KELOMPOK",
                     "RUANGAN",
+                    "STATUS",
                     "JENIS",
                   ],
                   "kuliah_besar",
@@ -1058,6 +1297,7 @@ export default function DashboardMahasiswa() {
                       "MATERI",
                       "PENGAMPU",
                       "RUANGAN",
+                      "STATUS",
                       "JENIS",
                     ],
                     "praktikum",
@@ -1085,10 +1325,38 @@ export default function DashboardMahasiswa() {
                     "TOPIK",
                     "PENGAMPU",
                     "RUANGAN",
+                    "STATUS",
                     "JENIS",
                   ],
                   "jurnal",
                   "Tidak ada data Jurnal Reading"
+                )}
+              </motion.div>
+
+              {/* Agenda Besar */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.95 }}
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+              >
+                {renderJadwalTable(
+                  "Agenda Besar",
+                  faCalendarAlt,
+                  jadwalAgendaBesar,
+                  [
+                    "NO",
+                    "TANGGAL",
+                    "PUKUL",
+                    "WAKTU",
+                    "AGENDA",
+                    "PENGAMPU",
+                    "RUANGAN",
+                    "STATUS",
+                    "JENIS",
+                  ],
+                  "agenda_besar",
+                  "Tidak ada data Agenda Besar"
                 )}
               </motion.div>
 
@@ -1109,9 +1377,11 @@ export default function DashboardMahasiswa() {
                       "TANGGAL",
                       "PUKUL",
                       "WAKTU",
+                      "TIPE",
                       "TOPIK",
                       "PENGAMPU",
                       "RUANGAN",
+                      "STATUS",
                       "JENIS",
                     ],
                     "csr",
@@ -1136,9 +1406,11 @@ export default function DashboardMahasiswa() {
                     "TANGGAL",
                     "PUKUL",
                     "WAKTU",
+                    "TIPE",
                     "MATERI/AGENDA",
                     "PENGAMPU",
                     "RUANGAN",
+                    "STATUS",
                     "JENIS",
                   ],
                   "non_blok_non_csr",

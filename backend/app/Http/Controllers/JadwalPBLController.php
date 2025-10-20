@@ -45,6 +45,9 @@ class JadwalPBLController extends Controller
     // Tambah jadwal PBL baru
     public function store(Request $request, $kode)
     {
+        // Debug logging untuk data yang diterima
+        \Log::info("Jadwal PBL store request data:", $request->all());
+
         $data = $request->validate([
             'modul_pbl_id' => 'required|exists:pbls,id',
             'kelompok_kecil_id' => 'nullable|exists:kelompok_kecil,id',
@@ -116,6 +119,9 @@ class JadwalPBLController extends Controller
             ])
             ->log("Jadwal PBL created: {$jadwal->modulPBL->nama}");
 
+        // Debug logging
+        \Log::info("Jadwal PBL created with pbl_tipe: {$jadwal->pbl_tipe}, modul: {$jadwal->modulPBL->nama_modul}");
+
         // Load relasi dan tambahkan modul_pbl_id
         $jadwal->load(['modulPBL', 'kelompokKecil', 'kelompokKecilAntara', 'dosen', 'ruangan']);
         $jadwal->modul_pbl_id = $jadwal->pbl_id;
@@ -127,6 +133,16 @@ class JadwalPBLController extends Controller
         }
 
         // Buat notifikasi untuk dosen yang di-assign
+        $modulName = $jadwal->modulPBL->nama_modul;
+        if ($jadwal->pbl_tipe && $jadwal->pbl_tipe !== 'PBL 1') {
+            // Cek apakah nama_modul sudah memiliki prefix yang benar
+            if (!str_starts_with($modulName, $jadwal->pbl_tipe . ':')) {
+                // Jika belum memiliki prefix yang benar, tambahkan
+                $cleanModulName = str_replace(['PBL 1: ', 'PBL 2: '], '', $modulName);
+                $modulName = $jadwal->pbl_tipe . ': ' . $cleanModulName;
+            }
+        }
+
         if ($jadwal->dosen_ids && is_array($jadwal->dosen_ids)) {
             foreach ($jadwal->dosen_ids as $dosenId) {
                 $dosen = User::find($dosenId);
@@ -134,11 +150,11 @@ class JadwalPBLController extends Controller
                     \App\Models\Notification::create([
                         'user_id' => $dosenId,
                         'title' => 'Jadwal PBL Baru',
-                        'message' => "Anda telah di-assign untuk mengajar PBL {$jadwal->modulPBL->mataKuliah->nama} - {$jadwal->modulPBL->nama_modul} pada tanggal {$jadwal->tanggal} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai} di ruangan {$jadwal->ruangan->nama}. Silakan konfirmasi ketersediaan Anda.",
+                        'message' => "Anda telah di-assign untuk mengajar PBL {$jadwal->modulPBL->mataKuliah->nama} - {$modulName} pada tanggal {$jadwal->tanggal} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai} di ruangan {$jadwal->ruangan->nama}. Silakan konfirmasi ketersediaan Anda.",
                         'type' => 'info',
                         'data' => [
-                            'topik' => $jadwal->modulPBL->nama_modul,
-                            'materi' => $jadwal->modulPBL->nama_modul,
+                            'topik' => $modulName,
+                            'materi' => $modulName,
                             'ruangan' => $jadwal->ruangan->nama,
                             'tanggal' => $jadwal->tanggal,
                             'jadwal_id' => $jadwal->id,
@@ -166,11 +182,11 @@ class JadwalPBLController extends Controller
                 \App\Models\Notification::create([
                     'user_id' => $jadwal->dosen_id,
                     'title' => 'Jadwal PBL Baru',
-                    'message' => "Anda telah di-assign untuk mengajar PBL {$jadwal->modulPBL->mataKuliah->nama} - {$jadwal->modulPBL->nama_modul} pada tanggal {$jadwal->tanggal} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai} di ruangan {$jadwal->ruangan->nama}. Silakan konfirmasi ketersediaan Anda.",
+                    'message' => "Anda telah di-assign untuk mengajar PBL {$jadwal->modulPBL->mataKuliah->nama} - {$modulName} pada tanggal {$jadwal->tanggal} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai} di ruangan {$jadwal->ruangan->nama}. Silakan konfirmasi ketersediaan Anda.",
                     'type' => 'info',
                     'data' => [
-                        'topik' => $jadwal->modulPBL->nama_modul,
-                        'materi' => $jadwal->modulPBL->nama_modul,
+                        'topik' => $modulName,
+                        'materi' => $modulName,
                         'ruangan' => $jadwal->ruangan->nama,
                         'tanggal' => $jadwal->tanggal,
                         'jadwal_id' => $jadwal->id,
@@ -331,90 +347,90 @@ class JadwalPBLController extends Controller
         return response()->json(['message' => 'Jadwal dan penilaian PBL terkait berhasil dihapus']);
     }
 
-     // Import Excel jadwal PBL
-     public function importExcel(Request $request, $kode)
-     {
-         try {
-             $data = $request->validate([
-                 'data' => 'required|array',
-                 'data.*.tanggal' => 'required|date',
-                 'data.*.jam_mulai' => 'required|string',
-                 'data.*.jam_selesai' => 'required|string',
-                 'data.*.modul_pbl_id' => 'required|exists:pbls,id',
-                 'data.*.kelompok_kecil_id' => 'required|exists:kelompok_kecil,id',
-                 'data.*.dosen_id' => 'required|exists:users,id',
-                 'data.*.ruangan_id' => 'required|exists:ruangan,id',
-                 'data.*.pbl_tipe' => 'required|string|in:PBL 1,PBL 2',
-                 'data.*.topik' => 'nullable|string',
-                 'data.*.jumlah_sesi' => 'nullable|integer|min:1|max:6',
-             ]);
+    // Import Excel jadwal PBL
+    public function importExcel(Request $request, $kode)
+    {
+        try {
+            $data = $request->validate([
+                'data' => 'required|array',
+                'data.*.tanggal' => 'required|date',
+                'data.*.jam_mulai' => 'required|string',
+                'data.*.jam_selesai' => 'required|string',
+                'data.*.modul_pbl_id' => 'required|exists:pbls,id',
+                'data.*.kelompok_kecil_id' => 'required|exists:kelompok_kecil,id',
+                'data.*.dosen_id' => 'required|exists:users,id',
+                'data.*.ruangan_id' => 'required|exists:ruangan,id',
+                'data.*.pbl_tipe' => 'required|string|in:PBL 1,PBL 2',
+                'data.*.topik' => 'nullable|string',
+                'data.*.jumlah_sesi' => 'nullable|integer|min:1|max:6',
+            ]);
 
-             $importedData = [];
-             $errors = [];
+            $importedData = [];
+            $errors = [];
 
-             // Validasi semua data terlebih dahulu (all or nothing approach)
-             foreach ($data['data'] as $index => $row) {
-                 // Set jumlah_sesi berdasarkan pbl_tipe jika tidak disediakan
-                 if (!isset($row['jumlah_sesi'])) {
-                     $row['jumlah_sesi'] = $row['pbl_tipe'] === 'PBL 2' ? 3 : 2;
-                 }
+            // Validasi semua data terlebih dahulu (all or nothing approach)
+            foreach ($data['data'] as $index => $row) {
+                // Set jumlah_sesi berdasarkan pbl_tipe jika tidak disediakan
+                if (!isset($row['jumlah_sesi'])) {
+                    $row['jumlah_sesi'] = $row['pbl_tipe'] === 'PBL 2' ? 3 : 2;
+                }
 
-                 // Set mata_kuliah_kode dan pbl_id
-                 $row['mata_kuliah_kode'] = $kode;
-                 $row['pbl_id'] = $row['modul_pbl_id'];
+                // Set mata_kuliah_kode dan pbl_id
+                $row['mata_kuliah_kode'] = $kode;
+                $row['pbl_id'] = $row['modul_pbl_id'];
 
-                 // Validasi kapasitas ruangan
-                 $kapasitasMessage = $this->validateRuanganCapacity($row);
-                 if ($kapasitasMessage) {
-                     $errors[] = "Baris " . ($index + 1) . ": " . $kapasitasMessage;
-                 }
+                // Validasi kapasitas ruangan
+                $kapasitasMessage = $this->validateRuanganCapacity($row);
+                if ($kapasitasMessage) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . $kapasitasMessage;
+                }
 
-                 // Validasi bentrok
-                 $bentrokMessage = $this->checkBentrokWithDetail($row, null);
-                 if ($bentrokMessage) {
-                     $errors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;
-                 }
+                // Validasi bentrok
+                $bentrokMessage = $this->checkBentrokWithDetail($row, null);
+                if ($bentrokMessage) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;
+                }
 
-                 // Validasi tanggal dalam rentang mata kuliah
-                 $mataKuliah = \App\Models\MataKuliah::where('kode', $kode)->first();
-                 if ($mataKuliah && $mataKuliah->tanggal_mulai && $mataKuliah->tanggal_akhir) {
-                     $jadwalTanggal = new \DateTime($row['tanggal']);
-                     $tanggalMulai = new \DateTime($mataKuliah->tanggal_mulai);
-                     $tanggalAkhir = new \DateTime($mataKuliah->tanggal_akhir);
+                // Validasi tanggal dalam rentang mata kuliah
+                $mataKuliah = \App\Models\MataKuliah::where('kode', $kode)->first();
+                if ($mataKuliah && $mataKuliah->tanggal_mulai && $mataKuliah->tanggal_akhir) {
+                    $jadwalTanggal = new \DateTime($row['tanggal']);
+                    $tanggalMulai = new \DateTime($mataKuliah->tanggal_mulai);
+                    $tanggalAkhir = new \DateTime($mataKuliah->tanggal_akhir);
 
-                     if ($jadwalTanggal < $tanggalMulai || $jadwalTanggal > $tanggalAkhir) {
-                         $errors[] = "Baris " . ($index + 1) . ": Tanggal harus dalam rentang {$mataKuliah->tanggal_mulai} - {$mataKuliah->tanggal_akhir}";
-                     }
-                 }
-             }
+                    if ($jadwalTanggal < $tanggalMulai || $jadwalTanggal > $tanggalAkhir) {
+                        $errors[] = "Baris " . ($index + 1) . ": Tanggal harus dalam rentang {$mataKuliah->tanggal_mulai} - {$mataKuliah->tanggal_akhir}";
+                    }
+                }
+            }
 
-             // Jika ada error validasi, return error tanpa import apapun
-             if (count($errors) > 0) {
-                 return response()->json([
-                     'success' => 0,
-                     'total' => count($data['data']),
-                     'errors' => $errors,
-                     'message' => "Gagal mengimport data. Perbaiki error terlebih dahulu."
-                 ], 422);
-             }
+            // Jika ada error validasi, return error tanpa import apapun
+            if (count($errors) > 0) {
+                return response()->json([
+                    'success' => 0,
+                    'total' => count($data['data']),
+                    'errors' => $errors,
+                    'message' => "Gagal mengimport data. Perbaiki error terlebih dahulu."
+                ], 422);
+            }
 
-             // Jika tidak ada error, import semua data
-             foreach ($data['data'] as $index => $row) {
-                 try {
-                     // Set jumlah_sesi berdasarkan pbl_tipe jika tidak disediakan
-                     if (!isset($row['jumlah_sesi'])) {
-                         $row['jumlah_sesi'] = $row['pbl_tipe'] === 'PBL 2' ? 3 : 2;
-                     }
+            // Jika tidak ada error, import semua data
+            foreach ($data['data'] as $index => $row) {
+                try {
+                    // Set jumlah_sesi berdasarkan pbl_tipe jika tidak disediakan
+                    if (!isset($row['jumlah_sesi'])) {
+                        $row['jumlah_sesi'] = $row['pbl_tipe'] === 'PBL 2' ? 3 : 2;
+                    }
 
-                     // Set mata_kuliah_kode dan pbl_id
-                     $row['mata_kuliah_kode'] = $kode;
-                     $row['pbl_id'] = $row['modul_pbl_id'];
+                    // Set mata_kuliah_kode dan pbl_id
+                    $row['mata_kuliah_kode'] = $kode;
+                    $row['pbl_id'] = $row['modul_pbl_id'];
 
-                     // Buat jadwal PBL
-                     $jadwal = JadwalPBL::create($row);
-                     $importedData[] = $jadwal;
+                    // Buat jadwal PBL
+                    $jadwal = JadwalPBL::create($row);
+                    $importedData[] = $jadwal;
 
-                      // Kirim notifikasi ke dosen yang di-assign
+                    // Kirim notifikasi ke dosen yang di-assign
                     if (isset($row['dosen_id']) && $row['dosen_id']) {
                         $dosen = \App\Models\User::find($row['dosen_id']);
                         if ($dosen) {
@@ -444,46 +460,44 @@ class JadwalPBLController extends Controller
                         }
                     }
 
-                     // Log activity
-                     activity()
-                         ->performedOn($jadwal)
-                         ->withProperties([
-                             'mata_kuliah_kode' => $kode,
-                             'pbl_id' => $row['modul_pbl_id'],
-                             'tanggal' => $row['tanggal'],
-                             'jam_mulai' => $row['jam_mulai'],
-                             'jam_selesai' => $row['jam_selesai'],
-                             'pbl_tipe' => $row['pbl_tipe']
-                         ])
-                         ->log("Jadwal PBL imported: {$jadwal->modulPBL->nama}");
+                    // Log activity
+                    activity()
+                        ->performedOn($jadwal)
+                        ->withProperties([
+                            'mata_kuliah_kode' => $kode,
+                            'pbl_id' => $row['modul_pbl_id'],
+                            'tanggal' => $row['tanggal'],
+                            'jam_mulai' => $row['jam_mulai'],
+                            'jam_selesai' => $row['jam_selesai'],
+                            'pbl_tipe' => $row['pbl_tipe']
+                        ])
+                        ->log("Jadwal PBL imported: {$jadwal->modulPBL->nama}");
+                } catch (\Exception $e) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . $e->getMessage();
+                }
+            }
 
-                 } catch (\Exception $e) {
-                     $errors[] = "Baris " . ($index + 1) . ": " . $e->getMessage();
-                 }
-             }
+            if (count($errors) > 0) {
+                return response()->json([
+                    'success' => count($importedData),
+                    'total' => count($data['data']),
+                    'errors' => $errors,
+                    'message' => 'Gagal mengimport ' . (count($data['data']) - count($importedData)) . ' dari ' . count($data['data']) . ' jadwal'
+                ], 422);
+            }
 
-             if (count($errors) > 0) {
-                 return response()->json([
-                     'success' => count($importedData),
-                     'total' => count($data['data']),
-                     'errors' => $errors,
-                     'message' => 'Gagal mengimport ' . (count($data['data']) - count($importedData)) . ' dari ' . count($data['data']) . ' jadwal'
-                 ], 422);
-             }
-
-             return response()->json([
-                 'success' => count($importedData),
-                 'total' => count($data['data']),
-                 'message' => 'Berhasil mengimport ' . count($importedData) . ' jadwal PBL'
-             ]);
-
-         } catch (\Exception $e) {
-             Log::error('Error importing PBL data: ' . $e->getMessage());
-             return response()->json([
-                 'message' => 'Terjadi kesalahan saat mengimport data: ' . $e->getMessage()
-             ], 500);
-         }
-     }
+            return response()->json([
+                'success' => count($importedData),
+                'total' => count($data['data']),
+                'message' => 'Berhasil mengimport ' . count($importedData) . ' jadwal PBL'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error importing PBL data: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Terjadi kesalahan saat mengimport data: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 
     // Get jadwal PBL untuk dosen tertentu
     public function getJadwalForDosen($dosenId, Request $request)
@@ -508,8 +522,12 @@ class JadwalPBLController extends Controller
                 'ruangan'
             ])
                 ->where(function ($query) use ($dosenId) {
-                    $query->where('dosen_id', $dosenId)
-                        ->orWhere('dosen_ids', 'like', '%"' . $dosenId . '"%');
+                    // Ambil jadwal dimana dosen_id adalah dosen yang sedang login
+                    $query->where('dosen_id', $dosenId);
+                })
+                ->orWhere(function ($query) use ($dosenId) {
+                    // Juga ambil jadwal dimana dosen_id ada di dosen_ids (untuk history)
+                    $query->whereJsonContains('dosen_ids', $dosenId);
                 });
 
             // Filter berdasarkan semester type jika ada
@@ -523,9 +541,9 @@ class JadwalPBLController extends Controller
 
             // Use raw query to get data
             $rawJadwal = DB::table('jadwal_pbl')
-                ->where(function ($q) use ($dosenId) {
-                    $q->where('dosen_id', $dosenId)
-                        ->orWhere('dosen_ids', 'like', '%' . $dosenId . '%');
+                ->where(function ($query) use ($dosenId) {
+                    $query->where('dosen_id', $dosenId)
+                        ->orWhereJsonContains('dosen_ids', $dosenId);
                 })
                 ->when($semesterType === 'antara', function ($q) {
                     $q->whereNotNull('kelompok_kecil_antara_id');
@@ -550,10 +568,13 @@ class JadwalPBLController extends Controller
 
             // Load dosen for each jadwal based on dosen_ids
             $jadwal->each(function ($item) {
-                if ($item->dosen_ids && count($item->dosen_ids) > 0) {
-                    $dosen = User::whereIn('id', $item->dosen_ids)->first();
+                if ($item->dosen_ids) {
+                    $dosenIds = is_array($item->dosen_ids) ? $item->dosen_ids : json_decode($item->dosen_ids, true);
+                    if ($dosenIds && count($dosenIds) > 0) {
+                        $dosen = User::whereIn('id', $dosenIds)->first();
                     if ($dosen) {
                         $item->dosen = $dosen;
+                        }
                     }
                 }
             });
@@ -566,6 +587,8 @@ class JadwalPBLController extends Controller
 
                 return [
                     'id' => $jadwal->id,
+                    'dosen_id' => $jadwal->dosen_id,
+                    'dosen_ids' => $jadwal->dosen_ids,
                     'mata_kuliah_kode' => $jadwal->modulPBL->mataKuliah->kode ?? $jadwal->mata_kuliah_kode,
                     'mata_kuliah_nama' => $jadwal->modulPBL->mataKuliah->nama ?? 'Unknown',
                     'modul' => $jadwal->modulPBL->nama_modul ?? 'Unknown',
@@ -580,7 +603,10 @@ class JadwalPBLController extends Controller
                     'jam_mulai' => $jadwal->jam_mulai,
                     'jam_selesai' => $jadwal->jam_selesai,
                     'durasi' => $jadwal->jumlah_sesi ?? 2,
-                    'pengampu' => $jadwal->dosen ? $jadwal->dosen->name : ($jadwal->dosen_ids && count($jadwal->dosen_ids) > 0 ? \App\Models\User::whereIn('id', $jadwal->dosen_ids)->pluck('name')->join(', ') : 'Unknown'),
+                    'pengampu' => $jadwal->dosen ? $jadwal->dosen->name : ($jadwal->dosen_ids ? (function () use ($jadwal) {
+                        $dosenIds = is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true);
+                        return $dosenIds && count($dosenIds) > 0 ? \App\Models\User::whereIn('id', $dosenIds)->pluck('name')->join(', ') : 'Unknown';
+                    })() : 'Unknown'),
                     'ruangan' => $jadwal->ruangan->nama ?? 'Unknown',
                     'lokasi' => $jadwal->ruangan->nama ?? 'Unknown',
                     'status_konfirmasi' => $jadwal->status_konfirmasi ?? 'belum_konfirmasi',
@@ -597,7 +623,7 @@ class JadwalPBLController extends Controller
 
             return response()->json([
                 'message' => 'Data jadwal PBL berhasil diambil',
-                'data' => $mappedJadwal,
+                'data' => $mappedJadwal->toArray(),
                 'count' => $mappedJadwal->count()
             ]);
         } catch (\Exception $e) {
@@ -622,11 +648,8 @@ class JadwalPBLController extends Controller
                 ], 404);
             }
 
-            $semesterType = $request->query('semester_type');
-
-            // Get kelompok kecil for this mahasiswa
-            $kelompokKecil = KelompokKecil::where('mahasiswa_id', $mahasiswaId)->first();
-
+            // Get mahasiswa's kelompok kecil
+            $kelompokKecil = \App\Models\KelompokKecil::where('mahasiswa_id', $mahasiswaId)->first();
             if (!$kelompokKecil) {
                 return response()->json([
                     'message' => 'Mahasiswa belum memiliki kelompok',
@@ -634,33 +657,65 @@ class JadwalPBLController extends Controller
                 ]);
             }
 
+            // Debug logging
+            \Log::info("PBL getJadwalForMahasiswa - Mahasiswa ID: {$mahasiswaId}, Kelompok Kecil ID: {$kelompokKecil->id}, Nama Kelompok: {$kelompokKecil->nama_kelompok}, Semester: {$kelompokKecil->semester}");
+
+            $semesterType = $request->query('semester_type');
+
+            // Get jadwal PBL based on mahasiswa's kelompok kecil
+            // Cari semua jadwal PBL yang memiliki nama_kelompok dan semester yang sama dengan mahasiswa
             $query = JadwalPBL::with([
                 'modulPBL.mataKuliah',
                 'kelompokKecil',
                 'dosen',
                 'ruangan'
-            ])->where('kelompok_kecil_id', $kelompokKecil->id);
+            ])->whereHas('kelompokKecil', function ($q) use ($kelompokKecil) {
+                $q->where('nama_kelompok', $kelompokKecil->nama_kelompok)
+                    ->where('semester', $kelompokKecil->semester);
+            });
 
             $jadwal = $query->orderBy('tanggal', 'asc')
                 ->orderBy('jam_mulai', 'asc')
                 ->get();
 
+            // Debug logging
+            \Log::info("PBL getJadwalForMahasiswa - Found {$jadwal->count()} jadwal PBL for kelompok: {$kelompokKecil->nama_kelompok} semester: {$kelompokKecil->semester}");
+
             $mappedJadwal = $jadwal->map(function ($item) {
+                // Buat modul name yang sesuai dengan pbl_tipe
+                $modulName = $item->modulPBL->nama_modul ?? 'N/A';
+                if ($item->pbl_tipe && $item->pbl_tipe !== 'PBL 1') {
+                    // Jika bukan PBL 1, cek apakah nama_modul sudah memiliki prefix yang benar
+                    if (!str_starts_with($modulName, $item->pbl_tipe . ':')) {
+                        // Jika belum memiliki prefix yang benar, tambahkan
+                        $cleanModulName = str_replace(['PBL 1: ', 'PBL 2: '], '', $modulName);
+                        $modulName = $item->pbl_tipe . ': ' . $cleanModulName;
+                    }
+                }
+
                 return [
                     'id' => $item->id,
                     'tanggal' => $item->tanggal,
                     'jam_mulai' => substr($item->jam_mulai, 0, 5),
                     'jam_selesai' => substr($item->jam_selesai, 0, 5),
-                    'modul' => $item->modulPBL->nama_modul ?? 'N/A',
+                    'modul' => $modulName,
                     'topik' => $item->modulPBL->topik ?? 'N/A',
                     'tipe_pbl' => $item->pbl_tipe ?? 'N/A',
                     'kelompok' => $item->kelompokKecil->nama_kelompok ?? 'N/A',
                     'x50' => $item->jumlah_sesi,
                     'pengampu' => $item->dosen->name ?? 'N/A',
                     'ruangan' => $item->ruangan->nama ?? 'N/A',
+                    'status_konfirmasi' => $item->status_konfirmasi ?? 'belum_konfirmasi',
+                    'status_reschedule' => $item->status_reschedule ?? null,
+                    'alasan_konfirmasi' => $item->alasan_konfirmasi ?? null,
+                    'reschedule_reason' => $item->reschedule_reason ?? null,
                     'semester_type' => 'reguler', // Default semester type
                 ];
             });
+
+            // Debug logging untuk response
+            \Log::info("PBL getJadwalForMahasiswa - Response data count: " . $mappedJadwal->count());
+            \Log::info("PBL getJadwalForMahasiswa - First item: " . json_encode($mappedJadwal->first()));
 
             return response()->json([
                 'message' => 'Data jadwal PBL berhasil diambil',
@@ -845,7 +900,8 @@ class JadwalPBLController extends Controller
                     'mata_kuliah' => $jadwal->modulPBL->mataKuliah->nama,
                     'modul' => $jadwal->modulPBL->modul_ke,
                     'tanggal' => $jadwal->tanggal,
-                    'waktu' => $jadwal->jam_mulai . ' - ' . $jadwal->jam_selesai
+                    'waktu' => $jadwal->jam_mulai . ' - ' . $jadwal->jam_selesai,
+                    'ruangan' => $jadwal->ruangan->nama
                 ]
             ]);
         }
@@ -1190,35 +1246,45 @@ class JadwalPBLController extends Controller
     private function sendNotificationToMahasiswa($jadwal)
     {
         try {
-            // Get mahasiswa in the kelompok
+            // Get mahasiswa in the specific kelompok kecil that was assigned
             $mahasiswaList = [];
 
             if ($jadwal->kelompok_kecil_id) {
+                // Get the kelompok kecil info
                 $kelompokKecil = \App\Models\KelompokKecil::find($jadwal->kelompok_kecil_id);
-                if ($kelompokKecil && $kelompokKecil->mahasiswa_id) {
-                    $mahasiswa = \App\Models\User::find($kelompokKecil->mahasiswa_id);
-                    if ($mahasiswa) {
-                        $mahasiswaList[] = $mahasiswa;
+                if ($kelompokKecil) {
+                    // Get ALL mahasiswa in the same kelompok (nama_kelompok) and semester
+                    $kelompokKecilList = \App\Models\KelompokKecil::with('mahasiswa')
+                        ->where('semester', $kelompokKecil->semester)
+                        ->where('nama_kelompok', $kelompokKecil->nama_kelompok)
+                        ->get();
+
+                    // Extract mahasiswa from kelompok kecil
+                    foreach ($kelompokKecilList as $kk) {
+                        if ($kk->mahasiswa) {
+                            $mahasiswaList[] = $kk->mahasiswa;
+                        }
                     }
                 }
             }
 
-            if ($jadwal->kelompok_kecil_antara_id) {
-                $kelompokKecilAntara = \App\Models\KelompokKecilAntara::find($jadwal->kelompok_kecil_antara_id);
-                if ($kelompokKecilAntara && $kelompokKecilAntara->mahasiswa_id) {
-                    $mahasiswa = \App\Models\User::find($kelompokKecilAntara->mahasiswa_id);
-                    if ($mahasiswa) {
-                        $mahasiswaList[] = $mahasiswa;
-                    }
-                }
-            }
-
-            // Send notification to each mahasiswa
+            // Send notification to each mahasiswa in the assigned group
             foreach ($mahasiswaList as $mahasiswa) {
+                // Buat modul name yang sesuai dengan pbl_tipe
+                $modulName = $jadwal->modulPBL->nama_modul;
+                if ($jadwal->pbl_tipe && $jadwal->pbl_tipe !== 'PBL 1') {
+                    // Cek apakah nama_modul sudah memiliki prefix yang benar
+                    if (!str_starts_with($modulName, $jadwal->pbl_tipe . ':')) {
+                        // Jika belum memiliki prefix yang benar, tambahkan
+                        $cleanModulName = str_replace(['PBL 1: ', 'PBL 2: '], '', $modulName);
+                        $modulName = $jadwal->pbl_tipe . ': ' . $cleanModulName;
+                    }
+                }
+
                 \App\Models\Notification::create([
                     'user_id' => $mahasiswa->id,
                     'title' => 'Jadwal PBL Baru',
-                    'message' => "Jadwal PBL baru telah ditambahkan: {$jadwal->modulPBL->mataKuliah->nama} - {$jadwal->modulPBL->nama_modul} pada tanggal {$jadwal->tanggal} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai} di ruangan {$jadwal->ruangan->nama}.",
+                    'message' => "Jadwal PBL baru telah ditambahkan: {$jadwal->modulPBL->mataKuliah->nama} - {$modulName} pada tanggal {$jadwal->tanggal} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai} di ruangan {$jadwal->ruangan->nama}.",
                     'type' => 'info',
                     'is_read' => false,
                     'data' => [
@@ -1226,7 +1292,8 @@ class JadwalPBLController extends Controller
                         'jadwal_type' => 'pbl',
                         'mata_kuliah_kode' => $jadwal->mata_kuliah_kode,
                         'mata_kuliah_nama' => $jadwal->modulPBL->mataKuliah->nama,
-                        'modul' => $jadwal->modulPBL->nama_modul,
+                        'modul' => $modulName,
+                        'pbl_tipe' => $jadwal->pbl_tipe,
                         'tanggal' => $jadwal->tanggal,
                         'jam_mulai' => $jadwal->jam_mulai,
                         'jam_selesai' => $jadwal->jam_selesai,
@@ -1450,6 +1517,43 @@ class JadwalPBLController extends Controller
 
             return response()->json([
                 'message' => 'Jadwal PBL berhasil diambil',
+                'data' => $jadwal
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal mengambil jadwal PBL',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Display the specified resource.
+     */
+    public function show($id)
+    {
+        try {
+            $jadwal = JadwalPBL::with(['modulPBL', 'kelompokKecil', 'kelompokKecilAntara', 'dosen', 'ruangan'])
+                ->find($id);
+
+            if (!$jadwal) {
+                return response()->json([
+                    'message' => 'Jadwal PBL tidak ditemukan'
+                ], 404);
+            }
+
+            // Tambahkan modul_pbl_id untuk kompatibilitas dengan frontend
+            $jadwal->modul_pbl_id = $jadwal->pbl_id;
+
+            // Tambahkan nama kelompok untuk kompatibilitas dengan frontend
+            if ($jadwal->kelompokKecil) {
+                $jadwal->nama_kelompok = $jadwal->kelompokKecil->nama_kelompok;
+            } elseif ($jadwal->kelompokKecilAntara) {
+                $jadwal->nama_kelompok = $jadwal->kelompokKecilAntara->nama_kelompok;
+            }
+
+            return response()->json([
+                'message' => 'Data jadwal PBL berhasil diambil',
                 'data' => $jadwal
             ]);
         } catch (\Exception $e) {

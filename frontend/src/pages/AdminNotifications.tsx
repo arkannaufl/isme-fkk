@@ -19,7 +19,7 @@ import {
   faReply,
   faFolderPlus,
 } from "@fortawesome/free-solid-svg-icons";
-import api, { handleApiError } from "../utils/api";
+import api from "../utils/api";
 
 interface Notification {
   id: number;
@@ -157,8 +157,8 @@ const AdminNotifications: React.FC = () => {
   const [filter, setFilter] = useState<"all" | "read" | "unread">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [userTypeFilter, setUserTypeFilter] = useState<
-    "all" | "dosen" | "mahasiswa"
-  >("all");
+    "my_notifications" | "dosen" | "mahasiswa"
+  >("my_notifications");
   const [notificationTypeFilter, setNotificationTypeFilter] = useState<
     "all" | "confirmation" | "assignment" | "other"
   >("all");
@@ -167,6 +167,19 @@ const AdminNotifications: React.FC = () => {
   const [jadwalStatusMap, setJadwalStatusMap] = useState<
     Record<string, string>
   >({});
+
+  // Reminder notification state
+  const [isSendingReminder, setIsSendingReminder] = useState(false);
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [pendingDosenList, setPendingDosenList] = useState<any[]>([]);
+  const [loadingPendingDosen, setLoadingPendingDosen] = useState(false);
+  const [pendingDosenPage, setPendingDosenPage] = useState(1);
+  const [pendingDosenPageSize] = useState(10);
+  const [pendingDosenTotal, setPendingDosenTotal] = useState(0);
+  const [pendingDosenSemester, setPendingDosenSemester] = useState<string>("");
+  const [pendingDosenBlok, setPendingDosenBlok] = useState<string>("");
+  const [pendingDosenReminderType, setPendingDosenReminderType] =
+    useState<string>("all");
 
   // Pagination state
   const [page, setPage] = useState(1);
@@ -196,8 +209,6 @@ const AdminNotifications: React.FC = () => {
   // Range tanggal MK untuk validasi (mengikuti Tambah Jadwal)
   const [rescheduleMinDate, setRescheduleMinDate] = useState<string>("");
   const [rescheduleMaxDate, setRescheduleMaxDate] = useState<string>("");
-  const [rescheduleMkKode, setRescheduleMkKode] = useState<string>("");
-  const [rescheduleMkNama, setRescheduleMkNama] = useState<string>("");
   // Inline validation messages (realtime) seperti di DetailBlok
   const [dateError, setDateError] = useState<string>("");
   const [timeError, setTimeError] = useState<string>("");
@@ -388,6 +399,8 @@ const AdminNotifications: React.FC = () => {
         return false; // Jurnal Reading fixed 2x50'
       case "csr":
         return false; // CSR Reguler/Responsi fixed
+      case "non_blok_non_csr":
+        return true; // Non Blok Non CSR sessions are editable dropdown
       default:
         return true; // Other types can change sessions
     }
@@ -499,7 +512,7 @@ const AdminNotifications: React.FC = () => {
 
   // Load notifications when filters change
   useEffect(() => {
-    // Always reload when filter changes, including back to 'all'
+    // Always reload when filter changes, including back to 'my_notifications'
     loadNotifications(true);
     loadStats();
   }, [userTypeFilter, notificationTypeFilter, filter]);
@@ -509,16 +522,34 @@ const AdminNotifications: React.FC = () => {
       if (showLoading) setLoading(true);
       const params = new URLSearchParams();
       if (searchQuery) params.append("search", searchQuery);
-      if (userTypeFilter !== "all") params.append("user_type", userTypeFilter);
+      if (userTypeFilter !== "my_notifications")
+        params.append("user_type", userTypeFilter);
       if (notificationTypeFilter !== "all")
         params.append("notification_type", notificationTypeFilter);
 
       const response = await api.get(
         `/notifications/admin/all?${params.toString()}`
       );
-      setNotifications(response.data);
+
+      // Process notifications to parse JSON data field
+      const processedNotifications = response.data.map((notification: any) => ({
+        ...notification,
+        data:
+          typeof notification.data === "string"
+            ? JSON.parse(notification.data)
+            : notification.data,
+      }));
+
+      // Sort notifications by created_at descending (newest first)
+      processedNotifications.sort((a: Notification, b: Notification) => {
+        const dateA = new Date(a.created_at).getTime();
+        const dateB = new Date(b.created_at).getTime();
+        return dateB - dateA; // Descending order (newest first)
+      });
+
+      setNotifications(processedNotifications);
       // Prefetch status_konfirmasi terbaru untuk setiap notifikasi yang punya jadwal
-      prefetchJadwalStatuses(response.data);
+      prefetchJadwalStatuses(processedNotifications);
       setError(null);
     } catch (err) {
       console.error("Failed to load notifications:", err);
@@ -642,7 +673,8 @@ const AdminNotifications: React.FC = () => {
   const loadStats = async () => {
     try {
       const params = new URLSearchParams();
-      if (userTypeFilter !== "all") params.append("user_type", userTypeFilter);
+      if (userTypeFilter !== "my_notifications")
+        params.append("user_type", userTypeFilter);
       if (notificationTypeFilter !== "all")
         params.append("notification_type", notificationTypeFilter);
 
@@ -659,6 +691,72 @@ const AdminNotifications: React.FC = () => {
     setIsRefreshing(true);
     await Promise.all([loadNotifications(false), loadStats()]);
     setIsRefreshing(false);
+  };
+
+  // Load pending dosen (those with belum_konfirmasi status and email verified)
+  const loadPendingDosen = async (
+    page = 1,
+    pageSize = 5,
+    semester = "",
+    blok = "",
+    reminderType = "all"
+  ) => {
+    setLoadingPendingDosen(true);
+    try {
+      const params = new URLSearchParams();
+      if (page) params.append("page", page.toString());
+      if (pageSize) params.append("page_size", pageSize.toString());
+      if (semester) params.append("semester", semester);
+      if (blok) params.append("blok", blok);
+      if (reminderType) params.append("reminder_type", reminderType);
+
+      const response = await api.get(
+        `/notifications/pending-dosen?${params.toString()}`
+      );
+      setPendingDosenList(response.data.pending_dosen || []);
+      setPendingDosenTotal(response.data.total || 0);
+      console.log("Pending dosen loaded:", response.data.pending_dosen || []);
+    } catch (error: any) {
+      console.error("Error loading pending dosen:", error);
+      setPendingDosenList([]);
+      setPendingDosenTotal(0);
+    } finally {
+      setLoadingPendingDosen(false);
+    }
+  };
+
+  // Handle send reminder notifications
+  const handleSendReminder = async () => {
+    try {
+      setIsSendingReminder(true);
+
+      const params = new URLSearchParams();
+      if (pendingDosenSemester) params.append("semester", pendingDosenSemester);
+      if (pendingDosenBlok) params.append("blok", pendingDosenBlok);
+      if (pendingDosenReminderType)
+        params.append("reminder_type", pendingDosenReminderType);
+
+      const response = await api.post(
+        `/notifications/send-reminder?${params.toString()}`
+      );
+
+      // Show success message
+      alert(
+        `Notifikasi pengingat berhasil dikirim ke ${response.data.reminder_count} dosen`
+      );
+
+      // Refresh notifications to show new reminder notifications
+      await loadNotifications(false);
+      await loadStats();
+
+      // Don't close modal - allow repeat sending
+      // setShowReminderModal(false);
+    } catch (error) {
+      console.error("Failed to send reminder notifications:", error);
+      alert("Gagal mengirim notifikasi pengingat");
+    } finally {
+      setIsSendingReminder(false);
+    }
   };
 
   // Handle dosen replacement actions
@@ -821,10 +919,6 @@ const AdminNotifications: React.FC = () => {
         } catch (_) {}
       }
 
-      setRescheduleMkKode(mk?.kode || mkKode || "");
-      setRescheduleMkNama(
-        mk?.nama || (notification.data as any)?.mata_kuliah_nama || ""
-      );
       const startRaw =
         mk.tanggal_mulai ||
         mk.tanggalMulai ||
@@ -970,16 +1064,6 @@ const AdminNotifications: React.FC = () => {
 
       if (action === "approve") {
         // Client-side validation mengikuti Tambah Jadwal
-        // 1) Tanggal wajib dalam rentang MK jika tersedia
-        const withinRange = (dateStr: string, min?: string, max?: string) => {
-          if (!dateStr) return false;
-          const val = new Date(dateStr).getTime();
-          const minV = min ? new Date(min).getTime() : undefined;
-          const maxV = max ? new Date(max).getTime() : undefined;
-          if (minV !== undefined && val < minV) return false;
-          if (maxV !== undefined && val > maxV) return false;
-          return true;
-        };
         if (rescheduleMinDate || rescheduleMaxDate) {
           const valTime = new Date(rescheduleNewDate).getTime();
           const minV = rescheduleMinDate
@@ -1052,26 +1136,80 @@ const AdminNotifications: React.FC = () => {
   // Client-side filtering for search and read status
   const getFilteredNotifications = () => {
     // Robust de-duplication: keep only the newest notification per (jadwal_type, jadwal_id, normalized kind)
+    // For student notifications (PBL, Kuliah Besar, etc.), include user_id to avoid deduplication between different students
     const normalizeKind = (n: Notification) => {
-      const kind = String(n.data?.notification_type || "").toLowerCase();
-      if (kind.startsWith("reschedule")) return "reschedule";
-      if (kind.includes("konfirmasi") || kind.includes("confirm"))
+      // Check notification_type first
+      const notificationType = String(
+        n.data?.notification_type || ""
+      ).toLowerCase();
+      if (notificationType.startsWith("reschedule")) return "reschedule";
+      if (
+        notificationType.includes("konfirmasi") ||
+        notificationType.includes("confirm")
+      )
         return "confirmation";
-      if (kind.includes("assignment") || kind.includes("jadwal"))
+      if (
+        notificationType.includes("assignment") ||
+        notificationType.includes("jadwal")
+      )
         return "assignment";
-      return kind || "other";
+
+      // If no notification_type, check title and message for patterns
+      const title = String(n.title || "").toLowerCase();
+      const message = String(n.message || "").toLowerCase();
+
+      if (title.includes("reschedule") || message.includes("reschedule"))
+        return "reschedule";
+      if (
+        title.includes("konfirmasi") ||
+        title.includes("bisa") ||
+        title.includes("tidak bisa") ||
+        message.includes("konfirmasi") ||
+        message.includes("bisa") ||
+        message.includes("tidak bisa")
+      )
+        return "confirmation";
+      if (
+        title.includes("jadwal") ||
+        title.includes("assignment") ||
+        message.includes("jadwal") ||
+        message.includes("assignment")
+      )
+        return "assignment";
+
+      return notificationType || "other";
     };
 
     const byKey: Record<string, Notification> = {};
+    const jadwalNotifications: Record<string, Notification[]> = {}; // Track notifications per jadwal
+
     for (const n of notifications) {
       const type = String(n.data?.jadwal_type || "-").toLowerCase();
       const id = String(n.data?.jadwal_id || "-");
-      const key = `${type}:${id}:${normalizeKind(n)}`;
+      const kind = normalizeKind(n);
+
+      // For student notifications (PBL, Kuliah Besar, Praktikum, etc.), include user_id to avoid deduplication between different students
+      // For lecturer notifications, use the original key without user_id
+      const isStudentNotification =
+        n.user_type === "Mahasiswa" ||
+        n.user_role === "mahasiswa" ||
+        n.user_type === "mahasiswa";
+      const key = isStudentNotification
+        ? `${type}:${id}:${kind}:${n.user_id}`
+        : `${type}:${id}:${kind}`;
+
+      // Track notifications per jadwal for replacement logic
+      const jadwalKey = `${type}:${id}`;
+      if (!jadwalNotifications[jadwalKey]) {
+        jadwalNotifications[jadwalKey] = [];
+      }
+      jadwalNotifications[jadwalKey].push(n);
+
       const prev = byKey[key];
       if (!prev) {
         byKey[key] = n;
       } else {
-        // keep the newest by created_at/created_time
+        // Normal deduplication: keep the newest by created_at/created_time
         const prevTime = new Date(
           (prev as any).created_at || prev.created_time || 0
         ).getTime();
@@ -1082,7 +1220,57 @@ const AdminNotifications: React.FC = () => {
       }
     }
 
+    // Post-process: handle replacement notifications
+    // If there's a "Penggantian Dosen Berhasil" notification for a jadwal,
+    // remove all other notifications for that jadwal
+    Object.keys(jadwalNotifications).forEach((jadwalKey) => {
+      const notifications = jadwalNotifications[jadwalKey];
+      const hasReplacementSuccess = notifications.some(
+        (n) =>
+          n.data?.admin_action === "replacement_success" ||
+          n.title?.toLowerCase().includes("penggantian dosen berhasil")
+      );
+
+      if (hasReplacementSuccess) {
+        // Find the replacement success notification
+        const replacementNotification = notifications.find(
+          (n) =>
+            n.data?.admin_action === "replacement_success" ||
+            n.title?.toLowerCase().includes("penggantian dosen berhasil")
+        );
+
+        if (replacementNotification) {
+          // Remove all other notifications for this jadwal from byKey
+          Object.keys(byKey).forEach((key) => {
+            if (key.startsWith(jadwalKey)) {
+              delete byKey[key];
+            }
+          });
+
+          // Add only the replacement success notification
+          const type = String(
+            replacementNotification.data?.jadwal_type || "-"
+          ).toLowerCase();
+          const id = String(replacementNotification.data?.jadwal_id || "-");
+          const kind = normalizeKind(replacementNotification);
+          const isStudentNotification =
+            replacementNotification.user_type === "Mahasiswa" ||
+            replacementNotification.user_role === "mahasiswa" ||
+            replacementNotification.user_type === "mahasiswa";
+          const replacementKey = isStudentNotification
+            ? `${type}:${id}:${kind}:${replacementNotification.user_id}`
+            : `${type}:${id}:${kind}`;
+
+          byKey[replacementKey] = replacementNotification;
+        }
+      }
+    });
+
     let filtered = Object.values(byKey);
+
+    // For student notifications, show all notifications as they are already filtered by backend
+    // The backend already ensures notifications are sent only to students in the assigned group
+    // No additional client-side filtering needed for student notifications
 
     // Apply search filter first
     if (searchQuery) {
@@ -1241,6 +1429,18 @@ const AdminNotifications: React.FC = () => {
   };
 
   const getConfirmationStatus = (notification: Notification) => {
+    // Check if this is a replacement success notification first
+    if (notification.data?.admin_action === "replacement_success") {
+      return {
+        status: "replacement_success",
+        color: "text-green-500",
+        bgColor: "bg-green-100 dark:bg-green-900/20",
+        textColor: "text-green-800 dark:text-green-200",
+        icon: faCheckCircle,
+        adminInfo: null,
+      };
+    }
+
     // Highest priority: explicit status in payload or fetched map
     const type = String(notification.data?.jadwal_type || "").toLowerCase();
     const id = notification.data?.jadwal_id
@@ -1257,6 +1457,7 @@ const AdminNotifications: React.FC = () => {
 
     if (statusField) {
       const s = String(statusField).toLowerCase();
+
       // waiting_reschedule precedence
       if (
         s.includes("waiting_reschedule") ||
@@ -1319,7 +1520,12 @@ const AdminNotifications: React.FC = () => {
       title.includes("dosen tidak dapat") ||
       message.includes("dosen tidak dapat") ||
       title.includes("tidak dapat mengajar") ||
-      message.includes("tidak dapat mengajar")
+      message.includes("tidak dapat mengajar") ||
+      // Check if this is a notification for a replaced lecturer
+      notification.data?.alasan_konfirmasi === "Diganti dosen lain" ||
+      notification.data?.alasan_konfirmasi === "diganti dosen lain" ||
+      message.includes("diganti dosen lain") ||
+      title.includes("diganti dosen lain")
     ) {
       return {
         status: "tidak_bisa",
@@ -1349,11 +1555,13 @@ const AdminNotifications: React.FC = () => {
       };
     }
     // Check if it's a confirmation request (not yet confirmed)
+    // BUT only if we don't have explicit status from statusField
     else if (
-      title.includes("konfirmasi") ||
-      message.includes("konfirmasi") ||
-      title.includes("ketersediaan") ||
-      message.includes("ketersediaan")
+      !statusField &&
+      (title.includes("konfirmasi") ||
+        message.includes("konfirmasi") ||
+        title.includes("ketersediaan") ||
+        message.includes("ketersediaan"))
     ) {
       return {
         status: "pending",
@@ -1581,38 +1789,43 @@ const AdminNotifications: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="bg-white dark:bg-white/[0.03] rounded-xl shadow border border-gray-200 dark:border-white/[0.05] p-6 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-              <FontAwesomeIcon
-                icon={faCheckCircle}
-                className="w-5 h-5 text-green-500"
-              />
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                Bisa Mengajar
+          {/* Only show confirmation stats for dosen notifications */}
+          {userTypeFilter === "dosen" && (
+            <>
+              <div className="bg-white dark:bg-white/[0.03] rounded-xl shadow border border-gray-200 dark:border-white/[0.05] p-6 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                  <FontAwesomeIcon
+                    icon={faCheckCircle}
+                    className="w-5 h-5 text-green-500"
+                  />
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    Bisa Mengajar
+                  </div>
+                  <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {stats.confirmation_breakdown?.bisa_mengajar || 0}
+                  </div>
+                </div>
               </div>
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                {stats.confirmation_breakdown?.bisa_mengajar || 0}
+              <div className="bg-white dark:bg-white/[0.03] rounded-xl shadow border border-gray-200 dark:border-white/[0.05] p-6 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                  <FontAwesomeIcon
+                    icon={faTimesCircle}
+                    className="w-5 h-5 text-red-500"
+                  />
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    Tidak Bisa Mengajar
+                  </div>
+                  <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {stats.confirmation_breakdown?.tidak_bisa_mengajar || 0}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-          <div className="bg-white dark:bg-white/[0.03] rounded-xl shadow border border-gray-200 dark:border-white/[0.05] p-6 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-              <FontAwesomeIcon
-                icon={faTimesCircle}
-                className="w-5 h-5 text-red-500"
-              />
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                Tidak Bisa Mengajar
-              </div>
-              <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                {stats.confirmation_breakdown?.tidak_bisa_mengajar || 0}
-              </div>
-            </div>
-          </div>
+            </>
+          )}
           {/* Reschedule Stats (client-side) */}
           <div className="bg-white dark:bg-white/[0.03] rounded-xl shadow border border-gray-200 dark:border-white/[0.05] p-6 flex items-center gap-4">
             <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center">
@@ -1725,14 +1938,14 @@ const AdminNotifications: React.FC = () => {
               value={userTypeFilter}
               onChange={(e) =>
                 setUserTypeFilter(
-                  e.target.value as "all" | "dosen" | "mahasiswa"
+                  e.target.value as "my_notifications" | "dosen" | "mahasiswa"
                 )
               }
               className="w-full md:w-44 h-11 text-sm px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
-              <option value="all">Semua User</option>
-              <option value="dosen">Dosen</option>
-              <option value="mahasiswa">Mahasiswa</option>
+              <option value="my_notifications">Punya Saya</option>
+              <option value="dosen">Notifikasi ke Dosen</option>
+              <option value="mahasiswa">Notifikasi ke Mahasiswa</option>
             </select>
             <select
               value={notificationTypeFilter}
@@ -1805,6 +2018,26 @@ const AdminNotifications: React.FC = () => {
               )}
               Refresh
             </button>
+            {/* Kirim Ulang Notifikasi Button - Only show for dosen notifications */}
+            {userTypeFilter === "dosen" && (
+              <button
+                onClick={async () => {
+                  console.log("Loading pending dosen before opening modal...");
+                  await loadPendingDosen(
+                    pendingDosenPage,
+                    pendingDosenPageSize,
+                    pendingDosenSemester,
+                    pendingDosenBlok,
+                    pendingDosenReminderType
+                  );
+                  setShowReminderModal(true);
+                }}
+                className="w-full md:w-auto flex items-center justify-center gap-2 px-5 text-sm py-2 bg-orange-500 text-white rounded-lg shadow hover:bg-orange-600 transition-colors font-semibold"
+              >
+                <FontAwesomeIcon icon={faRedo} className="w-4 h-4" />
+                Kirim Ulang Notifikasi
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -1839,7 +2072,13 @@ const AdminNotifications: React.FC = () => {
               Tidak ada notifikasi
             </h3>
             <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
-              {filter === "all"
+              {userTypeFilter === "my_notifications"
+                ? "Belum ada notifikasi untuk Anda"
+                : userTypeFilter === "dosen"
+                ? "Belum ada notifikasi yang diterima dosen"
+                : userTypeFilter === "mahasiswa"
+                ? "Belum ada notifikasi yang diterima mahasiswa"
+                : filter === "all"
                 ? "Belum ada notifikasi yang dikirim ke sistem"
                 : filter === "read"
                 ? "Belum ada notifikasi yang telah dibaca oleh pengguna"
@@ -1870,17 +2109,13 @@ const AdminNotifications: React.FC = () => {
                     <div className="flex items-start justify-between mb-2">
                       <div>
                         <h4 className="font-semibold text-gray-900 dark:text-white text-sm mb-1">
-                          {notification.data?.dosen_name ||
-                            notification.data?.sender_name ||
-                            (notification.user_name !== "Unknown User"
-                              ? notification.user_name
-                              : "Sistem")}
+                          {notification.user_name !== "Unknown User"
+                            ? notification.user_name
+                            : "Sistem"}
                         </h4>
                         <div className="flex items-center gap-2">
                           <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-medium rounded-full">
-                            {notification.data?.dosen_role ||
-                              notification.data?.sender_role ||
-                              notification.user_type}
+                            {notification.user_type}
                           </span>
                           {getConfirmationStatus(notification)?.adminInfo && (
                             <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300 text-xs font-medium rounded-full">
@@ -1895,28 +2130,45 @@ const AdminNotifications: React.FC = () => {
                           {getConfirmationStatus(notification) && (
                             <span
                               className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                getConfirmationStatus(notification)?.bgColor
+                                notification.data?.admin_action ===
+                                "replacement_success"
+                                  ? "bg-green-100 dark:bg-green-800 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-700"
+                                  : getConfirmationStatus(notification)?.bgColor
                               } ${
-                                getConfirmationStatus(notification)?.textColor
-                              } border ${
-                                getConfirmationStatus(notification)?.status ===
-                                "bisa"
-                                  ? "border-green-200 dark:border-green-700"
+                                notification.data?.admin_action ===
+                                "replacement_success"
+                                  ? ""
                                   : getConfirmationStatus(notification)
-                                      ?.status === "tidak_bisa"
-                                  ? "border-red-200 dark:border-red-700"
-                                  : "border-yellow-200 dark:border-yellow-700"
+                                      ?.textColor
+                              } ${
+                                notification.data?.admin_action ===
+                                "replacement_success"
+                                  ? ""
+                                  : "border " +
+                                    (getConfirmationStatus(notification)
+                                      ?.status === "bisa"
+                                      ? "border-green-200 dark:border-green-700"
+                                      : getConfirmationStatus(notification)
+                                          ?.status === "tidak_bisa"
+                                      ? "border-red-200 dark:border-red-700"
+                                      : "border-yellow-200 dark:border-yellow-700")
                               }`}
                             >
                               <FontAwesomeIcon
                                 icon={
-                                  getConfirmationStatus(notification)?.icon ||
-                                  faBell
+                                  notification.data?.admin_action ===
+                                  "replacement_success"
+                                    ? faCheckCircle
+                                    : getConfirmationStatus(notification)
+                                        ?.icon || faBell
                                 }
                                 className="w-3 h-3 mr-1"
                               />
-                              {getConfirmationStatus(notification)?.status ===
-                              "bisa"
+                              {notification.data?.admin_action ===
+                              "replacement_success"
+                                ? "Berhasil Diganti"
+                                : getConfirmationStatus(notification)
+                                    ?.status === "bisa"
                                 ? "Bisa Mengajar"
                                 : getConfirmationStatus(notification)
                                     ?.status === "tidak_bisa"
@@ -1929,21 +2181,25 @@ const AdminNotifications: React.FC = () => {
                           )}
                           {/* Action button for "Tidak Bisa Mengajar" notifications */}
                           {getConfirmationStatus(notification)?.status ===
-                            "tidak_bisa" && (
-                            <button
-                              onClick={() =>
-                                handleOpenReplacementModal(notification)
-                              }
-                              className="inline-flex items-center px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-lg transition-colors duration-200"
-                              title="Kelola Penggantian Dosen"
-                            >
-                              <FontAwesomeIcon
-                                icon={faCog}
-                                className="w-3 h-3 mr-1"
-                              />
-                              Kelola
-                            </button>
-                          )}
+                            "tidak_bisa" &&
+                            notification.data?.admin_action !==
+                              "replacement_success" &&
+                            (notification.user_type !== "Dosen" ||
+                              userTypeFilter === "my_notifications") && (
+                              <button
+                                onClick={() =>
+                                  handleOpenReplacementModal(notification)
+                                }
+                                className="inline-flex items-center px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium rounded-lg transition-colors duration-200"
+                                title="Kelola Penggantian Dosen"
+                              >
+                                <FontAwesomeIcon
+                                  icon={faCog}
+                                  className="w-3 h-3 mr-1"
+                                />
+                                Kelola
+                              </button>
+                            )}
                           {/* Action button for "Reschedule" notifications */}
                           {notification.data?.notification_type ===
                             "reschedule_request" && (
@@ -2149,10 +2405,7 @@ const AdminNotifications: React.FC = () => {
                       Kelola Penggantian Dosen
                     </h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Dosen:{" "}
-                      {selectedNotification.data?.dosen_name ||
-                        selectedNotification.data?.sender_name ||
-                        selectedNotification.user_name}
+                      Penerima: {selectedNotification.user_name}
                     </p>
                   </div>
                 </div>
@@ -2548,7 +2801,7 @@ const AdminNotifications: React.FC = () => {
                         Kelola Permintaan Reschedule
                       </h2>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Dosen: {selectedNotification.data?.dosen_name}
+                        Penerima: {selectedNotification.user_name}
                       </p>
                     </div>
                   </div>
@@ -2869,6 +3122,408 @@ const AdminNotifications: React.FC = () => {
                         <span>Setujui</span>
                       </>
                     )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Reminder Notification Modal */}
+        {showReminderModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowReminderModal(false)}
+            />
+
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-4xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => setShowReminderModal(false)}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+
+              <div>
+                {/* Header */}
+                <div className="flex items-center space-x-4 mb-6">
+                  <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-2xl flex items-center justify-center">
+                    <FontAwesomeIcon
+                      icon={faRedo}
+                      className="w-6 h-6 text-orange-600 dark:text-orange-400"
+                    />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                      Kirim Ulang Notifikasi
+                    </h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Kirim pengingat ke dosen yang belum konfirmasi
+                    </p>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="mb-6">
+                  <div className="p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-xl">
+                    <h4 className="text-sm font-semibold text-orange-800 dark:text-orange-200 mb-3">
+                      Dosen yang Akan Dikirim Pengingat:
+                    </h4>
+
+                    {/* Filter Semester dan Blok */}
+                    <div className="flex gap-4 mb-4">
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Semester
+                        </label>
+                        <select
+                          value={pendingDosenSemester}
+                          onChange={(e) => {
+                            setPendingDosenSemester(e.target.value);
+                            setPendingDosenPage(1);
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                        >
+                          <option value="">Semua Semester</option>
+                          <option value="1">Semester 1</option>
+                          <option value="2">Semester 2</option>
+                          <option value="3">Semester 3</option>
+                          <option value="4">Semester 4</option>
+                          <option value="5">Semester 5</option>
+                          <option value="6">Semester 6</option>
+                          <option value="7">Semester 7</option>
+                          <option value="8">Semester 8</option>
+                        </select>
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Blok
+                        </label>
+                        <select
+                          value={pendingDosenBlok}
+                          onChange={(e) => {
+                            setPendingDosenBlok(e.target.value);
+                            setPendingDosenPage(1);
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                        >
+                          <option value="">Semua Blok</option>
+                          <option value="1">Blok 1</option>
+                          <option value="2">Blok 2</option>
+                          <option value="3">Blok 3</option>
+                          <option value="4">Blok 4</option>
+                        </select>
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Jenis Pengingat
+                        </label>
+                        <select
+                          value={pendingDosenReminderType}
+                          onChange={(e) => {
+                            setPendingDosenReminderType(e.target.value);
+                            setPendingDosenPage(1);
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                        >
+                          <option value="all">Semua Pengingat</option>
+                          <option value="unconfirmed">Belum Konfirmasi</option>
+                          <option value="upcoming">Persiapan Mengajar</option>
+                        </select>
+                      </div>
+                      <div className="flex items-end">
+                        <button
+                          onClick={() =>
+                            loadPendingDosen(
+                              1,
+                              pendingDosenPageSize,
+                              pendingDosenSemester,
+                              pendingDosenBlok,
+                              pendingDosenReminderType
+                            )
+                          }
+                          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                        >
+                          Filter
+                        </button>
+                      </div>
+                    </div>
+
+                    {loadingPendingDosen ? (
+                      <div className="flex items-center justify-center py-4">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
+                        <span className="ml-2 text-sm text-orange-700 dark:text-orange-300">
+                          Memuat daftar dosen...
+                        </span>
+                      </div>
+                    ) : pendingDosenList.length > 0 ? (
+                      <div className="space-y-3 max-h-96 overflow-y-auto">
+                        {pendingDosenList.map((dosen, index) => {
+                          const isEmailValid =
+                            dosen.email &&
+                            dosen.email.trim() !== "" &&
+                            dosen.email.includes("@");
+                          const isEmailVerified = dosen.email_verified == true;
+                          const willReceiveReminder =
+                            isEmailValid && isEmailVerified;
+
+                          return (
+                            <div
+                              key={index}
+                              className={`flex items-start justify-between p-4 rounded-lg border ${
+                                willReceiveReminder
+                                  ? "bg-white dark:bg-gray-800 border-orange-200 dark:border-orange-700"
+                                  : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700"
+                              }`}
+                            >
+                              <div className="flex items-start space-x-4 flex-1">
+                                <div
+                                  className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                                    willReceiveReminder
+                                      ? "bg-orange-100 dark:bg-orange-900/30"
+                                      : "bg-red-100 dark:bg-red-900/30"
+                                  }`}
+                                >
+                                  <span
+                                    className={`text-xs font-semibold ${
+                                      willReceiveReminder
+                                        ? "text-orange-600 dark:text-orange-400"
+                                        : "text-red-600 dark:text-red-400"
+                                    }`}
+                                  >
+                                    {dosen.name?.charAt(0) || "D"}
+                                  </span>
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <p
+                                      className={`text-base font-semibold ${
+                                        willReceiveReminder
+                                          ? "text-gray-900 dark:text-white"
+                                          : "text-red-800 dark:text-red-200 line-through"
+                                      }`}
+                                    >
+                                      {dosen.name || "Dosen"}
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                      {/* Reminder Type Badge */}
+                                      {dosen.reminder_type && (
+                                        <span
+                                          className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                                            dosen.reminder_type ===
+                                            "unconfirmed"
+                                              ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300"
+                                              : "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300"
+                                          }`}
+                                        >
+                                          {dosen.reminder_type === "unconfirmed"
+                                            ? "Belum Konfirmasi"
+                                            : "Persiapan Mengajar"}
+                                        </span>
+                                      )}
+                                      {!willReceiveReminder && (
+                                        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300">
+                                          {!isEmailValid
+                                            ? "Email Invalid"
+                                            : !isEmailVerified
+                                            ? "Email Belum Aktif"
+                                            : "Tidak Akan Dikirim"}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                      {dosen.jadwal_type} - {dosen.mata_kuliah}
+                                    </p>
+                                    {dosen.email && (
+                                      <div className="flex items-center gap-2">
+                                        <p
+                                          className={`text-xs ${
+                                            willReceiveReminder
+                                              ? "text-gray-500 dark:text-gray-400"
+                                              : "text-red-600 dark:text-red-400"
+                                          }`}
+                                        >
+                                          Email: {dosen.email}
+                                        </p>
+                                        {isEmailVerified && (
+                                          <span className="inline-flex items-center px-1 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">
+                                            ✓ Aktif
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <span
+                                  className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                    willReceiveReminder
+                                      ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300"
+                                      : "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300"
+                                  }`}
+                                >
+                                  {willReceiveReminder
+                                    ? "Belum Konfirmasi"
+                                    : "Tidak Akan Dikirim"}
+                                </span>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                  {dosen.tanggal} {dosen.waktu}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4">
+                        <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-2">
+                          <FontAwesomeIcon
+                            icon={faBell}
+                            className="w-6 h-6 text-gray-500 dark:text-gray-400"
+                          />
+                        </div>
+                        <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">
+                          Tidak ada dosen yang perlu dikirim pengingat
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Semua dosen sudah konfirmasi atau tidak ada jadwal
+                          yang menunggu konfirmasi
+                        </p>
+                      </div>
+                    )}
+
+                    {pendingDosenList.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-orange-200 dark:border-orange-700">
+                        <p className="text-xs text-orange-600 dark:text-orange-400 mb-4">
+                          Total: {pendingDosenTotal} dosen akan menerima
+                          pengingat
+                        </p>
+
+                        {/* Pagination */}
+                        {pendingDosenTotal > pendingDosenPageSize && (
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-600 dark:text-gray-400">
+                                Menampilkan{" "}
+                                {(pendingDosenPage - 1) * pendingDosenPageSize +
+                                  1}{" "}
+                                -{" "}
+                                {Math.min(
+                                  pendingDosenPage * pendingDosenPageSize,
+                                  pendingDosenTotal
+                                )}{" "}
+                                dari {pendingDosenTotal} dosen
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  const newPage = pendingDosenPage - 1;
+                                  setPendingDosenPage(newPage);
+                                  loadPendingDosen(
+                                    newPage,
+                                    pendingDosenPageSize,
+                                    pendingDosenSemester,
+                                    pendingDosenBlok,
+                                    pendingDosenReminderType
+                                  );
+                                }}
+                                disabled={pendingDosenPage <= 1}
+                                className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                ←
+                              </button>
+                              <span className="px-2 py-1 text-xs bg-blue-500 text-white rounded">
+                                {pendingDosenPage}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  const newPage = pendingDosenPage + 1;
+                                  setPendingDosenPage(newPage);
+                                  loadPendingDosen(
+                                    newPage,
+                                    pendingDosenPageSize,
+                                    pendingDosenSemester,
+                                    pendingDosenBlok,
+                                    pendingDosenReminderType
+                                  );
+                                }}
+                                disabled={
+                                  pendingDosenPage * pendingDosenPageSize >=
+                                  pendingDosenTotal
+                                }
+                                className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                →
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setShowReminderModal(false)}
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={handleSendReminder}
+                    disabled={isSendingReminder}
+                    className="px-4 py-2 rounded-lg bg-orange-500 text-white text-sm font-medium shadow-lg hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                  >
+                    {isSendingReminder ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span>Mengirim...</span>
+                      </>
+                    ) : (
+                      <>
+                        <FontAwesomeIcon icon={faRedo} className="w-4 h-4" />
+                        <span>Kirim Pengingat</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setShowReminderModal(false)}
+                    className="px-4 py-2 rounded-lg bg-green-500 text-white text-sm font-medium hover:bg-green-600 transition-colors flex items-center space-x-2"
+                  >
+                    <FontAwesomeIcon icon={faCheck} className="w-4 h-4" />
+                    <span>Tutup</span>
                   </button>
                 </div>
               </div>

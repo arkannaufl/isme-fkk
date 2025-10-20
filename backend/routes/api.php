@@ -12,6 +12,7 @@ use App\Http\Controllers\ReportingController;
 use App\Http\Controllers\TahunAjaranController;
 use App\Http\Controllers\MataKuliahCSRController;
 use App\Http\Controllers\MataKuliahPBLController;
+use App\Http\Controllers\MataKuliahJurnalReadingController;
 use App\Http\Controllers\CSRController;
 use App\Http\Controllers\KelompokBesarController;
 use App\Http\Controllers\KelompokKecilController;
@@ -46,6 +47,11 @@ Route::middleware(['auth:sanctum', 'validate.token'])->get('/me', function (Requ
     return $request->user();
 });
 
+Route::middleware(['auth:sanctum', 'validate.token'])->get('/profile', function (Request $request) {
+    return response()->json([
+        'user' => $request->user()
+    ]);
+});
 Route::middleware(['auth:sanctum', 'validate.token'])->put('/profile', [AuthController::class, 'updateProfile']);
 
 Route::middleware(['auth:sanctum', 'validate.token'])->post('/profile/avatar', [AuthController::class, 'updateAvatar']);
@@ -62,6 +68,10 @@ Route::middleware(['auth:sanctum', 'role:super_admin'])->post('/users/import-tim
 
 // Route untuk laporan jadwal mengajar dosen
 Route::middleware('auth:sanctum')->get('/users/{id}/jadwal-mengajar', [UserController::class, 'getJadwalMengajar']);
+
+// Email verification routes for dosen
+Route::middleware(['auth:sanctum', 'validate.token', 'role:dosen'])->get('/users/{id}/email-status', [UserController::class, 'getEmailStatus']);
+Route::middleware(['auth:sanctum', 'validate.token', 'role:dosen'])->put('/users/{id}/update-email', [UserController::class, 'updateEmail']);
 
 Route::middleware('auth:sanctum')->post('/ruangan/import', [RuanganController::class, 'importRuangan']);
 
@@ -128,6 +138,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/pbls', [MataKuliahPBLController::class, 'getAllPbls']);
     Route::apiResource('mata-kuliah.pbls', MataKuliahPBLController::class)->shallow();
 
+    // Jurnal Reading Routes
+    Route::get('/jurnal-readings/all', [MataKuliahJurnalReadingController::class, 'all']);
+    Route::get('/jurnal-readings', [MataKuliahJurnalReadingController::class, 'getAllJurnalReadings']);
+    Route::apiResource('mata-kuliah.jurnal-readings', MataKuliahJurnalReadingController::class)->shallow();
+
     // CSR Routes
     Route::apiResource('csr', CSRController::class);
     Route::get('/csrs', [CSRController::class, 'batch']);
@@ -181,6 +196,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Reschedule routes
     Route::middleware(['auth:sanctum', 'role:super_admin,tim_akademik'])->post('/notifications/approve-reschedule', [App\Http\Controllers\NotificationController::class, 'approveReschedule']);
     Route::middleware(['auth:sanctum', 'role:super_admin,tim_akademik'])->post('/notifications/reject-reschedule', [App\Http\Controllers\NotificationController::class, 'rejectReschedule']);
+
+    // Reminder notification routes
+    Route::middleware(['auth:sanctum', 'role:super_admin,tim_akademik'])->post('/notifications/send-reminder', [App\Http\Controllers\NotificationController::class, 'sendReminderNotifications']);
+    Route::middleware(['auth:sanctum', 'role:super_admin,tim_akademik'])->get('/notifications/pending-dosen', [App\Http\Controllers\NotificationController::class, 'getPendingDosen']);
 });
 
 Route::middleware('auth:sanctum')->get('/kelompok-besar', [KelompokBesarController::class, 'index']);
@@ -566,7 +585,14 @@ Route::middleware(['auth:sanctum', 'role:mahasiswa'])->group(function () {
     Route::get('/jadwal-jurnal-reading/mahasiswa/{id}', [JadwalJurnalReadingController::class, 'getJadwalForMahasiswa']);
     Route::get('/jadwal-csr/mahasiswa/{id}', [JadwalCSRController::class, 'getJadwalForMahasiswa']);
     Route::get('/jadwal-non-blok-non-csr/mahasiswa/{id}', [JadwalNonBlokNonCSRController::class, 'getJadwalForMahasiswa']);
+    Route::get('/jadwal-agenda-besar/mahasiswa/{id}', [App\Http\Controllers\JadwalAgendaKhususController::class, 'getJadwalForMahasiswa']);
 
     // Keabsenan routes for mahasiswa
     Route::get('/keabsenan-mahasiswa/{id}', [App\Http\Controllers\MahasiswaKeabsenanController::class, 'getKeabsenanMahasiswa']);
+});
+
+// Email verification routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/users/{id}/email-status', [UserController::class, 'getEmailStatus']);
+    Route::put('/users/{id}/verify-email', [UserController::class, 'verifyEmail']);
 });

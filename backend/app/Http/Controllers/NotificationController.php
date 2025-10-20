@@ -7,6 +7,7 @@ use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 
 class NotificationController extends Controller
 {
@@ -243,14 +244,37 @@ class NotificationController extends Controller
         // Build query with search and user type filter
         $query = Notification::with('user');
 
-        // Untuk admin, tampilkan semua notifikasi yang dibuat untuk admin lain juga
-        $currentUser = Auth::user();
-        $adminIds = User::whereIn('role', ['admin', 'super_admin', 'tim_akademik'])->pluck('id')->toArray();
+        // Apply user type filter
+        if ($userType === 'dosen') {
+            // Filter notifications sent to dosen
+            $query->whereHas('user', function ($q) {
+                $q->whereIn('role', ['dosen', 'koordinator', 'tim_blok', 'dosen_mengajar']);
+            });
+        } elseif ($userType === 'mahasiswa') {
+            // Filter notifications sent to mahasiswa
+            $query->whereHas('user', function ($q) {
+                $q->where('role', 'mahasiswa');
+            });
+        } elseif ($userType === 'my_notifications') {
+            // Filter notifications for current admin user OR any admin notifications
+            // This includes reschedule notifications sent to any admin
+            $currentUser = Auth::user();
+            $adminIds = User::whereIn('role', ['admin', 'super_admin', 'tim_akademik'])->pluck('id')->toArray();
 
-        $query->where(function ($q) use ($adminIds) {
-            $q->whereIn('user_id', $adminIds)
-                ->orWhere('user_id', null); // Include public notifications
-        });
+            $query->where(function ($q) use ($currentUser, $adminIds) {
+                $q->where('user_id', $currentUser->id) // Current admin's notifications
+                    ->orWhereIn('user_id', $adminIds); // Any admin notifications (including reschedule)
+            });
+        } else {
+            // Default: show all notifications for admin monitoring
+            $currentUser = Auth::user();
+            $adminIds = User::whereIn('role', ['admin', 'super_admin', 'tim_akademik'])->pluck('id')->toArray();
+
+            $query->where(function ($q) use ($adminIds) {
+                $q->whereIn('user_id', $adminIds)
+                    ->orWhere('user_id', null); // Include public notifications
+            });
+        }
 
         // Apply search filter
         if ($search) {
@@ -291,28 +315,12 @@ class NotificationController extends Controller
                 // Handle regular notifications
                 $userRole = $notification->user->role ?? 'unknown';
 
-                // For admin notifications, show the actual actor (from data) or fallback to notification user
-                $displayName = $notification->data['approved_by'] ??
-                    $notification->data['rejected_by'] ??
-                    $notification->data['sender_name'] ??
-                    $notification->data['dosen_name'] ??
-                    $notification->user->name ??
-                    'Sistem';
+                // Show the actual recipient (notification user), not the sender
+                $displayName = $notification->user->name ?? 'Sistem';
 
-                // Determine user type based on the actual actor
-                // For admin actions (approve/reject), check if admin info exists
-                if (isset($notification->data['approved_by']) || isset($notification->data['rejected_by'])) {
-                    // This is an admin action, so actor is admin
-                    $actorRole = 'super_admin'; // Default to super_admin for admin actions
-                } else {
-                    // Regular notification, check sender or dosen role
-                    $actorRole = $notification->data['sender_role'] ??
-                        $notification->data['dosen_role'] ??
-                        $userRole;
-                }
-
-                $isDosen = in_array($actorRole, ['dosen', 'koordinator', 'tim_blok', 'dosen_mengajar']);
-                $isAdmin = in_array($actorRole, ['super_admin', 'admin', 'tim_akademik']);
+                // Determine user type based on the actual recipient (notification user)
+                $isDosen = in_array($userRole, ['dosen', 'koordinator', 'tim_blok', 'dosen_mengajar']);
+                $isAdmin = in_array($userRole, ['super_admin', 'admin', 'tim_akademik']);
                 $userTypeLabel = $isAdmin ? 'Admin' : ($isDosen ? 'Dosen' : 'Mahasiswa');
 
                 return [
@@ -393,9 +401,22 @@ class NotificationController extends Controller
             $q->where('role', 'mahasiswa');
         })->count();
 
-        // Get confirmation breakdown
-        $bisaMengajar = Notification::where('title', 'like', '%Bisa Mengajar%')->count();
-        $tidakBisaMengajar = Notification::where('title', 'like', '%Tidak Bisa Mengajar%')->count();
+        // Get confirmation breakdown - for notifications about dosen confirmations
+        // These notifications are sent to admin/super_admin about dosen responses
+        $bisaMengajar = 0;
+        $tidakBisaMengajar = 0;
+
+        // Apply user type filter to confirmation breakdown
+        if ($userType === 'dosen' || $userType === 'my_notifications' || $userType === 'all') {
+            // Count "Bisa Mengajar" - must contain "Bisa Mengajar" but NOT "Tidak Bisa Mengajar"
+            $bisaMengajar = Notification::where('title', 'like', '%Bisa Mengajar%')
+                ->where('title', 'not like', '%Tidak Bisa Mengajar%')
+                ->count();
+
+            // Count "Tidak Bisa Mengajar" - must contain "Tidak Bisa Mengajar"
+            $tidakBisaMengajar = Notification::where('title', 'like', '%Tidak Bisa Mengajar%')->count();
+        }
+        // For mahasiswa, both counts remain 0
         $totalConfirmations = $bisaMengajar + $tidakBisaMengajar;
 
         return response()->json([
@@ -824,17 +845,35 @@ class NotificationController extends Controller
                 ->log('Notification created');
 
             // Create notification for new dosen
+            $notificationData = is_string($notification->data) ? json_decode($notification->data, true) : ($notification->data ?? []);
             $newNotification = Notification::create([
                 'user_id' => $request->new_dosen_id,
                 'title' => 'Penugasan Jadwal Baru',
                 'message' => "Anda ditugaskan sebagai dosen pengganti untuk jadwal yang sebelumnya ditolak oleh dosen lain. Silakan konfirmasi ketersediaan Anda.",
                 'type' => 'info',
                 'is_read' => false,
-                'data' => array_merge($notification->data ?? [], [
+                'data' => array_merge($notificationData, [
                     'replacement' => true,
-                    'original_dosen' => $notification->data['dosen_name'] ?? $notification->data['sender_name'] ?? 'Unknown',
+                    'original_dosen' => $notificationData['dosen_name'] ?? $notificationData['sender_name'] ?? 'Unknown',
                     'admin_action' => 'replaced'
                 ])
+            ]);
+
+            // Create success notification for admin
+            $adminNotification = Notification::create([
+                'user_id' => auth()->id(),
+                'title' => 'Penggantian Dosen Berhasil',
+                'message' => "Dosen berhasil diganti dari " . ($notificationData['dosen_name'] ?? 'Dosen Lama') . " ke {$newDosen->name} untuk jadwal " . ($notificationData['mata_kuliah'] ?? 'Jadwal') . ".",
+                'type' => 'success',
+                'is_read' => false,
+                'data' => [
+                    'jadwal_id' => $request->jadwal_id,
+                    'jadwal_type' => $request->jadwal_type,
+                    'original_dosen' => $notificationData['dosen_name'] ?? 'Dosen Lama',
+                    'new_dosen' => $newDosen->name,
+                    'mata_kuliah' => $notificationData['mata_kuliah'] ?? 'Jadwal',
+                    'admin_action' => 'replacement_success'
+                ]
             ]);
 
 
@@ -861,7 +900,8 @@ class NotificationController extends Controller
             return response()->json([
                 'message' => 'Dosen berhasil diganti',
                 'new_dosen' => $newDosen,
-                'notification' => $newNotification
+                'notification' => $newNotification,
+                'admin_notification' => $adminNotification
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -920,8 +960,39 @@ class NotificationController extends Controller
                 $jadwal = \App\Models\JadwalPBL::find($jadwalId);
                 if ($jadwal) {
                     $oldPBLType = $jadwal->pbl_tipe;
+                    $oldDosenId = $jadwal->dosen_id;
                     $jadwal->resetPenilaianSubmitted();
-                    $jadwal->update(['dosen_id' => $newDosenId]);
+
+                    // Create a separate record for the old dosen with "tidak_bisa" status
+                    $oldDosenJadwal = $jadwal->replicate();
+                    $oldDosenJadwal->dosen_id = $oldDosenId;
+                    $oldDosenJadwal->status_konfirmasi = 'tidak_bisa';
+                    // Biarkan alasan_konfirmasi tetap alasan asli (Sakit, Acara Keluarga, dll)
+                    $oldDosenJadwal->status_reschedule = null;
+                    $oldDosenJadwal->reschedule_reason = null;
+                    $oldDosenJadwal->penilaian_submitted = false;
+                    $oldDosenJadwal->penilaian_submitted_at = null;
+                    $oldDosenJadwal->penilaian_submitted_by = null;
+                    $oldDosenJadwal->save();
+
+                    // Update dosen_ids to include old dosen for history
+                    $currentDosenIds = $jadwal->dosen_ids ? (is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true)) : [];
+                    if (!in_array($oldDosenId, $currentDosenIds)) {
+                        $currentDosenIds[] = $oldDosenId;
+                    }
+                    if (!in_array($newDosenId, $currentDosenIds)) {
+                        $currentDosenIds[] = $newDosenId;
+                    }
+
+                    // Reset status to 'belum_konfirmasi' when replacing dosen
+                    $jadwal->update([
+                        'dosen_id' => $newDosenId,
+                        'dosen_ids' => $currentDosenIds,
+                        'status_konfirmasi' => 'belum_konfirmasi',
+                        'status_reschedule' => null,
+                        'alasan_konfirmasi' => null,
+                        'reschedule_reason' => null
+                    ]);
 
                     // Update penilaian data jika PBL type berubah
                     if ($oldPBLType !== $jadwal->pbl_tipe) {
@@ -930,28 +1001,232 @@ class NotificationController extends Controller
                 }
                 break;
             case 'kuliah_besar':
-                // Update Kuliah Besar schedule
-                \DB::table('jadwal_kuliah_besar')->where('id', $jadwalId)->update(['dosen_id' => $newDosenId]);
+                // Update Kuliah Besar schedule and reset status
+                $jadwal = \DB::table('jadwal_kuliah_besar')->where('id', $jadwalId)->first();
+                if ($jadwal) {
+                    $oldDosenId = $jadwal->dosen_id;
+
+                    // Create a separate record for the old dosen with "tidak_bisa" status
+                    $oldDosenJadwal = (array) $jadwal;
+                    unset($oldDosenJadwal['id']);
+                    $oldDosenJadwal['dosen_id'] = $oldDosenId;
+                    $oldDosenJadwal['status_konfirmasi'] = 'tidak_bisa';
+                    // Biarkan alasan_konfirmasi tetap alasan asli (Sakit, Acara Keluarga, dll)
+                    $oldDosenJadwal['status_reschedule'] = null;
+                    $oldDosenJadwal['reschedule_reason'] = null;
+                    $oldDosenJadwal['created_at'] = now();
+                    $oldDosenJadwal['updated_at'] = now();
+                    \DB::table('jadwal_kuliah_besar')->insert($oldDosenJadwal);
+
+                    $currentDosenIds = $jadwal->dosen_ids ? (is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true)) : [];
+                    if (!in_array($oldDosenId, $currentDosenIds)) {
+                        $currentDosenIds[] = $oldDosenId;
+                    }
+                    if (!in_array($newDosenId, $currentDosenIds)) {
+                        $currentDosenIds[] = $newDosenId;
+                    }
+
+                    \DB::table('jadwal_kuliah_besar')->where('id', $jadwalId)->update([
+                        'dosen_id' => $newDosenId,
+                        'dosen_ids' => json_encode($currentDosenIds),
+                        'status_konfirmasi' => 'belum_konfirmasi',
+                        'status_reschedule' => null,
+                        'alasan_konfirmasi' => null,
+                        'reschedule_reason' => null
+                    ]);
+                }
                 break;
             case 'praktikum':
-                // Update Praktikum schedule (pivot table)
-                \DB::table('jadwal_praktikum_dosen')->where('jadwal_praktikum_id', $jadwalId)->update(['dosen_id' => $newDosenId]);
+                // Update Praktikum schedule (pivot table) and reset status
+                $jadwal = \App\Models\JadwalPraktikum::find($jadwalId);
+                if ($jadwal) {
+                    $oldDosenId = $jadwal->dosen->first()?->id;
+
+                    // If there was an old dosen and it's different from new dosen
+                    if ($oldDosenId && $oldDosenId != $newDosenId) {
+                        // Update existing pivot record to mark old dosen as "tidak_bisa"
+                        \DB::table('jadwal_praktikum_dosen')
+                            ->where('jadwal_praktikum_id', $jadwalId)
+                            ->where('dosen_id', $oldDosenId)
+                            ->update([
+                                'status_konfirmasi' => 'tidak_bisa',
+                                'status_reschedule' => null,
+                                'alasan_konfirmasi' => null, // Keep original reason
+                                'reschedule_reason' => null,
+                                'updated_at' => now()
+                            ]);
+                    }
+
+                    // Check if new dosen already exists in pivot table for original jadwal
+                    $existingPivot = \DB::table('jadwal_praktikum_dosen')
+                        ->where('jadwal_praktikum_id', $jadwalId)
+                        ->where('dosen_id', $newDosenId)
+                        ->first();
+
+                    if ($existingPivot) {
+                        // Update existing pivot record for new dosen
+                        \DB::table('jadwal_praktikum_dosen')
+                            ->where('jadwal_praktikum_id', $jadwalId)
+                            ->where('dosen_id', $newDosenId)
+                            ->update([
+                                'status_konfirmasi' => 'belum_konfirmasi',
+                                'status_reschedule' => null,
+                                'alasan_konfirmasi' => null,
+                                'reschedule_reason' => null,
+                                'updated_at' => now()
+                            ]);
+                    } else {
+                        // Create new pivot record for new dosen
+                        \DB::table('jadwal_praktikum_dosen')->insert([
+                            'jadwal_praktikum_id' => $jadwalId,
+                            'dosen_id' => $newDosenId,
+                            'status_konfirmasi' => 'belum_konfirmasi',
+                            'status_reschedule' => null,
+                            'alasan_konfirmasi' => null,
+                            'reschedule_reason' => null,
+                            'created_at' => now(),
+                            'updated_at' => now()
+                        ]);
+                    }
+                }
                 break;
             case 'jurnal':
                 // Update Jurnal Reading schedule and reset penilaian submitted
                 $jadwal = \App\Models\JadwalJurnalReading::find($jadwalId);
                 if ($jadwal) {
+                    $oldDosenId = $jadwal->dosen_id;
                     $jadwal->resetPenilaianSubmitted();
-                    $jadwal->update(['dosen_id' => $newDosenId]);
+
+                    // Create a separate record for the old dosen with "tidak_bisa" status
+                    $oldDosenJadwal = $jadwal->replicate();
+                    $oldDosenJadwal->dosen_id = $oldDosenId;
+                    $oldDosenJadwal->status_konfirmasi = 'tidak_bisa';
+                    $oldDosenJadwal->alasan_konfirmasi = 'Diganti dosen lain';
+                    $oldDosenJadwal->status_reschedule = null;
+                    $oldDosenJadwal->reschedule_reason = null;
+                    $oldDosenJadwal->penilaian_submitted = false;
+                    $oldDosenJadwal->penilaian_submitted_at = null;
+                    $oldDosenJadwal->penilaian_submitted_by = null;
+                    $oldDosenJadwal->save();
+
+                    // Update dosen_ids to include old dosen for history
+                    $currentDosenIds = $jadwal->dosen_ids ? (is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true)) : [];
+                    if (!in_array($oldDosenId, $currentDosenIds)) {
+                        $currentDosenIds[] = $oldDosenId;
+                    }
+                    if (!in_array($newDosenId, $currentDosenIds)) {
+                        $currentDosenIds[] = $newDosenId;
+                    }
+
+                    // Reset status to 'belum_konfirmasi' when replacing dosen
+                    $jadwal->update([
+                        'dosen_id' => $newDosenId,
+                        'dosen_ids' => $currentDosenIds,
+                        'status_konfirmasi' => 'belum_konfirmasi',
+                        'status_reschedule' => null,
+                        'alasan_konfirmasi' => null,
+                        'reschedule_reason' => null
+                    ]);
+                }
+                break;
+            case 'jurnal_reading':
+                // Update Jurnal Reading schedule and reset status
+                $jadwal = \App\Models\JadwalJurnalReading::find($jadwalId);
+                if ($jadwal) {
+                    $oldDosenId = $jadwal->dosen_id;
+
+                    // Create a separate record for the old dosen with "tidak_bisa" status
+                    $oldDosenJadwal = $jadwal->replicate();
+                    $oldDosenJadwal->dosen_id = $oldDosenId;
+                    $oldDosenJadwal->status_konfirmasi = 'tidak_bisa';
+                    $oldDosenJadwal->alasan_konfirmasi = 'Diganti dosen lain';
+                    $oldDosenJadwal->status_reschedule = null;
+                    $oldDosenJadwal->reschedule_reason = null;
+                    $oldDosenJadwal->save();
+
+                    // Update dosen_ids to include old dosen for history
+                    $currentDosenIds = $jadwal->dosen_ids ? (is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true)) : [];
+                    if (!in_array($oldDosenId, $currentDosenIds)) {
+                        $currentDosenIds[] = $oldDosenId;
+                    }
+                    if (!in_array($newDosenId, $currentDosenIds)) {
+                        $currentDosenIds[] = $newDosenId;
+                    }
+
+                    // Reset status to 'belum_konfirmasi' when replacing dosen
+                    $jadwal->update([
+                        'dosen_id' => $newDosenId,
+                        'dosen_ids' => $currentDosenIds,
+                        'status_konfirmasi' => 'belum_konfirmasi',
+                        'status_reschedule' => null,
+                        'alasan_konfirmasi' => null,
+                        'reschedule_reason' => null
+                    ]);
                 }
                 break;
             case 'csr':
-                // Update CSR schedule
-                \DB::table('jadwal_csr')->where('id', $jadwalId)->update(['dosen_id' => $newDosenId]);
+                // Update CSR schedule and reset status
+                $jadwal = \DB::table('jadwal_csr')->where('id', $jadwalId)->first();
+                if ($jadwal) {
+                    $oldDosenId = $jadwal->dosen_id;
+
+                    // Create a separate record for the old dosen with "tidak_bisa" status
+                    $oldDosenJadwal = (array) $jadwal;
+                    unset($oldDosenJadwal['id']);
+                    $oldDosenJadwal['dosen_id'] = $oldDosenId;
+                    $oldDosenJadwal['status_konfirmasi'] = 'tidak_bisa';
+                    $oldDosenJadwal['alasan_konfirmasi'] = 'Diganti dosen lain';
+                    $oldDosenJadwal['status_reschedule'] = null;
+                    $oldDosenJadwal['reschedule_reason'] = null;
+                    $oldDosenJadwal['created_at'] = now();
+                    $oldDosenJadwal['updated_at'] = now();
+                    \DB::table('jadwal_csr')->insert($oldDosenJadwal);
+
+                    // CSR tidak memiliki dosen_ids, langsung update dosen_id
+                    \DB::table('jadwal_csr')->where('id', $jadwalId)->update([
+                        'dosen_id' => $newDosenId,
+                        'status_konfirmasi' => 'belum_konfirmasi',
+                        'status_reschedule' => null,
+                        'alasan_konfirmasi' => null,
+                        'reschedule_reason' => null
+                    ]);
+                }
                 break;
             case 'non_blok_non_csr':
-                // Update Non Blok Non CSR schedule
-                \DB::table('jadwal_non_blok_non_csr')->where('id', $jadwalId)->update(['dosen_id' => $newDosenId]);
+                // Update Non Blok Non CSR schedule and reset status
+                $jadwal = \DB::table('jadwal_non_blok_non_csr')->where('id', $jadwalId)->first();
+                if ($jadwal) {
+                    $oldDosenId = $jadwal->dosen_id;
+
+                    // Create a separate record for the old dosen with "tidak_bisa" status
+                    $oldDosenJadwal = (array) $jadwal;
+                    unset($oldDosenJadwal['id']);
+                    $oldDosenJadwal['dosen_id'] = $oldDosenId;
+                    $oldDosenJadwal['status_konfirmasi'] = 'tidak_bisa';
+                    $oldDosenJadwal['alasan_konfirmasi'] = 'Diganti dosen lain';
+                    $oldDosenJadwal['status_reschedule'] = null;
+                    $oldDosenJadwal['reschedule_reason'] = null;
+                    $oldDosenJadwal['created_at'] = now();
+                    $oldDosenJadwal['updated_at'] = now();
+                    \DB::table('jadwal_non_blok_non_csr')->insert($oldDosenJadwal);
+
+                    $currentDosenIds = $jadwal->dosen_ids ? (is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true)) : [];
+                    if (!in_array($oldDosenId, $currentDosenIds)) {
+                        $currentDosenIds[] = $oldDosenId;
+                    }
+                    if (!in_array($newDosenId, $currentDosenIds)) {
+                        $currentDosenIds[] = $newDosenId;
+                    }
+
+                    \DB::table('jadwal_non_blok_non_csr')->where('id', $jadwalId)->update([
+                        'dosen_id' => $newDosenId,
+                        'dosen_ids' => json_encode($currentDosenIds),
+                        'status_konfirmasi' => 'belum_konfirmasi',
+                        'status_reschedule' => null,
+                        'alasan_konfirmasi' => null,
+                        'reschedule_reason' => null
+                    ]);
+                }
                 break;
         }
     }
@@ -1182,5 +1457,1426 @@ class NotificationController extends Controller
                 \DB::table('jadwal_non_blok_non_csr')->where('id', $jadwalId)->update($updateData);
                 break;
         }
+    }
+
+    /**
+     * Send reminder notifications to dosen who haven't confirmed yet
+     */
+    public function sendReminderNotifications(Request $request)
+    {
+        // Check if user is admin or tim akademik
+        if (!Auth::user() || !in_array(Auth::user()->role, ['admin', 'super_admin', 'tim_akademik'])) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        try {
+            $reminderCount = 0;
+            $jadwalTypes = ['pbl', 'kuliah_besar', 'praktikum', 'jurnal_reading', 'csr', 'non_blok_non_csr'];
+
+            // Get filter parameters
+            $reminderType = $request->get('reminder_type', 'all');
+            $semester = $request->get('semester');
+            $blok = $request->get('blok');
+
+            foreach ($jadwalTypes as $jadwalType) {
+                // Send unconfirmed reminders
+                if ($reminderType === 'all' || $reminderType === 'unconfirmed') {
+                    $reminderCount += $this->sendReminderForJadwalType($jadwalType, 'unconfirmed', $semester, $blok);
+                }
+
+                // Send upcoming reminders
+                if ($reminderType === 'all' || $reminderType === 'upcoming') {
+                    $reminderCount += $this->sendReminderForJadwalType($jadwalType, 'upcoming', $semester, $blok);
+                }
+            }
+
+            return response()->json([
+                'message' => "Notifikasi pengingat berhasil dikirim ke {$reminderCount} dosen",
+                'reminder_count' => $reminderCount
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error sending reminder notifications: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Gagal mengirim notifikasi pengingat',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Send reminder notifications for specific jadwal type
+     */
+    private function sendReminderForJadwalType($jadwalType, $reminderType = 'unconfirmed', $semester = null, $blok = null)
+    {
+        $reminderCount = 0;
+
+        switch ($jadwalType) {
+            case 'pbl':
+                $reminderCount += $this->sendPBLReminders($reminderType, $semester, $blok);
+                break;
+            case 'kuliah_besar':
+                $reminderCount += $this->sendKuliahBesarReminders($reminderType, $semester, $blok);
+                break;
+            case 'praktikum':
+                $reminderCount += $this->sendPraktikumReminders($reminderType, $semester, $blok);
+                break;
+            case 'jurnal_reading':
+                $reminderCount += $this->sendJurnalReadingReminders($reminderType, $semester, $blok);
+                break;
+            case 'csr':
+                $reminderCount += $this->sendCSRReminders($reminderType, $semester, $blok);
+                break;
+            case 'non_blok_non_csr':
+                $reminderCount += $this->sendNonBlokNonCSRReminders($reminderType, $semester, $blok);
+                break;
+        }
+
+        return $reminderCount;
+    }
+
+    /**
+     * Send PBL reminder notifications
+     */
+    private function sendPBLReminders($reminderType = 'unconfirmed', $semester = null, $blok = null)
+    {
+        $reminderCount = 0;
+
+        // Get PBL schedules based on reminder type
+        $query = \App\Models\JadwalPBL::with(['mataKuliah', 'ruangan', 'dosen']);
+
+        if ($reminderType === 'unconfirmed') {
+            $query->where('status_konfirmasi', 'belum_konfirmasi');
+        } elseif ($reminderType === 'upcoming') {
+            $now = now();
+            $query->where('status_konfirmasi', 'bisa')
+                ->where('tanggal', '>=', $now->toDateString())
+                ->where(function ($q) use ($now) {
+                    $q->where('tanggal', '>', $now->toDateString())
+                        ->orWhere(function ($q2) use ($now) {
+                            $q2->where('tanggal', '=', $now->toDateString())
+                                ->where('jam_mulai', '>', $now->format('H:i:s'));
+                        });
+                });
+        }
+
+        // Apply semester filter if provided
+        if ($semester) {
+            $query->whereHas('mataKuliah', function ($q) use ($semester) {
+                $q->where('semester', $semester);
+            });
+        }
+
+        // Apply blok filter if provided
+        if ($blok) {
+            $query->whereHas('mataKuliah', function ($q) use ($blok) {
+                $q->where('blok', $blok);
+            });
+        }
+
+        $jadwalPBL = $query->get();
+
+        foreach ($jadwalPBL as $jadwal) {
+            if ($jadwal->dosen_id) {
+                $dosen = $jadwal->dosen;
+                if ($dosen) {
+                    // Check if dosen has valid email
+                    $hasValidEmail = !empty($dosen->email) && filter_var($dosen->email, FILTER_VALIDATE_EMAIL);
+
+                    // Create reminder notification based on type
+                    if ($reminderType === 'unconfirmed') {
+                        $title = 'Pengingat: Konfirmasi Ketersediaan PBL';
+                        $message = "Pengingat: Silakan konfirmasi ketersediaan Anda untuk jadwal PBL {$jadwal->mataKuliah->nama} pada tanggal " .
+                            date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                            str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                            " di ruangan {$jadwal->ruangan->nama}.";
+                    } else { // upcoming
+                        $title = 'Pengingat: Persiapan Mengajar PBL';
+                        $message = "Pengingat: Anda memiliki jadwal PBL {$jadwal->mataKuliah->nama} pada tanggal " .
+                            date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                            str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                            " di ruangan {$jadwal->ruangan->nama}. Silakan persiapkan diri untuk mengajar.";
+                    }
+
+                    Notification::create([
+                        'user_id' => $dosen->id,
+                        'title' => $title,
+                        'message' => $message,
+                        'type' => 'warning',
+                        'is_read' => false,
+                        'data' => [
+                            'jadwal_id' => $jadwal->id,
+                            'jadwal_type' => 'pbl',
+                            'mata_kuliah' => $jadwal->mataKuliah->nama,
+                            'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                            'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                            'ruangan' => $jadwal->ruangan->nama,
+                            'reminder' => true,
+                            'reminder_type' => $reminderType
+                        ]
+                    ]);
+
+                    // Send email reminder if dosen has valid email
+                    if ($hasValidEmail) {
+                        // Use the same email logic for both types
+                        $this->sendEmailReminderConsistent($dosen, 'PBL', $jadwal, $reminderType);
+                    }
+
+                    $reminderCount++;
+                }
+            }
+        }
+
+        return $reminderCount;
+    }
+
+    /**
+     * Send Kuliah Besar reminder notifications
+     */
+    private function sendKuliahBesarReminders($reminderType = 'unconfirmed', $semester = null, $blok = null)
+    {
+        $reminderCount = 0;
+
+        // Get Kuliah Besar schedules based on reminder type
+        $query = \App\Models\JadwalKuliahBesar::with(['mataKuliah', 'ruangan', 'dosen']);
+
+        if ($reminderType === 'unconfirmed') {
+            $query->where('status_konfirmasi', 'belum_konfirmasi');
+        } elseif ($reminderType === 'upcoming') {
+            $now = now();
+            $query->where('status_konfirmasi', 'bisa')
+                ->where('tanggal', '>=', $now->toDateString())
+                ->where(function ($q) use ($now) {
+                    $q->where('tanggal', '>', $now->toDateString())
+                        ->orWhere(function ($q2) use ($now) {
+                            $q2->where('tanggal', '=', $now->toDateString())
+                                ->where('jam_mulai', '>', $now->format('H:i:s'));
+                        });
+                });
+        }
+
+        // Apply semester filter if provided
+        if ($semester) {
+            $query->whereHas('mataKuliah', function ($q) use ($semester) {
+                $q->where('semester', $semester);
+            });
+        }
+
+        // Apply blok filter if provided
+        if ($blok) {
+            $query->whereHas('mataKuliah', function ($q) use ($blok) {
+                $q->where('blok', $blok);
+            });
+        }
+
+        $jadwalKuliahBesar = $query->get();
+
+        foreach ($jadwalKuliahBesar as $jadwal) {
+            if ($jadwal->dosen_id) {
+                $dosen = $jadwal->dosen;
+                if ($dosen) {
+                    // Check if dosen has valid email
+                    $hasValidEmail = !empty($dosen->email) && filter_var($dosen->email, FILTER_VALIDATE_EMAIL);
+
+                    // Create reminder notification based on type
+                    if ($reminderType === 'unconfirmed') {
+                        $title = 'Pengingat: Konfirmasi Ketersediaan Kuliah Besar';
+                        $message = "Pengingat: Silakan konfirmasi ketersediaan Anda untuk jadwal Kuliah Besar {$jadwal->mataKuliah->nama} pada tanggal " .
+                            date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                            str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                            " di ruangan {$jadwal->ruangan->nama}.";
+                    } else { // upcoming
+                        $title = 'Pengingat: Persiapan Mengajar Kuliah Besar';
+                        $message = "Pengingat: Anda memiliki jadwal Kuliah Besar {$jadwal->mataKuliah->nama} pada tanggal " .
+                            date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                            str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                            " di ruangan {$jadwal->ruangan->nama}. Silakan persiapkan diri untuk mengajar.";
+                    }
+
+                    Notification::create([
+                        'user_id' => $dosen->id,
+                        'title' => $title,
+                        'message' => $message,
+                        'type' => 'warning',
+                        'is_read' => false,
+                        'data' => [
+                            'jadwal_id' => $jadwal->id,
+                            'jadwal_type' => 'kuliah_besar',
+                            'mata_kuliah' => $jadwal->mataKuliah->nama,
+                            'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                            'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                            'ruangan' => $jadwal->ruangan->nama,
+                            'reminder' => true,
+                            'reminder_type' => $reminderType
+                        ]
+                    ]);
+
+                    // Send email reminder if dosen has valid email
+                    if ($hasValidEmail) {
+                        $this->sendEmailReminderConsistent($dosen, 'Kuliah Besar', $jadwal, $reminderType);
+                    }
+
+                    $reminderCount++;
+                }
+            }
+        }
+
+        return $reminderCount;
+    }
+
+    /**
+     * Send Praktikum reminder notifications
+     */
+    private function sendPraktikumReminders($reminderType = 'unconfirmed', $semester = null, $blok = null)
+    {
+        $reminderCount = 0;
+
+        // Get Praktikum schedules based on reminder type
+        $query = \App\Models\JadwalPraktikum::with(['mataKuliah', 'ruangan', 'dosen']);
+
+        if ($reminderType === 'unconfirmed') {
+            $query->whereHas('dosen', function ($q) {
+                $q->where('status_konfirmasi', 'belum_konfirmasi');
+            });
+        } elseif ($reminderType === 'upcoming') {
+            $now = now();
+            $query->where('tanggal', '>=', $now->toDateString())
+                ->where(function ($q) use ($now) {
+                    $q->where('tanggal', '>', $now->toDateString())
+                        ->orWhere(function ($q2) use ($now) {
+                            $q2->where('tanggal', '=', $now->toDateString())
+                                ->where('jam_mulai', '>', $now->format('H:i:s'));
+                        });
+                })
+                ->whereHas('dosen', function ($q) {
+                    $q->where('status_konfirmasi', 'bisa');
+                });
+        }
+
+        // Apply semester filter if provided
+        if ($semester) {
+            $query->whereHas('mataKuliah', function ($q) use ($semester) {
+                $q->where('semester', $semester);
+            });
+        }
+
+        // Apply blok filter if provided
+        if ($blok) {
+            $query->whereHas('mataKuliah', function ($q) use ($blok) {
+                $q->where('blok', $blok);
+            });
+        }
+
+        $jadwalPraktikum = $query->get();
+
+        foreach ($jadwalPraktikum as $jadwal) {
+            if ($reminderType === 'unconfirmed') {
+                $dosenList = $jadwal->dosen()->wherePivot('status_konfirmasi', 'belum_konfirmasi')->get();
+            } else { // upcoming
+                $dosenList = $jadwal->dosen()->wherePivot('status_konfirmasi', 'bisa')->get();
+            }
+
+            foreach ($dosenList as $dosen) {
+                // Check if dosen has valid email
+                $hasValidEmail = !empty($dosen->email) && filter_var($dosen->email, FILTER_VALIDATE_EMAIL);
+
+                // Create reminder notification based on type
+                if ($reminderType === 'unconfirmed') {
+                    $title = 'Pengingat: Konfirmasi Ketersediaan Praktikum';
+                    $message = "Pengingat: Silakan konfirmasi ketersediaan Anda untuk jadwal Praktikum {$jadwal->mataKuliah->nama} pada tanggal " .
+                        date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                        str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                        " di ruangan {$jadwal->ruangan->nama}.";
+                } else { // upcoming
+                    $title = 'Pengingat: Persiapan Mengajar Praktikum';
+                    $message = "Pengingat: Anda memiliki jadwal Praktikum {$jadwal->mataKuliah->nama} pada tanggal " .
+                        date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                        str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                        " di ruangan {$jadwal->ruangan->nama}. Silakan persiapkan diri untuk mengajar.";
+                }
+
+                Notification::create([
+                    'user_id' => $dosen->id,
+                    'title' => $title,
+                    'message' => $message,
+                    'type' => 'warning',
+                    'is_read' => false,
+                    'data' => [
+                        'jadwal_id' => $jadwal->id,
+                        'jadwal_type' => 'praktikum',
+                        'mata_kuliah' => $jadwal->mataKuliah->nama,
+                        'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                        'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                        'ruangan' => $jadwal->ruangan->nama,
+                        'reminder' => true,
+                        'reminder_type' => $reminderType
+                    ]
+                ]);
+
+                // Send email reminder if dosen has valid email
+                if ($hasValidEmail) {
+                    $this->sendEmailReminderConsistent($dosen, 'Praktikum', $jadwal, $reminderType);
+                }
+
+                $reminderCount++;
+            }
+        }
+
+        return $reminderCount;
+    }
+
+    /**
+     * Send Jurnal Reading reminder notifications
+     */
+    private function sendJurnalReadingReminders($reminderType = 'unconfirmed', $semester = null, $blok = null)
+    {
+        $reminderCount = 0;
+
+        // Get Jurnal Reading schedules based on reminder type
+        $query = \App\Models\JadwalJurnalReading::with(['mataKuliah', 'ruangan', 'dosen']);
+
+        if ($reminderType === 'unconfirmed') {
+            $query->where('status_konfirmasi', 'belum_konfirmasi');
+        } elseif ($reminderType === 'upcoming') {
+            $now = now();
+            $query->where('status_konfirmasi', 'bisa')
+                ->where('tanggal', '>=', $now->toDateString())
+                ->where(function ($q) use ($now) {
+                    $q->where('tanggal', '>', $now->toDateString())
+                        ->orWhere(function ($q2) use ($now) {
+                            $q2->where('tanggal', '=', $now->toDateString())
+                                ->where('jam_mulai', '>', $now->format('H:i:s'));
+                        });
+                });
+        }
+
+        // Apply semester filter if provided
+        if ($semester) {
+            $query->whereHas('mataKuliah', function ($q) use ($semester) {
+                $q->where('semester', $semester);
+            });
+        }
+
+        // Apply blok filter if provided
+        if ($blok) {
+            $query->whereHas('mataKuliah', function ($q) use ($blok) {
+                $q->where('blok', $blok);
+            });
+        }
+
+        $jadwalJurnalReading = $query->get();
+
+        foreach ($jadwalJurnalReading as $jadwal) {
+            if ($jadwal->dosen_id) {
+                $dosen = $jadwal->dosen;
+                if ($dosen) {
+                    // Check if dosen has valid email
+                    $hasValidEmail = !empty($dosen->email) && filter_var($dosen->email, FILTER_VALIDATE_EMAIL);
+
+                    // Create reminder notification based on type
+                    if ($reminderType === 'unconfirmed') {
+                        $title = 'Pengingat: Konfirmasi Ketersediaan Jurnal Reading';
+                        $message = "Pengingat: Silakan konfirmasi ketersediaan Anda untuk jadwal Jurnal Reading {$jadwal->mataKuliah->nama} pada tanggal " .
+                            date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                            str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                            " di ruangan {$jadwal->ruangan->nama}.";
+                    } else { // upcoming
+                        $title = 'Pengingat: Persiapan Mengajar Jurnal Reading';
+                        $message = "Pengingat: Anda memiliki jadwal Jurnal Reading {$jadwal->mataKuliah->nama} pada tanggal " .
+                            date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                            str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                            " di ruangan {$jadwal->ruangan->nama}. Silakan persiapkan diri untuk mengajar.";
+                    }
+
+                    Notification::create([
+                        'user_id' => $dosen->id,
+                        'title' => $title,
+                        'message' => $message,
+                        'type' => 'warning',
+                        'is_read' => false,
+                        'data' => [
+                            'jadwal_id' => $jadwal->id,
+                            'jadwal_type' => 'jurnal_reading',
+                            'mata_kuliah' => $jadwal->mataKuliah->nama,
+                            'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                            'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                            'ruangan' => $jadwal->ruangan->nama,
+                            'reminder' => true,
+                            'reminder_type' => $reminderType
+                        ]
+                    ]);
+
+                    // Send email reminder if dosen has valid email
+                    if ($hasValidEmail) {
+                        $this->sendEmailReminderConsistent($dosen, 'Jurnal Reading', $jadwal, $reminderType);
+                    }
+
+                    $reminderCount++;
+                }
+            }
+        }
+
+        return $reminderCount;
+    }
+
+    /**
+     * Send CSR reminder notifications
+     */
+    private function sendCSRReminders($reminderType = 'unconfirmed', $semester = null, $blok = null)
+    {
+        $reminderCount = 0;
+
+        // Get CSR schedules based on reminder type
+        $query = \App\Models\JadwalCSR::with(['kategori', 'ruangan', 'dosen']);
+
+        if ($reminderType === 'unconfirmed') {
+            $query->where('status_konfirmasi', 'belum_konfirmasi');
+        } elseif ($reminderType === 'upcoming') {
+            $now = now();
+            $query->where('status_konfirmasi', 'bisa')
+                ->where('tanggal', '>=', $now->toDateString())
+                ->where(function ($q) use ($now) {
+                    $q->where('tanggal', '>', $now->toDateString())
+                        ->orWhere(function ($q2) use ($now) {
+                            $q2->where('tanggal', '=', $now->toDateString())
+                                ->where('jam_mulai', '>', $now->format('H:i:s'));
+                        });
+                });
+        }
+
+        // Apply semester filter if provided
+        if ($semester) {
+            $query->whereHas('kategori', function ($q) use ($semester) {
+                $q->where('semester', $semester);
+            });
+        }
+
+        // Apply blok filter if provided
+        if ($blok) {
+            $query->whereHas('kategori', function ($q) use ($blok) {
+                $q->where('blok', $blok);
+            });
+        }
+
+        $jadwalCSR = $query->get();
+
+        foreach ($jadwalCSR as $jadwal) {
+            if ($jadwal->dosen_id) {
+                $dosen = $jadwal->dosen;
+                if ($dosen) {
+                    // Check if dosen has valid email
+                    $hasValidEmail = !empty($dosen->email) && filter_var($dosen->email, FILTER_VALIDATE_EMAIL);
+
+                    // Create reminder notification based on type
+                    if ($reminderType === 'unconfirmed') {
+                        $title = 'Pengingat: Konfirmasi Ketersediaan CSR';
+                        $message = "Pengingat: Silakan konfirmasi ketersediaan Anda untuk jadwal CSR {$jadwal->kategori->nama} pada tanggal " .
+                            date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                            str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                            " di ruangan {$jadwal->ruangan->nama}.";
+                    } else { // upcoming
+                        $title = 'Pengingat: Persiapan Mengajar CSR';
+                        $message = "Pengingat: Anda memiliki jadwal CSR {$jadwal->kategori->nama} pada tanggal " .
+                            date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                            str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                            " di ruangan {$jadwal->ruangan->nama}. Silakan persiapkan diri untuk mengajar.";
+                    }
+
+                    Notification::create([
+                        'user_id' => $dosen->id,
+                        'title' => $title,
+                        'message' => $message,
+                        'type' => 'warning',
+                        'is_read' => false,
+                        'data' => [
+                            'jadwal_id' => $jadwal->id,
+                            'jadwal_type' => 'csr',
+                            'mata_kuliah' => $jadwal->kategori->nama,
+                            'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                            'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                            'ruangan' => $jadwal->ruangan->nama,
+                            'reminder' => true,
+                            'reminder_type' => $reminderType
+                        ]
+                    ]);
+
+                    // Send email reminder if dosen has valid email
+                    if ($hasValidEmail) {
+                        $this->sendEmailReminderConsistent($dosen, 'CSR', $jadwal, $reminderType);
+                    }
+
+                    $reminderCount++;
+                }
+            }
+        }
+
+        return $reminderCount;
+    }
+
+    /**
+     * Send Non Blok Non CSR reminder notifications
+     */
+    private function sendNonBlokNonCSRReminders($reminderType = 'unconfirmed', $semester = null, $blok = null)
+    {
+        $reminderCount = 0;
+
+        // Get Non Blok Non CSR schedules based on reminder type
+        $query = \App\Models\JadwalNonBlokNonCSR::with(['mataKuliah', 'ruangan', 'dosen']);
+
+        if ($reminderType === 'unconfirmed') {
+            $query->where('status_konfirmasi', 'belum_konfirmasi');
+        } elseif ($reminderType === 'upcoming') {
+            $now = now();
+            $query->where('status_konfirmasi', 'bisa')
+                ->where('tanggal', '>=', $now->toDateString())
+                ->where(function ($q) use ($now) {
+                    $q->where('tanggal', '>', $now->toDateString())
+                        ->orWhere(function ($q2) use ($now) {
+                            $q2->where('tanggal', '=', $now->toDateString())
+                                ->where('jam_mulai', '>', $now->format('H:i:s'));
+                        });
+                });
+        }
+
+        // Apply semester filter if provided
+        if ($semester) {
+            $query->whereHas('mataKuliah', function ($q) use ($semester) {
+                $q->where('semester', $semester);
+            });
+        }
+
+        // Apply blok filter if provided
+        if ($blok) {
+            $query->whereHas('mataKuliah', function ($q) use ($blok) {
+                $q->where('blok', $blok);
+            });
+        }
+
+        $jadwalNonBlokNonCSR = $query->get();
+
+        foreach ($jadwalNonBlokNonCSR as $jadwal) {
+            if ($jadwal->dosen_id) {
+                $dosen = $jadwal->dosen;
+                if ($dosen) {
+                    // Check if dosen has valid email
+                    $hasValidEmail = !empty($dosen->email) && filter_var($dosen->email, FILTER_VALIDATE_EMAIL);
+
+                    // Create reminder notification based on type
+                    if ($reminderType === 'unconfirmed') {
+                        $title = 'Pengingat: Konfirmasi Ketersediaan Non Blok Non CSR';
+                        $message = "Pengingat: Silakan konfirmasi ketersediaan Anda untuk jadwal Non Blok Non CSR {$jadwal->mataKuliah->nama} pada tanggal " .
+                            date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                            str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                            " di ruangan {$jadwal->ruangan->nama}.";
+                    } else { // upcoming
+                        $title = 'Pengingat: Persiapan Mengajar Non Blok Non CSR';
+                        $message = "Pengingat: Anda memiliki jadwal Non Blok Non CSR {$jadwal->mataKuliah->nama} pada tanggal " .
+                            date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                            str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                            " di ruangan {$jadwal->ruangan->nama}. Silakan persiapkan diri untuk mengajar.";
+                    }
+
+                    Notification::create([
+                        'user_id' => $dosen->id,
+                        'title' => $title,
+                        'message' => $message,
+                        'type' => 'warning',
+                        'is_read' => false,
+                        'data' => [
+                            'jadwal_id' => $jadwal->id,
+                            'jadwal_type' => 'non_blok_non_csr',
+                            'mata_kuliah' => $jadwal->mataKuliah->nama,
+                            'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                            'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                            'ruangan' => $jadwal->ruangan->nama,
+                            'reminder' => true,
+                            'reminder_type' => $reminderType
+                        ]
+                    ]);
+
+                    // Send email reminder if dosen has valid email
+                    if ($hasValidEmail) {
+                        $this->sendEmailReminderConsistent($dosen, 'Non Blok Non CSR', $jadwal, $reminderType);
+                    }
+
+                    $reminderCount++;
+                }
+            }
+        }
+
+        return $reminderCount;
+    }
+
+    /**
+     * Get list of dosen with belum_konfirmasi status and email verified
+     */
+    public function getPendingDosen(Request $request)
+    {
+        // Check if user is admin or tim akademik
+        if (!Auth::user() || !in_array(Auth::user()->role, ['admin', 'super_admin', 'tim_akademik'])) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        try {
+            $pendingDosen = [];
+            $jadwalTypes = ['pbl', 'kuliah_besar', 'praktikum', 'jurnal_reading', 'csr', 'non_blok_non_csr'];
+
+            // Get filter parameters
+            $semester = $request->get('semester');
+            $blok = $request->get('blok');
+            $page = $request->get('page', 1);
+            $pageSize = $request->get('page_size', 5);
+            $reminderType = $request->get('reminder_type', 'all'); // 'unconfirmed', 'upcoming', 'all'
+
+            foreach ($jadwalTypes as $jadwalType) {
+                // Get unconfirmed dosen
+                if ($reminderType === 'all' || $reminderType === 'unconfirmed') {
+                    $typeDosen = $this->getPendingDosenForJadwalType($jadwalType, $semester, $blok, 'unconfirmed');
+                    $pendingDosen = array_merge($pendingDosen, $typeDosen);
+                }
+
+                // Get upcoming confirmed dosen
+                if ($reminderType === 'all' || $reminderType === 'upcoming') {
+                    $typeDosen = $this->getPendingDosenForJadwalType($jadwalType, $semester, $blok, 'upcoming');
+                    $pendingDosen = array_merge($pendingDosen, $typeDosen);
+                }
+            }
+
+            // Tidak perlu filter email_verified, tampilkan semua dosen yang belum konfirmasi
+            // Filter email_verified hanya untuk pengiriman email, bukan untuk menampilkan list
+
+            // Remove duplicates based on dosen_id + jadwal_type + jadwal_id
+            // This allows the same dosen to appear multiple times if they have different jadwal types
+            $uniqueDosen = [];
+            $seenKeys = [];
+            foreach ($pendingDosen as $dosen) {
+                $key = $dosen['dosen_id'] . '_' . $dosen['jadwal_type'] . '_' . $dosen['jadwal_id'];
+                if (!in_array($key, $seenKeys)) {
+                    $uniqueDosen[] = $dosen;
+                    $seenKeys[] = $key;
+                }
+            }
+
+            // Apply pagination
+            $total = count($uniqueDosen);
+            $offset = ($page - 1) * $pageSize;
+            $paginatedDosen = array_slice($uniqueDosen, $offset, $pageSize);
+
+            return response()->json([
+                'pending_dosen' => $paginatedDosen,
+                'total' => $total,
+                'current_page' => $page,
+                'per_page' => $pageSize,
+                'last_page' => ceil($total / $pageSize)
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error getting pending dosen: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Gagal mengambil daftar dosen',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get pending dosen for specific jadwal type
+     */
+    private function getPendingDosenForJadwalType($jadwalType, $semester = null, $blok = null, $reminderType = 'unconfirmed')
+    {
+        $pendingDosen = [];
+
+        if ($reminderType === 'unconfirmed') {
+            $pendingDosen = $this->getUnconfirmedDosenForJadwalType($jadwalType, $semester, $blok);
+        } elseif ($reminderType === 'upcoming') {
+            $pendingDosen = $this->getUpcomingDosenForJadwalType($jadwalType, $semester, $blok);
+        }
+
+        return $pendingDosen;
+    }
+
+    /**
+     * Get unconfirmed dosen for specific jadwal type
+     */
+    private function getUnconfirmedDosenForJadwalType($jadwalType, $semester = null, $blok = null)
+    {
+        $pendingDosen = [];
+
+        switch ($jadwalType) {
+            case 'pbl':
+                $query = \App\Models\JadwalPBL::with(['mataKuliah', 'ruangan', 'dosen'])
+                    ->where('status_konfirmasi', 'belum_konfirmasi');
+
+                // Apply semester filter if provided
+                if ($semester) {
+                    $query->whereHas('mataKuliah', function ($q) use ($semester) {
+                        $q->where('semester', $semester);
+                    });
+                }
+
+                // Apply blok filter if provided (blok ada di tabel mata_kuliah)
+                if ($blok) {
+                    $query->whereHas('mataKuliah', function ($q) use ($blok) {
+                        $q->where('blok', $blok);
+                    });
+                }
+
+                $jadwalPBL = $query->get();
+
+                foreach ($jadwalPBL as $jadwal) {
+                    if ($jadwal->dosen_id && $jadwal->dosen) {
+                        $pendingDosen[] = [
+                            'dosen_id' => $jadwal->dosen_id,
+                            'name' => $jadwal->dosen->name,
+                            'email' => $jadwal->dosen->email,
+                            'email_verified' => $jadwal->dosen->email_verified ?? false,
+                            'jadwal_type' => 'PBL',
+                            'mata_kuliah' => $jadwal->mataKuliah->nama,
+                            'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                            'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                            'ruangan' => $jadwal->ruangan->nama,
+                            'jadwal_id' => $jadwal->id,
+                            'reminder_type' => 'unconfirmed'
+                        ];
+                    }
+                }
+                break;
+
+            case 'kuliah_besar':
+                $query = \App\Models\JadwalKuliahBesar::with(['mataKuliah', 'ruangan', 'dosen'])
+                    ->where('status_konfirmasi', 'belum_konfirmasi');
+
+                // Apply semester filter if provided
+                if ($semester) {
+                    $query->whereHas('mataKuliah', function ($q) use ($semester) {
+                        $q->where('semester', $semester);
+                    });
+                }
+
+                // Apply blok filter if provided (blok ada di tabel mata_kuliah)
+                if ($blok) {
+                    $query->whereHas('mataKuliah', function ($q) use ($blok) {
+                        $q->where('blok', $blok);
+                    });
+                }
+
+                $jadwalKuliahBesar = $query->get();
+
+                foreach ($jadwalKuliahBesar as $jadwal) {
+                    if ($jadwal->dosen_id && $jadwal->dosen) {
+                        $pendingDosen[] = [
+                            'dosen_id' => $jadwal->dosen_id,
+                            'name' => $jadwal->dosen->name,
+                            'email' => $jadwal->dosen->email,
+                            'email_verified' => $jadwal->dosen->email_verified ?? false,
+                            'jadwal_type' => 'Kuliah Besar',
+                            'mata_kuliah' => $jadwal->mataKuliah->nama,
+                            'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                            'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                            'ruangan' => $jadwal->ruangan->nama,
+                            'jadwal_id' => $jadwal->id,
+                            'reminder_type' => 'unconfirmed'
+                        ];
+                    }
+                }
+                break;
+
+            case 'praktikum':
+                $query = \App\Models\JadwalPraktikum::with(['mataKuliah', 'ruangan', 'dosen'])
+                    ->whereHas('dosen', function ($query) {
+                        $query->where('status_konfirmasi', 'belum_konfirmasi');
+                    });
+
+                // Apply semester filter if provided
+                if ($semester) {
+                    $query->whereHas('mataKuliah', function ($q) use ($semester) {
+                        $q->where('semester', $semester);
+                    });
+                }
+
+                // Apply blok filter if provided (blok ada di tabel mata_kuliah)
+                if ($blok) {
+                    $query->whereHas('mataKuliah', function ($q) use ($blok) {
+                        $q->where('blok', $blok);
+                    });
+                }
+
+                $jadwalPraktikum = $query->get();
+
+                foreach ($jadwalPraktikum as $jadwal) {
+                    $dosenList = $jadwal->dosen()->wherePivot('status_konfirmasi', 'belum_konfirmasi')->get();
+
+                    foreach ($dosenList as $dosen) {
+                        $pendingDosen[] = [
+                            'dosen_id' => $dosen->id,
+                            'name' => $dosen->name,
+                            'email' => $dosen->email,
+                            'email_verified' => $dosen->email_verified ?? false,
+                            'jadwal_type' => 'Praktikum',
+                            'mata_kuliah' => $jadwal->mataKuliah->nama,
+                            'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                            'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                            'ruangan' => $jadwal->ruangan->nama,
+                            'jadwal_id' => $jadwal->id,
+                            'reminder_type' => 'unconfirmed'
+                        ];
+                    }
+                }
+                break;
+
+            case 'jurnal_reading':
+                $query = \App\Models\JadwalJurnalReading::with(['mataKuliah', 'ruangan', 'dosen'])
+                    ->where('status_konfirmasi', 'belum_konfirmasi');
+
+                // Apply semester filter if provided
+                if ($semester) {
+                    $query->whereHas('mataKuliah', function ($q) use ($semester) {
+                        $q->where('semester', $semester);
+                    });
+                }
+
+                // Apply blok filter if provided (blok ada di tabel mata_kuliah)
+                if ($blok) {
+                    $query->whereHas('mataKuliah', function ($q) use ($blok) {
+                        $q->where('blok', $blok);
+                    });
+                }
+
+                $jadwalJurnalReading = $query->get();
+
+                foreach ($jadwalJurnalReading as $jadwal) {
+                    if ($jadwal->dosen_id && $jadwal->dosen) {
+                        $pendingDosen[] = [
+                            'dosen_id' => $jadwal->dosen_id,
+                            'name' => $jadwal->dosen->name,
+                            'email' => $jadwal->dosen->email,
+                            'email_verified' => $jadwal->dosen->email_verified ?? false,
+                            'jadwal_type' => 'Jurnal Reading',
+                            'mata_kuliah' => $jadwal->mataKuliah->nama,
+                            'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                            'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                            'ruangan' => $jadwal->ruangan->nama,
+                            'jadwal_id' => $jadwal->id,
+                            'reminder_type' => 'unconfirmed'
+                        ];
+                    }
+                }
+                break;
+
+            case 'csr':
+                $query = \App\Models\JadwalCSR::with(['kategori', 'ruangan', 'dosen'])
+                    ->where('status_konfirmasi', 'belum_konfirmasi');
+
+                // CSR tidak memiliki semester/blok filter karena tidak terkait dengan mata kuliah
+
+                $jadwalCSR = $query->get();
+
+                foreach ($jadwalCSR as $jadwal) {
+                    if ($jadwal->dosen_id && $jadwal->dosen) {
+                        $pendingDosen[] = [
+                            'dosen_id' => $jadwal->dosen_id,
+                            'name' => $jadwal->dosen->name,
+                            'email' => $jadwal->dosen->email,
+                            'email_verified' => $jadwal->dosen->email_verified ?? false,
+                            'jadwal_type' => 'CSR',
+                            'mata_kuliah' => $jadwal->kategori->nama,
+                            'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                            'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                            'ruangan' => $jadwal->ruangan->nama,
+                            'jadwal_id' => $jadwal->id,
+                            'reminder_type' => 'unconfirmed'
+                        ];
+                    }
+                }
+                break;
+
+            case 'non_blok_non_csr':
+                $query = \App\Models\JadwalNonBlokNonCSR::with(['mataKuliah', 'ruangan', 'dosen'])
+                    ->where('status_konfirmasi', 'belum_konfirmasi');
+
+                // Apply semester filter if provided
+                if ($semester) {
+                    $query->whereHas('mataKuliah', function ($q) use ($semester) {
+                        $q->where('semester', $semester);
+                    });
+                }
+
+                // Apply blok filter if provided (blok ada di tabel mata_kuliah)
+                if ($blok) {
+                    $query->whereHas('mataKuliah', function ($q) use ($blok) {
+                        $q->where('blok', $blok);
+                    });
+                }
+
+                $jadwalNonBlokNonCSR = $query->get();
+
+                foreach ($jadwalNonBlokNonCSR as $jadwal) {
+                    if ($jadwal->dosen_id && $jadwal->dosen) {
+                        $pendingDosen[] = [
+                            'dosen_id' => $jadwal->dosen_id,
+                            'name' => $jadwal->dosen->name,
+                            'email' => $jadwal->dosen->email,
+                            'email_verified' => $jadwal->dosen->email_verified ?? false,
+                            'jadwal_type' => 'Non Blok Non CSR',
+                            'mata_kuliah' => $jadwal->mataKuliah->nama,
+                            'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                            'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                            'ruangan' => $jadwal->ruangan->nama,
+                            'jadwal_id' => $jadwal->id,
+                            'reminder_type' => 'unconfirmed'
+                        ];
+                    }
+                }
+                break;
+        }
+
+        return $pendingDosen;
+    }
+
+    /**
+     * Get upcoming confirmed dosen for specific jadwal type
+     */
+    private function getUpcomingDosenForJadwalType($jadwalType, $semester = null, $blok = null)
+    {
+        $pendingDosen = [];
+        $now = now();
+
+        switch ($jadwalType) {
+            case 'pbl':
+                $query = \App\Models\JadwalPBL::with(['mataKuliah', 'ruangan', 'dosen'])
+                    ->where('status_konfirmasi', 'bisa')
+                    ->where('tanggal', '>=', $now->toDateString())
+                    ->where(function ($q) use ($now) {
+                        $q->where('tanggal', '>', $now->toDateString())
+                            ->orWhere(function ($q2) use ($now) {
+                                $q2->where('tanggal', '=', $now->toDateString())
+                                    ->where('jam_mulai', '>', $now->format('H:i:s'));
+                            });
+                    });
+
+                // Apply semester filter if provided
+                if ($semester) {
+                    $query->whereHas('mataKuliah', function ($q) use ($semester) {
+                        $q->where('semester', $semester);
+                    });
+                }
+
+                // Apply blok filter if provided
+                if ($blok) {
+                    $query->whereHas('mataKuliah', function ($q) use ($blok) {
+                        $q->where('blok', $blok);
+                    });
+                }
+
+                $jadwalPBL = $query->get();
+
+                foreach ($jadwalPBL as $jadwal) {
+                    if ($jadwal->dosen_id && $jadwal->dosen) {
+                        $pendingDosen[] = [
+                            'dosen_id' => $jadwal->dosen_id,
+                            'name' => $jadwal->dosen->name,
+                            'email' => $jadwal->dosen->email,
+                            'email_verified' => $jadwal->dosen->email_verified ?? false,
+                            'jadwal_type' => 'PBL',
+                            'mata_kuliah' => $jadwal->mataKuliah->nama,
+                            'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                            'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                            'ruangan' => $jadwal->ruangan->nama,
+                            'jadwal_id' => $jadwal->id,
+                            'reminder_type' => 'upcoming'
+                        ];
+                    }
+                }
+                break;
+
+            case 'kuliah_besar':
+                $query = \App\Models\JadwalKuliahBesar::with(['mataKuliah', 'ruangan', 'dosen'])
+                    ->where('status_konfirmasi', 'bisa')
+                    ->where('tanggal', '>=', $now->toDateString())
+                    ->where(function ($q) use ($now) {
+                        $q->where('tanggal', '>', $now->toDateString())
+                            ->orWhere(function ($q2) use ($now) {
+                                $q2->where('tanggal', '=', $now->toDateString())
+                                    ->where('jam_mulai', '>', $now->format('H:i:s'));
+                            });
+                    });
+
+                // Apply semester filter if provided
+                if ($semester) {
+                    $query->whereHas('mataKuliah', function ($q) use ($semester) {
+                        $q->where('semester', $semester);
+                    });
+                }
+
+                // Apply blok filter if provided
+                if ($blok) {
+                    $query->whereHas('mataKuliah', function ($q) use ($blok) {
+                        $q->where('blok', $blok);
+                    });
+                }
+
+                $jadwalKuliahBesar = $query->get();
+
+                foreach ($jadwalKuliahBesar as $jadwal) {
+                    if ($jadwal->dosen_id && $jadwal->dosen) {
+                        $pendingDosen[] = [
+                            'dosen_id' => $jadwal->dosen_id,
+                            'name' => $jadwal->dosen->name,
+                            'email' => $jadwal->dosen->email,
+                            'email_verified' => $jadwal->dosen->email_verified ?? false,
+                            'jadwal_type' => 'Kuliah Besar',
+                            'mata_kuliah' => $jadwal->mataKuliah->nama,
+                            'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                            'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                            'ruangan' => $jadwal->ruangan->nama,
+                            'jadwal_id' => $jadwal->id,
+                            'reminder_type' => 'upcoming'
+                        ];
+                    }
+                }
+                break;
+
+            case 'praktikum':
+                $query = \App\Models\JadwalPraktikum::with(['mataKuliah', 'ruangan'])
+                    ->where('tanggal', '>=', $now->toDateString())
+                    ->where(function ($q) use ($now) {
+                        $q->where('tanggal', '>', $now->toDateString())
+                            ->orWhere(function ($q2) use ($now) {
+                                $q2->where('tanggal', '=', $now->toDateString())
+                                    ->where('jam_mulai', '>', $now->format('H:i:s'));
+                            });
+                    });
+
+                // Apply semester filter if provided
+                if ($semester) {
+                    $query->whereHas('mataKuliah', function ($q) use ($semester) {
+                        $q->where('semester', $semester);
+                    });
+                }
+
+                // Apply blok filter if provided
+                if ($blok) {
+                    $query->whereHas('mataKuliah', function ($q) use ($blok) {
+                        $q->where('blok', $blok);
+                    });
+                }
+
+                $jadwalPraktikum = $query->get();
+
+                foreach ($jadwalPraktikum as $jadwal) {
+                    // Get dosen from jadwal_praktikum_dosen table
+                    $dosenJadwal = \DB::table('jadwal_praktikum_dosen')
+                        ->join('users', 'jadwal_praktikum_dosen.dosen_id', '=', 'users.id')
+                        ->where('jadwal_praktikum_dosen.jadwal_praktikum_id', $jadwal->id)
+                        ->where('jadwal_praktikum_dosen.status_konfirmasi', 'bisa')
+                        ->select('users.*', 'jadwal_praktikum_dosen.status_konfirmasi')
+                        ->get();
+
+                    foreach ($dosenJadwal as $dosen) {
+                        $pendingDosen[] = [
+                            'dosen_id' => $dosen->id,
+                            'name' => $dosen->name,
+                            'email' => $dosen->email,
+                            'email_verified' => $dosen->email_verified ?? false,
+                            'jadwal_type' => 'Praktikum',
+                            'mata_kuliah' => $jadwal->mataKuliah->nama,
+                            'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                            'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                            'ruangan' => $jadwal->ruangan->nama,
+                            'jadwal_id' => $jadwal->id,
+                            'reminder_type' => 'upcoming'
+                        ];
+                    }
+                }
+                break;
+
+            case 'jurnal_reading':
+                $query = \App\Models\JadwalJurnalReading::with(['mataKuliah', 'ruangan', 'dosen'])
+                    ->where('status_konfirmasi', 'bisa')
+                    ->where('tanggal', '>=', $now->toDateString())
+                    ->where(function ($q) use ($now) {
+                        $q->where('tanggal', '>', $now->toDateString())
+                            ->orWhere(function ($q2) use ($now) {
+                                $q2->where('tanggal', '=', $now->toDateString())
+                                    ->where('jam_mulai', '>', $now->format('H:i:s'));
+                            });
+                    });
+
+                // Apply semester filter if provided
+                if ($semester) {
+                    $query->whereHas('mataKuliah', function ($q) use ($semester) {
+                        $q->where('semester', $semester);
+                    });
+                }
+
+                // Apply blok filter if provided
+                if ($blok) {
+                    $query->whereHas('mataKuliah', function ($q) use ($blok) {
+                        $q->where('blok', $blok);
+                    });
+                }
+
+                $jadwalJurnalReading = $query->get();
+
+                foreach ($jadwalJurnalReading as $jadwal) {
+                    if ($jadwal->dosen_id && $jadwal->dosen) {
+                        $pendingDosen[] = [
+                            'dosen_id' => $jadwal->dosen_id,
+                            'name' => $jadwal->dosen->name,
+                            'email' => $jadwal->dosen->email,
+                            'email_verified' => $jadwal->dosen->email_verified ?? false,
+                            'jadwal_type' => 'Jurnal Reading',
+                            'mata_kuliah' => $jadwal->mataKuliah->nama,
+                            'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                            'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                            'ruangan' => $jadwal->ruangan->nama,
+                            'jadwal_id' => $jadwal->id,
+                            'reminder_type' => 'upcoming'
+                        ];
+                    }
+                }
+                break;
+
+            case 'csr':
+                $query = \App\Models\JadwalCSR::with(['kategori', 'ruangan', 'dosen'])
+                    ->where('status_konfirmasi', 'bisa')
+                    ->where('tanggal', '>=', $now->toDateString())
+                    ->where(function ($q) use ($now) {
+                        $q->where('tanggal', '>', $now->toDateString())
+                            ->orWhere(function ($q2) use ($now) {
+                                $q2->where('tanggal', '=', $now->toDateString())
+                                    ->where('jam_mulai', '>', $now->format('H:i:s'));
+                            });
+                    });
+
+                $jadwalCSR = $query->get();
+
+                foreach ($jadwalCSR as $jadwal) {
+                    if ($jadwal->dosen_id && $jadwal->dosen) {
+                        $pendingDosen[] = [
+                            'dosen_id' => $jadwal->dosen_id,
+                            'name' => $jadwal->dosen->name,
+                            'email' => $jadwal->dosen->email,
+                            'email_verified' => $jadwal->dosen->email_verified ?? false,
+                            'jadwal_type' => 'CSR',
+                            'mata_kuliah' => $jadwal->kategori->nama,
+                            'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                            'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                            'ruangan' => $jadwal->ruangan->nama,
+                            'jadwal_id' => $jadwal->id,
+                            'reminder_type' => 'upcoming'
+                        ];
+                    }
+                }
+                break;
+
+            case 'non_blok_non_csr':
+                $query = \App\Models\JadwalNonBlokNonCSR::with(['mataKuliah', 'ruangan', 'dosen'])
+                    ->where('status_konfirmasi', 'bisa')
+                    ->where('tanggal', '>=', $now->toDateString())
+                    ->where(function ($q) use ($now) {
+                        $q->where('tanggal', '>', $now->toDateString())
+                            ->orWhere(function ($q2) use ($now) {
+                                $q2->where('tanggal', '=', $now->toDateString())
+                                    ->where('jam_mulai', '>', $now->format('H:i:s'));
+                            });
+                    });
+
+                // Apply semester filter if provided
+                if ($semester) {
+                    $query->whereHas('mataKuliah', function ($q) use ($semester) {
+                        $q->where('semester', $semester);
+                    });
+                }
+
+                // Apply blok filter if provided
+                if ($blok) {
+                    $query->whereHas('mataKuliah', function ($q) use ($blok) {
+                        $q->where('blok', $blok);
+                    });
+                }
+
+                $jadwalNonBlokNonCSR = $query->get();
+
+                foreach ($jadwalNonBlokNonCSR as $jadwal) {
+                    if ($jadwal->dosen_id && $jadwal->dosen) {
+                        $pendingDosen[] = [
+                            'dosen_id' => $jadwal->dosen_id,
+                            'name' => $jadwal->dosen->name,
+                            'email' => $jadwal->dosen->email,
+                            'email_verified' => $jadwal->dosen->email_verified ?? false,
+                            'jadwal_type' => 'Non Blok Non CSR',
+                            'mata_kuliah' => $jadwal->mataKuliah->nama,
+                            'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                            'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                            'ruangan' => $jadwal->ruangan->nama,
+                            'jadwal_id' => $jadwal->id,
+                            'reminder_type' => 'upcoming'
+                        ];
+                    }
+                }
+                break;
+        }
+
+        return $pendingDosen;
+    }
+
+    /**
+     * Send email reminder to dosen
+     */
+    private function sendEmailReminder($dosen, $jadwalType, $jadwal, $reminderType = 'unconfirmed')
+    {
+        try {
+            if ($reminderType === 'unconfirmed') {
+                $subject = "Pengingat: Konfirmasi Ketersediaan {$jadwalType}";
+            } else { // upcoming
+                $subject = "Pengingat: Persiapan Mengajar {$jadwalType}";
+            }
+
+            // Send email using HTML template
+            Mail::send('emails.reminder-notification', [
+                'dosen' => $dosen,
+                'jadwal' => $jadwal,
+                'jadwalType' => $jadwalType,
+                'reminderType' => $reminderType
+            ], function ($message) use ($dosen, $subject) {
+                $message->to($dosen->email, $dosen->name)
+                    ->subject($subject)
+                    ->from(env('MAIL_FROM_ADDRESS'), 'Pengingat Dari ISME (Integrated System Medical Education Fakultas Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta)');
+            });
+
+            \Log::info("Email reminder sent to {$dosen->name} ({$dosen->email}) for {$jadwalType}");
+        } catch (\Exception $e) {
+            \Log::error("Failed to send email reminder to {$dosen->name}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Send email reminder with consistent logic for both types
+     */
+    private function sendEmailReminderConsistent($dosen, $jadwalType, $jadwal, $reminderType = 'unconfirmed')
+    {
+        try {
+            // Use the exact same logic for both reminder types
+            $subject = $reminderType === 'unconfirmed'
+                ? "Pengingat: Konfirmasi Ketersediaan {$jadwalType}"
+                : "Pengingat: Persiapan Mengajar {$jadwalType}";
+
+            // Send email using HTML template with identical logic
+            Mail::send('emails.reminder-notification', [
+                'dosen' => $dosen,
+                'jadwal' => $jadwal,
+                'jadwalType' => $jadwalType,
+                'reminderType' => $reminderType
+            ], function ($message) use ($dosen, $subject) {
+                $message->to($dosen->email, $dosen->name)
+                    ->subject($subject)
+                    ->from(env('MAIL_FROM_ADDRESS'), 'Pengingat Dari ISME (Integrated System Medical Education Fakultas Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta)');
+            });
+
+            \Log::info("Email reminder sent to {$dosen->name} ({$dosen->email}) for {$jadwalType} - Type: {$reminderType}");
+        } catch (\Exception $e) {
+            \Log::error("Failed to send email reminder to {$dosen->name}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Build email content for reminder
+     */
+    private function buildEmailContent($dosen, $jadwalType, $jadwal, $reminderType = 'unconfirmed')
+    {
+        $content = "Halo {$dosen->name},\n\n";
+
+        if ($reminderType === 'unconfirmed') {
+            $content .= "Ini adalah pengingat untuk konfirmasi ketersediaan jadwal {$jadwalType} Anda.\n\n";
+        } else { // upcoming
+            $content .= "Ini adalah pengingat untuk persiapan mengajar jadwal {$jadwalType} Anda.\n\n";
+        }
+
+        // Add jadwal details based on type
+        switch ($jadwalType) {
+            case 'PBL':
+                $content .= "Jadwal: {$jadwal->mataKuliah->nama}\n";
+                $content .= "Tanggal: " . date('d/m/Y', strtotime($jadwal->tanggal)) . "\n";
+                $content .= "Waktu: " . str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) . "\n";
+                $content .= "Ruangan: {$jadwal->ruangan->nama}\n";
+                if ($jadwal->modul) {
+                    $content .= "Modul: {$jadwal->modul}\n";
+                }
+                if ($jadwal->tipe_pbl) {
+                    $content .= "Tipe PBL: {$jadwal->tipe_pbl}\n";
+                }
+                break;
+
+            case 'Kuliah Besar':
+                $content .= "Jadwal: {$jadwal->mataKuliah->nama}\n";
+                $content .= "Tanggal: " . date('d/m/Y', strtotime($jadwal->tanggal)) . "\n";
+                $content .= "Waktu: " . str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) . "\n";
+                $content .= "Ruangan: {$jadwal->ruangan->nama}\n";
+                if ($jadwal->materi) {
+                    $content .= "Materi: {$jadwal->materi}\n";
+                }
+                break;
+
+            case 'Praktikum':
+                $content .= "Jadwal: {$jadwal->mataKuliah->nama}\n";
+                $content .= "Tanggal: " . date('d/m/Y', strtotime($jadwal->tanggal)) . "\n";
+                $content .= "Waktu: " . str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) . "\n";
+                $content .= "Ruangan: {$jadwal->ruangan->nama}\n";
+                if ($jadwal->topik) {
+                    $content .= "Topik: {$jadwal->topik}\n";
+                }
+                if ($jadwal->kelas_praktikum) {
+                    $content .= "Kelas: {$jadwal->kelas_praktikum}\n";
+                }
+                break;
+
+            case 'Jurnal Reading':
+                $content .= "Jadwal: {$jadwal->mataKuliah->nama}\n";
+                $content .= "Tanggal: " . date('d/m/Y', strtotime($jadwal->tanggal)) . "\n";
+                $content .= "Waktu: " . str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) . "\n";
+                $content .= "Ruangan: {$jadwal->ruangan->nama}\n";
+                if ($jadwal->topik) {
+                    $content .= "Topik: {$jadwal->topik}\n";
+                }
+                break;
+
+            case 'CSR':
+                $content .= "Jadwal: {$jadwal->mataKuliah->nama}\n";
+                $content .= "Tanggal: " . date('d/m/Y', strtotime($jadwal->tanggal)) . "\n";
+                $content .= "Waktu: " . str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) . "\n";
+                $content .= "Ruangan: {$jadwal->ruangan->nama}\n";
+                if ($jadwal->topik) {
+                    $content .= "Topik: {$jadwal->topik}\n";
+                }
+                if ($jadwal->jenis_csr) {
+                    $content .= "Jenis CSR: {$jadwal->jenis_csr}\n";
+                }
+                break;
+
+            case 'Non Blok Non CSR':
+                $content .= "Jadwal: {$jadwal->mataKuliah->nama}\n";
+                $content .= "Tanggal: " . date('d/m/Y', strtotime($jadwal->tanggal)) . "\n";
+                $content .= "Waktu: " . str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) . "\n";
+                if ($jadwal->ruangan) {
+                    $content .= "Ruangan: {$jadwal->ruangan->nama}\n";
+                }
+                if ($jadwal->materi) {
+                    $content .= "Materi: {$jadwal->materi}\n";
+                }
+                if ($jadwal->agenda) {
+                    $content .= "Agenda: {$jadwal->agenda}\n";
+                }
+                break;
+        }
+
+        if ($reminderType === 'unconfirmed') {
+            $content .= "\nSilakan login ke sistem untuk konfirmasi ketersediaan Anda.\n\n";
+        } else { // upcoming
+            $content .= "\nSilakan persiapkan diri untuk mengajar sesuai jadwal di atas.\n\n";
+        }
+
+        $content .= "Terima kasih.\n";
+        $content .= "Sistem ISME FKK";
+
+        return $content;
     }
 }

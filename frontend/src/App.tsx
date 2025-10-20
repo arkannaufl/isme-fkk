@@ -130,11 +130,14 @@ function AppContent() {
               />
 
               {/* Dosen Detail Routes */}
-              <Route path="/mata-kuliah-dosen/:kode" element={
-                <RequireDosenRole allowedRoles={["dosen"]}>
-                  <MataKuliahDosenDetail />
-                </RequireDosenRole>
-              } />
+              <Route
+                path="/mata-kuliah-dosen/:kode"
+                element={
+                  <RequireDosenRole allowedRoles={["dosen"]}>
+                    <MataKuliahDosenDetail />
+                  </RequireDosenRole>
+                }
+              />
 
               <Route
                 path="/mata-kuliah-mahasiswa"
@@ -606,6 +609,12 @@ function AppContent() {
                     <ForumDetail />
                   </RequireDosenRole>
                 }
+              />
+
+              {/* Admin Notifications - Available for all roles */}
+              <Route
+                path="/admin-notifications"
+                element={<AdminNotifications />}
               />
 
               {/* Catch-all route for invalid URLs */}

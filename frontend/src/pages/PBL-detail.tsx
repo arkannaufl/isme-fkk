@@ -120,11 +120,14 @@ export default function PBL() {
 
   // PERBAIKAN BARU: State untuk tracking apakah sudah ada data yang di-generate
   const [hasGeneratedData, setHasGeneratedData] = useState<boolean>(false);
-  
+
   // State untuk validasi generate status
-  const [isGenerateValidated, setIsGenerateValidated] = useState<boolean>(false);
-  const [generateValidationError, setGenerateValidationError] = useState<string | null>(null);
-  
+  const [isGenerateValidated, setIsGenerateValidated] =
+    useState<boolean>(false);
+  const [generateValidationError, setGenerateValidationError] = useState<
+    string | null
+  >(null);
+
   // State untuk Clear Cache Modal
   const [showClearCacheModal, setShowClearCacheModal] = useState(false);
 
@@ -135,25 +138,25 @@ export default function PBL() {
     dosenPerBlok: number;
     modulPerBlok: number;
     keahlianCoverage: number;
-    
+
     // Performance Statistics
     assignmentSuccessRate: number;
     dosenEfficiency: number;
     keahlianUtilization: number;
     timBlokVsDosenMengajarRatio: number;
-    
+
     // Real-time Statistics
     lastGenerateTime: string | null;
-    dataFreshness: 'fresh' | 'stale' | 'outdated';
+    dataFreshness: "fresh" | "stale" | "outdated";
     warningCount: number;
-    cacheStatus: 'clean' | 'dirty' | 'needs_refresh';
-    
+    cacheStatus: "clean" | "dirty" | "needs_refresh";
+
     // Quality Metrics
     keahlianMatchRate: number;
     dosenOverloadCount: number;
     unassignedPBLCount: number;
     standbyDosenUsage: number;
-    
+
     // Additional statistics (same as PBLGenerate)
     totalAssignments: number;
     assignmentRate: number;
@@ -173,9 +176,9 @@ export default function PBL() {
     keahlianUtilization: 0,
     timBlokVsDosenMengajarRatio: 0,
     lastGenerateTime: null,
-    dataFreshness: 'fresh',
+    dataFreshness: "fresh",
     warningCount: 0,
-    cacheStatus: 'clean',
+    cacheStatus: "clean",
     keahlianMatchRate: 0,
     dosenOverloadCount: 0,
     unassignedPBLCount: 0,
@@ -207,19 +210,23 @@ export default function PBL() {
   // Fungsi untuk validasi generate status
   const validateGenerateStatus = async () => {
     if (!blokId) {
-      setGenerateValidationError('Blok ID tidak ditemukan');
+      setGenerateValidationError("Blok ID tidak ditemukan");
       return false;
     }
 
     try {
-      const response = await pblGenerateApi.checkGenerateStatus(parseInt(blokId));
-      
+      const response = await pblGenerateApi.checkGenerateStatus(
+        parseInt(blokId)
+      );
+
       // Hanya gunakan data dari API (database)
-      const isGenerated = response.data.success && response.data.data?.is_generated === true;
-      
-      
+      const isGenerated =
+        response.data.success && response.data.data?.is_generated === true;
+
       if (!isGenerated) {
-        setGenerateValidationError('Blok ini belum di-generate. Silakan generate dosen terlebih dahulu.');
+        setGenerateValidationError(
+          "Blok ini belum di-generate. Silakan generate dosen terlebih dahulu."
+        );
         setIsGenerateValidated(false);
         return false;
       }
@@ -228,9 +235,8 @@ export default function PBL() {
       setGenerateValidationError(null);
       return true;
     } catch (error) {
-      
       // Jika API gagal, return false
-      setGenerateValidationError('Error mengecek status generate');
+      setGenerateValidationError("Error mengecek status generate");
       setIsGenerateValidated(false);
       return false;
     }
@@ -277,11 +283,9 @@ export default function PBL() {
           });
           return updated;
         });
-
       } else {
       }
-    } catch (error) {
-    }
+    } catch (error) {}
   };
   const [blokMataKuliah, setBlokMataKuliah] = useState<MataKuliah[]>([]);
   const [filterSemester, setFilterSemester] = useState("semua");
@@ -419,7 +423,6 @@ export default function PBL() {
 
   // Fungsi untuk menangani assignment dosen
   const handleAssignDosen = async (dosen: Dosen, pbl: PBL, mk: MataKuliah) => {
-
     // PERBAIKAN BARU: Validasi yang lebih fleksibel - cek apakah ada data PBL
     const hasPblData = Object.keys(pblData).length > 0;
     if (!hasPblData) {
@@ -444,13 +447,15 @@ export default function PBL() {
           const mkSemesterNum = mk ? parseInt(mk.semester.toString()) : null;
           const currentSemesterNum = parseInt(currentSemester.toString());
           const mkBlok = mk ? mk.blok : null;
-          
+
           // Pastikan semester sama DAN blok sama
-          const matches = mk && mkSemesterNum === currentSemesterNum && mkBlok === currentBlok;
+          const matches =
+            mk &&
+            mkSemesterNum === currentSemesterNum &&
+            mkBlok === currentBlok;
 
           return matches;
         });
-
 
       // Assign dosen ke PBL dalam semester dan blok yang sama
       const assignPromises = (semesterPBLs || []).map(async (semesterPbl) => {
@@ -466,7 +471,6 @@ export default function PBL() {
           if (dosenPeran) {
             role = dosenPeran.tipe_peran;
           }
-
 
           const response = await api.post(
             `/pbls/${semesterPbl.id}/assign-dosen`,
@@ -489,7 +493,6 @@ export default function PBL() {
       const results = await Promise.all(assignPromises);
       const successfulAssignments = results.filter((r) => r.success);
       const failedAssignments = results.filter((r) => !r.success);
-
 
       // PERBAIKAN BARU: Refresh assigned dosen data untuk semua PBL yang berhasil
 
@@ -531,7 +534,6 @@ export default function PBL() {
                   };
 
                   updated[pblId] = [...existingAssignments, newDosenData];
-
                 } else {
                 }
               }
@@ -622,7 +624,9 @@ export default function PBL() {
           setSuccess(
             `${dosen.name} berhasil di-assign ke ${
               successfulAssignments.length
-            }/${(semesterPBLs || []).length} modul Blok ${currentBlok} semester ${currentSemester}`
+            }/${
+              (semesterPBLs || []).length
+            } modul Blok ${currentBlok} semester ${currentSemester}`
           );
         } else {
           setSuccess(
@@ -707,7 +711,6 @@ export default function PBL() {
     // Hanya ambil dosen dari pbl_mappings (hasil generate)
     // Tidak menampilkan Koordinator & Tim Blok dari UserSeeder sampai di-generate
     const assignedFromMappings = assignedDosen[pblId] || [];
-
 
     // Jika belum ada assignment (belum di-generate), return array kosong
     if (assignedFromMappings.length === 0) {
@@ -852,7 +855,6 @@ export default function PBL() {
           const assignedRes = await api.post("/pbl-generate/get-assignments", {
             pbl_ids: allPblIds,
           });
-
 
           // PERBAIKAN: Convert data seperti di PBLGenerate.tsx untuk memastikan pbl_assignment_count benar
           if (assignedRes.data.success) {
@@ -1128,7 +1130,6 @@ export default function PBL() {
       // PERBAIKAN BARU: Hitung dosen mengajar yang sudah di-assign
       const assignedDosenMengajarCount = assignedDosenMengajarIds.size;
 
-
       // PERBAIKAN BARU: Cek kekurangan dosen berdasarkan totalDosenRequired
       if (assignedDosenMengajarCount < totalDosenRequired) {
         const kekurangan = totalDosenRequired - assignedDosenMengajarCount;
@@ -1222,8 +1223,6 @@ export default function PBL() {
     activeSemesterJenis,
     blokId,
   ]);
-
-
 
   // Function to calculate statistics
   const calculateStatistics = (
@@ -1792,11 +1791,16 @@ export default function PBL() {
 
     // Calculate assignments
     const totalAssignments = Object.values(assignedDosen).flat().length;
-    const blokCompletionRate = totalPBLs > 0 ? (totalAssignments / totalPBLs) * 100 : 0;
+    const blokCompletionRate =
+      totalPBLs > 0 ? (totalAssignments / totalPBLs) * 100 : 0;
     const unassignedPBLCount = totalPBLs - totalAssignments;
 
     // Calculate dosen per blok
-    const assignedDosenSet = new Set(Object.values(assignedDosen).flat().map(d => d.id));
+    const assignedDosenSet = new Set(
+      Object.values(assignedDosen)
+        .flat()
+        .map((d) => d.id)
+    );
     const dosenPerBlok = assignedDosenSet.size;
 
     // Calculate modul per blok
@@ -1804,60 +1808,71 @@ export default function PBL() {
 
     // Calculate keahlian coverage
     const allRequiredKeahlian = new Set<string>();
-    blokMataKuliahFilteredByBlok.forEach(mk => {
+    blokMataKuliahFilteredByBlok.forEach((mk) => {
       const keahlian = parseKeahlian(mk.keahlian_required);
-      keahlian.forEach(k => allRequiredKeahlian.add(k.toLowerCase()));
+      keahlian.forEach((k) => allRequiredKeahlian.add(k.toLowerCase()));
     });
 
     const coveredKeahlian = new Set<string>();
-    Object.values(assignedDosen).flat().forEach(dosen => {
-      const dosenKeahlian = parseKeahlian(dosen.keahlian);
-      dosenKeahlian.forEach(k => {
-        allRequiredKeahlian.forEach(req => {
-          if (k.toLowerCase().includes(req) || req.includes(k.toLowerCase())) {
-            coveredKeahlian.add(req);
-          }
+    Object.values(assignedDosen)
+      .flat()
+      .forEach((dosen) => {
+        const dosenKeahlian = parseKeahlian(dosen.keahlian);
+        dosenKeahlian.forEach((k) => {
+          allRequiredKeahlian.forEach((req) => {
+            if (
+              k.toLowerCase().includes(req) ||
+              req.includes(k.toLowerCase())
+            ) {
+              coveredKeahlian.add(req);
+            }
+          });
         });
       });
-    });
 
-    const keahlianCoverage = allRequiredKeahlian.size > 0 ? 
-      (coveredKeahlian.size / allRequiredKeahlian.size) * 100 : 0;
+    const keahlianCoverage =
+      allRequiredKeahlian.size > 0
+        ? (coveredKeahlian.size / allRequiredKeahlian.size) * 100
+        : 0;
 
     // Calculate assignment success rate
-    const assignmentSuccessRate = totalPBLs > 0 ? (totalAssignments / totalPBLs) * 100 : 0;
+    const assignmentSuccessRate =
+      totalPBLs > 0 ? (totalAssignments / totalPBLs) * 100 : 0;
 
     // Calculate dosen efficiency (average assignments per dosen)
-    const dosenEfficiency = dosenPerBlok > 0 ? totalAssignments / dosenPerBlok : 0;
+    const dosenEfficiency =
+      dosenPerBlok > 0 ? totalAssignments / dosenPerBlok : 0;
 
     // Calculate keahlian utilization per modul (mata kuliah)
     let keahlianMatches = 0;
     let totalModulChecks = 0;
-    
-    blokMataKuliahFilteredByBlok.forEach(mk => {
+
+    blokMataKuliahFilteredByBlok.forEach((mk) => {
       const pbls = pblData[mk.kode] || [];
       if (pbls.length > 0) {
         totalModulChecks++;
-        
+
         // Cek apakah modul ini memiliki dosen dengan keahlian yang sesuai
-        const hasMatch = pbls.some(pbl => {
+        const hasMatch = pbls.some((pbl) => {
           const assigned = assignedDosen[pbl.id!] || [];
-          return assigned.some(dosen => {
+          return assigned.some((dosen) => {
             const dosenKeahlian = parseKeahlian(dosen.keahlian);
             const requiredKeahlian = parseKeahlian(mk.keahlian_required);
-            return requiredKeahlian.some(req => 
-              dosenKeahlian.some(dk => 
-                dk.toLowerCase().includes(req.toLowerCase()) || 
-                req.toLowerCase().includes(dk.toLowerCase())
+            return requiredKeahlian.some((req) =>
+              dosenKeahlian.some(
+                (dk) =>
+                  dk.toLowerCase().includes(req.toLowerCase()) ||
+                  req.toLowerCase().includes(dk.toLowerCase())
               )
             );
           });
         });
-        
+
         if (hasMatch) keahlianMatches++;
       }
     });
-    const keahlianUtilization = totalModulChecks > 0 ? (keahlianMatches / totalModulChecks) * 100 : 0;
+    const keahlianUtilization =
+      totalModulChecks > 0 ? (keahlianMatches / totalModulChecks) * 100 : 0;
 
     // Calculate assignment distribution per semester (unik per dosen)
     const assignmentDistribution = {
@@ -1865,10 +1880,10 @@ export default function PBL() {
       timBlok: 0,
       dosenMengajar: 0,
     };
-    
+
     // Hitung per semester untuk menghindari duplikasi dosen
     const processedDosen = new Set<number>();
-    
+
     // Group by semester
     const groupedBySemester = blokMataKuliahFilteredByBlok.reduce((acc, mk) => {
       if (!acc[mk.semester]) {
@@ -1880,55 +1895,61 @@ export default function PBL() {
 
     Object.entries(groupedBySemester).forEach(([semester, mataKuliahList]) => {
       const semesterNumber = parseInt(semester);
-      
+
       // Hitung dosen yang sudah di-assign untuk semester ini (unik per dosen)
       const assignedDosenSet = new Set<number>();
-      mataKuliahList.forEach(mk => {
+      mataKuliahList.forEach((mk) => {
         const pbls = pblData[mk.kode] || [];
-        pbls.forEach(pbl => {
+        pbls.forEach((pbl) => {
           if (pbl.id && assignedDosen[pbl.id]?.length > 0) {
-            assignedDosen[pbl.id].forEach(d => assignedDosenSet.add(d.id));
+            assignedDosen[pbl.id].forEach((d) => assignedDosenSet.add(d.id));
           }
         });
       });
-      
+
       // Hitung distribution untuk semester ini
-      assignedDosenSet.forEach(dosenId => {
+      assignedDosenSet.forEach((dosenId) => {
         if (!processedDosen.has(dosenId)) {
           processedDosen.add(dosenId);
-          
+
           // Cari dosen dari dosenList
-          const dosen = dosenList.find(d => d.id === dosenId);
+          const dosen = dosenList.find((d) => d.id === dosenId);
           if (dosen) {
             // Tentukan peran berdasarkan dosen_peran untuk semester ini
-            let dosenRole = 'dosen_mengajar'; // default
-            
+            let dosenRole = "dosen_mengajar"; // default
+
             if (dosen.dosen_peran && Array.isArray(dosen.dosen_peran)) {
               // Cek apakah dosen ini adalah koordinator untuk semester ini
-              const isKoordinator = dosen.dosen_peran.some((peran: any) => 
-                peran.tipe_peran === 'koordinator' && 
-                peran.semester === String(semesterNumber) &&
-                mataKuliahList.some(mk => mk.kode === peran.mata_kuliah_kode)
+              const isKoordinator = dosen.dosen_peran.some(
+                (peran: any) =>
+                  peran.tipe_peran === "koordinator" &&
+                  peran.semester === String(semesterNumber) &&
+                  mataKuliahList.some(
+                    (mk) => mk.kode === peran.mata_kuliah_kode
+                  )
               );
-              
+
               // Cek apakah dosen ini adalah tim blok untuk semester ini
-              const isTimBlok = dosen.dosen_peran.some((peran: any) => 
-                peran.tipe_peran === 'tim_blok' && 
-                peran.semester === String(semesterNumber) &&
-                mataKuliahList.some(mk => mk.kode === peran.mata_kuliah_kode)
+              const isTimBlok = dosen.dosen_peran.some(
+                (peran: any) =>
+                  peran.tipe_peran === "tim_blok" &&
+                  peran.semester === String(semesterNumber) &&
+                  mataKuliahList.some(
+                    (mk) => mk.kode === peran.mata_kuliah_kode
+                  )
               );
-              
+
               if (isKoordinator) {
-                dosenRole = 'koordinator';
+                dosenRole = "koordinator";
               } else if (isTimBlok) {
-                dosenRole = 'tim_blok';
+                dosenRole = "tim_blok";
               }
             }
-            
+
             // Hitung berdasarkan peran yang benar
-            if (dosenRole === 'koordinator') {
+            if (dosenRole === "koordinator") {
               assignmentDistribution.koordinator++;
-            } else if (dosenRole === 'tim_blok') {
+            } else if (dosenRole === "tim_blok") {
               assignmentDistribution.timBlok++;
             } else {
               assignmentDistribution.dosenMengajar++;
@@ -1939,45 +1960,57 @@ export default function PBL() {
     });
 
     // Calculate tim blok vs dosen mengajar ratio
-    const timBlokVsDosenMengajarRatio = assignmentDistribution.dosenMengajar > 0 
-      ? assignmentDistribution.timBlok / assignmentDistribution.dosenMengajar 
-      : 0;
+    const timBlokVsDosenMengajarRatio =
+      assignmentDistribution.dosenMengajar > 0
+        ? assignmentDistribution.timBlok / assignmentDistribution.dosenMengajar
+        : 0;
 
     // Calculate dosen utilization rate (per semester)
     const totalDosen = dosenList.length;
-    const dosenUtilizationRate = totalDosen > 0 ? (assignedDosenSet.size / totalDosen) * 100 : 0;
+    const dosenUtilizationRate =
+      totalDosen > 0 ? (assignedDosenSet.size / totalDosen) * 100 : 0;
 
     // Calculate data freshness
     const now = new Date();
-    const lastGenerate = pblDetailStatistics.lastGenerateTime ? new Date(pblDetailStatistics.lastGenerateTime) : null;
-    let dataFreshness: 'fresh' | 'stale' | 'outdated' = 'fresh';
-    
+    const lastGenerate = pblDetailStatistics.lastGenerateTime
+      ? new Date(pblDetailStatistics.lastGenerateTime)
+      : null;
+    let dataFreshness: "fresh" | "stale" | "outdated" = "fresh";
+
     if (lastGenerate) {
-      const diffHours = (now.getTime() - lastGenerate.getTime()) / (1000 * 60 * 60);
-      if (diffHours > 24) dataFreshness = 'outdated';
-      else if (diffHours > 6) dataFreshness = 'stale';
+      const diffHours =
+        (now.getTime() - lastGenerate.getTime()) / (1000 * 60 * 60);
+      if (diffHours > 24) dataFreshness = "outdated";
+      else if (diffHours > 6) dataFreshness = "stale";
     }
 
     // Calculate cache status
-    let cacheStatus: 'clean' | 'dirty' | 'needs_refresh' = 'clean';
+    let cacheStatus: "clean" | "dirty" | "needs_refresh" = "clean";
     if (hasGeneratedData && !isGenerateValidated) {
-      cacheStatus = 'needs_refresh';
+      cacheStatus = "needs_refresh";
     } else if (warnings.length > 0) {
-      cacheStatus = 'dirty';
+      cacheStatus = "dirty";
     }
 
     // Calculate dosen overload count
     const dosenAssignmentCount: Record<number, number> = {};
-    Object.values(assignedDosen).flat().forEach(dosen => {
-      dosenAssignmentCount[dosen.id] = (dosenAssignmentCount[dosen.id] || 0) + 1;
-    });
-    const dosenOverloadCount = Object.values(dosenAssignmentCount).filter(count => count > 3).length;
+    Object.values(assignedDosen)
+      .flat()
+      .forEach((dosen) => {
+        dosenAssignmentCount[dosen.id] =
+          (dosenAssignmentCount[dosen.id] || 0) + 1;
+      });
+    const dosenOverloadCount = Object.values(dosenAssignmentCount).filter(
+      (count) => count > 3
+    ).length;
 
     // Calculate standby dosen usage
-    const standbyDosenUsage = Object.values(assignedDosen).flat().filter(dosen => {
-      const keahlian = parseKeahlian(dosen.keahlian);
-      return keahlian.some(k => k.toLowerCase().includes('standby'));
-    }).length;
+    const standbyDosenUsage = Object.values(assignedDosen)
+      .flat()
+      .filter((dosen) => {
+        const keahlian = parseKeahlian(dosen.keahlian);
+        return keahlian.some((k) => k.toLowerCase().includes("standby"));
+      }).length;
 
     const nextStats = {
       blokCompletionRate,
@@ -2004,14 +2037,24 @@ export default function PBL() {
     } as typeof pblDetailStatistics;
 
     try {
-      const isEqual = JSON.stringify(pblStatsRef.current) === JSON.stringify(nextStats);
+      const isEqual =
+        JSON.stringify(pblStatsRef.current) === JSON.stringify(nextStats);
       if (!isEqual) {
         setPblDetailStatistics(nextStats);
       }
     } catch {
       setPblDetailStatistics(nextStats);
     }
-  }, [blokMataKuliahFilteredByBlok, dosenList, pblData, assignedDosen, hasGeneratedData, isGenerateValidated, warnings.length, pblDetailStatistics.lastGenerateTime]);
+  }, [
+    blokMataKuliahFilteredByBlok,
+    dosenList,
+    pblData,
+    assignedDosen,
+    hasGeneratedData,
+    isGenerateValidated,
+    warnings.length,
+    pblDetailStatistics.lastGenerateTime,
+  ]);
 
   // Calculate detail statistics when data changes
   useEffect(() => {
@@ -2255,9 +2298,9 @@ export default function PBL() {
       <div className="w-full mx-auto">
         <div className="flex flex-col items-center justify-center py-16">
           <div className="w-20 h-20 rounded-full bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center mb-6">
-            <FontAwesomeIcon 
-              icon={faExclamationTriangle} 
-              className="w-10 h-10 text-orange-500 dark:text-orange-400" 
+            <FontAwesomeIcon
+              icon={faExclamationTriangle}
+              className="w-10 h-10 text-orange-500 dark:text-orange-400"
             />
           </div>
           <h2 className="text-2xl font-semibold text-gray-800 dark:text-white mb-4">
@@ -2295,7 +2338,6 @@ export default function PBL() {
           <div className="h-4 w-96 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
         </div>
 
-
         {/* Filter Card Skeleton */}
         <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6 mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full">
@@ -2324,8 +2366,7 @@ export default function PBL() {
                     <div className="h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
                     <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
                   </div>
-                  <div className="flex gap-2 ml-auto">
-                  </div>
+                  <div className="flex gap-2 ml-auto"></div>
                 </div>
 
                 {/* PBL Cards Skeleton */}
@@ -2501,9 +2542,9 @@ export default function PBL() {
               </div>
               <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">
                 {pblDetailStatistics.unassignedPBLCount} unassigned
+              </div>
             </div>
           </div>
-        </div>
         </div>
 
         {/* Dosen per Blok */}
@@ -2524,9 +2565,9 @@ export default function PBL() {
               </div>
               <div className="text-xs text-green-600 dark:text-green-400 font-medium">
                 {pblDetailStatistics.dosenEfficiency.toFixed(1)} avg assignments
+              </div>
             </div>
           </div>
-        </div>
         </div>
 
         {/* Modul per Blok */}
@@ -2546,26 +2587,33 @@ export default function PBL() {
                 Modul per Blok
               </div>
               <div className="text-xs text-purple-600 dark:text-purple-400 font-medium">
-                {pblDetailStatistics.keahlianCoverage.toFixed(1)}% keahlian covered
+                {pblDetailStatistics.keahlianCoverage.toFixed(1)}% keahlian
+                covered
+              </div>
             </div>
           </div>
-        </div>
         </div>
 
         {/* System Health */}
         <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6">
           <div className="flex items-center gap-4">
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-              pblDetailStatistics.cacheStatus === 'clean' ? 'bg-green-100 dark:bg-green-900/20' :
-              pblDetailStatistics.cacheStatus === 'dirty' ? 'bg-yellow-100 dark:bg-yellow-900/20' :
-              'bg-red-100 dark:bg-red-900/20'
-            }`}>
+            <div
+              className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                pblDetailStatistics.cacheStatus === "clean"
+                  ? "bg-green-100 dark:bg-green-900/20"
+                  : pblDetailStatistics.cacheStatus === "dirty"
+                  ? "bg-yellow-100 dark:bg-yellow-900/20"
+                  : "bg-red-100 dark:bg-red-900/20"
+              }`}
+            >
               <FontAwesomeIcon
                 icon={faCog}
                 className={`w-6 h-6 ${
-                  pblDetailStatistics.cacheStatus === 'clean' ? 'text-green-500' :
-                  pblDetailStatistics.cacheStatus === 'dirty' ? 'text-yellow-500' :
-                  'text-red-500'
+                  pblDetailStatistics.cacheStatus === "clean"
+                    ? "text-green-500"
+                    : pblDetailStatistics.cacheStatus === "dirty"
+                    ? "text-yellow-500"
+                    : "text-red-500"
                 }`}
               />
             </div>
@@ -2576,17 +2624,21 @@ export default function PBL() {
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 Active Warnings
               </div>
-              <div className={`text-xs font-medium ${
-                pblDetailStatistics.cacheStatus === 'clean' ? 'text-green-600 dark:text-green-400' :
-                pblDetailStatistics.cacheStatus === 'dirty' ? 'text-yellow-600 dark:text-yellow-400' :
-                'text-red-600 dark:text-red-400'
-              }`}>
+              <div
+                className={`text-xs font-medium ${
+                  pblDetailStatistics.cacheStatus === "clean"
+                    ? "text-green-600 dark:text-green-400"
+                    : pblDetailStatistics.cacheStatus === "dirty"
+                    ? "text-yellow-600 dark:text-yellow-400"
+                    : "text-red-600 dark:text-red-400"
+                }`}
+              >
                 {pblDetailStatistics.cacheStatus} cache
+              </div>
             </div>
           </div>
         </div>
-            </div>
-              </div>
+      </div>
 
       {/* Performance Metrics */}
       <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6 mb-8">
@@ -2597,30 +2649,38 @@ export default function PBL() {
           <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
             <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
               {pblDetailStatistics.assignmentSuccessRate.toFixed(1)}%
-              </div>
-            <div className="text-sm text-blue-600 dark:text-blue-400">Assignment Success Rate</div>
             </div>
-          
+            <div className="text-sm text-blue-600 dark:text-blue-400">
+              Assignment Success Rate
+            </div>
+          </div>
+
           <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
             <div className="text-2xl font-bold text-green-700 dark:text-green-300">
               {pblDetailStatistics.keahlianUtilization.toFixed(1)}%
+            </div>
+            <div className="text-sm text-green-600 dark:text-green-400">
+              Keahlian Utilization
+            </div>
           </div>
-            <div className="text-sm text-green-600 dark:text-green-400">Keahlian Utilization</div>
-        </div>
-          
+
           <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
             <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">
               {pblDetailStatistics.timBlokVsDosenMengajarRatio.toFixed(2)}
             </div>
-            <div className="text-sm text-purple-600 dark:text-purple-400">Tim Blok : Dosen Mengajar</div>
-              </div>
-          
+            <div className="text-sm text-purple-600 dark:text-purple-400">
+              Tim Blok : Dosen Mengajar
+            </div>
+          </div>
+
           <div className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
             <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">
               {pblDetailStatistics.dosenOverloadCount}
-              </div>
-            <div className="text-sm text-orange-600 dark:text-orange-400">Dosen Overload</div>
             </div>
+            <div className="text-sm text-orange-600 dark:text-orange-400">
+              Dosen Overload
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2633,41 +2693,53 @@ export default function PBL() {
           <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
-                <span className="text-blue-600 dark:text-blue-400 font-bold text-sm">K</span>
+                <span className="text-blue-600 dark:text-blue-400 font-bold text-sm">
+                  K
+                </span>
               </div>
               <div>
                 <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
                   {pblDetailStatistics.assignmentDistribution.koordinator}
                 </div>
-                <div className="text-sm text-blue-600 dark:text-blue-400">Koordinator</div>
+                <div className="text-sm text-blue-600 dark:text-blue-400">
+                  Koordinator
+                </div>
               </div>
             </div>
           </div>
-          
+
           <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center">
-                <span className="text-purple-600 dark:text-purple-400 font-bold text-sm">T</span>
+                <span className="text-purple-600 dark:text-purple-400 font-bold text-sm">
+                  T
+                </span>
               </div>
               <div>
                 <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">
                   {pblDetailStatistics.assignmentDistribution.timBlok}
                 </div>
-                <div className="text-sm text-purple-600 dark:text-purple-400">Tim Blok</div>
+                <div className="text-sm text-purple-600 dark:text-purple-400">
+                  Tim Blok
+                </div>
               </div>
             </div>
           </div>
-          
+
           <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
-                <span className="text-green-600 dark:text-green-400 font-bold text-sm">D</span>
+                <span className="text-green-600 dark:text-green-400 font-bold text-sm">
+                  D
+                </span>
               </div>
               <div>
                 <div className="text-2xl font-bold text-green-700 dark:text-green-300">
                   {pblDetailStatistics.assignmentDistribution.dosenMengajar}
                 </div>
-                <div className="text-sm text-green-600 dark:text-green-400">Dosen Mengajar</div>
+                <div className="text-sm text-green-600 dark:text-green-400">
+                  Dosen Mengajar
+                </div>
               </div>
             </div>
           </div>
@@ -2954,10 +3026,10 @@ export default function PBL() {
                           })()}
                         </div>
                       </div>
-              {/* Warning konflik per semester */}
-              {/* Konflik peran dihapus: tidak ada banner per semester */}
+                      {/* Warning konflik per semester */}
+                      {/* Konflik peran dihapus: tidak ada banner per semester */}
 
-              {/* PBL Cards Grid */}
+                      {/* PBL Cards Grid */}
                       <div className="grid gap-4">
                         {(semesterPBLs || []).map((mk: MataKuliah) => {
                           const pblList = pblData[mk.kode] || [];
@@ -3410,8 +3482,7 @@ export default function PBL() {
                                               "/users?role=dosen"
                                             );
                                             setDosenList(dosenRes.data || []);
-                                          } catch (error) {
-                                          }
+                                          } catch (error) {}
 
                                           // PERBAIKAN BARU: Hitung ulang warning setelah unassign dari PBL asal
                                           setTimeout(() => {
@@ -3423,19 +3494,22 @@ export default function PBL() {
 
                                           // PERBAIKAN BARU: Dispatch event untuk update real-time di Dosen.tsx setelah unassign
                                           window.dispatchEvent(
-                                            new CustomEvent("pbl-assignment-updated", {
-                                              detail: {
-                                                timestamp: Date.now(),
-                                                dosenId: draggedDosen.id,
-                                                dosenName: draggedDosen.name,
-                                                action: "unassign",
-                                                fromPblId: draggedFromPBLId,
-                                                semester: mk.semester,
-                                                blok: mk.blok,
-                                                mataKuliah: mk.nama,
-                                                mataKuliahKode: mk.kode
+                                            new CustomEvent(
+                                              "pbl-assignment-updated",
+                                              {
+                                                detail: {
+                                                  timestamp: Date.now(),
+                                                  dosenId: draggedDosen.id,
+                                                  dosenName: draggedDosen.name,
+                                                  action: "unassign",
+                                                  fromPblId: draggedFromPBLId,
+                                                  semester: mk.semester,
+                                                  blok: mk.blok,
+                                                  mataKuliah: mk.nama,
+                                                  mataKuliahKode: mk.kode,
+                                                },
                                               }
-                                            })
+                                            )
                                           );
                                         }
 
@@ -3808,7 +3882,6 @@ export default function PBL() {
                                               const isKeahlianMatch =
                                                 checkKeahlianMatch(dosen, mk);
 
-
                                               // PERBAIKAN: Definisikan isKoordinator dan isTimBlok untuk badge logic
                                               const isKoordinator =
                                                 pblRole === "koordinator";
@@ -3818,9 +3891,12 @@ export default function PBL() {
                                               // Prioritas warna: Standby > Tidak match (merah)
                                               if (isStandby) {
                                                 avatarColor = "bg-yellow-400";
-                                                borderColor = "border-yellow-200";
-                                                textColor = "text-yellow-800 dark:text-yellow-200";
-                                                bgColor = "bg-yellow-100 dark:bg-yellow-900/40";
+                                                borderColor =
+                                                  "border-yellow-200";
+                                                textColor =
+                                                  "text-yellow-800 dark:text-yellow-200";
+                                                bgColor =
+                                                  "bg-yellow-100 dark:bg-yellow-900/40";
                                               } else if (
                                                 // Jika keahlian tidak sesuai dan bukan koordinator/tim blok, ubah warna menjadi merah
                                                 !isKeahlianMatch &&
@@ -3833,7 +3909,6 @@ export default function PBL() {
                                                   "text-red-700 dark:text-red-200";
                                                 bgColor =
                                                   "bg-red-100 dark:bg-red-900/40";
-
                                               }
 
                                               return (
@@ -3893,7 +3968,6 @@ export default function PBL() {
                                                         const currentSemester =
                                                           mk.semester;
 
-
                                                         const semesterPBLs =
                                                           Object.values(
                                                             pblData || {}
@@ -3943,7 +4017,7 @@ export default function PBL() {
                                                         const unassignResults =
                                                           await Promise.all(
                                                             removePromises
-                                                        );
+                                                          );
 
                                                         // PERBAIKAN: Cek apakah ada yang gagal
                                                         const failedUnassigns =
@@ -4046,8 +4120,7 @@ export default function PBL() {
                                                           setDosenList(
                                                             dosenRes.data || []
                                                           );
-                                                        } catch (error) {
-                                                        }
+                                                        } catch (error) {}
 
                                                         // PERBAIKAN BARU: Refresh data setelah unassign berhasil
                                                         await fetchAll();
@@ -4062,17 +4135,34 @@ export default function PBL() {
 
                                                         // PERBAIKAN BARU: Dispatch event untuk update real-time di Dosen.tsx
                                                         window.dispatchEvent(
-                                                          new CustomEvent("pbl-assignment-updated", {
-                                                            detail: {
-                                                              timestamp: Date.now(),
-                                                              dosenId: dosen.id,
-                                                              dosenName: dosen.name,
-                                                              action: "unassign",
-                                                              semester: mk.semester,
-                                                              blok: mk.blok,
-                                                              pblIds: (semesterPBLs || []).map(p => p.id).filter(Boolean)
-                                                            },
-                                                          })
+                                                          new CustomEvent(
+                                                            "pbl-assignment-updated",
+                                                            {
+                                                              detail: {
+                                                                timestamp:
+                                                                  Date.now(),
+                                                                dosenId:
+                                                                  dosen.id,
+                                                                dosenName:
+                                                                  dosen.name,
+                                                                action:
+                                                                  "unassign",
+                                                                semester:
+                                                                  mk.semester,
+                                                                blok: mk.blok,
+                                                                pblIds: (
+                                                                  semesterPBLs ||
+                                                                  []
+                                                                )
+                                                                  .map(
+                                                                    (p) => p.id
+                                                                  )
+                                                                  .filter(
+                                                                    Boolean
+                                                                  ),
+                                                              },
+                                                            }
+                                                          )
                                                         );
                                                       } catch (err) {
                                                         const errorMsg =
@@ -4183,14 +4273,14 @@ export default function PBL() {
               Dosen Tersedia (
               {availableDosenList.length + standbyDosenList.length})
             </h3>
-            
+
             {/* Search Bar */}
             <div className="mb-6">
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FontAwesomeIcon 
-                    icon={faSearch} 
-                    className="h-4 w-4 text-gray-400" 
+                  <FontAwesomeIcon
+                    icon={faSearch}
+                    className="h-4 w-4 text-gray-400"
                   />
                 </div>
                 <input
@@ -4210,7 +4300,7 @@ export default function PBL() {
                 )}
               </div>
             </div>
-            
+
             {/* Dosen Reguler */}
             <div className="mb-6">
               <div className="flex items-center gap-2 mb-3">
@@ -4771,7 +4861,7 @@ export default function PBL() {
       {showClearCacheModal && (
         <div className="fixed inset-0 z-[100000] flex items-center justify-center">
           {/* Overlay */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -4779,7 +4869,7 @@ export default function PBL() {
             onClick={() => setShowClearCacheModal(false)}
           ></motion.div>
           {/* Modal Content */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
@@ -4804,16 +4894,16 @@ export default function PBL() {
                   d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
                   fill="currentColor"
                 />
-                  </svg>
+              </svg>
             </button>
-            
-                <div>
+
+            <div>
               <div className="flex items-center justify-between pb-4 sm:pb-6">
                 <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
-                    Clear Cache
+                  Clear Cache
                 </h2>
               </div>
-              
+
               <div className="mb-6">
                 <div className="flex items-center space-x-3 mb-4">
                   <div className="w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-lg flex items-center justify-center">
@@ -4835,12 +4925,12 @@ export default function PBL() {
                     <h4 className="font-medium text-gray-900 dark:text-white">
                       Konfirmasi Clear Cache
                     </h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Tindakan Darurat
-                  </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Tindakan Darurat
+                    </p>
+                  </div>
                 </div>
-              </div>
-              
+
                 <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
                   <div className="flex items-start space-x-3">
                     <svg
@@ -4861,27 +4951,36 @@ export default function PBL() {
                         Peringatan Kritis!
                       </p>
                       <p className="text-sm text-red-700 dark:text-red-300">
-                        Tindakan ini akan menghapus cache status generate PBL untuk blok ini. 
-                        <strong> Sebelum melanjutkan, hubungi developer atau administrator sistem.</strong>
+                        Tindakan ini akan menghapus cache status generate PBL
+                        untuk blok ini.
+                        <strong>
+                          {" "}
+                          Sebelum melanjutkan, hubungi developer atau
+                          administrator sistem.
+                        </strong>
                       </p>
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="space-y-4">
                   <div>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                       Tindakan ini akan:
                     </p>
                     <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1 ml-4 list-disc">
-                    <li>Menghapus cache status generate PBL untuk blok {blokId}</li>
-                    <li>Memaksa sistem untuk mengambil data fresh dari database</li>
-                    <li>Mengembalikan blok ke status "Belum di-generate"</li>
-                  </ul>
+                      <li>
+                        Menghapus cache status generate PBL untuk blok {blokId}
+                      </li>
+                      <li>
+                        Memaksa sistem untuk mengambil data fresh dari database
+                      </li>
+                      <li>Mengembalikan blok ke status "Belum di-generate"</li>
+                    </ul>
                   </div>
                 </div>
               </div>
-              
+
               <div className="flex justify-end gap-2 pt-2 relative z-20">
                 <button
                   onClick={() => setShowClearCacheModal(false)}

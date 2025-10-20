@@ -744,4 +744,138 @@ class UserController extends Controller
             ], 500);
         }
     }
+
+    // PUT /users/{id}/update-email - Update email untuk dosen
+    public function updateEmail(Request $request, $id)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            // Validasi hanya untuk dosen
+            if ($user->role !== 'dosen') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Hanya dosen yang dapat mengupdate email'
+                ], 403);
+            }
+
+            $validated = $request->validate([
+                'email' => 'required|email|unique:users,email,' . $user->id
+            ]);
+
+            $user->update([
+                'email' => $validated['email']
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Email berhasil diupdate',
+                'data' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error updating email: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengupdate email',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // GET /users/{id}/email-status - Cek status email dosen
+    public function getEmailStatus($id)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            if ($user->role !== 'dosen') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Hanya dosen yang dapat mengecek status email'
+                ], 403);
+            }
+
+            $isEmailValid = !empty($user->email) && filter_var($user->email, FILTER_VALIDATE_EMAIL);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'email_verified' => $user->email_verified ?? false,
+                    'is_email_valid' => $isEmailValid,
+                    'needs_email_update' => !$isEmailValid || !($user->email_verified ?? false)
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error checking email status: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengecek status email',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // PUT /users/{id}/verify-email - Aktifkan email dosen
+    public function verifyEmail(Request $request, $id)
+    {
+        try {
+            $user = User::findOrFail($id);
+
+            // Validasi hanya untuk dosen
+            if ($user->role !== 'dosen') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Hanya dosen yang dapat mengaktifkan email'
+                ], 403);
+            }
+
+            $validated = $request->validate([
+                'email' => 'required|email'
+            ]);
+
+            // Check if email already exists for other users (only if email is different)
+            if ($validated['email'] !== $user->email) {
+                $existingUser = User::where('email', $validated['email'])
+                    ->where('id', '!=', $user->id)
+                    ->first();
+
+                if ($existingUser) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Email sudah digunakan oleh user lain'
+                    ], 422);
+                }
+            }
+
+            $user->update([
+                'email' => $validated['email'],
+                'email_verified' => true
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Email berhasil diaktifkan',
+                'data' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'email_verified' => true
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error verifying email: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengaktifkan email',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

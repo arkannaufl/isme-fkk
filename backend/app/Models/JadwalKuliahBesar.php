@@ -56,7 +56,7 @@ class JadwalKuliahBesar extends Model
      */
     public function kelompokBesar()
     {
-        return $this->hasMany(KelompokBesar::class, 'semester', 'kelompok_besar_id');
+        return $this->belongsTo(KelompokBesar::class, 'kelompok_besar_id');
     }
 
     /**

@@ -79,10 +79,7 @@ class JadwalNonBlokNonCSRController extends Controller
                     'reschedule_reason',
                     'created_at'
                 ])
-                ->where(function ($q) use ($dosenId) {
-                    $q->where('dosen_id', $dosenId)
-                        ->orWhere('dosen_ids', 'like', '%' . $dosenId . '%');
-                });
+                ->where('dosen_id', $dosenId);
 
             if ($semesterType === 'reguler') {
                 $query->whereNull('kelompok_besar_antara_id');
@@ -254,10 +251,11 @@ class JadwalNonBlokNonCSRController extends Controller
 
             foreach ($superAdmins as $admin) {
                 Notification::create([
-                    'user_id' => $dosenId,
+                    'user_id' => $admin->id, // Perbaiki: gunakan admin ID, bukan dosen ID
                     'title' => 'Dosen Tidak Dapat Mengajar - Non Blok Non CSR',
                     'message' => "Dosen {$dosenName} tidak dapat mengajar {$jadwal->mataKuliah->nama} pada tanggal {$jadwal->tanggal->format('d/m/Y')} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai}. Alasan: {$alasan}. Perlu mencari pengganti.",
                     'type' => 'warning',
+                    'is_read' => false,
                     'data' => [
                         'jadwal_id' => $jadwal->id,
                         'jadwal_type' => 'non_blok_non_csr',
@@ -634,15 +632,15 @@ class JadwalNonBlokNonCSRController extends Controller
                 'data.*.use_ruangan' => 'boolean'
             ]);
 
-                $mataKuliah = \App\Models\MataKuliah::where('kode', $kode)->first();
-                if (!$mataKuliah) {
-                    return response()->json([
-                        'message' => 'Mata kuliah tidak ditemukan'
-                    ], 404);
-                }
+            $mataKuliah = \App\Models\MataKuliah::where('kode', $kode)->first();
+            if (!$mataKuliah) {
+                return response()->json([
+                    'message' => 'Mata kuliah tidak ditemukan'
+                ], 404);
+            }
 
-                // Debug: Log mata kuliah info
-                \Log::info("Import Excel - Mata Kuliah: {$kode}, Semester: {$mataKuliah->semester}");
+            // Debug: Log mata kuliah info
+            \Log::info("Import Excel - Mata Kuliah: {$kode}, Semester: {$mataKuliah->semester}");
 
             $importedCount = 0;
             $errors = [];
@@ -729,7 +727,6 @@ class JadwalNonBlokNonCSRController extends Controller
 
                     $this->sendJadwalNotifications($jadwal);
                     $importedCount++;
-
                 } catch (\Exception $e) {
                     $errors[] = $e->getMessage();
                 }
@@ -754,7 +751,6 @@ class JadwalNonBlokNonCSRController extends Controller
                 'message' => "Berhasil mengimport {$importedCount} jadwal Non Blok Non CSR",
                 'imported_count' => $importedCount
             ]);
-
         } catch (\Exception $e) {
             \DB::rollBack();
             Log::error('Error importing jadwal Non Blok Non CSR: ' . $e->getMessage());
@@ -776,11 +772,11 @@ class JadwalNonBlokNonCSRController extends Controller
             ->where('tanggal', $tanggal)
             ->where(function ($q) use ($jamMulai, $jamSelesai) {
                 $q->whereBetween('jam_mulai', [$jamMulai, $jamSelesai])
-                  ->orWhereBetween('jam_selesai', [$jamMulai, $jamSelesai])
-                  ->orWhere(function ($q2) use ($jamMulai, $jamSelesai) {
-                      $q2->where('jam_mulai', '<=', $jamMulai)
-                         ->where('jam_selesai', '>=', $jamSelesai);
-                  });
+                    ->orWhereBetween('jam_selesai', [$jamMulai, $jamSelesai])
+                    ->orWhere(function ($q2) use ($jamMulai, $jamSelesai) {
+                        $q2->where('jam_mulai', '<=', $jamMulai)
+                            ->where('jam_selesai', '>=', $jamSelesai);
+                    });
             })
             ->first();
 
@@ -794,11 +790,11 @@ class JadwalNonBlokNonCSRController extends Controller
                 ->where('tanggal', $tanggal)
                 ->where(function ($q) use ($jamMulai, $jamSelesai) {
                     $q->whereBetween('jam_mulai', [$jamMulai, $jamSelesai])
-                      ->orWhereBetween('jam_selesai', [$jamMulai, $jamSelesai])
-                      ->orWhere(function ($q2) use ($jamMulai, $jamSelesai) {
-                          $q2->where('jam_mulai', '<=', $jamMulai)
-                             ->where('jam_selesai', '>=', $jamSelesai);
-                      });
+                        ->orWhereBetween('jam_selesai', [$jamMulai, $jamSelesai])
+                        ->orWhere(function ($q2) use ($jamMulai, $jamSelesai) {
+                            $q2->where('jam_mulai', '<=', $jamMulai)
+                                ->where('jam_selesai', '>=', $jamSelesai);
+                        });
                 })
                 ->first();
 
@@ -813,11 +809,11 @@ class JadwalNonBlokNonCSRController extends Controller
                 ->where('tanggal', $tanggal)
                 ->where(function ($q) use ($jamMulai, $jamSelesai) {
                     $q->whereBetween('jam_mulai', [$jamMulai, $jamSelesai])
-                      ->orWhereBetween('jam_selesai', [$jamMulai, $jamSelesai])
-                      ->orWhere(function ($q2) use ($jamMulai, $jamSelesai) {
-                          $q2->where('jam_mulai', '<=', $jamMulai)
-                             ->where('jam_selesai', '>=', $jamSelesai);
-                      });
+                        ->orWhereBetween('jam_selesai', [$jamMulai, $jamSelesai])
+                        ->orWhere(function ($q2) use ($jamMulai, $jamSelesai) {
+                            $q2->where('jam_mulai', '<=', $jamMulai)
+                                ->where('jam_selesai', '>=', $jamSelesai);
+                        });
                 })
                 ->first();
 
@@ -854,29 +850,58 @@ class JadwalNonBlokNonCSRController extends Controller
                 return response()->json(['message' => 'Mahasiswa tidak ditemukan', 'data' => []], 404);
             }
 
-            $kelompokBesar = \App\Models\KelompokBesar::where('semester', $mahasiswa->semester)->first();
-            if (!$kelompokBesar) {
-                return response()->json(['message' => 'Mahasiswa belum memiliki kelompok besar', 'data' => []]);
-            }
-
+            // Get jadwal berdasarkan semester mahasiswa dan semester mata kuliah
             $jadwal = JadwalNonBlokNonCSR::with(['mataKuliah', 'dosen', 'ruangan', 'kelompokBesar'])
-                ->where('kelompok_besar_id', $kelompokBesar->id)
+                ->whereHas('mataKuliah', function ($query) use ($mahasiswa) {
+                    $query->where('semester', $mahasiswa->semester);
+                })
                 ->orderBy('tanggal', 'asc')
                 ->orderBy('jam_mulai', 'asc')
                 ->get();
 
+            \Log::info("Non Blok Non CSR - Mahasiswa ID: {$mahasiswaId}, Semester: {$mahasiswa->semester}");
+            \Log::info("Non Blok Non CSR - Found {$jadwal->count()} jadwal for semester: {$mahasiswa->semester}");
+
             $mappedJadwal = $jadwal->map(function ($item) {
+                // Determine jenis_baris
+                $jenisBaris = $item->agenda ? 'agenda' : 'materi';
+
+                // Determine tipe text
+                $tipe = $jenisBaris === 'agenda' ? 'Agenda Khusus' : 'Jadwal Materi';
+
+                // Determine pengampu - show "-" if no dosen for agenda or if jenis_baris is agenda
+                $pengampu = ($jenisBaris === 'agenda' || !$item->dosen) ? '-' : $item->dosen->name;
+
+                // Determine ruangan - show "-" if not using ruangan or if jenis_baris is agenda without ruangan
+                $ruangan = null;
+                if ($jenisBaris === 'materi' && $item->use_ruangan && $item->ruangan) {
+                    $ruangan = ['id' => $item->ruangan->id, 'nama' => $item->ruangan->nama];
+                } elseif ($jenisBaris === 'agenda' && $item->use_ruangan && $item->ruangan) {
+                    $ruangan = ['id' => $item->ruangan->id, 'nama' => $item->ruangan->nama];
+                } else {
+                    $ruangan = null;
+                }
+
+                // Determine status - show "-" if no dosen (agenda or no assigned dosen)
+                $status = ($jenisBaris === 'agenda' || !$item->dosen) ? '-' : ($item->status_konfirmasi ?? 'belum_konfirmasi');
+
                 return [
                     'id' => $item->id,
-                    'tanggal' => $item->tanggal,
+                    'tanggal' => date('d/m/Y', strtotime($item->tanggal)), // Format dd/mm/yyyy
                     'jam_mulai' => substr($item->jam_mulai, 0, 5),
                     'jam_selesai' => substr($item->jam_selesai, 0, 5),
                     'agenda' => $item->agenda ?? null,
                     'materi' => $item->materi ?? null,
-                    'jenis_baris' => $item->agenda ? 'agenda' : 'materi',
-                    'pengampu' => $item->dosen->name ?? 'N/A',
-                    'ruangan' => $item->ruangan ? ['id' => $item->ruangan->id, 'nama' => $item->ruangan->nama] : null,
+                    'jenis_baris' => $jenisBaris,
+                    'tipe' => $tipe, // Added tipe column
+                    'use_ruangan' => $item->use_ruangan ?? false, // Added use_ruangan
+                    'pengampu' => $pengampu,
+                    'ruangan' => $ruangan,
                     'jumlah_sesi' => $item->jumlah_sesi ?? 1,
+                    'status_konfirmasi' => $status,
+                    'alasan_konfirmasi' => $item->alasan_konfirmasi ?? null,
+                    'status_reschedule' => $item->status_reschedule ?? null,
+                    'reschedule_reason' => $item->reschedule_reason ?? null,
                     'semester_type' => 'reguler',
                     'jenis_jadwal' => 'non_blok_non_csr',
                 ];
@@ -895,10 +920,22 @@ class JadwalNonBlokNonCSRController extends Controller
     private function sendNotificationToMahasiswa($jadwal)
     {
         try {
-            // Get all mahasiswa in the same semester
+            // Get semua mahasiswa di semester yang sama dengan mata kuliah
+            $semester = $jadwal->mataKuliah->semester;
+
             $mahasiswaList = \App\Models\User::where('role', 'mahasiswa')
-                ->where('semester', $jadwal->mataKuliah->semester)
+                ->where('semester', $semester)
                 ->get();
+
+            \Log::info("Non Blok Non CSR - Found {$mahasiswaList->count()} mahasiswa in semester: {$semester}");
+
+            // Hapus notifikasi lama untuk mahasiswa saja (bukan dosen)
+            \App\Models\Notification::where('title', 'Jadwal Non Blok Non CSR Baru')
+                ->where('data->jadwal_id', $jadwal->id)
+                ->whereHas('user', function ($query) {
+                    $query->where('role', 'mahasiswa');
+                })
+                ->delete();
 
             // Send notification to each mahasiswa
             foreach ($mahasiswaList as $mahasiswa) {
@@ -921,6 +958,8 @@ class JadwalNonBlokNonCSRController extends Controller
                         'jam_selesai' => $jadwal->jam_selesai,
                         'ruangan' => $jadwal->ruangan->nama,
                         'dosen' => $jadwal->dosen ? $jadwal->dosen->name : 'N/A',
+                        'kelompok_besar_id' => $jadwal->kelompok_besar_id,
+                        'kelompok_besar_semester' => $semester,
                         'created_by' => $jadwal->created_by ? \App\Models\User::find($jadwal->created_by)->name ?? 'Admin' : 'Admin',
                         'created_by_role' => $jadwal->created_by ? \App\Models\User::find($jadwal->created_by)->role ?? 'admin' : 'admin',
                         'sender_name' => $jadwal->created_by ? \App\Models\User::find($jadwal->created_by)->name ?? 'Admin' : 'Admin',

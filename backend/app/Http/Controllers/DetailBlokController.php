@@ -39,6 +39,7 @@ class DetailBlokController extends Controller
                 'jadwal_praktikum' => $this->getJadwalPraktikum($kode),
                 'jadwal_jurnal_reading' => $this->getJadwalJurnalReading($kode),
                 'modul_pbl' => $this->getModulPBL($kode),
+                'jurnal_reading' => $this->getJurnalReading($kode),
                 'kelompok_kecil' => $this->getKelompokKecil($mataKuliah->semester),
                 'kelompok_besar' => $this->getKelompokBesar($mataKuliah->semester),
                 'dosen' => $this->getDosen($mataKuliah),
@@ -69,20 +70,30 @@ class DetailBlokController extends Controller
                 }
                 // Add modul_pbl_id for frontend compatibility
                 $jadwal->modul_pbl_id = $jadwal->pbl_id;
-                
+
+                // Transform modul name based on pbl_tipe
+                if ($jadwal->modulPBL && $jadwal->pbl_tipe && $jadwal->pbl_tipe !== 'PBL 1') {
+                    // Cek apakah nama_modul sudah memiliki prefix yang benar
+                    if (!str_starts_with($jadwal->modulPBL->nama_modul, $jadwal->pbl_tipe . ':')) {
+                        // Jika belum memiliki prefix yang benar, tambahkan
+                        $cleanModulName = str_replace(['PBL 1: ', 'PBL 2: '], '', $jadwal->modulPBL->nama_modul);
+                        $jadwal->modulPBL->nama_modul = $jadwal->pbl_tipe . ': ' . $cleanModulName;
+                    }
+                }
+
                 // Add dosen_names for frontend compatibility
                 if ($jadwal->dosen_ids && is_array($jadwal->dosen_ids)) {
                     $dosenNames = User::whereIn('id', $jadwal->dosen_ids)->pluck('name')->toArray();
                     $jadwal->dosen_names = implode(', ', $dosenNames);
                 }
-                
+
                 // Add nama_kelompok for frontend compatibility
                 if ($jadwal->kelompok_kecil_antara) {
                     $jadwal->nama_kelompok = $jadwal->kelompok_kecil_antara->nama_kelompok;
                 } elseif ($jadwal->kelompok_kecil) {
                     $jadwal->nama_kelompok = $jadwal->kelompok_kecil->nama_kelompok;
                 }
-                
+
                 return $jadwal;
             });
     }
@@ -147,20 +158,20 @@ class DetailBlokController extends Controller
                 if ($jadwal->jam_selesai) {
                     $jadwal->jam_selesai = $this->formatJamForFrontend($jadwal->jam_selesai);
                 }
-                
+
                 // Add nama_kelompok for frontend compatibility
                 if ($jadwal->kelompok_kecil_antara) {
                     $jadwal->nama_kelompok = $jadwal->kelompok_kecil_antara->nama_kelompok;
                 } elseif ($jadwal->kelompok_kecil) {
                     $jadwal->nama_kelompok = $jadwal->kelompok_kecil->nama_kelompok;
                 }
-                
+
                 // Add dosen_names for frontend compatibility
                 if ($jadwal->dosen_ids && is_array($jadwal->dosen_ids)) {
                     $dosenNames = User::whereIn('id', $jadwal->dosen_ids)->pluck('name')->toArray();
                     $jadwal->dosen_names = implode(', ', $dosenNames);
                 }
-                
+
                 return $jadwal;
             });
     }
@@ -168,6 +179,11 @@ class DetailBlokController extends Controller
     private function getModulPBL($kode)
     {
         return PBL::where('mata_kuliah_kode', $kode)->get();
+    }
+
+    private function getJurnalReading($kode)
+    {
+        return \App\Models\JurnalReading::where('mata_kuliah_kode', $kode)->get();
     }
 
     private function getKelompokKecil($semester)
@@ -179,12 +195,12 @@ class DetailBlokController extends Controller
     {
         // Ambil semua semester yang memiliki kelompok besar
         $semesters = KelompokBesar::distinct()->pluck('semester')->toArray();
-        
+
         $kelompokBesarData = [];
-        
+
         foreach ($semesters as $sem) {
             $jumlahMahasiswa = KelompokBesar::where('semester', $sem)->count();
-            
+
             if ($jumlahMahasiswa > 0) {
                 $kelompokBesarData[] = [
                     'id' => $sem, // Gunakan semester sebagai ID
@@ -203,15 +219,15 @@ class DetailBlokController extends Controller
 
         // Filter dosen berdasarkan keahlian jika ada
         if ($mataKuliah->keahlian_required && !empty($mataKuliah->keahlian_required)) {
-            $keahlianRequired = is_array($mataKuliah->keahlian_required) 
-                ? $mataKuliah->keahlian_required 
+            $keahlianRequired = is_array($mataKuliah->keahlian_required)
+                ? $mataKuliah->keahlian_required
                 : explode(',', $mataKuliah->keahlian_required);
 
             $matchingDosen = $allDosen->filter(function ($dosen) use ($keahlianRequired) {
-                $dosenKeahlian = is_array($dosen->keahlian) 
-                    ? $dosen->keahlian 
+                $dosenKeahlian = is_array($dosen->keahlian)
+                    ? $dosen->keahlian
                     : explode(',', $dosen->keahlian ?? '');
-                
+
                 return collect($keahlianRequired)->intersect($dosenKeahlian)->isNotEmpty();
             });
 
@@ -238,30 +254,41 @@ class DetailBlokController extends Controller
     private function formatJamForFrontend($jam)
     {
         if (!$jam) return $jam;
-        
+
         // Jika sudah format HH.MM, return as is
         if (preg_match('/^\d{2}\.\d{2}$/', $jam)) {
             return $jam;
         }
-        
+
         // Jika format HH:MM:SS, konversi ke HH.MM
         if (preg_match('/^(\d{2}):(\d{2}):\d{2}$/', $jam, $matches)) {
             return $matches[1] . '.' . $matches[2];
         }
-        
+
         // Jika format HH:MM, konversi ke HH.MM
         if (preg_match('/^(\d{2}):(\d{2})$/', $jam, $matches)) {
             return $matches[1] . '.' . $matches[2];
         }
-        
+
         return $jam;
     }
 
     private function getJamOptions()
     {
         return [
-            '07.20', '08.10', '09.00', '09.50', '10.40', '11.30', '12.35', 
-            '13.25', '14.15', '15.05', '15.35', '16.25', '17.15'
+            '07.20',
+            '08.10',
+            '09.00',
+            '09.50',
+            '10.40',
+            '11.30',
+            '12.35',
+            '13.25',
+            '14.15',
+            '15.05',
+            '15.35',
+            '16.25',
+            '17.15'
         ];
     }
 }

@@ -331,9 +331,12 @@ class JadwalKuliahBesarController extends Controller
 
         // Jika ada mahasiswa di semester tersebut, buat satu kelompok besar
         if ($jumlahMahasiswa > 0) {
+            // Ambil ID pertama dari semester tersebut untuk digunakan sebagai kelompok_besar_id
+            $firstKelompokBesar = \App\Models\KelompokBesar::where('semester', $semester)->first();
+
             return response()->json([
                 [
-                    'id' => $semester, // Gunakan semester sebagai ID
+                    'id' => $firstKelompokBesar->id, // Gunakan ID database yang sebenarnya
                     'label' => "Kelompok Besar Semester {$semester} ({$jumlahMahasiswa} mahasiswa)",
                     'jumlah_mahasiswa' => $jumlahMahasiswa
                 ]
@@ -1455,6 +1458,7 @@ class JadwalKuliahBesarController extends Controller
             $query = JadwalKuliahBesar::with([
                 'mataKuliah:kode,nama,semester',
                 'ruangan:id,nama,gedung',
+                'kelompokBesar:id,semester',
                 'kelompokBesarAntara:id,nama_kelompok'
             ])
                 ->select([
@@ -1477,10 +1481,7 @@ class JadwalKuliahBesarController extends Controller
                     'reschedule_reason',
                     'created_at'
                 ])
-                ->where(function ($query) use ($dosenId) {
-                    $query->where('dosen_id', $dosenId)
-                        ->orWhereJsonContains('dosen_ids', (int)$dosenId);
-                });
+                ->where('dosen_id', $dosenId);
 
             // Filter berdasarkan semester type jika ada
             if ($semesterType && $semesterType !== 'all') {
@@ -1509,6 +1510,15 @@ class JadwalKuliahBesarController extends Controller
 
                 // Tambahkan semester_type berdasarkan mata kuliah
                 $item->semester_type = $item->mataKuliah && $item->mataKuliah->semester === 'Antara' ? 'antara' : 'reguler';
+
+                // Tambahkan data kelompok_besar
+                if ($item->kelompokBesar) {
+                    $item->kelompok_besar = [
+                        'id' => $item->kelompokBesar->id,
+                        'semester' => $item->kelompokBesar->semester,
+                        'nama_kelompok' => 'Kelompok Besar Semester ' . $item->kelompokBesar->semester,
+                    ];
+                }
             });
 
             return response()->json([
@@ -1537,26 +1547,29 @@ class JadwalKuliahBesarController extends Controller
                 ], 404);
             }
 
-            // Get kelompok besar based on mahasiswa semester
-            $kelompokBesar = \App\Models\KelompokBesar::where('semester', $mahasiswa->semester)->first();
+            // Get mahasiswa's semester
+            $mahasiswaSemester = $mahasiswa->semester;
 
-            if (!$kelompokBesar) {
-                return response()->json([
-                    'message' => 'Mahasiswa belum memiliki kelompok besar',
-                    'data' => []
-                ]);
-            }
+            // Debug logging
+            \Log::info("Kuliah Besar getJadwalForMahasiswa - Mahasiswa ID: {$mahasiswaId}, Semester: {$mahasiswaSemester}");
 
+            // Get jadwal Kuliah Besar based on mahasiswa's semester
+            // Cari semua jadwal Kuliah Besar yang memiliki semester yang sama dengan mahasiswa
             $query = JadwalKuliahBesar::with([
                 'mataKuliah',
                 'dosen',
                 'ruangan',
                 'kelompokBesar'
-            ])->where('kelompok_besar_id', $kelompokBesar->id);
+            ])->whereHas('kelompokBesar', function ($q) use ($mahasiswaSemester) {
+                $q->where('semester', $mahasiswaSemester);
+            });
 
             $jadwal = $query->orderBy('tanggal', 'asc')
                 ->orderBy('jam_mulai', 'asc')
                 ->get();
+
+            // Debug logging
+            \Log::info("Kuliah Besar getJadwalForMahasiswa - Found {$jadwal->count()} jadwal Kuliah Besar for semester: {$mahasiswaSemester}");
 
             $mappedJadwal = $jadwal->map(function ($item) {
                 return [
@@ -1577,7 +1590,16 @@ class JadwalKuliahBesarController extends Controller
                         'nama' => $item->ruangan->nama,
                     ] : null,
                     'jumlah_sesi' => $item->jumlah_sesi ?? 1,
-                    'semester_type' => 'reguler',
+                    'status_konfirmasi' => $item->status_konfirmasi ?? 'belum_konfirmasi',
+                    'status_reschedule' => $item->status_reschedule ?? null,
+                    'alasan_konfirmasi' => $item->alasan_konfirmasi ?? null,
+                    'reschedule_reason' => $item->reschedule_reason ?? null,
+                    'semester_type' => $item->mataKuliah && $item->mataKuliah->semester === 'Antara' ? 'antara' : 'reguler',
+                    'kelompok_besar' => $item->kelompokBesar ? [
+                        'id' => $item->kelompokBesar->id,
+                        'semester' => $item->kelompokBesar->semester,
+                        'nama_kelompok' => $item->kelompokBesar->nama_kelompok,
+                    ] : null,
                 ];
             });
 
@@ -1586,7 +1608,7 @@ class JadwalKuliahBesarController extends Controller
                 'data' => $mappedJadwal
             ]);
         } catch (\Exception $e) {
-            Log::error('Error fetching jadwal Kuliah Besar for mahasiswa: ' . $e->getMessage());
+            \Log::error('Error fetching jadwal Kuliah Besar for mahasiswa: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Terjadi kesalahan saat mengambil data jadwal Kuliah Besar',
                 'error' => $e->getMessage(),
@@ -1648,17 +1670,40 @@ class JadwalKuliahBesarController extends Controller
     }
 
     /**
-     * Send notification to mahasiswa in the semester
+     * Send notification to mahasiswa in the kelompok besar
      */
     private function sendNotificationToMahasiswa($jadwal)
     {
         try {
-            // Get all mahasiswa in the same semester
-            $mahasiswaList = \App\Models\User::where('role', 'mahasiswa')
-                ->where('semester', $jadwal->mataKuliah->semester)
-                ->get();
+            \Log::info("Kuliah Besar sendNotificationToMahasiswa - Starting for jadwal ID: {$jadwal->id}, kelompok_besar_id: {$jadwal->kelompok_besar_id}");
 
-            // Send notification to each mahasiswa
+            // Get mahasiswa in the specific semester that was assigned
+            $mahasiswaList = [];
+
+            if ($jadwal->kelompok_besar_id) {
+                // Get the kelompok besar info to determine semester
+                $kelompokBesar = \App\Models\KelompokBesar::find($jadwal->kelompok_besar_id);
+                \Log::info("Kuliah Besar sendNotificationToMahasiswa - KelompokBesar found: " . ($kelompokBesar ? "Yes, semester: {$kelompokBesar->semester}" : "No"));
+
+                if ($kelompokBesar) {
+                    // Get ALL mahasiswa in the same semester (Kuliah Besar = semua mahasiswa semester tersebut)
+                    $mahasiswaList = \App\Models\User::where('role', 'mahasiswa')
+                        ->where('semester', $kelompokBesar->semester)
+                        ->get();
+                    \Log::info("Kuliah Besar sendNotificationToMahasiswa - Found " . count($mahasiswaList) . " mahasiswa in semester {$kelompokBesar->semester}");
+                }
+            } else {
+                // Fallback: jika tidak ada kelompok_besar_id, cari berdasarkan semester mata kuliah
+                $mahasiswaList = \App\Models\User::where('role', 'mahasiswa')
+                    ->where('semester', $jadwal->mataKuliah->semester)
+                    ->get();
+                \Log::info("Kuliah Besar sendNotificationToMahasiswa - Fallback: Found " . count($mahasiswaList) . " mahasiswa in semester {$jadwal->mataKuliah->semester}");
+            }
+
+            // Debug logging
+            \Log::info("Kuliah Besar sendNotificationToMahasiswa - Final mahasiswaList count: " . count($mahasiswaList));
+
+            // Send notification to each mahasiswa in the assigned group
             foreach ($mahasiswaList as $mahasiswa) {
                 \App\Models\Notification::create([
                     'user_id' => $mahasiswa->id,
@@ -1838,7 +1883,7 @@ class JadwalKuliahBesarController extends Controller
 
             foreach ($superAdmins as $admin) {
                 \App\Models\Notification::create([
-                    'user_id' => $dosen->id,
+                    'user_id' => $admin->id,
                     'title' => 'Dosen Tidak Bisa Mengajar - Kuliah Besar',
                     'message' => "Dosen {$dosen->name} tidak bisa mengajar pada jadwal Kuliah Besar {$jadwal->mataKuliah->nama} pada tanggal " .
                         date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .

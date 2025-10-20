@@ -93,6 +93,11 @@ interface JadwalKuliahBesar {
   jumlah_sesi: number;
   semester_type?: "reguler" | "antara";
   created_at: string;
+  kelompok_besar?: {
+    id: number;
+    semester: number;
+    nama_kelompok: string;
+  } | null;
 }
 
 interface JadwalPraktikum {
@@ -376,6 +381,21 @@ export default function DashboardDosen() {
   // Real-time clock state
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  // Email verification states
+  const [emailStatus, setEmailStatus] = useState<{
+    isEmailValid: boolean;
+    needsEmailUpdate: boolean;
+    email: string;
+  } | null>(null);
+  const [showEmailWarning, setShowEmailWarning] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [updatingEmail, setUpdatingEmail] = useState(false);
+
+  // Success/Error modal states
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   // Check if user is dosen
   useEffect(() => {
     const user = getUser();
@@ -383,6 +403,69 @@ export default function DashboardDosen() {
       navigate("/");
     }
   }, [navigate]);
+
+  // Check email status on component mount
+  useEffect(() => {
+    const checkEmailStatus = async () => {
+      try {
+        const userData = getUser();
+        if (!userData) return;
+
+        const response = await api.get(`/users/${userData.id}/email-status`);
+        if (response.data.success) {
+          const { is_email_valid, needs_email_update, email, email_verified } =
+            response.data.data;
+          setEmailStatus({
+            isEmailValid: is_email_valid,
+            needsEmailUpdate: needs_email_update || !email_verified,
+            email: email || "",
+          });
+          setShowEmailWarning(needs_email_update || !email_verified);
+          setNewEmail(email || "");
+        }
+      } catch (error) {
+        console.error("Error checking email status:", error);
+      }
+    };
+
+    checkEmailStatus();
+  }, []);
+
+  // Listen for user-updated event to refresh email status
+  useEffect(() => {
+    const handleUserUpdated = () => {
+      const checkEmailStatus = async () => {
+        try {
+          const userData = getUser();
+          if (!userData) return;
+
+          const response = await api.get(`/users/${userData.id}/email-status`);
+          if (response.data.success) {
+            const {
+              is_email_valid,
+              needs_email_update,
+              email,
+              email_verified,
+            } = response.data.data;
+            setEmailStatus({
+              isEmailValid: is_email_valid,
+              needsEmailUpdate: needs_email_update || !email_verified,
+              email: email || "",
+            });
+            setShowEmailWarning(needs_email_update || !email_verified);
+            setNewEmail(email || "");
+          }
+        } catch (error) {
+          console.error("Error checking email status:", error);
+        }
+      };
+
+      checkEmailStatus();
+    };
+
+    window.addEventListener("user-updated", handleUserUpdated);
+    return () => window.removeEventListener("user-updated", handleUserUpdated);
+  }, []);
 
   // Real-time clock update
   useEffect(() => {
@@ -706,6 +789,55 @@ export default function DashboardDosen() {
     }
   };
 
+  // Handle email verification
+  const handleVerifyEmail = async () => {
+    if (!newEmail.trim() || !emailStatus) return;
+
+    try {
+      setUpdatingEmail(true);
+      const userData = getUser();
+      if (!userData) return;
+
+      const response = await api.put(`/users/${userData.id}/verify-email`, {
+        email: newEmail.trim(),
+      });
+
+      if (response.data.success) {
+        setEmailStatus((prev) =>
+          prev
+            ? {
+                ...prev,
+                isEmailValid: true,
+                needsEmailUpdate: false,
+                email: newEmail.trim(),
+              }
+            : null
+        );
+        setShowEmailWarning(false);
+        setShowSuccessModal(true);
+
+        // Update localStorage dengan data user terbaru
+        const updatedUserData = {
+          ...userData,
+          email: newEmail.trim(),
+          email_verified: true,
+        };
+        localStorage.setItem("user", JSON.stringify(updatedUserData));
+
+        // Dispatch event untuk update Profile.tsx
+        window.dispatchEvent(new Event("user-updated"));
+      }
+    } catch (error: any) {
+      console.error("Error verifying email:", error);
+      setErrorMessage(
+        error.response?.data?.message || error.message || "Terjadi kesalahan"
+      );
+      setShowErrorModal(true);
+    } finally {
+      setUpdatingEmail(false);
+    }
+  };
+
   const getStatusBadge = (status: string, statusReschedule?: string) => {
     switch (status) {
       case "bisa":
@@ -824,7 +956,11 @@ export default function DashboardDosen() {
         <div className="overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
             <div className="flex items-center gap-3">
-              <div className={`w-8 h-8 rounded-2xl ${getIconColor(jadwalType)} flex items-center justify-center shadow-lg`}>
+              <div
+                className={`w-8 h-8 rounded-2xl ${getIconColor(
+                  jadwalType
+                )} flex items-center justify-center shadow-lg`}
+              >
                 <FontAwesomeIcon icon={icon} className="text-white text-sm" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -869,237 +1005,320 @@ export default function DashboardDosen() {
                   </tr>
                 ) : (
                   jadwalData.map((item, index) => (
-                  <tr
-                    key={index}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white font-medium">
-                      {index + 1}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {item.tanggal}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {jadwalType === "kuliah_besar" ||
-                      jadwalType === "praktikum" ||
-                      jadwalType === "agenda_khusus" ||
-                      jadwalType === "pbl" ||
-                      jadwalType === "jurnal" ||
-                      jadwalType === "csr" ||
-                      jadwalType === "non_blok_non_csr"
-                        ? `${item.jam_mulai} - ${item.jam_selesai}`
-                        : item.waktu_mulai}
-                    </td>
-                    {jadwalType === "pbl" && (
-                      <>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {item.x50 ? `${item.x50} x 50 menit` : "N/A"}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {item.tipe_pbl || "N/A"}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {item.kelompok}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {item.modul || item.topik || "N/A"}
-                        </td>
-                      </>
-                    )}
-                    {jadwalType === "praktikum" && (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {item.kelas_praktikum}
+                    <tr
+                      key={index}
+                      className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white font-medium">
+                        {index + 1}
                       </td>
-                    )}
-                    {jadwalType !== "pbl" && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {item.tanggal}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {jadwalType === "kuliah_besar" ||
                         jadwalType === "praktikum" ||
                         jadwalType === "agenda_khusus" ||
+                        jadwalType === "pbl" ||
                         jadwalType === "jurnal" ||
                         jadwalType === "csr" ||
                         jadwalType === "non_blok_non_csr"
-                          ? `${item.jumlah_sesi || 1} x 50 menit`
-                          : `${item.durasi} menit`}
+                          ? `${item.jam_mulai} - ${item.jam_selesai}`
+                          : item.waktu_mulai}
                       </td>
-                    )}
-                    {jadwalType === "jurnal" ? (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {item.topik || "N/A"}
-                      </td>
-                    ) : jadwalType === "csr" ? (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {item.topik || "N/A"}
-                      </td>
-                    ) : jadwalType === "non_blok_non_csr" ? (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {item.agenda || item.materi || "N/A"}
-                      </td>
-                    ) : (
-                      jadwalType !== "pbl" && (
+                      {jadwalType === "pbl" && (
+                        <>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {item.x50 ? `${item.x50} x 50 menit` : "N/A"}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {item.tipe_pbl || "N/A"}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {item.kelompok}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {item.modul || item.topik || "N/A"}
+                          </td>
+                        </>
+                      )}
+                      {jadwalType === "praktikum" && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {item.materi || item.topik || "N/A"}
+                          {item.kelas_praktikum}
                         </td>
-                      )
-                    )}
-                    {jadwalType === "csr" && (
-                      <>
+                      )}
+                      {jadwalType !== "pbl" && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {item.kategori?.nama || "N/A"}
+                          {jadwalType === "kuliah_besar" ||
+                          jadwalType === "praktikum" ||
+                          jadwalType === "agenda_khusus" ||
+                          jadwalType === "jurnal" ||
+                          jadwalType === "csr" ||
+                          jadwalType === "non_blok_non_csr"
+                            ? `${item.jumlah_sesi || 1} x 50 menit`
+                            : `${item.durasi} menit`}
                         </td>
+                      )}
+                      {jadwalType === "jurnal" ? (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {item.topik || "N/A"}
+                        </td>
+                      ) : jadwalType === "csr" ? (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {item.topik || "N/A"}
+                        </td>
+                      ) : jadwalType === "non_blok_non_csr" ? (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {item.agenda || item.materi || "N/A"}
+                        </td>
+                      ) : (
+                        jadwalType !== "pbl" && (
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {item.materi || item.topik || "N/A"}
+                          </td>
+                        )
+                      )}
+                      {jadwalType === "csr" && (
+                        <>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {item.kategori?.nama || "N/A"}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                item.jenis_csr === "reguler"
+                                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-700"
+                                  : "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border border-purple-200 dark:border-purple-700"
+                              }`}
+                            >
+                              {item.jenis_csr === "reguler"
+                                ? "CSR Reguler"
+                                : "CSR Responsi"}
+                            </span>
+                          </td>
+                        </>
+                      )}
+                      {jadwalType === "non_blok_non_csr" && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           <span
                             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              item.jenis_csr === "reguler"
-                                ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-700"
-                                : "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border border-purple-200 dark:border-purple-700"
+                              item.jenis_baris === "materi"
+                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-700"
+                                : "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 border border-orange-200 dark:border-orange-700"
                             }`}
                           >
-                            {item.jenis_csr === "reguler"
-                              ? "CSR Reguler"
-                              : "CSR Responsi"}
+                            {item.jenis_baris === "materi"
+                              ? "Materi"
+                              : "Agenda"}
                           </span>
                         </td>
-                      </>
-                    )}
-                    {jadwalType === "non_blok_non_csr" && (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            item.jenis_baris === "materi"
-                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-700"
-                              : "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 border border-orange-200 dark:border-orange-700"
-                          }`}
-                        >
-                          {item.jenis_baris === "materi" ? "Materi" : "Agenda"}
-                        </span>
-                      </td>
-                    )}
-                    {jadwalType !== "pbl" &&
-                      jadwalType !== "jurnal" &&
-                      jadwalType !== "csr" &&
-                      jadwalType !== "non_blok_non_csr" && (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {item.topik}
-                        </td>
                       )}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {jadwalType === "kuliah_besar"
-                        ? item.dosen?.name || "N/A"
-                        : jadwalType === "praktikum"
-                        ? item.dosen?.map((d: any) => d.name).join(", ") ||
-                          "N/A"
-                        : jadwalType === "jurnal"
-                        ? item.dosen?.name || "N/A"
-                        : jadwalType === "pbl"
-                        ? item.pengampu || "N/A"
-                        : jadwalType === "csr" ||
-                          jadwalType === "non_blok_non_csr"
-                        ? item.pengampu || item.dosen?.name || "N/A"
-                        : item.pengampu}
-                    </td>
-                    {(jadwalType === "kuliah_besar" ||
-                      jadwalType === "jurnal" ||
-                      jadwalType === "non_blok_non_csr") && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {jadwalType === "kuliah_besar"
-                          ? item.kelompok_besar_id
-                            ? `Semester ${item.kelompok_besar_id}`
-                            : item.kelompok_besar_antara?.nama_kelompok || "N/A"
+                          ? item.dosen?.name || "N/A"
+                          : jadwalType === "praktikum"
+                          ? item.dosen?.map((d: any) => d.name).join(", ") ||
+                            "N/A"
                           : jadwalType === "jurnal"
-                          ? item.kelompok_kecil?.nama ||
-                            item.kelompok_kecil_antara?.nama_kelompok ||
-                            "N/A"
-                          : jadwalType === "non_blok_non_csr"
-                          ? item.kelompok_besar?.semester ||
-                            item.kelompok_besar_antara?.nama_kelompok ||
-                            "N/A"
-                          : "N/A"}
+                          ? item.dosen?.name || "N/A"
+                          : jadwalType === "pbl"
+                          ? item.pengampu || "N/A"
+                          : jadwalType === "csr" ||
+                            jadwalType === "non_blok_non_csr"
+                          ? item.pengampu || item.dosen?.name || "N/A"
+                          : item.pengampu}
                       </td>
-                    )}
-                    {jadwalType === "csr" && (
+                      {jadwalType === "kuliah_besar" && (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {item.topik || "N/A"}
+                        </td>
+                      )}
+                      {jadwalType !== "pbl" &&
+                        jadwalType !== "jurnal" &&
+                        jadwalType !== "csr" &&
+                        jadwalType !== "non_blok_non_csr" &&
+                        jadwalType !== "kuliah_besar" && (
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {item.topik}
+                          </td>
+                        )}
+                      {(jadwalType === "kuliah_besar" ||
+                        jadwalType === "jurnal" ||
+                        jadwalType === "non_blok_non_csr") && (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {jadwalType === "kuliah_besar"
+                            ? item.kelompok_besar?.semester
+                              ? `Semester ${item.kelompok_besar.semester}`
+                              : item.kelompok_besar_antara?.nama_kelompok ||
+                                "N/A"
+                            : jadwalType === "jurnal"
+                            ? item.kelompok_kecil?.nama ||
+                              item.kelompok_kecil_antara?.nama_kelompok ||
+                              "N/A"
+                            : jadwalType === "non_blok_non_csr"
+                            ? item.kelompok_besar?.semester ||
+                              item.kelompok_besar_antara?.nama_kelompok ||
+                              "N/A"
+                            : "N/A"}
+                        </td>
+                      )}
+                      {jadwalType === "csr" && (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {item.kelompok_kecil?.nama || "N/A"}
+                        </td>
+                      )}
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {item.kelompok_kecil?.nama || "N/A"}
+                        {jadwalType === "kuliah_besar" ||
+                        jadwalType === "praktikum" ||
+                        jadwalType === "jurnal"
+                          ? item.ruangan?.nama || "N/A"
+                          : jadwalType === "pbl"
+                          ? item.ruangan || "N/A"
+                          : jadwalType === "csr" ||
+                            jadwalType === "non_blok_non_csr"
+                          ? item.ruangan?.nama || "N/A"
+                          : item.lokasi || item.ruangan}
                       </td>
-                    )}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {jadwalType === "kuliah_besar" ||
-                      jadwalType === "praktikum" ||
-                      jadwalType === "jurnal"
-                        ? item.ruangan?.nama || "N/A"
-                        : jadwalType === "pbl"
-                        ? item.ruangan || "N/A"
-                        : jadwalType === "csr" ||
-                          jadwalType === "non_blok_non_csr"
-                        ? item.ruangan?.nama || "N/A"
-                        : item.lokasi || item.ruangan}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {getSemesterTypeBadge(item.semester_type)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      <div className="flex items-center gap-2">
-                        {getStatusBadge(
-                          item.status_konfirmasi,
-                          item.status_reschedule
-                        )}
-                        {item.status_konfirmasi === "belum_konfirmasi" && (
-                          <button
-                            onClick={() => openKonfirmasiModal(item)}
-                            className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
-                            title="Konfirmasi Ketersediaan"
-                          >
-                            Konfirmasi
-                          </button>
-                        )}
-                        {item.status_konfirmasi === "bisa" && (
-                          <>
-                            {jadwalType === "csr" ? (
-                              <button
-                                onClick={() =>
-                                  navigate(
-                                    `/absensi-csr/${item.mata_kuliah_kode}/${item.id}`
-                                  )
-                                }
-                                className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
-                                title="Absensi CSR"
-                              >
-                                Absensi
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() =>
-                                  handlePenilaianClick(item, jadwalType)
-                                }
-                                className={`px-3 py-1 rounded text-xs transition-colors ${
-                                  item.penilaian_submitted
-                                    ? "bg-gray-500 text-white hover:bg-gray-600"
-                                    : "bg-green-500 text-white hover:bg-green-600"
-                                }`}
-                                title={
-                                  item.penilaian_submitted
+                      {jadwalType === "jurnal" && (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {item.file_jurnal ? (
+                            <div className="flex items-center space-x-2">
+                              <div className="flex-shrink-0">
+                                <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                                  <svg
+                                    className="w-4 h-4 text-blue-600 dark:text-blue-400"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                    />
+                                  </svg>
+                                </div>
+                              </div>
+
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                                  {(() => {
+                                    const fileName =
+                                      item.file_jurnal.split("/").pop() ||
+                                      "File Jurnal";
+                                    return fileName.length > 20
+                                      ? fileName.substring(0, 20) + "..."
+                                      : fileName;
+                                  })()}
+                                </p>
+
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  File Jurnal
+                                </p>
+                              </div>
+
+                              <div className="flex-shrink-0">
+                                <a
+                                  href={`/api/jurnal-reading/download/${item.mata_kuliah_kode}/${item.id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/30 rounded-md transition-colors duration-200"
+                                  title="Download File"
+                                >
+                                  <svg
+                                    className="w-3 h-3"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                    />
+                                  </svg>
+
+                                  <span className="hidden sm:inline">
+                                    Download
+                                  </span>
+                                </a>
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 dark:text-gray-500 text-sm">
+                              -
+                            </span>
+                          )}
+                        </td>
+                      )}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {getSemesterTypeBadge(item.semester_type)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        <div className="flex items-center gap-2">
+                          {getStatusBadge(
+                            item.status_konfirmasi,
+                            item.status_reschedule
+                          )}
+                          {item.status_konfirmasi === "belum_konfirmasi" && (
+                            <button
+                              onClick={() => openKonfirmasiModal(item)}
+                              className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
+                              title="Konfirmasi Ketersediaan"
+                            >
+                              Konfirmasi
+                            </button>
+                          )}
+                          {item.status_konfirmasi === "bisa" && (
+                            <>
+                              {jadwalType === "csr" ? (
+                                <button
+                                  onClick={() =>
+                                    navigate(
+                                      `/absensi-csr/${item.mata_kuliah_kode}/${item.id}`
+                                    )
+                                  }
+                                  className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
+                                  title="Absensi CSR"
+                                >
+                                  Absensi
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() =>
+                                    handlePenilaianClick(item, jadwalType)
+                                  }
+                                  className={`px-3 py-1 rounded text-xs transition-colors ${
+                                    item.penilaian_submitted
+                                      ? "bg-gray-500 text-white hover:bg-gray-600"
+                                      : "bg-green-500 text-white hover:bg-green-600"
+                                  }`}
+                                  title={
+                                    item.penilaian_submitted
+                                      ? "Lihat Penilaian"
+                                      : "Penilaian"
+                                  }
+                                >
+                                  {item.penilaian_submitted
                                     ? "Lihat Penilaian"
-                                    : "Penilaian"
-                                }
-                              >
-                                {item.penilaian_submitted
-                                  ? "Lihat Penilaian"
-                                  : "Penilaian"}
-                              </button>
-                            )}
-                          </>
-                        )}
-                        {item.status_konfirmasi === "belum_konfirmasi" && (
-                          <button
-                            onClick={() => openRescheduleModal(item)}
-                            className="px-3 py-1 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 transition-colors"
-                            title="Ajukan Reschedule"
-                          >
-                            Reschedule
-                          </button>
-                        )}
-                      </div>
-                    </td>
+                                    : "Penilaian"}
+                                </button>
+                              )}
+                            </>
+                          )}
+                          {item.status_konfirmasi === "belum_konfirmasi" && (
+                            <button
+                              onClick={() => openRescheduleModal(item)}
+                              className="px-3 py-1 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 transition-colors"
+                              title="Ajukan Reschedule"
+                            >
+                              Reschedule
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -1242,6 +1461,57 @@ export default function DashboardDosen() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="grid grid-cols-12 gap-4 md:gap-6 p-4 md:p-6">
+        {/* Email Verification Warning */}
+        {showEmailWarning && emailStatus && (
+          <div className="col-span-12 mb-4">
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-xl p-4"
+            >
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0">
+                  <FontAwesomeIcon
+                    icon={faExclamationTriangle}
+                    className="w-5 h-5 text-orange-500"
+                  />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-orange-800 dark:text-orange-200">
+                    Email Belum Dikonfirmasi
+                  </h3>
+                  <p className="mt-1 text-sm text-orange-700 dark:text-orange-300">
+                    Email Anda belum valid atau belum diisi. Silakan update
+                    email untuk menerima notifikasi pengingat.
+                  </p>
+                  <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="email"
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      placeholder="Masukkan email yang valid"
+                      className="flex-1 px-3 py-2 text-sm border border-orange-300 dark:border-orange-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    />
+                    <button
+                      onClick={handleVerifyEmail}
+                      disabled={updatingEmail || !newEmail.trim()}
+                      className="px-4 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                    >
+                      {updatingEmail ? "Mengaktifkan..." : "Aktif"}
+                    </button>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowEmailWarning(false)}
+                  className="flex-shrink-0 text-orange-400 hover:text-orange-600 dark:hover:text-orange-300"
+                >
+                  <FontAwesomeIcon icon={faTimes} className="w-4 h-4" />
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
         {/* Page Header */}
         <div className="col-span-12 mb-6">
           <motion.div
@@ -1951,245 +2221,246 @@ export default function DashboardDosen() {
             transition={{ delay: 0.3 }}
             className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
           >
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-indigo-500 rounded-2xl flex items-center justify-center shadow-lg">
-                <FontAwesomeIcon
-                  icon={faCalendar}
-                  className="text-white text-lg"
-                />
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-indigo-500 rounded-2xl flex items-center justify-center shadow-lg">
+                  <FontAwesomeIcon
+                    icon={faCalendar}
+                    className="text-white text-lg"
+                  />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Jadwal & Konfirmasi
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Kelola jadwal dan konfirmasi ketersediaan Anda
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Jadwal & Konfirmasi
-                </h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Kelola jadwal dan konfirmasi ketersediaan Anda
-                </p>
+
+              {/* Semester Type Filter */}
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  Filter Semester:
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setActiveSemesterType("reguler")}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
+                      activeSemesterType === "reguler"
+                        ? "bg-blue-500 text-white shadow-lg"
+                        : "bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-gray-200 dark:border-gray-500"
+                    }`}
+                  >
+                    <FontAwesomeIcon icon={faGraduationCap} className="mr-2" />
+                    Reguler
+                  </button>
+                  <button
+                    onClick={() => setActiveSemesterType("antara")}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
+                      activeSemesterType === "antara"
+                        ? "bg-green-500 text-white shadow-lg"
+                        : "bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-green-50 dark:hover:bg-green-900/20 border border-gray-200 dark:border-gray-500"
+                    }`}
+                  >
+                    <FontAwesomeIcon icon={faGraduationCap} className="mr-2" />
+                    Antara
+                  </button>
+                  <button
+                    onClick={() => setActiveSemesterType("all")}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
+                      activeSemesterType === "all"
+                        ? "bg-purple-500 text-white shadow-lg"
+                        : "bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 border border-gray-200 dark:border-gray-500"
+                    }`}
+                  >
+                    <FontAwesomeIcon icon={faEye} className="mr-2" />
+                    Semua
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* Semester Type Filter */}
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                Filter Semester:
-              </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setActiveSemesterType("reguler")}
-                  className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
-                    activeSemesterType === "reguler"
-                      ? "bg-blue-500 text-white shadow-lg"
-                      : "bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-gray-200 dark:border-gray-500"
-                  }`}
-                >
-                  <FontAwesomeIcon icon={faGraduationCap} className="mr-2" />
-                  Reguler
-                </button>
-                <button
-                  onClick={() => setActiveSemesterType("antara")}
-                  className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
-                    activeSemesterType === "antara"
-                      ? "bg-green-500 text-white shadow-lg"
-                      : "bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-green-50 dark:hover:bg-green-900/20 border border-gray-200 dark:border-gray-500"
-                  }`}
-                >
-                  <FontAwesomeIcon icon={faGraduationCap} className="mr-2" />
-                  Antara
-                </button>
-                <button
-                  onClick={() => setActiveSemesterType("all")}
-                  className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
-                    activeSemesterType === "all"
-                      ? "bg-purple-500 text-white shadow-lg"
-                      : "bg-white dark:bg-gray-600 text-gray-600 dark:text-gray-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 border border-gray-200 dark:border-gray-500"
-                  }`}
-                >
-                  <FontAwesomeIcon icon={faEye} className="mr-2" />
-                  Semua
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            {/* PBL Table */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
-            >
-              {renderJadwalTable(
-                "PBL (Problem Based Learning)",
-                faBookOpen,
-                jadwalPBL,
-                [
-                  "NO",
-                  "HARI/TANGGAL",
-                  "PUKUL",
-                  "WAKTU",
-                  "TIPE PBL",
-                  "KELOMPOK",
-                  "MODUL",
-                  "PENGAMPU",
-                  "RUANGAN",
-                  "JENIS SEMESTER",
-                  "AKSI",
-                ],
-                "pbl",
-                "Tidak ada data PBL"
-              )}
-            </motion.div>
-
-            {/* Kuliah Besar */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
-            >
-              {renderJadwalTable(
-                "Kuliah Besar",
-                faGraduationCap,
-                jadwalKuliahBesar,
-                [
-                  "NO",
-                  "HARI/TANGGAL",
-                  "PUKUL",
-                  "WAKTU",
-                  "MATERI",
-                  "PENGAMPU",
-                  "TOPIK",
-                  "KELOMPOK",
-                  "LOKASI",
-                  "JENIS SEMESTER",
-                  "AKSI",
-                ],
-                "kuliah_besar",
-                "Tidak ada data Kuliah Besar"
-              )}
-            </motion.div>
-
-            {/* Praktikum - Hanya tampil untuk semester reguler */}
-            {activeSemesterType !== "antara" && (
+            <div className="space-y-6">
+              {/* PBL Table */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
+                transition={{ delay: 0.4 }}
                 className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
               >
                 {renderJadwalTable(
-                  "Praktikum",
-                  faFlask,
-                  jadwalPraktikum,
+                  "PBL (Problem Based Learning)",
+                  faBookOpen,
+                  jadwalPBL,
                   [
                     "NO",
                     "HARI/TANGGAL",
                     "PUKUL",
-                    "KELAS",
+                    "WAKTU",
+                    "TIPE PBL",
+                    "KELOMPOK",
+                    "MODUL",
+                    "PENGAMPU",
+                    "RUANGAN",
+                    "JENIS SEMESTER",
+                    "AKSI",
+                  ],
+                  "pbl",
+                  "Tidak ada data PBL"
+                )}
+              </motion.div>
+
+              {/* Kuliah Besar */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+              >
+                {renderJadwalTable(
+                  "Kuliah Besar",
+                  faGraduationCap,
+                  jadwalKuliahBesar,
+                  [
+                    "NO",
+                    "HARI/TANGGAL",
+                    "PUKUL",
                     "WAKTU",
                     "MATERI",
-                    "TOPIK",
                     "PENGAMPU",
+                    "TOPIK",
+                    "KELOMPOK",
                     "LOKASI",
                     "JENIS SEMESTER",
                     "AKSI",
                   ],
-                  "praktikum",
-                  "Tidak ada data Praktikum"
+                  "kuliah_besar",
+                  "Tidak ada data Kuliah Besar"
                 )}
               </motion.div>
-            )}
 
-            {/* Jurnal Reading */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
-            >
-              {renderJadwalTable(
-                "Jurnal Reading",
-                faNewspaper,
-                jadwalJurnalReading,
-                [
-                  "NO",
-                  "HARI/TANGGAL",
-                  "PUKUL",
-                  "WAKTU",
-                  "TOPIK",
-                  "PENGAMPU",
-                  "KELOMPOK",
-                  "LOKASI",
-                  "JENIS SEMESTER",
-                  "AKSI",
-                ],
-                "jurnal",
-                "Tidak ada data Jurnal Reading"
+              {/* Praktikum - Hanya tampil untuk semester reguler */}
+              {activeSemesterType !== "antara" && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6 }}
+                  className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+                >
+                  {renderJadwalTable(
+                    "Praktikum",
+                    faFlask,
+                    jadwalPraktikum,
+                    [
+                      "NO",
+                      "HARI/TANGGAL",
+                      "PUKUL",
+                      "KELAS",
+                      "WAKTU",
+                      "MATERI",
+                      "TOPIK",
+                      "PENGAMPU",
+                      "LOKASI",
+                      "JENIS SEMESTER",
+                      "AKSI",
+                    ],
+                    "praktikum",
+                    "Tidak ada data Praktikum"
+                  )}
+                </motion.div>
               )}
-            </motion.div>
 
-            {/* Jadwal CSR - Hanya tampil di semester reguler */}
-            {activeSemesterType !== "antara" && (
+              {/* Jurnal Reading */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.8 }}
+                transition={{ delay: 0.7 }}
                 className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
               >
                 {renderJadwalTable(
-                  "CSR (Community Service Learning)",
-                  faUsers,
-                  jadwalCSR,
+                  "Jurnal Reading",
+                  faNewspaper,
+                  jadwalJurnalReading,
                   [
                     "NO",
                     "HARI/TANGGAL",
                     "PUKUL",
                     "WAKTU",
                     "TOPIK",
-                    "KATEGORI",
-                    "JENIS CSR",
+                    "PENGAMPU",
+                    "KELOMPOK",
+                    "LOKASI",
+                    "FILE JURNAL",
+                    "JENIS SEMESTER",
+                    "AKSI",
+                  ],
+                  "jurnal",
+                  "Tidak ada data Jurnal Reading"
+                )}
+              </motion.div>
+
+              {/* Jadwal CSR - Hanya tampil di semester reguler */}
+              {activeSemesterType !== "antara" && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.8 }}
+                  className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+                >
+                  {renderJadwalTable(
+                    "CSR (Community Service Learning)",
+                    faUsers,
+                    jadwalCSR,
+                    [
+                      "NO",
+                      "HARI/TANGGAL",
+                      "PUKUL",
+                      "WAKTU",
+                      "TOPIK",
+                      "KATEGORI",
+                      "JENIS CSR",
+                      "PENGAMPU",
+                      "KELOMPOK",
+                      "LOKASI",
+                      "JENIS SEMESTER",
+                      "AKSI",
+                    ],
+                    "csr",
+                    "Tidak ada data CSR"
+                  )}
+                </motion.div>
+              )}
+
+              {/* Jadwal Non Blok Non CSR */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.9 }}
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+              >
+                {renderJadwalTable(
+                  "Non Blok Non CSR",
+                  faFileAlt,
+                  jadwalNonBlokNonCSR,
+                  [
+                    "NO",
+                    "HARI/TANGGAL",
+                    "PUKUL",
+                    "WAKTU",
+                    "MATERI/AGENDA",
+                    "JENIS",
                     "PENGAMPU",
                     "KELOMPOK",
                     "LOKASI",
                     "JENIS SEMESTER",
                     "AKSI",
                   ],
-                  "csr",
-                  "Tidak ada data CSR"
+                  "non_blok_non_csr",
+                  "Tidak ada data Non Blok Non CSR"
                 )}
               </motion.div>
-            )}
-
-            {/* Jadwal Non Blok Non CSR */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.9 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
-            >
-              {renderJadwalTable(
-                "Non Blok Non CSR",
-                faFileAlt,
-                jadwalNonBlokNonCSR,
-                [
-                  "NO",
-                  "HARI/TANGGAL",
-                  "PUKUL",
-                  "WAKTU",
-                  "MATERI/AGENDA",
-                  "JENIS",
-                  "PENGAMPU",
-                  "KELOMPOK",
-                  "LOKASI",
-                  "JENIS SEMESTER",
-                  "AKSI",
-                ],
-                "non_blok_non_csr",
-                "Tidak ada data Non Blok Non CSR"
-              )}
-            </motion.div>
             </div>
           </motion.div>
         </div>
@@ -2730,6 +3001,91 @@ export default function DashboardDosen() {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Success Modal */}
+      <AnimatePresence>
+        {showSuccessModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => setShowSuccessModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center">
+                <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FontAwesomeIcon
+                    icon={faCheckCircle}
+                    className="w-8 h-8 text-green-600 dark:text-green-400"
+                  />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                  Email Berhasil Diaktifkan!
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  Email Anda telah berhasil diaktifkan. Anda akan menerima
+                  notifikasi pengingat jadwal.
+                </p>
+                <button
+                  onClick={() => setShowSuccessModal(false)}
+                  className="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-4 rounded-xl transition-colors"
+                >
+                  OK
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Error Modal */}
+      <AnimatePresence>
+        {showErrorModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => setShowErrorModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center">
+                <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FontAwesomeIcon
+                    icon={faTimesCircle}
+                    className="w-8 h-8 text-red-600 dark:text-red-400"
+                  />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                  Gagal Mengaktifkan Email
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  {errorMessage}
+                </p>
+                <button
+                  onClick={() => setShowErrorModal(false)}
+                  className="w-full bg-red-500 hover:bg-red-600 text-white font-medium py-3 px-4 rounded-xl transition-colors"
+                >
+                  OK
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

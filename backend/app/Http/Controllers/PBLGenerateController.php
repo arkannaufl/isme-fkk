@@ -131,15 +131,15 @@ class PBLGenerateController extends Controller
             if (!$existingDosenPeran) {
                 // Ambil peran kurikulum yang tersedia untuk mata kuliah ini
                 $peranKurikulum = $mataKuliah->peran_dalam_kurikulum ?? [];
-                $peranKurikulumArray = is_string($peranKurikulum) 
-                    ? json_decode($peranKurikulum, true) 
+                $peranKurikulumArray = is_string($peranKurikulum)
+                    ? json_decode($peranKurikulum, true)
                     : $peranKurikulum;
-                
+
                 // Pilih peran kurikulum pertama yang tersedia (biasanya "Dosen Mengajar")
-                $selectedPeranKurikulum = is_array($peranKurikulumArray) && count($peranKurikulumArray) > 0 
-                    ? $peranKurikulumArray[0] 
+                $selectedPeranKurikulum = is_array($peranKurikulumArray) && count($peranKurikulumArray) > 0
+                    ? $peranKurikulumArray[0]
                     : 'Dosen Mengajar';
-                
+
                 // Buat DosenPeran record baru
                 DosenPeran::create([
                     'user_id' => $assignment['dosen_id'],
@@ -175,7 +175,7 @@ class PBLGenerateController extends Controller
             foreach ($data['pbl_ids'] as $pblId) {
                 // Ambil data dosen yang akan dihapus sebelum menghapus mapping
                 $mappings = PBLMapping::where('pbl_id', $pblId)->get();
-                
+
                 // Decrement pbl_assignment_count untuk setiap dosen
                 foreach ($mappings as $mapping) {
                     $user = User::find($mapping->dosen_id);
@@ -183,7 +183,7 @@ class PBLGenerateController extends Controller
                         $user->decrement('pbl_assignment_count');
                     }
                 }
-                
+
                 // Hapus semua mapping untuk PBL ini
                 $deleted = PBLMapping::where('pbl_id', $pblId)->delete();
                 $deletedCount += $deleted;
@@ -262,7 +262,7 @@ class PBLGenerateController extends Controller
     {
         try {
             $blok = $request->query('blok');
-            
+
             if (!$blok) {
                 return response()->json([
                     'success' => false,
@@ -317,7 +317,6 @@ class PBLGenerateController extends Controller
                     'message' => $isGenerated ? 'Blok sudah di-generate' : 'Blok belum di-generate'
                 ]
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,

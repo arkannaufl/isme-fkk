@@ -12,6 +12,8 @@ import {
   faUsers,
   faChartBar,
   faDownload,
+  faCheckCircle,
+  faTimesCircle,
 } from "@fortawesome/free-solid-svg-icons";
 import { motion } from "framer-motion";
 import api from "../utils/api";
@@ -2133,7 +2135,11 @@ export default function DosenRiwayat() {
                               <td className="px-6 py-4 whitespace-nowrap text-gray-500 dark:text-gray-400">
                                 {jenis === "kuliah_besar"
                                   ? jadwal.kelompok_besar_id
-                                    ? `Kelompok Besar Semester ${jadwal.kelompok_besar_id}`
+                                    ? `Kelompok Besar Semester ${
+                                        jadwal.semester ||
+                                        jadwal.semester_type ||
+                                        "Unknown"
+                                      }`
                                     : "-"
                                   : jadwal.kelompok_kecil || "-"}
                               </td>
@@ -2180,46 +2186,142 @@ export default function DosenRiwayat() {
                                   const reschedule =
                                     jadwal.status_reschedule || null;
 
-                                  let label = "Menunggu Konfirmasi";
-                                  let color =
-                                    "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200";
+                                  // Gunakan logika yang sama dengan DashboardDosen.tsx
+                                  // Prioritas: status_reschedule terlebih dahulu, kemudian status_konfirmasi
 
+                                  // Jika ada status_reschedule = "approved", prioritaskan itu
+                                  if (reschedule === "approved") {
                                   if (status === "bisa") {
-                                    label = "Bisa";
-                                    color =
-                                      "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
+                                      return (
+                                        <div className="min-w-[180px]">
+                                          <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-700">
+                                            <FontAwesomeIcon
+                                              icon={faCheckCircle}
+                                              className="w-3 h-3 mr-1"
+                                            />
+                                            Bisa (Reschedule Disetujui)
+                                          </div>
+                                        </div>
+                                      );
                                   } else if (status === "tidak_bisa") {
-                                    label = "Tidak Bisa";
-                                    color =
-                                      "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
-                                  } else if (status === "waiting_reschedule") {
-                                    if (
-                                      reschedule === "waiting" ||
-                                      !reschedule
-                                    ) {
-                                      label = "Menunggu Reschedule";
-                                      color =
-                                        "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200";
-                                    } else if (reschedule === "approved") {
-                                      label = "Reschedule Disetujui";
-                                      color =
-                                        "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
-                                    } else if (reschedule === "rejected") {
-                                      label = "Reschedule Ditolak";
-                                      color =
-                                        "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
+                                      return (
+                                        <div className="min-w-[180px]">
+                                          <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-700">
+                                            <FontAwesomeIcon
+                                              icon={faTimesCircle}
+                                              className="w-3 h-3 mr-1"
+                                            />
+                                            Tidak Bisa (Reschedule Disetujui)
+                                          </div>
+                                        </div>
+                                      );
+                                    } else {
+                                      return (
+                                        <div className="min-w-[180px]">
+                                          <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-700">
+                                            <FontAwesomeIcon
+                                              icon={faCheckCircle}
+                                              className="w-3 h-3 mr-1"
+                                            />
+                                            Reschedule Disetujui - Konfirmasi
+                                            Ulang
+                                          </div>
+                                        </div>
+                                      );
                                     }
                                   }
 
+                                  // Jika tidak ada status_reschedule = "approved", gunakan logika normal
+                                  switch (status) {
+                                    case "bisa":
                                   return (
                                     <div className="min-w-[180px]">
-                                      <div
-                                        className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${color}`}
-                                      >
-                                        {label}
+                                          <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-700">
+                                            <FontAwesomeIcon
+                                              icon={faCheckCircle}
+                                              className="w-3 h-3 mr-1"
+                                            />
+                                            Bisa
                                       </div>
                                     </div>
                                   );
+                                    case "tidak_bisa":
+                                      return (
+                                        <div className="min-w-[180px]">
+                                          <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-700">
+                                            <FontAwesomeIcon
+                                              icon={faTimesCircle}
+                                              className="w-3 h-3 mr-1"
+                                            />
+                                            Tidak Bisa (Diganti Dosen Lain)
+                                          </div>
+                                        </div>
+                                      );
+                                    case "waiting_reschedule":
+                                      if (reschedule === "rejected") {
+                                        return (
+                                          <div className="min-w-[180px]">
+                                            <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-700">
+                                              <FontAwesomeIcon
+                                                icon={faTimesCircle}
+                                                className="w-3 h-3 mr-1"
+                                              />
+                                              Reschedule Ditolak
+                                            </div>
+                                          </div>
+                                        );
+                                      } else {
+                                        return (
+                                          <div className="min-w-[180px]">
+                                            <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700">
+                                              <FontAwesomeIcon
+                                                icon={faClock}
+                                                className="w-3 h-3 mr-1"
+                                              />
+                                              Menunggu Reschedule
+                                            </div>
+                                          </div>
+                                        );
+                                      }
+                                    case "belum_konfirmasi":
+                                      if (reschedule === "rejected") {
+                                        return (
+                                          <div className="min-w-[180px]">
+                                            <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-700">
+                                              <FontAwesomeIcon
+                                                icon={faTimesCircle}
+                                                className="w-3 h-3 mr-1"
+                                              />
+                                              Reschedule Ditolak
+                                            </div>
+                                          </div>
+                                        );
+                                      } else {
+                                        return (
+                                          <div className="min-w-[180px]">
+                                            <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200 border border-gray-200 dark:border-gray-700">
+                                              <FontAwesomeIcon
+                                                icon={faClock}
+                                                className="w-3 h-3 mr-1"
+                                              />
+                                              Menunggu Konfirmasi
+                                            </div>
+                                          </div>
+                                        );
+                                      }
+                                    default:
+                                      return (
+                                        <div className="min-w-[180px]">
+                                          <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200 border border-gray-200 dark:border-gray-700">
+                                            <FontAwesomeIcon
+                                              icon={faClock}
+                                              className="w-3 h-3 mr-1"
+                                            />
+                                            Menunggu Konfirmasi
+                                          </div>
+                                        </div>
+                                      );
+                                  }
                                 })()}
                               </td>
                               <td className="px-6 py-4 text-gray-900 dark:text-white/90">
@@ -2228,6 +2330,7 @@ export default function DosenRiwayat() {
                                     jadwal.alasan_konfirmasi ||
                                     jadwal.reschedule_reason ||
                                     null;
+
                                   return alasan ? (
                                     <div
                                       className="text-xs max-w-xs truncate"
