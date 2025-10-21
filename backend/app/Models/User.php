@@ -50,10 +50,12 @@ class User extends Authenticatable
         'peran_kurikulum_mengajar',
         'peran_utama',
         'is_veteran',
+        'is_multi_veteran',
         'veteran_notes',
         'veteran_set_at',
         'veteran_set_by',
-        'veteran_semester',
+        'veteran_semesters',
+        'veteran_history',
     ];
 
     /**
@@ -79,6 +81,9 @@ class User extends Authenticatable
             'kompetensi' => 'array',
             'keahlian' => 'array',
             'is_veteran' => 'boolean',
+            'is_multi_veteran' => 'boolean',
+            'veteran_semesters' => 'array',
+            'veteran_history' => 'array',
             'veteran_set_at' => 'datetime',
         ];
     }

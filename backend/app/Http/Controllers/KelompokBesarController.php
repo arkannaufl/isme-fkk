@@ -8,6 +8,7 @@ use App\Models\KelompokKecil;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class KelompokBesarController extends Controller
 {
@@ -25,6 +26,13 @@ class KelompokBesarController extends Controller
     // Tambah mahasiswa ke kelompok besar
     public function store(Request $request)
     {
+        // Debug logging
+        Log::info('KelompokBesar store request:', [
+            'semester' => $request->semester,
+            'mahasiswa_ids' => $request->mahasiswa_ids,
+            'is_veteran_addition' => $request->is_veteran_addition ?? null
+        ]);
+
         $request->validate([
             'semester' => 'required|string',
             'mahasiswa_ids' => 'required|array',
@@ -42,13 +50,13 @@ class KelompokBesarController extends Controller
                 // Jika bukan penambahan veteran, hapus semua data semester ini dulu (behavior lama)
                 KelompokBesar::where('semester', $semester)->delete();
             }
-            
+
             // Tambahkan mahasiswa yang belum ada di kelompok besar
             foreach ($mahasiswaIds as $id) {
                 $existing = KelompokBesar::where('semester', $semester)
                     ->where('mahasiswa_id', $id)
                     ->first();
-                
+
                 if (!$existing) {
                     KelompokBesar::create([
                         'semester' => $semester,
@@ -113,7 +121,7 @@ class KelompokBesarController extends Controller
     public function deleteByMahasiswaId(Request $request, $mahasiswaId)
     {
         $semester = $request->query('semester');
-        
+
         if (!$semester) {
             return response()->json([
                 'message' => 'Semester parameter is required'
@@ -142,4 +150,4 @@ class KelompokBesarController extends Controller
             ], 500);
         }
     }
-} 
+}

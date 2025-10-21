@@ -21,6 +21,9 @@ const MahasiswaVeteran: React.FC = () => {
   const [veteranNotes, setVeteranNotes] = useState("");
   const [isToggling, setIsToggling] = useState(false);
   
+  // Multi-veteran states
+  const [isTogglingMultiVeteran, setIsTogglingMultiVeteran] = useState(false);
+  
   // Multi-select states
   const [selectedMahasiswaIds, setSelectedMahasiswaIds] = useState<number[]>([]);
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -145,6 +148,54 @@ const MahasiswaVeteran: React.FC = () => {
       setError("Gagal mengupdate status veteran");
     } finally {
       setIsToggling(false);
+    }
+  };
+
+  // Toggle multi-veteran status
+  const handleToggleMultiVeteran = async (mahasiswa: Mahasiswa) => {
+    if (!mahasiswa.is_veteran) {
+      setError("Mahasiswa harus veteran terlebih dahulu");
+      return;
+    }
+
+    try {
+      setIsTogglingMultiVeteran(true);
+      const newMultiVeteranStatus = !mahasiswa.is_multi_veteran;
+      
+      await mahasiswaVeteranApi.toggleMultiVeteran({
+        user_id: mahasiswa.id,
+        is_multi_veteran: newMultiVeteranStatus
+      });
+
+      // Update local state
+      setMahasiswaList(prev => 
+        prev.map(m => 
+          m.id === mahasiswa.id 
+            ? { 
+                ...m, 
+                is_multi_veteran: newMultiVeteranStatus,
+                // Jika multi-veteran dihapus dan ada lebih dari 1 semester, hapus semua kecuali yang pertama kali didaftarkan
+                veteran_semesters: !newMultiVeteranStatus && m.veteran_semesters && m.veteran_semesters.length > 1 
+                  ? (() => {
+                      // Cari semester pertama dari veteran_history
+                      const history = m.veteran_history || [];
+                      const firstEntry = history.find(entry => 
+                        entry.action === 'set_veteran' && entry.active === true
+                      );
+                      return firstEntry && firstEntry.semester 
+                        ? [firstEntry.semester] 
+                        : [m.veteran_semesters[0]]; // Fallback ke semester pertama
+                    })()
+                  : m.veteran_semesters
+              }
+            : m
+        )
+      );
+    } catch (err) {
+      console.error("Error toggling multi-veteran status:", err);
+      setError("Gagal mengupdate status multi-veteran");
+    } finally {
+      setIsTogglingMultiVeteran(false);
     }
   };
 
@@ -623,10 +674,22 @@ const MahasiswaVeteran: React.FC = () => {
                   <p className="font-medium text-gray-800 dark:text-white/90 text-sm">
                             {mahasiswa.name}
                   </p>
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="mt-1 mb-2 flex items-center gap-3">
+                    <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                      Semester {mahasiswa.semester || '?'}
+                    </span>
                     <p className="text-xs text-gray-600 dark:text-gray-400">
                       {mahasiswa.nim}
                     </p>
+                  </div>
+                  {mahasiswa.is_veteran && mahasiswa.veteran_semesters && mahasiswa.veteran_semesters.length > 0 && (
+                    <div className="mt-1 mb-2">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        Veteran di: {mahasiswa.veteran_semesters.join(", ")}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
                       {mahasiswa.angkatan}
                     </span>
@@ -653,17 +716,22 @@ const MahasiswaVeteran: React.FC = () => {
                      }`}>
                        {mahasiswa.is_veteran ? 'Veteran' : 'Non-Veteran'}
                       </span>
+                     {mahasiswa.is_veteran && mahasiswa.is_multi_veteran && (
+                       <span className="text-xs px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-500 to-purple-600 text-white font-bold shadow-sm">
+                         Multi Veteran
+                       </span>
+                     )}
                   </div>
-                  <div className="mt-2">
+                  <div className="mt-2 flex gap-1 flex-wrap">
                       <button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleToggleVeteran(mahasiswa);
                       }}
-                      className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded transition-colors ${
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg shadow-sm transition-all duration-200 ${
                           mahasiswa.is_veteran
-                          ? 'bg-red-500 text-white hover:bg-red-600'
-                          : 'bg-green-500 text-white hover:bg-green-600'
+                          ? 'bg-red-500 text-white hover:bg-red-600 hover:shadow-md'
+                          : 'bg-green-500 text-white hover:bg-green-600 hover:shadow-md'
                         }`}
                       >
                         {mahasiswa.is_veteran ? (
@@ -682,6 +750,45 @@ const MahasiswaVeteran: React.FC = () => {
                           </>
                         )}
                       </button>
+                      
+                      {/* Multi Veteran Button - hanya muncul jika mahasiswa sudah veteran */}
+                      {mahasiswa.is_veteran && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleMultiVeteran(mahasiswa);
+                          }}
+                          disabled={isTogglingMultiVeteran}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg shadow-sm transition-all duration-200 ${
+                            mahasiswa.is_multi_veteran
+                              ? 'bg-purple-500 text-white hover:bg-purple-600 hover:shadow-md'
+                              : 'bg-purple-300 text-purple-800 hover:bg-purple-400 hover:shadow-md'
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                          {isTogglingMultiVeteran ? (
+                            <>
+                              <svg className="w-3 h-3 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                              Loading...
+                            </>
+                          ) : mahasiswa.is_multi_veteran ? (
+                            <>
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Multi
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                              </svg>
+                              Multi
+                            </>
+                          )}
+                        </button>
+                      )}
                   </div>
                 </div>
               </div>

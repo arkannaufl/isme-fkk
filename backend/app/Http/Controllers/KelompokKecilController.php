@@ -9,6 +9,7 @@ use App\Models\Semester;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class KelompokKecilController extends Controller
 {
@@ -191,14 +192,14 @@ class KelompokKecilController extends Controller
         $row = KelompokKecil::findOrFail($id);
         $semester = $row->semester;
         $jumlahKelompok = $row->jumlah_kelompok;
-        
+
         DB::transaction(function () use ($row, $semester, $jumlahKelompok) {
             $row->delete();
-            
+
             // Re-generate mapping setelah delete
             $this->autoMapKelompokToMataKuliah($semester, $jumlahKelompok);
         });
-        
+
         return response()->json(['message' => 'Data berhasil dihapus']);
     }
 
@@ -221,12 +222,12 @@ class KelompokKecilController extends Controller
             'updates.*.id' => 'required|integer|exists:kelompok_kecil,id',
             'updates.*.nama_kelompok' => 'required|string',
         ]);
-        
+
         DB::transaction(function () use ($request) {
             foreach ($request->updates as $update) {
                 \App\Models\KelompokKecil::where('id', $update['id'])->update(['nama_kelompok' => $update['nama_kelompok']]);
             }
-            
+
             // Re-generate mapping setelah update
             $kelompokKecil = \App\Models\KelompokKecil::where('id', $request->updates[0]['id'])->first();
             if ($kelompokKecil) {
@@ -235,7 +236,7 @@ class KelompokKecilController extends Controller
                 $this->autoMapKelompokToMataKuliah($semester, $jumlahKelompok);
             }
         });
-        
+
         return response()->json(['message' => 'Batch update berhasil']);
     }
 
@@ -273,16 +274,21 @@ class KelompokKecilController extends Controller
             ], 422);
         }
 
-        // Cek apakah mahasiswa sudah ada di semester lain
-        $otherSemester = KelompokKecil::where('mahasiswa_id', $request->mahasiswa_id)
-            ->where('semester', '!=', $semester)
-            ->first();
+        // HAPUS VALIDASI YANG MENCEGAH VETERAN DIPINDAHKAN ANTAR SEMESTER
+        // Veteran sekarang bisa dipindahkan ke semester manapun
+        $user = User::find($request->mahasiswa_id);
+        $isMultiVeteran = $user && $user->is_veteran && $user->is_multi_veteran;
 
-        if ($otherSemester) {
-            return response()->json([
-                'message' => 'Mahasiswa sudah terdaftar di semester lain'
-            ], 422);
-        }
+        Log::info('KelompokKecil createSingle validation:', [
+            'mahasiswa_id' => $request->mahasiswa_id,
+            'semester' => $semester,
+            'is_veteran' => $user ? $user->is_veteran : false,
+            'is_multi_veteran' => $isMultiVeteran,
+            'user_name' => $user ? $user->name : 'Unknown',
+            'note' => 'Veteran validation removed - veterans can now be moved between semesters'
+        ]);
+
+        // VALIDASI DIHAPUS - Veteran bisa dipindahkan antar semester
 
         DB::transaction(function () use ($request, $semester) {
             $kelompokKecil = KelompokKecil::create([
@@ -355,18 +361,18 @@ class KelompokKecilController extends Controller
     public function batchBySemester(Request $request)
     {
         $semesters = $request->input('semesters', []);
-        
+
         // OPTIMIZATION: Use single query with whereIn instead of foreach
         $allKelompokKecil = KelompokKecil::with('mahasiswa')
             ->whereIn('semester', $semesters)
             ->get()
             ->groupBy('semester');
-        
+
         $result = [];
         foreach ($semesters as $sem) {
             $result[$sem] = $allKelompokKecil->get($sem, collect())->values();
         }
-        
+
         return response()->json($result);
     }
 
@@ -392,13 +398,13 @@ class KelompokKecilController extends Controller
         ]);
         $semester = $request->semester;
         $namaKelompokArr = $request->nama_kelompok;
-        
+
         // OPTIMIZATION: Use single query with whereIn instead of foreach
         $allKelompokKecil = KelompokKecil::where('semester', $semester)
             ->whereIn('nama_kelompok', $namaKelompokArr)
             ->get()
             ->groupBy('nama_kelompok');
-        
+
         $result = [];
         foreach ($namaKelompokArr as $nama) {
             $anggota = $allKelompokKecil->get($nama, collect());
@@ -409,7 +415,7 @@ class KelompokKecilController extends Controller
                 'semester' => $semester,
             ];
         }
-        
+
         return response()->json($result);
     }
 }

@@ -539,6 +539,9 @@ Route::middleware(['auth:sanctum', 'validate.token', 'role:super_admin,tim_akade
     Route::get('/', [App\Http\Controllers\MahasiswaVeteranController::class, 'index']);
     Route::post('/toggle', [App\Http\Controllers\MahasiswaVeteranController::class, 'toggleVeteran']);
     Route::post('/bulk-toggle', [App\Http\Controllers\MahasiswaVeteranController::class, 'bulkToggleVeteran']);
+    Route::post('/toggle-multi-veteran', [App\Http\Controllers\MahasiswaVeteranController::class, 'toggleMultiVeteran']);
+    Route::post('/add-to-semester', [App\Http\Controllers\MahasiswaVeteranController::class, 'addVeteranToSemester']);
+    Route::post('/remove-from-semester', [App\Http\Controllers\MahasiswaVeteranController::class, 'removeVeteranFromSemester']);
     Route::post('/release-from-semester', [App\Http\Controllers\MahasiswaVeteranController::class, 'releaseFromSemester']);
     Route::get('/statistics', [App\Http\Controllers\MahasiswaVeteranController::class, 'statistics']);
 });
