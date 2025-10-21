@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { faChevronUp, faChevronDown } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faTrash,
@@ -9,15 +8,16 @@ import {
   faTimes,
   faExclamationTriangle,
   faClock,
-  faEye,
   faCog,
   faCheckCircle,
   faSearch,
+  faEye,
+  faChevronUp,
+  faChevronDown,
 } from "@fortawesome/free-solid-svg-icons";
 import { AnimatePresence, motion } from "framer-motion";
-import api, { handleApiError } from "../utils/api";
+import api from "../utils/api";
 import { useParams, useNavigate } from "react-router-dom";
-import { pblGenerateApi } from "../api/generateApi";
 
 type MataKuliah = {
   kode: string;
@@ -30,9 +30,6 @@ type MataKuliah = {
   tanggalAkhir: string;
   blok: number | null;
   durasiMinggu: number | null;
-  tanggal_mulai?: string;
-  tanggal_akhir?: string;
-  durasi_minggu?: number | null;
   keahlian_required?: string[];
 };
 
@@ -66,13 +63,7 @@ interface Dosen {
   nid: string;
   name: string;
   keahlian: string[] | string;
-  keahlianArr?: string[];
   peran_utama?: string; // koordinator, tim_blok, dosen_mengajar
-  peran_kurikulum?: string[] | string;
-  matkul_ketua_nama?: string;
-  matkul_ketua_semester?: number;
-  matkul_anggota_nama?: string;
-  matkul_anggota_semester?: number;
   peran_kurikulum_mengajar?: string;
   pbl_assignment_count?: number;
   pbl_role?: string; // koordinator, tim_blok, dosen_mengajar
@@ -215,9 +206,7 @@ export default function PBL() {
     }
 
     try {
-      const response = await pblGenerateApi.checkGenerateStatus(
-        parseInt(blokId)
-      );
+      const response = await api.get(`/pbl-generate/check-status?blok=${blokId}`);
 
       // Hanya gunakan data dari API (database)
       const isGenerated =
@@ -263,21 +252,10 @@ export default function PBL() {
                 pbl_role: assignment.role,
                 pbl_assignment_count: assignment.pbl_assignment_count || 0,
                 keahlian: assignment.dosen.keahlian || [],
-                keahlianArr: Array.isArray(assignment.dosen.keahlian)
-                  ? assignment.dosen.keahlian
-                  : (assignment.dosen.keahlian || "")
-                      .split(",")
-                      .map((k) => k.trim()),
                 dosen_peran: assignment.dosen.dosen_peran || [],
                 peran_utama: assignment.dosen.peran_utama,
-                peran_kurikulum: assignment.dosen.peran_kurikulum,
                 peran_kurikulum_mengajar:
                   assignment.dosen.peran_kurikulum_mengajar,
-                matkul_ketua_nama: assignment.dosen.matkul_ketua_nama,
-                matkul_ketua_semester: assignment.dosen.matkul_ketua_semester,
-                matkul_anggota_nama: assignment.dosen.matkul_anggota_nama,
-                matkul_anggota_semester:
-                  assignment.dosen.matkul_anggota_semester,
               }));
             }
           });
@@ -520,17 +498,9 @@ export default function PBL() {
                     pbl_role: "dosen_mengajar", // Default untuk manual assignment
                     pbl_assignment_count: dosen.pbl_assignment_count || 0,
                     keahlian: dosen.keahlian || [],
-                    keahlianArr: Array.isArray(dosen.keahlian)
-                      ? dosen.keahlian
-                      : (dosen.keahlian || "").split(",").map((k) => k.trim()),
                     dosen_peran: dosen.dosen_peran || [],
                     peran_utama: dosen.peran_utama,
-                    peran_kurikulum: dosen.peran_kurikulum,
                     peran_kurikulum_mengajar: dosen.peran_kurikulum_mengajar,
-                    matkul_ketua_nama: dosen.matkul_ketua_nama,
-                    matkul_ketua_semester: dosen.matkul_ketua_semester,
-                    matkul_anggota_nama: dosen.matkul_anggota_nama,
-                    matkul_anggota_semester: dosen.matkul_anggota_semester,
                   };
 
                   updated[pblId] = [...existingAssignments, newDosenData];
@@ -693,11 +663,9 @@ export default function PBL() {
     semesterPblIds.forEach((pblId) => {
       if (pblId && assignedDosen[pblId]) {
         assignedDosen[pblId].forEach((dosen: Dosen) => {
-          // Pastikan keahlianArr selalu ada
-          if (!dosen.keahlianArr) {
-            dosen.keahlianArr = Array.isArray(dosen.keahlian)
-              ? dosen.keahlian
-              : (dosen.keahlian || "").split(",").map((k) => k.trim());
+          // Pastikan keahlian selalu dalam format array
+          if (!Array.isArray(dosen.keahlian)) {
+            dosen.keahlian = (dosen.keahlian || "").split(",").map((k) => k.trim());
           }
           semesterDosen.add(dosen);
         });
@@ -727,36 +695,38 @@ export default function PBL() {
   const assignedDosenIds = Object.values(assignedDosen)
     .flat()
     .map((d) => d.id);
-  const dosenWithKeahlian = dosenList.map((d) => ({
-    ...d,
-    keahlianArr: Array.isArray(d.keahlian)
-      ? d.keahlian
-      : (d.keahlian || "").split(",").map((k) => k.trim()),
-  }));
+  const parseKeahlian = (keahlian: string[] | string): string[] => {
+    if (Array.isArray(keahlian)) return keahlian;
+    return (keahlian || "").split(",").map((k) => k.trim());
+  };
 
   // Dosen standby: memiliki keahlian "standby"
-  const standbyDosenList = dosenWithKeahlian.filter(
-    (d) =>
-      d.keahlianArr.some((k) => k.toLowerCase().includes("standby")) &&
+  const standbyDosenList = dosenList.filter((d) => {
+    const keahlian = parseKeahlian(d.keahlian);
+    return (
+      keahlian.some((k) => k.toLowerCase().includes("standby")) &&
       (!searchDosen ||
         d.name.toLowerCase().includes(searchDosen.toLowerCase()) ||
         d.nid.toLowerCase().includes(searchDosen.toLowerCase()) ||
-        d.keahlianArr.some((k) =>
+        keahlian.some((k) =>
           k.toLowerCase().includes(searchDosen.toLowerCase())
         ))
-  );
+    );
+  });
 
   // Dosen regular: tidak memiliki keahlian "standby"
-  const availableDosenList = dosenWithKeahlian.filter(
-    (d) =>
-      !d.keahlianArr.some((k) => k.toLowerCase().includes("standby")) &&
+  const availableDosenList = dosenList.filter((d) => {
+    const keahlian = parseKeahlian(d.keahlian);
+    return (
+      !keahlian.some((k) => k.toLowerCase().includes("standby")) &&
       (!searchDosen ||
         d.name.toLowerCase().includes(searchDosen.toLowerCase()) ||
         d.nid.toLowerCase().includes(searchDosen.toLowerCase()) ||
-        d.keahlianArr.some((k) =>
+        keahlian.some((k) =>
           k.toLowerCase().includes(searchDosen.toLowerCase())
         ))
-  );
+    );
+  });
 
   // Untuk expand/collapse per grup peran
   const [expandedGroups, setExpandedGroups] = useState<{
@@ -870,21 +840,10 @@ export default function PBL() {
                   pbl_role: assignment.role,
                   pbl_assignment_count: assignment.pbl_assignment_count || 0,
                   keahlian: assignment.dosen.keahlian || [],
-                  keahlianArr: Array.isArray(assignment.dosen.keahlian)
-                    ? assignment.dosen.keahlian
-                    : (assignment.dosen.keahlian || "")
-                        .split(",")
-                        .map((k) => k.trim()),
                   dosen_peran: assignment.dosen.dosen_peran || [],
                   peran_utama: assignment.dosen.peran_utama,
-                  peran_kurikulum: assignment.dosen.peran_kurikulum,
                   peran_kurikulum_mengajar:
                     assignment.dosen.peran_kurikulum_mengajar,
-                  matkul_ketua_nama: assignment.dosen.matkul_ketua_nama,
-                  matkul_ketua_semester: assignment.dosen.matkul_ketua_semester,
-                  matkul_anggota_nama: assignment.dosen.matkul_anggota_nama,
-                  matkul_anggota_semester:
-                    assignment.dosen.matkul_anggota_semester,
                 })
               );
             });
@@ -1696,7 +1655,7 @@ export default function PBL() {
         await fetchBatchMapping(mk?.semester || null);
         await fetchBatchKelompokDetail(mk?.semester || null);
       } catch (error: unknown) {
-        alert(handleApiError(error, "Menyimpan mapping kelompok"));
+        alert("Gagal menyimpan mapping kelompok");
       } finally {
         setIsSavingKelompok(false);
       }
@@ -1874,7 +1833,7 @@ export default function PBL() {
     const keahlianUtilization =
       totalModulChecks > 0 ? (keahlianMatches / totalModulChecks) * 100 : 0;
 
-    // Calculate assignment distribution per semester (unik per dosen)
+    // Calculate assignment distribution from assignedDosen data (real generated assignments)
     const assignmentDistribution = {
       koordinator: 0,
       timBlok: 0,
@@ -1907,53 +1866,30 @@ export default function PBL() {
         });
       });
 
-      // Hitung distribution untuk semester ini
+      // Hitung distribution untuk semester ini (unik per dosen)
       assignedDosenSet.forEach((dosenId) => {
         if (!processedDosen.has(dosenId)) {
           processedDosen.add(dosenId);
 
-          // Cari dosen dari dosenList
-          const dosen = dosenList.find((d) => d.id === dosenId);
-          if (dosen) {
-            // Tentukan peran berdasarkan dosen_peran untuk semester ini
-            let dosenRole = "dosen_mengajar"; // default
-
-            if (dosen.dosen_peran && Array.isArray(dosen.dosen_peran)) {
-              // Cek apakah dosen ini adalah koordinator untuk semester ini
-              const isKoordinator = dosen.dosen_peran.some(
-                (peran: any) =>
-                  peran.tipe_peran === "koordinator" &&
-                  peran.semester === String(semesterNumber) &&
-                  mataKuliahList.some(
-                    (mk) => mk.kode === peran.mata_kuliah_kode
-                  )
-              );
-
-              // Cek apakah dosen ini adalah tim blok untuk semester ini
-              const isTimBlok = dosen.dosen_peran.some(
-                (peran: any) =>
-                  peran.tipe_peran === "tim_blok" &&
-                  peran.semester === String(semesterNumber) &&
-                  mataKuliahList.some(
-                    (mk) => mk.kode === peran.mata_kuliah_kode
-                  )
-              );
-
-              if (isKoordinator) {
-                dosenRole = "koordinator";
-              } else if (isTimBlok) {
-                dosenRole = "tim_blok";
+          // Cari dosen dari assignedDosen data
+          let dosenRole = "dosen_mengajar"; // default
+          
+          // Cari peran dosen dari assignedDosen data
+          Object.values(assignedDosen).forEach((assignedDosenList) => {
+            assignedDosenList.forEach((dosen) => {
+              if (dosen.id === dosenId) {
+                dosenRole = dosen.pbl_role || "dosen_mengajar";
               }
-            }
+            });
+          });
 
-            // Hitung berdasarkan peran yang benar
-            if (dosenRole === "koordinator") {
-              assignmentDistribution.koordinator++;
-            } else if (dosenRole === "tim_blok") {
-              assignmentDistribution.timBlok++;
-            } else {
-              assignmentDistribution.dosenMengajar++;
-            }
+          // Hitung berdasarkan peran yang benar (unik per dosen per semester)
+          if (dosenRole === "koordinator") {
+            assignmentDistribution.koordinator++;
+          } else if (dosenRole === "tim_blok") {
+            assignmentDistribution.timBlok++;
+          } else {
+            assignmentDistribution.dosenMengajar++;
           }
         }
       });
@@ -2338,9 +2274,116 @@ export default function PBL() {
           <div className="h-4 w-96 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
         </div>
 
-        {/* Filter Card Skeleton */}
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6 mb-6">
+        {/* Blok Overview Statistics Skeleton */}
+        <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 mb-8 shadow-sm">
+          <div className="flex items-start justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse" />
+              <div>
+                <div className="h-6 w-48 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
+                <div className="h-4 w-64 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <div key={idx} className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+                    <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                  </div>
+                  <div className="text-right">
+                    <div className="h-6 w-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-700/50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
+                      <div className="h-3 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                    </div>
+                    <div className="h-3 w-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Performance Metrics Skeleton */}
+        <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 mb-8 shadow-sm">
+          <div className="flex items-start justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse" />
+              <div>
+                <div className="h-6 w-40 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
+                <div className="h-4 w-56 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <div key={idx} className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between h-full">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+                    <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                  </div>
+                  <div className="text-right">
+                    <div className="h-6 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Assignment Distribution Skeleton */}
+        <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 mb-8 shadow-sm">
+          <div className="flex items-start justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse" />
+              <div>
+                <div className="h-6 w-44 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
+                <div className="h-4 w-60 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <div key={idx} className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between h-full">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+                    <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                  </div>
+                  <div className="text-right">
+                    <div className="h-6 w-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Filter & Pencarian Skeleton */}
+        <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 mb-6 shadow-sm">
+          <div className="flex items-start justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse" />
+              <div>
+                <div className="h-6 w-36 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
+                <div className="h-4 w-72 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+              </div>
+            </div>
+          </div>
+
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full">
+            <div className="h-10 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
             <div className="h-10 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
             <div className="h-10 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
             <div className="h-10 w-48 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
@@ -2523,117 +2566,179 @@ export default function PBL() {
       </div>
 
       {/* Blok Overview Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {/* Blok Completion Rate */}
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6">
+      <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 mb-8 shadow-sm">
+        <div className="flex items-start justify-between mb-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
+            <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center shadow-sm">
               <FontAwesomeIcon
                 icon={faCheckCircle}
-                className="w-6 h-6 text-blue-500"
+                className="w-6 h-6 text-slate-600 dark:text-slate-300"
               />
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-800 dark:text-white">
-                {pblDetailStatistics.blokCompletionRate.toFixed(1)}%
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Blok Completion
-              </div>
-              <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                {pblDetailStatistics.unassignedPBLCount} unassigned
-              </div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                Blok Overview Statistics
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                Overview performa sistem PBL detail
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Dosen per Blok */}
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
-              <FontAwesomeIcon
-                icon={faUsers}
-                className="w-6 h-6 text-green-500"
-              />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Blok Completion Rate */}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                  <FontAwesomeIcon
+                    icon={faCheckCircle}
+                    className="w-4 h-4 text-white"
+                  />
+                </div>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Blok Completion
+                </h4>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                  {pblDetailStatistics.blokCompletionRate.toFixed(1)}%
+                </div>
+              </div>
             </div>
-            <div>
-              <div className="text-2xl font-bold text-gray-800 dark:text-white">
-                {pblDetailStatistics.dosenPerBlok}
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Dosen per Blok
-              </div>
-              <div className="text-xs text-green-600 dark:text-green-400 font-medium">
-                {pblDetailStatistics.dosenEfficiency.toFixed(1)} avg assignments
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Modul per Blok */}
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center">
-              <FontAwesomeIcon
-                icon={faBookOpen}
-                className="w-6 h-6 text-purple-500"
-              />
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-gray-800 dark:text-white">
-                {pblDetailStatistics.modulPerBlok}
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Modul per Blok
-              </div>
-              <div className="text-xs text-purple-600 dark:text-purple-400 font-medium">
-                {pblDetailStatistics.keahlianCoverage.toFixed(1)}% keahlian
-                covered
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-700/50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Unassigned</span>
+                </div>
+                <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {pblDetailStatistics.unassignedPBLCount}
+                </span>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* System Health */}
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6">
-          <div className="flex items-center gap-4">
-            <div
-              className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                pblDetailStatistics.cacheStatus === "clean"
-                  ? "bg-green-100 dark:bg-green-900/20"
-                  : pblDetailStatistics.cacheStatus === "dirty"
-                  ? "bg-yellow-100 dark:bg-yellow-900/20"
-                  : "bg-red-100 dark:bg-red-900/20"
-              }`}
-            >
-              <FontAwesomeIcon
-                icon={faCog}
-                className={`w-6 h-6 ${
-                  pblDetailStatistics.cacheStatus === "clean"
-                    ? "text-green-500"
-                    : pblDetailStatistics.cacheStatus === "dirty"
-                    ? "text-yellow-500"
-                    : "text-red-500"
-                }`}
-              />
+          {/* Dosen per Blok */}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                  <FontAwesomeIcon
+                    icon={faUsers}
+                    className="w-4 h-4 text-white"
+                  />
+                </div>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Dosen per Blok
+                </h4>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold text-green-600 dark:text-green-400">
+                  {pblDetailStatistics.dosenPerBlok}
+                </div>
+              </div>
             </div>
-            <div>
-              <div className="text-2xl font-bold text-gray-800 dark:text-white">
-                {pblDetailStatistics.warningCount}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-700/50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Avg Assignments</span>
+                </div>
+                <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {pblDetailStatistics.dosenEfficiency.toFixed(1)}
+                </span>
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Active Warnings
+            </div>
+          </div>
+
+          {/* Modul per Blok */}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
+                  <FontAwesomeIcon
+                    icon={faBookOpen}
+                    className="w-4 h-4 text-white"
+                  />
+                </div>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Modul per Blok
+                </h4>
               </div>
-              <div
-                className={`text-xs font-medium ${
-                  pblDetailStatistics.cacheStatus === "clean"
-                    ? "text-green-600 dark:text-green-400"
-                    : pblDetailStatistics.cacheStatus === "dirty"
-                    ? "text-yellow-600 dark:text-yellow-400"
-                    : "text-red-600 dark:text-red-400"
-                }`}
-              >
-                {pblDetailStatistics.cacheStatus} cache
+              <div className="text-right">
+                <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
+                  {pblDetailStatistics.modulPerBlok}
+                </div>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-700/50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Keahlian Covered</span>
+                </div>
+                <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {pblDetailStatistics.keahlianCoverage.toFixed(1)}%
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* System Health */}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                    pblDetailStatistics.cacheStatus === "clean"
+                      ? "bg-green-500"
+                      : pblDetailStatistics.cacheStatus === "dirty"
+                      ? "bg-yellow-500"
+                      : "bg-red-500"
+                  }`}
+                >
+                  <FontAwesomeIcon
+                    icon={faCog}
+                    className="w-4 h-4 text-white"
+                  />
+                </div>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Active Warnings
+                </h4>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold text-gray-900 dark:text-white">
+                  {pblDetailStatistics.warningCount}
+                </div>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-700/50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-2 h-2 rounded-full ${
+                      pblDetailStatistics.cacheStatus === "clean"
+                        ? "bg-green-400"
+                        : pblDetailStatistics.cacheStatus === "dirty"
+                        ? "bg-yellow-400"
+                        : "bg-red-400"
+                    }`}
+                  ></div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Cache Status</span>
+                </div>
+                <span
+                  className={`text-sm font-semibold ${
+                    pblDetailStatistics.cacheStatus === "clean"
+                      ? "text-green-600 dark:text-green-400"
+                      : pblDetailStatistics.cacheStatus === "dirty"
+                      ? "text-yellow-600 dark:text-yellow-400"
+                      : "text-red-600 dark:text-red-400"
+                  }`}
+                >
+                  {pblDetailStatistics.cacheStatus}
+                </span>
               </div>
             </div>
           </div>
@@ -2641,104 +2746,184 @@ export default function PBL() {
       </div>
 
       {/* Performance Metrics */}
-      <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6 mb-8">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Performance Metrics
-        </h3>
+      <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 mb-8 shadow-sm">
+        <div className="flex items-start justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center shadow-sm">
+              <FontAwesomeIcon
+                icon={faCog}
+                className="w-6 h-6 text-slate-600 dark:text-slate-300"
+              />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                Performance Metrics
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                Metrik performa sistem PBL detail
+              </p>
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-            <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
-              {pblDetailStatistics.assignmentSuccessRate.toFixed(1)}%
-            </div>
-            <div className="text-sm text-blue-600 dark:text-blue-400">
-              Assignment Success Rate
-            </div>
-          </div>
-
-          <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-            <div className="text-2xl font-bold text-green-700 dark:text-green-300">
-              {pblDetailStatistics.keahlianUtilization.toFixed(1)}%
-            </div>
-            <div className="text-sm text-green-600 dark:text-green-400">
-              Keahlian Utilization
-            </div>
-          </div>
-
-          <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-            <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">
-              {pblDetailStatistics.timBlokVsDosenMengajarRatio.toFixed(2)}
-            </div>
-            <div className="text-sm text-purple-600 dark:text-purple-400">
-              Tim Blok : Dosen Mengajar
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between h-full">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                  <FontAwesomeIcon
+                    icon={faCheckCircle}
+                    className="w-4 h-4 text-white"
+                  />
+                </div>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Assignment Success Rate
+                </h4>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                  {pblDetailStatistics.assignmentSuccessRate.toFixed(1)}%
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-            <div className="text-2xl font-bold text-orange-700 dark:text-orange-300">
-              {pblDetailStatistics.dosenOverloadCount}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between h-full">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                  <FontAwesomeIcon
+                    icon={faUsers}
+                    className="w-4 h-4 text-white"
+                  />
+                </div>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Keahlian Utilization
+                </h4>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold text-green-600 dark:text-green-400">
+                  {pblDetailStatistics.keahlianUtilization.toFixed(1)}%
+                </div>
+              </div>
             </div>
-            <div className="text-sm text-orange-600 dark:text-orange-400">
-              Dosen Overload
+          </div>
+
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between h-full">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
+                  <FontAwesomeIcon
+                    icon={faBookOpen}
+                    className="w-4 h-4 text-white"
+                  />
+                </div>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Tim Blok : Dosen Mengajar
+                </h4>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
+                  {pblDetailStatistics.timBlokVsDosenMengajarRatio.toFixed(2)}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between h-full">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+                  <FontAwesomeIcon
+                    icon={faExclamationTriangle}
+                    className="w-4 h-4 text-white"
+                  />
+                </div>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Dosen Overload
+                </h4>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold text-orange-600 dark:text-orange-400">
+                  {pblDetailStatistics.dosenOverloadCount}
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Assignment Distribution */}
-      <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6 mb-8">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Assignment Distribution
-        </h3>
+      <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 mb-8 shadow-sm">
+        <div className="flex items-start justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center shadow-sm">
+              <FontAwesomeIcon
+                icon={faUsers}
+                className="w-6 h-6 text-slate-600 dark:text-slate-300"
+              />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                Assignment Distribution
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                Distribusi peran dosen dalam sistem
+              </p>
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
-                <span className="text-blue-600 dark:text-blue-400 font-bold text-sm">
-                  K
-                </span>
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between h-full">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                  <span className="text-white text-sm font-bold">K</span>
+                </div>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Koordinator
+                </h4>
               </div>
-              <div>
-                <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+              <div className="text-right">
+                <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
                   {pblDetailStatistics.assignmentDistribution.koordinator}
                 </div>
-                <div className="text-sm text-blue-600 dark:text-blue-400">
-                  Koordinator
-                </div>
               </div>
             </div>
           </div>
 
-          <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center">
-                <span className="text-purple-600 dark:text-purple-400 font-bold text-sm">
-                  T
-                </span>
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between h-full">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
+                  <span className="text-white text-sm font-bold">T</span>
+                </div>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Tim Blok
+                </h4>
               </div>
-              <div>
-                <div className="text-2xl font-bold text-purple-700 dark:text-purple-300">
+              <div className="text-right">
+                <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
                   {pblDetailStatistics.assignmentDistribution.timBlok}
                 </div>
-                <div className="text-sm text-purple-600 dark:text-purple-400">
-                  Tim Blok
-                </div>
               </div>
             </div>
           </div>
 
-          <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
-                <span className="text-green-600 dark:text-green-400 font-bold text-sm">
-                  D
-                </span>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-green-700 dark:text-green-300">
-                  {pblDetailStatistics.assignmentDistribution.dosenMengajar}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between h-full">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                  <span className="text-white text-sm font-bold">D</span>
                 </div>
-                <div className="text-sm text-green-600 dark:text-green-400">
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
                   Dosen Mengajar
+                </h4>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold text-green-600 dark:text-green-400">
+                  {pblDetailStatistics.assignmentDistribution.dosenMengajar}
                 </div>
               </div>
             </div>
@@ -2747,7 +2932,26 @@ export default function PBL() {
       </div>
 
       {/* Filterisasi dalam card ala CSR */}
-      <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6 mb-6">
+      <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 mb-6 shadow-sm">
+        <div className="flex items-start justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center shadow-sm">
+              <FontAwesomeIcon
+                icon={faSearch}
+                className="w-6 h-6 text-slate-600 dark:text-slate-300"
+              />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                Filter & Pencarian
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                Filter dan cari modul PBL berdasarkan kriteria
+              </p>
+            </div>
+          </div>
+        </div>
+
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full">
           <select
             value={filterSemester}
@@ -3150,77 +3354,28 @@ export default function PBL() {
                                       let isPerfectMatch = false;
                                       let matchReason = "";
 
-                                      if (
-                                        draggedDosen.peran_utama === "ketua"
-                                      ) {
-                                        if (
-                                          draggedDosen.matkul_ketua_nama &&
-                                          draggedDosen.matkul_ketua_semester
-                                        ) {
-                                          // More flexible matching for ketua
-                                          const matkulName =
-                                            draggedDosen.matkul_ketua_nama.toLowerCase();
-                                          const mkName = mk.nama.toLowerCase();
-                                          const mkKode = mk.kode.toLowerCase();
-
-                                          // Check if this dosen is ketua for this specific mata kuliah and semester
-                                          if (
-                                            (matkulName.includes(mkName) ||
-                                              mkName.includes(matkulName) ||
-                                              matkulName.includes(mkKode) ||
-                                              mkKode.includes(matkulName) ||
-                                              mkName
-                                                .split(" ")
-                                                .some((word) =>
-                                                  matkulName.includes(word)
-                                                ) ||
-                                              matkulName
-                                                .split(" ")
-                                                .some((word) =>
-                                                  mkName.includes(word)
-                                                )) &&
-                                            draggedDosen.matkul_ketua_semester ===
-                                              mk.semester
-                                          ) {
-                                            isPerfectMatch = true;
-                                            matchReason = `Ketua untuk ${mk.nama} Semester ${mk.semester}`;
+                                      // Check dosen_peran for semester and mata kuliah matching
+                                      if (draggedDosen.dosen_peran && Array.isArray(draggedDosen.dosen_peran)) {
+                                        const matchingPeran = draggedDosen.dosen_peran.find((peran: any) => {
+                                          if (peran.semester === String(mk.semester)) {
+                                            const peranMkName = peran.mata_kuliah_nama?.toLowerCase() || '';
+                                            const mkName = mk.nama.toLowerCase();
+                                            const mkKode = mk.kode.toLowerCase();
+                                            
+                                            return (
+                                              peranMkName.includes(mkName) ||
+                                              mkName.includes(peranMkName) ||
+                                              peranMkName.includes(mkKode) ||
+                                              mkKode.includes(peranMkName) ||
+                                              peranMkName.split(" ").some((word) => mkName.includes(word))
+                                            );
                                           }
-                                        }
-                                      } else if (
-                                        draggedDosen.peran_utama === "anggota"
-                                      ) {
-                                        if (
-                                          draggedDosen.matkul_anggota_nama &&
-                                          draggedDosen.matkul_anggota_semester
-                                        ) {
-                                          // More flexible matching for anggota
-                                          const matkulName =
-                                            draggedDosen.matkul_anggota_nama.toLowerCase();
-                                          const mkName = mk.nama.toLowerCase();
-                                          const mkKode = mk.kode.toLowerCase();
+                                          return false;
+                                        });
 
-                                          // Check if this dosen is anggota for this specific mata kuliah and semester
-                                          if (
-                                            (matkulName.includes(mkName) ||
-                                              mkName.includes(matkulName) ||
-                                              matkulName.includes(mkKode) ||
-                                              mkKode.includes(matkulName) ||
-                                              mkName
-                                                .split(" ")
-                                                .some((word) =>
-                                                  matkulName.includes(word)
-                                                ) ||
-                                              matkulName
-                                                .split(" ")
-                                                .some((word) =>
-                                                  mkName.includes(word)
-                                                )) &&
-                                            draggedDosen.matkul_anggota_semester ===
-                                              mk.semester
-                                          ) {
-                                            isPerfectMatch = true;
-                                            matchReason = `Anggota untuk ${mk.nama} Semester ${mk.semester}`;
-                                          }
+                                        if (matchingPeran) {
+                                          isPerfectMatch = true;
+                                          matchReason = `${matchingPeran.tipe_peran} untuk ${mk.nama} Semester ${mk.semester}`;
                                         }
                                       } else if (
                                         draggedDosen.peran_utama ===
@@ -3888,7 +4043,7 @@ export default function PBL() {
                                               const isTimBlok =
                                                 pblRole === "tim_blok";
 
-                                              // Prioritas warna: Standby > Tidak match (merah)
+                                              // Prioritas warna: Standby > Default (hijau untuk dosen mengajar)
                                               if (isStandby) {
                                                 avatarColor = "bg-yellow-400";
                                                 borderColor =
@@ -3897,19 +4052,8 @@ export default function PBL() {
                                                   "text-yellow-800 dark:text-yellow-200";
                                                 bgColor =
                                                   "bg-yellow-100 dark:bg-yellow-900/40";
-                                              } else if (
-                                                // Jika keahlian tidak sesuai dan bukan koordinator/tim blok, ubah warna menjadi merah
-                                                !isKeahlianMatch &&
-                                                !isKoordinator &&
-                                                !isTimBlok
-                                              ) {
-                                                avatarColor = "bg-red-500";
-                                                borderColor = "border-red-200";
-                                                textColor =
-                                                  "text-red-700 dark:text-red-200";
-                                                bgColor =
-                                                  "bg-red-100 dark:bg-red-900/40";
                                               }
+                                              // Hapus logika merah untuk dosen mengajar - semua dosen mengajar tetap hijau
 
                                               return (
                                                 <div
@@ -4438,26 +4582,15 @@ export default function PBL() {
                                             className="text-blue-400 mt-1 w-3 h-3"
                                           />
                                           <div>
-                                            {tipe === "mengajar" ? (
-                                              <div className="font-medium text-brand-400 text-sm">
-                                                {p.peran_kurikulum}
-                                              </div>
-                                            ) : (
-                                              <>
-                                                <div className="font-medium text-brand-400 text-sm">
-                                                  {p.mata_kuliah_nama ??
-                                                    (p as any)?.nama_mk ??
-                                                    ""}
-                                                </div>
-                                                <div className="text-xs text-gray-400">
-                                                  Semester {p.semester} | Blok{" "}
-                                                  {p.blok}
-                                                </div>
-                                                <div className="text-xs text-gray-500">
-                                                  {p.peran_kurikulum}
-                                                </div>
-                                              </>
-                                            )}
+                                            <div className="font-medium text-brand-400 text-sm">
+                                              {p.mata_kuliah_nama ??
+                                                (p as any)?.nama_mk ??
+                                                ""}
+                                            </div>
+                                            <div className="text-xs text-gray-400">
+                                              Semester {p.semester} | Blok{" "}
+                                              {p.blok}
+                                            </div>
                                           </div>
                                         </li>
                                       ))}
@@ -5045,10 +5178,10 @@ function uniqueKelompokKecilListFromList(list: KelompokKecil[]) {
 function getAllKeahlian(dosenList: Dosen[]): string[] {
   const allKeahlian = new Set<string>();
   dosenList.forEach((d: Dosen) => {
-    const keahlianArr = Array.isArray(d.keahlian)
+    const keahlian = Array.isArray(d.keahlian)
       ? d.keahlian
       : (d.keahlian || "").split(",").map((k: string) => k.trim());
-    keahlianArr.forEach((k: string) => allKeahlian.add(k));
+    keahlian.forEach((k: string) => allKeahlian.add(k));
   });
   return Array.from(allKeahlian).sort();
 }

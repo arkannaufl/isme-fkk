@@ -33,6 +33,7 @@ use App\Http\Controllers\JadwalPBLController;
 use App\Http\Controllers\JadwalPraktikumController;
 use App\Http\Controllers\JadwalJurnalReadingController;
 use App\Http\Controllers\JadwalHarianController;
+use App\Http\Controllers\ProportionalDistributionController;
 
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -169,6 +170,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware(['auth:sanctum', 'validate.token'])->post('/pbl-generate/reset', [App\Http\Controllers\PBLGenerateController::class, 'resetAssignments']);
     Route::middleware(['auth:sanctum', 'validate.token'])->post('/pbl-generate/get-assignments', [App\Http\Controllers\PBLGenerateController::class, 'getAssignments']);
     Route::middleware(['auth:sanctum', 'validate.token'])->get('/pbl-generate/check-status', [App\Http\Controllers\PBLGenerateController::class, 'checkGenerateStatus']);
+
+    // Proportional Distribution Routes
+    Route::middleware(['auth:sanctum', 'validate.token'])->post('/proportional-distribution', [ProportionalDistributionController::class, 'store']);
+    Route::middleware(['auth:sanctum', 'validate.token'])->get('/proportional-distribution', [ProportionalDistributionController::class, 'show']);
+    Route::middleware(['auth:sanctum', 'validate.token'])->delete('/proportional-distribution', [ProportionalDistributionController::class, 'destroy']);
 
 
 

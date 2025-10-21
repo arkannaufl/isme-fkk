@@ -180,7 +180,7 @@ const AdminNotifications: React.FC = () => {
   const [pendingDosenBlok, setPendingDosenBlok] = useState<string>("");
   const [pendingDosenReminderType, setPendingDosenReminderType] =
     useState<string>("all");
-  
+
   // Success modal state for reminder
   const [showReminderSuccessModal, setShowReminderSuccessModal] = useState(false);
   const [reminderSuccessMessage, setReminderSuccessMessage] = useState("");
@@ -3193,20 +3193,20 @@ const AdminNotifications: React.FC = () => {
                   <div className="mb-3 sm:mb-4">
                     <div className="flex items-center space-x-3 mb-4">
                       <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
-                        <FontAwesomeIcon
-                          icon={faRedo}
-                          className="w-6 h-6 text-orange-600 dark:text-orange-400"
-                        />
-                      </div>
-                      <div>
+                    <FontAwesomeIcon
+                      icon={faRedo}
+                      className="w-6 h-6 text-orange-600 dark:text-orange-400"
+                    />
+                  </div>
+                  <div>
                         <h3 className="text-sm font-semibold text-gray-800 dark:text-white">
                           Dosen yang Akan Dikirim Pengingat
                         </h3>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           Pilih filter untuk mengirim pengingat
-                        </p>
-                      </div>
-                    </div>
+                    </p>
+                  </div>
+                </div>
 
                     {/* Filter Semester dan Blok */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
@@ -3258,7 +3258,7 @@ const AdminNotifications: React.FC = () => {
                     <div className="mb-4">
                       <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Tipe Pengingat
-                      </label>
+                        </label>
                       <div className="space-y-3">
                         <div
                           className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
@@ -3289,7 +3289,7 @@ const AdminNotifications: React.FC = () => {
                                   />
                                 </svg>
                               )}
-                            </div>
+                      </div>
                             <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
                               <FontAwesomeIcon
                                 icon={faRedo}
@@ -3404,20 +3404,20 @@ const AdminNotifications: React.FC = () => {
                     </div>
 
                     <div className="flex justify-end mb-4">
-                      <button
-                        onClick={() =>
-                          loadPendingDosen(
-                            1,
-                            pendingDosenPageSize,
-                            pendingDosenSemester,
-                            pendingDosenBlok,
-                            pendingDosenReminderType
-                          )
-                        }
+                        <button
+                          onClick={() =>
+                            loadPendingDosen(
+                              1,
+                              pendingDosenPageSize,
+                              pendingDosenSemester,
+                              pendingDosenBlok,
+                              pendingDosenReminderType
+                            )
+                          }
                         className="px-3 sm:px-4 py-2 rounded-lg bg-orange-500 text-white text-xs sm:text-sm font-medium hover:bg-orange-600 transition-all duration-300 ease-in-out"
-                      >
-                        Filter
-                      </button>
+                        >
+                          Filter
+                        </button>
                     </div>
 
                     {loadingPendingDosen ? (
@@ -3691,7 +3691,7 @@ const AdminNotifications: React.FC = () => {
                 className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
               >
                 {/* Close Button */}
-                <button
+                  <button
                   onClick={() => setShowReminderSuccessModal(false)}
                   className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
                 >
@@ -3709,7 +3709,7 @@ const AdminNotifications: React.FC = () => {
                       fill="currentColor"
                     />
                   </svg>
-                </button>
+                  </button>
 
                 <div className="text-center">
                   <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -3717,7 +3717,7 @@ const AdminNotifications: React.FC = () => {
                       icon={faCheckCircle}
                       className="w-8 h-8 text-green-600 dark:text-green-400"
                     />
-                  </div>
+                </div>
                   <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                     {reminderSuccessMessage.includes("berhasil") ? "Berhasil!" : "Terjadi Kesalahan"}
                   </h3>
@@ -3730,10 +3730,10 @@ const AdminNotifications: React.FC = () => {
                   >
                     OK
                   </button>
-                </div>
-              </motion.div>
-            </div>
-          )}
+              </div>
+            </motion.div>
+          </div>
+        )}
         </AnimatePresence>
       </AnimatePresence>
     </div>

@@ -1,21 +1,18 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { faChevronUp, faChevronDown } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faUsers,
   faBookOpen,
   faCog,
   faExclamationTriangle,
-  faEye,
   faTimes,
   faSpinner,
   faCheckCircle,
   faRefresh,
 } from "@fortawesome/free-solid-svg-icons";
 import { AnimatePresence, motion } from "framer-motion";
-import api, { handleApiError } from "../utils/api";
+import api from "../utils/api";
 import { useParams, useNavigate } from "react-router-dom";
-import { ChevronLeftIcon } from "../icons";
 
 type MataKuliah = {
   kode: string;
@@ -28,9 +25,6 @@ type MataKuliah = {
   tanggalAkhir: string;
   blok: number | null;
   durasiMinggu: number | null;
-  tanggal_mulai?: string;
-  tanggal_akhir?: string;
-  durasi_minggu?: number | null;
   keahlian_required?: string[];
 };
 
@@ -51,76 +45,20 @@ interface KelompokKecil {
   semester?: string | number;
 }
 
-// Tambahkan tipe untuk mahasiswa
-interface Mahasiswa {
-  nama: string;
-  nim: string;
-  angkatan: string;
-  ipk: number;
-}
-
 interface Dosen {
   id: number;
   nid: string;
   name: string;
   keahlian: string[] | string;
-  peran_utama?: string; // koordinator, tim_blok, dosen_mengajar
-  peran_kurikulum?: string[] | string;
-  matkul_ketua_nama?: string;
-  matkul_ketua_semester?: number;
-  matkul_anggota_nama?: string;
-  matkul_anggota_semester?: number;
-  matkul_ketua_id?: string;
-  matkul_anggota_id?: string;
+  peran_utama?: string;
   peran_kurikulum_mengajar?: string;
-  matchReason?: string;
   pbl_assignment_count?: number;
-  pbl_role?: string; // koordinator, tim_blok, dosen_mengajar
+  pbl_role?: string;
   dosen_peran?: any[];
 }
 
 interface AssignedDosen {
   [pblId: number]: Dosen[];
-}
-
-// Helper untuk mapping semester ke angka
-function mapSemesterToNumber(semester: string | number | null): number | null {
-  if (semester == null) return null;
-  if (typeof semester === "number") return semester;
-  if (!isNaN(Number(semester))) return Number(semester);
-  return null;
-}
-
-// Utility untuk menjalankan promise dalam batch
-async function runInBatches<T>(
-  tasks: (() => Promise<T>)[],
-  batchSize: number = 10
-): Promise<T[]> {
-  const results: T[] = [];
-  for (let i = 0; i < tasks.length; i += batchSize) {
-    const batch = tasks.slice(i, i + batchSize).map((fn) => fn());
-    const settled = await Promise.allSettled(batch);
-    settled.forEach((res) => {
-      if (res.status === "fulfilled") results.push(res.value);
-      // Jika ingin handle error, bisa tambahkan di sini
-    });
-  }
-  return results;
-}
-
-// Utility untuk membagi array ke N bagian hampir sama besar
-function chunkArray<T>(arr: T[], chunkCount: number): T[][] {
-  const result: T[][] = [];
-  const chunkSize = Math.floor(arr.length / chunkCount);
-  let remainder = arr.length % chunkCount;
-  let start = 0;
-  for (let i = 0; i < chunkCount; i++) {
-    let end = start + chunkSize + (remainder > 0 ? 1 : 0);
-    result.push(arr.slice(start, end));
-    start = end;
-    if (remainder > 0) remainder--;
-  }
-  return result;
 }
 
 export default function PBLGenerate() {
@@ -218,6 +156,7 @@ export default function PBLGenerate() {
     semesterDistribution: Record<number, number>;
     totalDosenAvailable: number;
     totalNeeds: number;
+    generatedAt?: string;
   } | null>(null);
 
   // State untuk menyimpan data kelompok kecil asli dari API
@@ -264,26 +203,6 @@ export default function PBLGenerate() {
     [isFetching]
   );
 
-  const [showMahasiswaModal, setShowMahasiswaModal] = useState<{
-    kelompok: KelompokKecil;
-    mahasiswa: Mahasiswa[];
-  } | null>(null);
-  const [pageMahasiswaModal, setPageMahasiswaModal] = useState(1);
-
-  // Untuk expand/collapse per grup peran
-  const [expandedGroups, setExpandedGroups] = useState<{
-    [key: string]: boolean;
-  }>({});
-  const [showAllPeran, setShowAllPeran] = useState<{ [key: string]: boolean }>(
-    {}
-  );
-  const toggleGroup = (rowKey: string) => {
-    setExpandedGroups((prev) => ({ ...prev, [rowKey]: !prev[rowKey] }));
-  };
-  const toggleShowAll = (rowKey: string) => {
-    setShowAllPeran((prev) => ({ ...prev, [rowKey]: !prev[rowKey] }));
-  };
-
   useEffect(() => {
     if (success) {
       const timer = setTimeout(() => {
@@ -302,7 +221,7 @@ export default function PBLGenerate() {
     }
   }, [error]);
 
-  // OPTIMIZATION: Cleanup timeout on unmount
+  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (fetchTimeoutRef.current) {
@@ -460,6 +379,9 @@ export default function PBLGenerate() {
 
         // Fetch kelompok kecil data for all semesters in one go
         await fetchKelompokKecilData(filteredBlokMataKuliah, semester?.jenis);
+
+        // Load proportional distribution data if available
+        await loadProportionalDistribution(parseInt(blokId || "1"), semester?.jenis);
       } catch (err) {
         setError("Gagal memuat data PBL/dosen");
         setBlokMataKuliah([]);
@@ -473,6 +395,37 @@ export default function PBLGenerate() {
 
     fetchAllData();
   }, [blokId]);
+
+  // Function to load proportional distribution data from database
+  const loadProportionalDistribution = useCallback(
+    async (blokId: number, activeSemester: string | null) => {
+      if (!activeSemester) return;
+
+      try {
+        const response = await api.get('/proportional-distribution', {
+          params: {
+            blok_id: blokId,
+            active_semester: activeSemester,
+          },
+        });
+
+        if (response.data.success && response.data.data) {
+          const data = response.data.data;
+          setProportionalDistribution({
+            semesterNeeds: data.semesterNeeds,
+            semesterPercentages: data.semesterPercentages,
+            semesterDistribution: data.semesterDistribution,
+            totalDosenAvailable: data.totalDosenAvailable,
+            totalNeeds: data.totalNeeds,
+            generatedAt: data.generatedAt,
+          });
+        }
+      } catch (error) {
+        // This is normal if no distribution has been saved yet
+      }
+    },
+    []
+  );
 
   // Optimized function to fetch kelompok kecil data for all semesters
   const fetchKelompokKecilData = useCallback(
@@ -588,56 +541,6 @@ export default function PBLGenerate() {
     fetchKelompokKecilData,
     blokId,
   ]);
-
-  // Function to handle lihat mahasiswa
-  const handleLihatMahasiswa = async (kelompok: KelompokKecil) => {
-    try {
-      // OPTIMIZATION: Check if we have cached data first
-      const semesterRes = await api.get("/tahun-ajaran/active");
-      const semester = semesterRes.data?.semesters?.[0]?.jenis;
-
-      if (!semester) {
-        alert("Tidak ada semester aktif");
-        return;
-      }
-
-      // OPTIMIZATION: Try to get mahasiswa from cache first
-      const semesterKey = String(kelompok.semester);
-      const cachedData = kelompokKecilCache[semesterKey];
-
-      if (cachedData) {
-        // Find mahasiswa in cached data
-        const mahasiswaInKelompok = cachedData.details.filter(
-          (detail: any) => detail.nama_kelompok === kelompok.nama_kelompok
-        );
-
-        if (mahasiswaInKelompok.length > 0) {
-          // Convert to mahasiswa format
-          const mahasiswa = mahasiswaInKelompok.map((detail: any) => ({
-            nama: detail.mahasiswa?.name || "",
-            nim: detail.mahasiswa?.nim || "",
-            angkatan: detail.mahasiswa?.angkatan || "",
-            ipk: detail.mahasiswa?.ipk || 0,
-          }));
-
-          setShowMahasiswaModal({ kelompok, mahasiswa });
-          setPageMahasiswaModal(1);
-          return;
-        }
-      }
-
-      // Fallback: Fetch mahasiswa dari kelompok kecil jika tidak ada di cache
-      const mahasiswaRes = await api.get(
-        `/kelompok-kecil/${kelompok.id}/mahasiswa`
-      );
-      const mahasiswa = mahasiswaRes.data || [];
-
-      setShowMahasiswaModal({ kelompok, mahasiswa });
-      setPageMahasiswaModal(1); // Reset pagination
-    } catch (error) {
-      alert("Gagal memuat data mahasiswa");
-    }
-  };
 
   // Function to calculate statistics
   const calculateStatistics = (
@@ -945,7 +848,7 @@ export default function PBLGenerate() {
     const keahlianMatchRate =
       totalModulChecks > 0 ? (keahlianMatches / totalModulChecks) * 100 : 0;
 
-    // Calculate assignment distribution per semester (unik per dosen)
+    // Calculate assignment distribution from assignedDosen data (real generated assignments)
     const assignmentDistribution = {
       koordinator: 0,
       timBlok: 0,
@@ -955,7 +858,16 @@ export default function PBLGenerate() {
     // Hitung per semester untuk menghindari duplikasi dosen
     const processedDosen = new Set<number>();
 
-    Object.entries(groupedBySemester).forEach(([semester, mataKuliahList]) => {
+    // Group by semester for assignment distribution
+    const groupedBySemesterForAssignment = blokMataKuliah.reduce((acc, mk) => {
+      if (!acc[mk.semester]) {
+        acc[mk.semester] = [];
+      }
+      acc[mk.semester].push(mk);
+      return acc;
+    }, {} as { [key: number]: typeof blokMataKuliah });
+
+    Object.entries(groupedBySemesterForAssignment).forEach(([semester, mataKuliahList]) => {
       const semesterNumber = parseInt(semester);
 
       // Hitung dosen yang sudah di-assign untuk semester ini (unik per dosen)
@@ -968,53 +880,30 @@ export default function PBLGenerate() {
         });
       });
 
-      // Hitung distribution untuk semester ini
+      // Hitung distribution untuk semester ini (unik per dosen)
       assignedDosenSet.forEach((dosenId) => {
         if (!processedDosen.has(dosenId)) {
           processedDosen.add(dosenId);
 
-          // Cari dosen dari dosenList
-          const dosen = dosenList.find((d) => d.id === dosenId);
-          if (dosen) {
-            // Tentukan peran berdasarkan dosen_peran untuk semester ini
-            let dosenRole = "dosen_mengajar"; // default
-
-            if (dosen.dosen_peran && Array.isArray(dosen.dosen_peran)) {
-              // Cek apakah dosen ini adalah koordinator untuk semester ini
-              const isKoordinator = dosen.dosen_peran.some(
-                (peran: any) =>
-                  peran.tipe_peran === "koordinator" &&
-                  peran.semester === String(semesterNumber) &&
-                  mataKuliahList.some(
-                    (mk) => mk.kode === peran.mata_kuliah_kode
-                  )
-              );
-
-              // Cek apakah dosen ini adalah tim blok untuk semester ini
-              const isTimBlok = dosen.dosen_peran.some(
-                (peran: any) =>
-                  peran.tipe_peran === "tim_blok" &&
-                  peran.semester === String(semesterNumber) &&
-                  mataKuliahList.some(
-                    (mk) => mk.kode === peran.mata_kuliah_kode
-                  )
-              );
-
-              if (isKoordinator) {
-                dosenRole = "koordinator";
-              } else if (isTimBlok) {
-                dosenRole = "tim_blok";
+          // Cari dosen dari assignedDosen data
+          let dosenRole = "dosen_mengajar"; // default
+          
+          // Cari peran dosen dari assignedDosen data
+          Object.values(assignedDosen).forEach((assignedDosenList) => {
+            assignedDosenList.forEach((dosen) => {
+              if (dosen.id === dosenId) {
+                dosenRole = dosen.pbl_role || "dosen_mengajar";
               }
-            }
+            });
+          });
 
-            // Hitung berdasarkan peran yang benar
-            if (dosenRole === "koordinator") {
-              assignmentDistribution.koordinator++;
-            } else if (dosenRole === "tim_blok") {
-              assignmentDistribution.timBlok++;
-            } else {
-              assignmentDistribution.dosenMengajar++;
-            }
+          // Hitung berdasarkan peran yang benar (unik per dosen per semester)
+          if (dosenRole === "koordinator") {
+            assignmentDistribution.koordinator++;
+          } else if (dosenRole === "tim_blok") {
+            assignmentDistribution.timBlok++;
+          } else {
+            assignmentDistribution.dosenMengajar++;
           }
         }
       });
@@ -1190,38 +1079,6 @@ export default function PBLGenerate() {
     []
   );
 
-  // Filter dosen (exclude standby)
-  const dosenWithKeahlian = useMemo(() => {
-    return dosenList; // Tidak perlu mapping lagi karena parseKeahlian sudah menangani
-  }, [dosenList]);
-
-  // Dosen regular: tidak memiliki keahlian "standby" dan memiliki lebih dari 2 keahlian (termasuk "Kompetensi Dokter Umum")
-  // DEPRECATED: Filter ini sudah tidak digunakan lagi, diganti dengan sistem prioritas baru
-  const regularDosenList = useMemo(() => {
-    return dosenWithKeahlian.filter((d) => {
-      const keahlian = parseKeahlian(d.keahlian);
-
-      // Kecualikan dosen standby
-      const isStandby = keahlian.some((k) =>
-        k.toLowerCase().includes("standby")
-      );
-
-      if (isStandby) return false;
-
-      // Harus memiliki lebih dari 2 keahlian (termasuk "Kompetensi Dokter Umum")
-      return keahlian.length > 2;
-    });
-  }, [dosenWithKeahlian, parseKeahlian]);
-
-  // (Removed) Deteksi konflik per semester untuk pewarnaan badge
-
-  // Dosen standby: memiliki keahlian "standby"
-  const standbyDosenList = useMemo(() => {
-    return dosenWithKeahlian.filter((d) =>
-      parseKeahlian(d.keahlian).some((k) => k.toLowerCase().includes("standby"))
-    );
-  }, [dosenWithKeahlian, parseKeahlian]);
-
   // Helper untuk mendapatkan keahlian spesifik per blok
   const getBlokKeahlianSpesifik = useCallback(
     (blokNumber: number) => {
@@ -1243,9 +1100,6 @@ export default function PBLGenerate() {
         targetSemesters = [];
       }
 
-      console.log(`Debug getBlok${blokNumber}KeahlianSpesifik:`);
-      console.log("- blokMataKuliah length:", blokMataKuliah.length);
-      console.log("- target semesters:", targetSemesters);
 
       targetSemesters.forEach((semester) => {
         const mataKuliahSemester = blokMataKuliah.filter(
@@ -1253,23 +1107,17 @@ export default function PBLGenerate() {
             String(mk.semester) === String(semester) && mk.blok === blokNumber
         );
 
-        console.log(
-          `- Semester ${semester} blok ${blokNumber} mata kuliah:`,
-          mataKuliahSemester
-        );
 
         mataKuliahSemester.forEach((mk) => {
           if (mk.keahlian_required && Array.isArray(mk.keahlian_required)) {
             mk.keahlian_required.forEach((keahlian) => {
               keahlianSpesifik.add(keahlian);
-              console.log(`    - Added keahlian: ${keahlian}`);
             });
           }
         });
       });
 
       const result = Array.from(keahlianSpesifik);
-      console.log(`- Final keahlian spesifik blok ${blokNumber}:`, result);
       return result;
     },
     [blokMataKuliah]
@@ -1277,8 +1125,6 @@ export default function PBLGenerate() {
 
   // Helper untuk filter dosen aktif (untuk Total Tersedia - Distribusi Proporsional)
   const getDosenAktif = useCallback(() => {
-    console.log(`Debug getDosenAktif:`);
-    console.log("- Total dosenList:", dosenList.length);
 
     const filteredDosen = dosenList.filter((dosen) => {
       const keahlian = parseKeahlian(dosen.keahlian);
@@ -1291,14 +1137,6 @@ export default function PBLGenerate() {
       return !isStandby;
     });
 
-    console.log(`- Dosen aktif (bukan standby):`, filteredDosen.length);
-    if (filteredDosen.length > 0) {
-      console.log(
-        `- Sample dosen aktif:`,
-        filteredDosen[0].name,
-        parseKeahlian(filteredDosen[0].keahlian)
-      );
-    }
 
     return filteredDosen;
   }, [dosenList]);
@@ -1307,10 +1145,6 @@ export default function PBLGenerate() {
   const getDosenDenganPrioritasKeahlian = useCallback(
     (blokNumber: number) => {
       const keahlianSpesifik = getBlokKeahlianSpesifik(blokNumber);
-
-      console.log(`Debug getDosenDenganPrioritasKeahlian blok ${blokNumber}:`);
-      console.log("- Total dosenList:", dosenList.length);
-      console.log("- Keahlian spesifik yang dibutuhkan:", keahlianSpesifik);
 
       const filteredDosen = dosenList.filter((dosen) => {
         const keahlian = parseKeahlian(dosen.keahlian);
@@ -1354,31 +1188,6 @@ export default function PBLGenerate() {
         }
         return a.name.localeCompare(b.name); // Alphabetical jika sama
       });
-
-      console.log(
-        `- Dosen yang lolos filter blok ${blokNumber}:`,
-        filteredDosen.length
-      );
-      console.log(
-        `- Prioritas tinggi (4+ keahlian):`,
-        dosenDenganPrioritas.filter((d) => d.prioritas === "tinggi").length
-      );
-      console.log(
-        `- Prioritas sedang (2-3 keahlian):`,
-        dosenDenganPrioritas.filter((d) => d.prioritas === "sedang").length
-      );
-      console.log(
-        `- Prioritas rendah (1 keahlian):`,
-        dosenDenganPrioritas.filter((d) => d.prioritas === "rendah").length
-      );
-
-      if (dosenDenganPrioritas.length > 0) {
-        console.log(
-          `- Sample dosen dengan prioritas:`,
-          dosenDenganPrioritas[0].name,
-          `(${dosenDenganPrioritas[0].keahlianCocok} keahlian cocok - ${dosenDenganPrioritas[0].prioritas})`
-        );
-      }
 
       return dosenDenganPrioritas;
     },
@@ -1819,8 +1628,23 @@ export default function PBLGenerate() {
         totalNeeds: proportionalResult.totalNeeds,
       };
 
-      console.log("Setting proportional distribution:", proportionalData);
       setProportionalDistribution(proportionalData);
+
+      // Save proportional distribution to database
+      try {
+        await api.post('/proportional-distribution', {
+          blok_id: currentBlok,
+          active_semester: activeSemesterJenis,
+          semester_needs: proportionalData.semesterNeeds,
+          semester_percentages: proportionalData.semesterPercentages,
+          semester_distribution: proportionalData.semesterDistribution,
+          total_dosen_available: proportionalData.totalDosenAvailable,
+          total_needs: proportionalData.totalNeeds,
+        });
+      } catch (error) {
+        console.error("Failed to save proportional distribution:", error);
+        // Don't throw error, just log it - the generate process should continue
+      }
 
       // Step 4: Tracking dosen yang sudah di-assign
       const assignedDosenPerSemester: Set<number> = new Set();
@@ -2091,6 +1915,22 @@ export default function PBLGenerate() {
         });
         if (resetRes.data.success) {
           setSuccess(resetRes.data.message);
+          
+          // Clear proportional distribution data
+          setProportionalDistribution(null);
+          
+          // Delete proportional distribution from database
+          try {
+            await api.delete('/proportional-distribution', {
+              params: {
+                blok_id: parseInt(blokId || "1"),
+                active_semester: activeSemesterJenis,
+              },
+            });
+          } catch (error) {
+            console.error("Failed to delete proportional distribution:", error);
+            // Don't throw error, just log it
+          }
         } else {
           setError(resetRes.data.message);
         }
@@ -2149,14 +1989,137 @@ export default function PBLGenerate() {
           </div>
         </div>
 
+        {/* Comprehensive Statistics Cards Skeleton */}
+        <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 mb-8 shadow-sm">
+          <div className="flex items-start justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse" />
+              <div>
+                <div className="h-6 w-48 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
+                <div className="h-4 w-64 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <div key={idx} className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+                    <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                  </div>
+                  <div className="text-right">
+                    <div className="h-6 w-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-700/50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
+                      <div className="h-3 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                    </div>
+                    <div className="h-3 w-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Assignment Distribution Skeleton */}
+        <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 mb-8 shadow-sm">
+          <div className="flex items-start justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse" />
+              <div>
+                <div className="h-6 w-44 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
+                <div className="h-4 w-60 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <div key={idx} className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between h-full">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+                    <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                  </div>
+                  <div className="text-right">
+                    <div className="h-6 w-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Semester Coverage Skeleton */}
+        <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 mb-8 shadow-sm">
+          <div className="flex items-start justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse" />
+              <div>
+                <div className="h-6 w-40 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
+                <div className="h-4 w-56 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <div key={idx} className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="h-5 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                  <div className="h-5 w-12 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
+                </div>
+                <div className="space-y-1">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="flex justify-between">
+                      <div className="h-3 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                      <div className="h-3 w-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Generate Dosen Section Skeleton */}
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6 mb-8">
-          <div className="h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-4 animate-pulse" />
-          <div className="h-4 w-80 bg-gray-200 dark:bg-gray-700 rounded mb-6 animate-pulse" />
+        <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 mb-8 shadow-sm">
+          <div className="flex items-start justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse" />
+              <div>
+                <div className="h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
+                <div className="h-4 w-80 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+              </div>
+            </div>
+          </div>
+
+          {/* Status Kelompok Kecil Skeleton */}
+          <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-3 animate-pulse" />
+            <div className="space-y-2">
+              {Array.from({ length: 4 }).map((_, idx) => (
+                <div key={idx} className="flex items-center justify-between">
+                  <div className="h-3 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
+                    <div className="h-3 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="flex flex-wrap gap-3">
-            {[1, 2, 3].map((i) => (
+            {Array.from({ length: 4 }).map((_, idx) => (
               <div
-                key={i}
+                key={idx}
                 className="h-10 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"
               />
             ))}
@@ -2173,14 +2136,16 @@ export default function PBLGenerate() {
               <div key={semester}>
                 {/* Semester Header Skeleton */}
                 <div className="bg-gray-50 dark:bg-gray-800/30 rounded-xl p-6 border border-gray-200 dark:border-gray-700 mb-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
-                    <div className="flex-1">
-                      <div className="h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
-                      <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
-                      <div className="flex gap-4">
-                        <div className="h-3 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-                        <div className="h-3 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
+                      <div className="flex flex-col">
+                        <div className="h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
+                        <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
+                        <div className="flex gap-4">
+                          <div className="h-3 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                          <div className="h-3 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2276,62 +2241,80 @@ export default function PBLGenerate() {
 
       {/* Proportional Distribution Summary */}
       {proportionalDistribution && (
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-700 rounded-xl p-6 mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
-              <FontAwesomeIcon
-                icon={faCog}
-                className="w-5 h-5 text-blue-600 dark:text-blue-400"
-              />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-blue-800 dark:text-blue-200">
-                Distribusi Proporsional Aktif
-              </h3>
-              <p className="text-sm text-blue-600 dark:text-blue-400">
-                Menggunakan Metode 2 (Distribusi Sisa) untuk keseimbangan
-                optimal
-              </p>
+        <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 mb-8 shadow-sm">
+          <div className="flex items-start justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center shadow-sm">
+                <FontAwesomeIcon
+                  icon={faCog}
+                  className="w-6 h-6 text-slate-600 dark:text-slate-300"
+                />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                  Distribusi Proporsional Aktif
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                  Metode 2 (Distribusi Sisa) untuk keseimbangan optimal
+                </p>
+                {proportionalDistribution.generatedAt && (
+                  <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span>Terakhir di-generate: {new Date(proportionalDistribution.generatedAt).toLocaleString('id-ID')}</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {[1, 3, 5, 7].map((semester) => {
               if (!proportionalDistribution.semesterPercentages[semester])
                 return null;
 
+              const percentage = proportionalDistribution.semesterPercentages[semester];
+              const needs = proportionalDistribution.semesterNeeds[semester];
+              const distribution = proportionalDistribution.semesterDistribution[semester];
+
               return (
                 <div
                   key={semester}
-                  className="bg-white dark:bg-gray-800/50 rounded-lg p-4 border border-blue-200 dark:border-blue-700"
+                  className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200"
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-semibold text-gray-800 dark:text-white">
-                      Semester {semester}
-                    </h4>
-                    <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                      {proportionalDistribution.semesterPercentages[
-                        semester
-                      ].toFixed(1)}
-                      %
-                    </span>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                        <span className="text-white font-bold text-sm">{semester}</span>
+                      </div>
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                        Semester {semester}
+                      </h4>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                        {percentage.toFixed(1)}%
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
-                    <div className="flex justify-between">
-                      <span>Kebutuhan:</span>
-                      <span>
-                        {proportionalDistribution.semesterNeeds[semester]} dosen
+                  
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-700/50 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Kebutuhan</span>
+                      </div>
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                        {needs} dosen
                       </span>
                     </div>
-                    <div className="flex justify-between">
-                      <span>Distribusi:</span>
-                      <span className="font-medium text-blue-600 dark:text-blue-400">
-                        {
-                          proportionalDistribution.semesterDistribution[
-                            semester
-                          ]
-                        }{" "}
-                        dosen
+                    
+                    <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-700/50 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Distribusi</span>
+                      </div>
+                      <span className="text-sm font-semibold text-green-600 dark:text-green-400">
+                        {distribution} dosen
                       </span>
                     </div>
                   </div>
@@ -2340,134 +2323,209 @@ export default function PBLGenerate() {
             })}
           </div>
 
-          <div className="mt-4 pt-4 border-t border-blue-200 dark:border-blue-700">
-            <div className="flex justify-between text-sm">
-              <span className="text-blue-700 dark:text-blue-300">
-                Total Kebutuhan:{" "}
-                <strong>{proportionalDistribution.totalNeeds} dosen</strong>
-              </span>
-              <span className="text-blue-700 dark:text-blue-300">
-                Total Tersedia:{" "}
-                <strong>
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-3 h-3 bg-orange-400 rounded-full"></div>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Total Kebutuhan
+                </span>
+                <span className="text-sm font-bold text-gray-900 dark:text-white">
+                  {proportionalDistribution.totalNeeds} dosen
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Total Tersedia
+                </span>
+                <span className="text-sm font-bold text-gray-900 dark:text-white">
                   {proportionalDistribution.totalDosenAvailable} dosen
-                </strong>
-              </span>
+                </span>
+              </div>
             </div>
           </div>
         </div>
       )}
 
       {/* Comprehensive Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {/* Assignment Statistics */}
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6">
+      <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 mb-8 shadow-sm">
+        <div className="flex items-start justify-between mb-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
+            <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center shadow-sm">
               <FontAwesomeIcon
                 icon={faCheckCircle}
-                className="w-6 h-6 text-blue-500"
+                className="w-6 h-6 text-slate-600 dark:text-slate-300"
               />
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-800 dark:text-white">
-                {pblStatistics.totalAssignments}
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Total Assignment
-              </div>
-              <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                {pblStatistics.assignmentRate.toFixed(1)}% completion
-              </div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                Statistik Assignment
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                Overview performa sistem generate dosen
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Dosen Utilization */}
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
-              <FontAwesomeIcon
-                icon={faUsers}
-                className="w-6 h-6 text-green-500"
-              />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Assignment Statistics */}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                  <FontAwesomeIcon
+                    icon={faCheckCircle}
+                    className="w-4 h-4 text-white"
+                  />
+                </div>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Total Assignment
+                </h4>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                  {pblStatistics.totalAssignments}
+                </div>
+              </div>
             </div>
-            <div>
-              <div className="text-2xl font-bold text-gray-800 dark:text-white">
-                {pblStatistics.dosenUtilizationRate.toFixed(1)}%
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Dosen Utilization
-              </div>
-              <div className="text-xs text-green-600 dark:text-green-400 font-medium">
-                {pblStatistics.standbyDosenUsage} standby used
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Quality Statistics */}
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center">
-              <FontAwesomeIcon
-                icon={faBookOpen}
-                className="w-6 h-6 text-purple-500"
-              />
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-gray-800 dark:text-white">
-                {pblStatistics.keahlianMatchRate.toFixed(1)}%
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Keahlian Match
-              </div>
-              <div className="text-xs text-purple-600 dark:text-purple-400 font-medium">
-                {pblStatistics.unassignedPBLCount} unassigned
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-700/50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Completion Rate</span>
+                </div>
+                <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {pblStatistics.assignmentRate.toFixed(1)}%
+                </span>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* System Health */}
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6">
-          <div className="flex items-center gap-4">
-            <div
-              className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                pblStatistics.dataFreshness === "fresh"
-                  ? "bg-green-100 dark:bg-green-900/20"
-                  : pblStatistics.dataFreshness === "stale"
-                  ? "bg-yellow-100 dark:bg-yellow-900/20"
-                  : "bg-red-100 dark:bg-red-900/20"
-              }`}
-            >
-              <FontAwesomeIcon
-                icon={faCog}
-                className={`w-6 h-6 ${
-                  pblStatistics.dataFreshness === "fresh"
-                    ? "text-green-500"
-                    : pblStatistics.dataFreshness === "stale"
-                    ? "text-yellow-500"
-                    : "text-red-500"
-                }`}
-              />
+          {/* Dosen Utilization */}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                  <FontAwesomeIcon
+                    icon={faUsers}
+                    className="w-4 h-4 text-white"
+                  />
+                </div>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Dosen Utilization
+                </h4>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold text-green-600 dark:text-green-400">
+                  {pblStatistics.dosenUtilizationRate.toFixed(1)}%
+                </div>
+              </div>
             </div>
-            <div>
-              <div className="text-2xl font-bold text-gray-800 dark:text-white">
-                {pblStatistics.warningCount}
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-700/50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Standby Used</span>
+                </div>
+                <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {pblStatistics.standbyDosenUsage}
+                </span>
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Active Warnings
+            </div>
+          </div>
+
+          {/* Quality Statistics */}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
+                  <FontAwesomeIcon
+                    icon={faBookOpen}
+                    className="w-4 h-4 text-white"
+                  />
+                </div>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Keahlian Match
+                </h4>
               </div>
-              <div
-                className={`text-xs font-medium ${
-                  pblStatistics.dataFreshness === "fresh"
-                    ? "text-green-600 dark:text-green-400"
-                    : pblStatistics.dataFreshness === "stale"
-                    ? "text-yellow-600 dark:text-yellow-400"
-                    : "text-red-600 dark:text-red-400"
-                }`}
-              >
-                {pblStatistics.dataFreshness} data
+              <div className="text-right">
+                <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
+                  {pblStatistics.keahlianMatchRate.toFixed(1)}%
+                </div>
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-700/50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Unassigned</span>
+                </div>
+                <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {pblStatistics.unassignedPBLCount}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* System Health */}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                    pblStatistics.dataFreshness === "fresh"
+                      ? "bg-green-500"
+                      : pblStatistics.dataFreshness === "stale"
+                      ? "bg-yellow-500"
+                      : "bg-red-500"
+                  }`}
+                >
+                  <FontAwesomeIcon
+                    icon={faCog}
+                    className="w-4 h-4 text-white"
+                  />
+                </div>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Active Warnings
+                </h4>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold text-gray-900 dark:text-white">
+                  {pblStatistics.warningCount}
+                </div>
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-700/50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`w-2 h-2 rounded-full ${
+                      pblStatistics.dataFreshness === "fresh"
+                        ? "bg-green-400"
+                        : pblStatistics.dataFreshness === "stale"
+                        ? "bg-yellow-400"
+                        : "bg-red-400"
+                    }`}
+                  ></div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Data Status</span>
+                </div>
+                <span
+                  className={`text-sm font-semibold ${
+                    pblStatistics.dataFreshness === "fresh"
+                      ? "text-green-600 dark:text-green-400"
+                      : pblStatistics.dataFreshness === "stale"
+                      ? "text-yellow-600 dark:text-yellow-400"
+                      : "text-red-600 dark:text-red-400"
+                  }`}
+                >
+                  {pblStatistics.dataFreshness}
+                </span>
               </div>
             </div>
           </div>
@@ -2475,49 +2533,77 @@ export default function PBLGenerate() {
       </div>
 
       {/* Assignment Distribution */}
-      <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6 mb-8">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Assignment Distribution
-        </h3>
+      <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 mb-8 shadow-sm">
+        <div className="flex items-start justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center shadow-sm">
+              <FontAwesomeIcon
+                icon={faUsers}
+                className="w-6 h-6 text-slate-600 dark:text-slate-300"
+              />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                Assignment Distribution
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                Distribusi peran dosen dalam sistem
+              </p>
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-            <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
-              <span className="text-white text-sm font-bold">K</span>
-            </div>
-            <div>
-              <div className="text-lg font-bold text-blue-700 dark:text-blue-300">
-                {pblStatistics.assignmentDistribution.koordinator}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between h-full">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                  <span className="text-white text-sm font-bold">K</span>
+                </div>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Koordinator
+                </h4>
               </div>
-              <div className="text-sm text-blue-600 dark:text-blue-400">
-                Koordinator
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-            <div className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center">
-              <span className="text-white text-sm font-bold">T</span>
-            </div>
-            <div>
-              <div className="text-lg font-bold text-purple-700 dark:text-purple-300">
-                {pblStatistics.assignmentDistribution.timBlok}
-              </div>
-              <div className="text-sm text-purple-600 dark:text-purple-400">
-                Tim Blok
+              <div className="text-right">
+                <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                  {pblStatistics.assignmentDistribution.koordinator}
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-            <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
-              <span className="text-white text-sm font-bold">D</span>
-            </div>
-            <div>
-              <div className="text-lg font-bold text-green-700 dark:text-green-300">
-                {pblStatistics.assignmentDistribution.dosenMengajar}
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between h-full">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
+                  <span className="text-white text-sm font-bold">T</span>
+                </div>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Tim Blok
+                </h4>
               </div>
-              <div className="text-sm text-green-600 dark:text-green-400">
-                Dosen Mengajar
+              <div className="text-right">
+                <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
+                  {pblStatistics.assignmentDistribution.timBlok}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200">
+            <div className="flex items-center justify-between h-full">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                  <span className="text-white text-sm font-bold">D</span>
+                </div>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                  Dosen Mengajar
+                </h4>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold text-green-600 dark:text-green-400">
+                  {pblStatistics.assignmentDistribution.dosenMengajar}
+                </div>
               </div>
             </div>
           </div>
@@ -2525,16 +2611,31 @@ export default function PBLGenerate() {
       </div>
 
       {/* Semester Coverage */}
-      <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6 mb-8">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Semester Coverage
-        </h3>
+      <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 mb-8 shadow-sm">
+        <div className="flex items-start justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center shadow-sm">
+              <FontAwesomeIcon
+                icon={faBookOpen}
+                className="w-6 h-6 text-slate-600 dark:text-slate-300"
+              />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                Semester Coverage
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                Cakupan dan progress per semester
+              </p>
+            </div>
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {Object.entries(pblStatistics.semesterCoverage).map(
             ([semester, data]) => (
               <div
                 key={semester}
-                className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg"
+                className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all duration-200"
               >
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="font-semibold text-gray-800 dark:text-white">
@@ -2636,14 +2737,25 @@ export default function PBLGenerate() {
       )}
 
       {/* Generate Dosen Section */}
-      <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6 mb-8">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-          Generate Dosen
-        </h2>
-        <p className="text-gray-600 dark:text-gray-400 mb-6">
-          Klik tombol di bawah untuk menggenerate penugasan dosen secara
-          otomatis
-        </p>
+      <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-2xl p-6 mb-8 shadow-sm">
+        <div className="flex items-start justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center shadow-sm">
+              <FontAwesomeIcon
+                icon={faCog}
+                className="w-6 h-6 text-slate-600 dark:text-slate-300"
+              />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                Generate Dosen
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                Klik tombol di bawah untuk menggenerate penugasan dosen secara otomatis
+              </p>
+            </div>
+          </div>
+        </div>
 
         {/* Status Kelompok Kecil */}
         <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg">
@@ -2952,7 +3064,7 @@ export default function PBLGenerate() {
             <div key={semester} className="mb-8">
               {/* Semester Header Card */}
               <div className="bg-gray-50 dark:bg-gray-800/30 rounded-xl p-6 border border-gray-200 dark:border-gray-700 mb-6">
-                <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center gap-4">
                   {/* Left side - Semester info */}
                   <div className="flex flex-wrap items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
@@ -3006,66 +3118,6 @@ export default function PBLGenerate() {
                     </div>
                   </div>
 
-                  {/* Right side - Proportional Distribution Info */}
-                  {(() => {
-                    console.log(
-                      "Rendering semester",
-                      semesterNumber,
-                      "proportionalDistribution:",
-                      proportionalDistribution
-                    );
-                    return (
-                      proportionalDistribution &&
-                      proportionalDistribution.semesterPercentages &&
-                      proportionalDistribution.semesterPercentages[
-                        semesterNumber
-                      ]
-                    );
-                  })() && (
-                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg min-w-[200px]">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-blue-800 dark:text-blue-200">
-                          Distribusi Proporsional
-                        </span>
-                        <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
-                          {proportionalDistribution.semesterPercentages[
-                            semesterNumber
-                          ].toFixed(1)}
-                          %
-                        </span>
-                      </div>
-                      <div className="text-xs text-blue-700 dark:text-blue-300 space-y-1">
-                        <div className="flex justify-between">
-                          <span>Kebutuhan:</span>
-                          <span>
-                            {
-                              proportionalDistribution.semesterNeeds[
-                                semesterNumber
-                              ]
-                            }{" "}
-                            dosen
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Distribusi:</span>
-                          <span>
-                            {
-                              proportionalDistribution.semesterDistribution[
-                                semesterNumber
-                              ]
-                            }{" "}
-                            dosen
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Total Tersedia:</span>
-                          <span>
-                            {proportionalDistribution.totalDosenAvailable} dosen
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
 

@@ -1068,7 +1068,8 @@ export default function DetailBlok() {
 
     if (name === 'jamMulai' || name === 'jumlahKali') {
 
-      const jumlah = name === 'jumlahKali' ? Number(value) : Number(newForm.jumlahKali);
+      // For Jurnal Reading, always use 2 sessions regardless of form value
+      const jumlah = form.jenisBaris === 'jurnal' ? 2 : (name === 'jumlahKali' ? Number(value) : Number(newForm.jumlahKali));
 
       newForm.jamSelesai = hitungJamSelesai(name === 'jamMulai' ? value : newForm.jamMulai, jumlah);
 
@@ -3574,7 +3575,7 @@ export default function DetailBlok() {
 
       jam_selesai: form.jamSelesai,
 
-      jumlah_sesi: form.jumlahKali,
+      jumlah_sesi: 2, // Force 2 sessions for Jurnal Reading
 
       kelompok_kecil_id: kelompokKecilId,
 
@@ -3602,7 +3603,7 @@ export default function DetailBlok() {
 
       formData.append('jam_selesai', payload.jam_selesai);
 
-      formData.append('jumlah_sesi', payload.jumlah_sesi.toString());
+      formData.append('jumlah_sesi', '2'); // Force 2 sessions for Jurnal Reading
 
       formData.append('kelompok_kecil_id', payload.kelompok_kecil_id.toString());
 
@@ -3640,7 +3641,7 @@ export default function DetailBlok() {
 
           editFormData.append('jam_selesai', payload.jam_selesai);
 
-          editFormData.append('jumlah_sesi', payload.jumlah_sesi.toString());
+          editFormData.append('jumlah_sesi', '2'); // Force 2 sessions for Jurnal Reading
 
           editFormData.append('kelompok_kecil_id', payload.kelompok_kecil_id.toString());
 
@@ -3676,7 +3677,7 @@ export default function DetailBlok() {
 
             jam_selesai: payload.jam_selesai,
 
-            jumlah_sesi: payload.jumlah_sesi,
+            jumlah_sesi: 2, // Force 2 sessions for Jurnal Reading
 
             kelompok_kecil_id: payload.kelompok_kecil_id,
 
@@ -16796,11 +16797,13 @@ export default function DetailBlok() {
 
                         <td className="px-4 py-4 text-center whitespace-nowrap">
 
+                          <div className="flex items-center justify-center gap-2">
+
                           <button
 
                             onClick={() => navigate(`/penilaian-pbl/${kode}/${row.kelompok_kecil?.nama_kelompok || ''}/${row.pbl_tipe || ''}?rowIndex=${i}`)}
 
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-yellow-500 hover:text-yellow-600 dark:hover:text-yellow-400 transition mr-2"
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-yellow-500 hover:text-yellow-600 dark:hover:text-yellow-400 transition"
 
                             title="Nilai"
 
@@ -16814,7 +16817,7 @@ export default function DetailBlok() {
 
                           </button>
 
-                          <button onClick={() => handleEditJadwal(jadwalPBL.findIndex((j: JadwalPBLType) => j.id === row.id), 'pbl')} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
+                            <button onClick={() => handleEditJadwal(jadwalPBL.findIndex((j: JadwalPBLType) => j.id === row.id), 'pbl')} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition" title="Edit Jadwal">
 
                             <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
 
@@ -16837,6 +16840,8 @@ export default function DetailBlok() {
                             <span className="hidden sm:inline">Hapus</span>
 
                           </button>
+
+                          </div>
 
                         </td>
 
@@ -17238,6 +17243,8 @@ export default function DetailBlok() {
 
                       <td className="px-4 py-4 text-center whitespace-nowrap">
 
+                        <div className="flex items-center justify-center gap-2">
+
                         <button
 
                           onClick={() => {
@@ -17280,7 +17287,7 @@ export default function DetailBlok() {
 
                           }}
 
-                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-yellow-500 hover:text-yellow-600 dark:hover:text-yellow-400 transition mr-2"
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-yellow-500 hover:text-yellow-600 dark:hover:text-yellow-400 transition"
 
                           title="Nilai"
 
@@ -17294,7 +17301,7 @@ export default function DetailBlok() {
 
                         </button>
 
-                        <button onClick={() => handleEditJadwalJurnalReading(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
+                          <button onClick={() => handleEditJadwalJurnalReading(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition" title="Edit Jadwal">
 
                           <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
 
@@ -17309,6 +17316,8 @@ export default function DetailBlok() {
                           <span className="hidden sm:inline">Hapus</span>
 
                         </button>
+
+                        </div>
 
                       </td>
 

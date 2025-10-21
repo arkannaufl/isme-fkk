@@ -215,6 +215,28 @@
                     <div class="detail-value">{{ str_replace(':', '.', $jadwal->jam_mulai) }} - {{ str_replace(':', '.', $jadwal->jam_selesai) }}</div>
                 </div>
 
+                @if(isset($jadwal->mataKuliah) && $jadwal->mataKuliah)
+                <div class="detail-row">
+                    <div class="detail-label">Semester & Blok:</div>
+                    <div class="detail-value">
+                        Semester {{ $jadwal->mataKuliah->semester }}
+                        @if($jadwal->mataKuliah->blok)
+                            - Blok {{ $jadwal->mataKuliah->blok }}
+                        @endif
+                    </div>
+                </div>
+                @elseif(isset($jadwal->kategori) && $jadwal->kategori)
+                <div class="detail-row">
+                    <div class="detail-label">Semester & Blok:</div>
+                    <div class="detail-value">
+                        Semester {{ $jadwal->kategori->semester }}
+                        @if($jadwal->kategori->blok)
+                            - Blok {{ $jadwal->kategori->blok }}
+                        @endif
+                    </div>
+                </div>
+                @endif
+
                 <div class="detail-row">
                     <div class="detail-label">Ruangan:</div>
                     <div class="detail-value">{{ $jadwal->ruangan->nama ?? 'TBD' }}</div>
