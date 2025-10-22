@@ -285,7 +285,7 @@ const CSRDetail: React.FC = () => {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
           </svg>
         </div>
-        <span class="text-white font-medium">${dosen.name}</span>
+        <span class="text-white font-medium">${dosen.name || 'Dosen'}</span>
       `;
       dragElement.style.position = 'absolute';
       dragElement.style.top = '-1000px';
@@ -347,16 +347,16 @@ const CSRDetail: React.FC = () => {
   // Filtered dosen logic (mirroring CSR.tsx)
   const filteredRegularDosen = regularDosen.filter((d) => {
     const q = searchDosen.toLowerCase();
-    const matchNama = d.name.toLowerCase().includes(q);
-    const matchNid = d.nid.toLowerCase().includes(q);
+    const matchNama = d.name && d.name.toLowerCase().includes(q);
+    const matchNid = d.nid && d.nid.toLowerCase().includes(q);
     const matchKeahlian = d.keahlian.some((k) => k.toLowerCase().includes(q));
     if (searchDosen && !(matchNama || matchNid || matchKeahlian)) return false;
     return true;
   });
   const filteredStandbyDosen = standbyDosen.filter((d) => {
     const q = searchDosen.toLowerCase();
-    const matchNama = d.name.toLowerCase().includes(q);
-    const matchNid = d.nid.toLowerCase().includes(q);
+    const matchNama = d.name && d.name.toLowerCase().includes(q);
+    const matchNid = d.nid && d.nid.toLowerCase().includes(q);
     const matchKeahlian = d.keahlian.some((k) => k.toLowerCase().includes(q));
     if (searchDosen && !(matchNama || matchNid || matchKeahlian)) return false;
     return true;
@@ -376,8 +376,8 @@ const CSRDetail: React.FC = () => {
     filteredDosenPBLBySemester[Number(semester)] = dosenList.filter((d) => {
       const q = searchDosenPBL.toLowerCase();
       return (
-        d.name.toLowerCase().includes(q) ||
-        d.nid.toLowerCase().includes(q) ||
+        (d.name && d.name.toLowerCase().includes(q)) ||
+        (d.nid && d.nid.toLowerCase().includes(q)) ||
         (Array.isArray(d.keahlian)
           ? d.keahlian.some((k) => k.toLowerCase().includes(q))
           : false)

@@ -387,7 +387,7 @@ export default function PBL() {
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
         </svg>
       </div>
-      <span class="text-white font-medium">${dosen.name}</span>
+      <span class="text-white font-medium">${dosen.name || 'Dosen'}</span>
     `;
     dragElement.style.position = 'absolute';
     dragElement.style.top = '-1000px';
@@ -831,8 +831,8 @@ export default function PBL() {
     return (
       keahlian.some((k) => k.toLowerCase().includes("standby")) &&
       (!searchDosen ||
-        d.name.toLowerCase().includes(searchDosen.toLowerCase()) ||
-        d.nid.toLowerCase().includes(searchDosen.toLowerCase()) ||
+        (d.name && d.name.toLowerCase().includes(searchDosen.toLowerCase())) ||
+        (d.nid && d.nid.toLowerCase().includes(searchDosen.toLowerCase())) ||
         keahlian.some((k) =>
           k.toLowerCase().includes(searchDosen.toLowerCase())
         ))
@@ -845,8 +845,8 @@ export default function PBL() {
     return (
       !keahlian.some((k) => k.toLowerCase().includes("standby")) &&
       (!searchDosen ||
-        d.name.toLowerCase().includes(searchDosen.toLowerCase()) ||
-        d.nid.toLowerCase().includes(searchDosen.toLowerCase()) ||
+        (d.name && d.name.toLowerCase().includes(searchDosen.toLowerCase())) ||
+        (d.nid && d.nid.toLowerCase().includes(searchDosen.toLowerCase())) ||
         keahlian.some((k) =>
           k.toLowerCase().includes(searchDosen.toLowerCase())
         ))
