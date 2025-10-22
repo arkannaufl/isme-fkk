@@ -12,11 +12,16 @@ export interface Mahasiswa {
   role: string;
   semester?: number;
   is_veteran?: boolean;
+  is_multi_veteran?: boolean;
   veteran_notes?: string;
   veteran_set_at?: string;
   veteran_set_by?: number;
   veteran_semester?: string;
+  veteran_semesters?: string[];
+  veteran_history?: any[];
   semester_asli?: number;
+  is_locked?: boolean;
+  is_available?: boolean;
   veteranSetBy?: {
     id: number;
     name: string;
@@ -106,11 +111,11 @@ export const tahunAjaranApi = {
 // Kelompok Besar API
 export const kelompokBesarApi = {
   // Get mahasiswa kelompok besar per semester
-  getBySemester: (semester: string) => 
+  getBySemester: (semester: string) =>
     api.get<KelompokBesar[]>(`/kelompok-besar?semester=${semester}`),
 
   // Get mahasiswa kelompok besar per semester ID
-  getBySemesterId: (semesterId: number) => 
+  getBySemesterId: (semesterId: number) =>
     api.get<KelompokBesarResponse>(`/kelompok-besar/semester/${semesterId}`),
 
   // Tambah mahasiswa ke kelompok besar
@@ -137,10 +142,10 @@ export const kelompokKecilApi = {
     api.get<KelompokKecil[]>(`/kelompok-kecil?semester=${semester}`),
 
   // Generate kelompok kecil
-  generate: (data: { 
-    semester: string; 
-    mahasiswa_ids: number[]; 
-    jumlah_kelompok: number 
+  generate: (data: {
+    semester: string;
+    mahasiswa_ids: number[];
+    jumlah_kelompok: number
   }) =>
     api.post('/kelompok-kecil', data),
 
@@ -256,6 +261,27 @@ export const mahasiswaVeteranApi = {
   getStatistics: () =>
     api.get('/mahasiswa-veteran/statistics'),
 
+  // Toggle multi-veteran status
+  toggleMultiVeteran: (data: {
+    user_id: number;
+    is_multi_veteran: boolean;
+  }) =>
+    api.post('/mahasiswa-veteran/toggle-multi-veteran', data),
+
+  // Add veteran to semester
+  addToSemester: (data: {
+    user_id: number;
+    semester: string;
+  }) =>
+    api.post('/mahasiswa-veteran/add-to-semester', data),
+
+  // Remove veteran from semester
+  removeFromSemester: (data: {
+    user_id: number;
+    semester: string;
+  }) =>
+    api.post('/mahasiswa-veteran/remove-from-semester', data),
+
   // Release veteran from semester
   releaseFromSemester: (data: {
     user_id: number;
@@ -298,4 +324,4 @@ export const pblGenerateApi = {
   // Check generate status per blok
   checkGenerateStatus: (blok: number) =>
     api.get(`/pbl-generate/check-status?blok=${blok}`),
-}; 
+};

@@ -320,6 +320,22 @@ export default function DashboardDosen() {
       if (notification.data?.category_slug) {
         navigate(`/forum-category/${notification.data.category_slug}`);
       }
+    } else if (notification.data?.jadwal_type) {
+      // Handle jadwal notifications - scroll to Jadwal & Konfirmasi section
+      const jadwalSection = document.getElementById('jadwal-konfirmasi-section');
+      if (jadwalSection) {
+        jadwalSection.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start' 
+        });
+        
+        // Optional: Add a subtle highlight effect
+        jadwalSection.style.transition = 'all 0.3s ease';
+        jadwalSection.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
+        setTimeout(() => {
+          jadwalSection.style.backgroundColor = '';
+        }, 2000);
+      }
     }
   };
 
@@ -333,6 +349,25 @@ export default function DashboardDosen() {
       return faReply;
     } else if (notification.data?.notification_type === "category_created") {
       return faFolderPlus;
+    } else if (notification.data?.jadwal_type) {
+      // Jadwal notification icons
+      const jadwalType = notification.data.jadwal_type;
+      switch (jadwalType) {
+        case "pbl":
+          return faBookOpen;
+        case "kuliah_besar":
+          return faGraduationCap;
+        case "praktikum":
+          return faFlask;
+        case "jurnal":
+          return faNewspaper;
+        case "csr":
+          return faUsers;
+        case "non_blok_non_csr":
+          return faFileAlt;
+        default:
+          return faCalendar;
+      }
     }
 
     // Default icons for other notification types
@@ -1635,6 +1670,10 @@ export default function DashboardDosen() {
                       notification.is_read
                         ? "bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600"
                         : "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700"
+                    } ${
+                      notification.data?.jadwal_type 
+                        ? "hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-600" 
+                        : ""
                     }`}
                   >
                     <div className="flex items-start gap-4">
@@ -1675,10 +1714,13 @@ export default function DashboardDosen() {
                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-2 line-clamp-2">
                           {notification.message}
                         </p>
-                        {/* Show sender info for jadwal notifications */}
                         {notification.data?.jadwal_type && (
                           <div className="flex items-center gap-2 mb-2">
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+                              <FontAwesomeIcon icon={faCalendar} className="w-3 h-3 mr-1" />
+                              Klik untuk lihat jadwal
+                            </span>
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-900/20 dark:text-gray-300">
                               {notification.data?.created_by ||
                                 notification.data?.sender_name ||
                                 "Sistem"}
@@ -2214,7 +2256,7 @@ export default function DashboardDosen() {
         </div>
 
         {/* Jadwal Tables */}
-        <div className="col-span-12 mb-6">
+        <div id="jadwal-konfirmasi-section" className="col-span-12 mb-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

@@ -20,7 +20,7 @@ class MahasiswaVeteranController extends Controller
                     ->with('veteranSetBy:id,name')
                     ->select([
                         'id', 'name', 'nim', 'gender', 'ipk', 'status', 'angkatan', 'semester',
-                        'is_veteran', 'veteran_notes', 'veteran_set_at', 'veteran_set_by', 'veteran_semester'
+                        'is_veteran', 'is_multi_veteran', 'veteran_notes', 'veteran_set_at', 'veteran_set_by', 'veteran_semester', 'veteran_semesters'
                     ]);
 
             // Filter by veteran status
@@ -63,7 +63,7 @@ class MahasiswaVeteranController extends Controller
             'user_id' => 'required|exists:users,id',
             'is_veteran' => 'required|boolean',
             'veteran_notes' => 'nullable|string|max:1000',
-            'veteran_semester' => 'nullable|string'
+            'veteran_semester' => 'nullable|string' // Deprecated: akan dihapus
         ]);
 
         if ($validator->fails()) {
@@ -89,12 +89,42 @@ class MahasiswaVeteranController extends Controller
             if ($request->is_veteran) {
                 $user->veteran_set_at = now();
                 $user->veteran_set_by = Auth::id();
-                $user->veteran_semester = $request->veteran_semester ?? null;
+
+                // Hanya set status veteran, veteran_semesters kosong dulu
+                // Semester akan diisi saat dipilih di Kelompok Besar/Kecil
+                if ($request->veteran_semester) {
+                    $user->veteran_semesters = [$request->veteran_semester];
+
+                    // Tambah ke veteran_history jika ada semester
+                    $history = $user->veteran_history ?? [];
+                    $history[] = [
+                        'semester' => $request->veteran_semester,
+                        'active' => true,
+                        'created_at' => now()->toISOString(),
+                        'action' => 'set_veteran'
+                    ];
+                    $user->veteran_history = $history;
+                } else {
+                    // Jika tidak ada semester, veteran_semesters kosong
+                    $user->veteran_semesters = [];
+                }
             } else {
                 $user->veteran_set_at = null;
                 $user->veteran_set_by = null;
                 $user->veteran_notes = null;
-                $user->veteran_semester = null;
+
+                // Hapus veteran_semesters (status aktif)
+                $user->veteran_semesters = [];
+
+                // Tambah ke veteran_history bahwa veteran dihapus
+                $history = $user->veteran_history ?? [];
+                $history[] = [
+                    'semester' => null,
+                    'active' => false,
+                    'created_at' => now()->toISOString(),
+                    'action' => 'remove_veteran'
+                ];
+                $user->veteran_history = $history;
             }
 
             $user->save();
@@ -180,7 +210,7 @@ class MahasiswaVeteranController extends Controller
                     'veteran_notes' => $request->veteran_notes,
                     'count' => $users->count()
                 ])
-                ->log($request->is_veteran 
+                ->log($request->is_veteran
                     ? "Bulk set veteran: {$users->count()} mahasiswa ditetapkan sebagai veteran"
                     : "Bulk remove veteran: Status veteran dihapus dari {$users->count()} mahasiswa"
                 );
@@ -226,6 +256,239 @@ class MahasiswaVeteranController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Gagal mengambil statistik veteran',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Toggle multi-veteran status for a mahasiswa
+     */
+    public function toggleMultiVeteran(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'user_id' => 'required|exists:users,id',
+            'is_multi_veteran' => 'required|boolean'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validasi gagal',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $user = User::findOrFail($request->user_id);
+
+            // Check if user is mahasiswa and veteran
+            if ($user->role !== 'mahasiswa' || !$user->is_veteran) {
+                return response()->json([
+                    'message' => 'User harus mahasiswa veteran terlebih dahulu'
+                ], 400);
+            }
+
+            $user->is_multi_veteran = $request->is_multi_veteran;
+
+            // Jika multi-veteran dihapus, hapus semua veteran_semesters kecuali yang pertama kali didaftarkan
+            if (!$request->is_multi_veteran && $user->veteran_semesters && count($user->veteran_semesters) > 1) {
+                // Cari semester pertama dari veteran_history (yang pertama kali didaftarkan)
+                $history = $user->veteran_history ?? [];
+                $firstVeteranEntry = null;
+
+                // Cari entry pertama dengan action 'set_veteran' atau 'add_to_semester'
+                foreach ($history as $entry) {
+                    if (isset($entry['action']) && in_array($entry['action'], ['set_veteran', 'add_to_semester']) && $entry['active'] === true) {
+                        $firstVeteranEntry = $entry;
+                        break;
+                    }
+                }
+
+                // Jika ditemukan, gunakan semester dari entry pertama
+                if ($firstVeteranEntry && isset($firstVeteranEntry['semester'])) {
+                    $originalSemester = $firstVeteranEntry['semester'];
+                    $user->veteran_semesters = [$originalSemester];
+
+                    // Update veteran_history untuk mencatat penghapusan multi-veteran
+                    $history[] = [
+                        'semester' => null,
+                        'active' => false,
+                        'created_at' => now()->toISOString(),
+                        'action' => 'remove_multi_veteran',
+                        'note' => 'Multi-veteran dihapus, kembali ke semester asli: ' . $originalSemester
+                    ];
+                    $user->veteran_history = $history;
+                } else {
+                    // Fallback: gunakan semester pertama dari array
+                    $firstSemester = $user->veteran_semesters[0];
+                    $user->veteran_semesters = [$firstSemester];
+
+                    $history[] = [
+                        'semester' => null,
+                        'active' => false,
+                        'created_at' => now()->toISOString(),
+                        'action' => 'remove_multi_veteran',
+                        'note' => 'Multi-veteran dihapus, tersisa semester ' . $firstSemester
+                    ];
+                    $user->veteran_history = $history;
+                }
+            }
+
+            $user->save();
+
+            // Log activity
+            activity()
+                ->performedOn($user)
+                ->withProperties([
+                    'is_multi_veteran' => $request->is_multi_veteran
+                ])
+                ->log($request->is_multi_veteran ? 'Mahasiswa veteran dijadikan multi-veteran' : 'Status multi-veteran mahasiswa dihapus');
+
+            // Load relationship for response
+            $user->load('veteranSetBy:id,name');
+
+            return response()->json([
+                'message' => $request->is_multi_veteran ? 'Mahasiswa berhasil dijadikan multi-veteran' : 'Status multi-veteran berhasil dihapus',
+                'data' => $user
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal mengupdate status multi-veteran',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Add veteran to semester (tambahkan veteran ke semester)
+     */
+    public function addVeteranToSemester(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'user_id' => 'required|exists:users,id',
+            'semester' => 'required|string'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validasi gagal',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $user = User::findOrFail($request->user_id);
+
+            // Check if user is mahasiswa and veteran
+            if ($user->role !== 'mahasiswa' || !$user->is_veteran) {
+                return response()->json([
+                    'message' => 'User bukan mahasiswa veteran'
+                ], 400);
+            }
+
+            // Get current veteran_semesters array
+            $currentSemesters = $user->veteran_semesters ?? [];
+
+            // Add semester if not already exists
+            if (!in_array($request->semester, $currentSemesters)) {
+                $currentSemesters[] = $request->semester;
+                $user->veteran_semesters = $currentSemesters;
+
+                // Tambah ke veteran_history
+                $history = $user->veteran_history ?? [];
+                $history[] = [
+                    'semester' => $request->semester,
+                    'active' => true,
+                    'created_at' => now()->toISOString(),
+                    'action' => 'add_to_semester'
+                ];
+                $user->veteran_history = $history;
+
+                $user->save();
+
+                activity()
+                    ->performedOn($user)
+                    ->withProperties([
+                        'semester' => $request->semester,
+                        'veteran_semesters' => $currentSemesters
+                    ])
+                    ->log('Veteran ditambahkan ke semester ' . $request->semester);
+
+                return response()->json([
+                    'message' => 'Veteran berhasil ditambahkan ke semester',
+                    'data' => $user
+                ]);
+            } else {
+                return response()->json([
+                    'message' => 'Veteran sudah terdaftar di semester ini'
+                ], 400);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal menambahkan veteran ke semester',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove veteran from semester (keluarkan veteran dari semester)
+     */
+    public function removeVeteranFromSemester(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'user_id' => 'required|exists:users,id',
+            'semester' => 'required|string'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validasi gagal',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $user = User::findOrFail($request->user_id);
+
+            // Check if user is mahasiswa and veteran
+            if ($user->role !== 'mahasiswa' || !$user->is_veteran) {
+                return response()->json([
+                    'message' => 'User bukan mahasiswa veteran'
+                ], 400);
+            }
+
+            // Get current veteran_semesters array
+            $currentSemesters = $user->veteran_semesters ?? [];
+
+            // Remove semester if exists
+            $key = array_search($request->semester, $currentSemesters);
+            if ($key !== false) {
+                unset($currentSemesters[$key]);
+                $currentSemesters = array_values($currentSemesters); // Re-index array
+                $user->veteran_semesters = $currentSemesters;
+                $user->save();
+
+                activity()
+                    ->performedOn($user)
+                    ->withProperties([
+                        'semester' => $request->semester,
+                        'veteran_semesters' => $currentSemesters
+                    ])
+                    ->log('Veteran dikeluarkan dari semester ' . $request->semester);
+
+                return response()->json([
+                    'message' => 'Veteran berhasil dikeluarkan dari semester',
+                    'data' => $user
+                ]);
+            } else {
+                return response()->json([
+                    'message' => 'Veteran tidak terdaftar di semester ini'
+                ], 400);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal mengeluarkan veteran dari semester',
                 'error' => $e->getMessage()
             ], 500);
         }
