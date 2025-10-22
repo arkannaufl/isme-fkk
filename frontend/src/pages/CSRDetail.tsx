@@ -72,10 +72,7 @@ const CSRDetail: React.FC = () => {
   const [mapping, setMapping] = useState<{ [keahlian: string]: User[] }>({});
   const [draggedDosenId, setDraggedDosenId] = useState<number | null>(null);
   
-  // Touch event states
-  const [touchStartPos, setTouchStartPos] = useState<{ x: number; y: number } | null>(null);
-  const [isTouchDragging, setIsTouchDragging] = useState(false);
-  const [touchDraggedDosenId, setTouchDraggedDosenId] = useState<number | null>(null);
+  // Drag state - using HTML5 Drag API like KelompokKecil.tsx
 
   // Keahlian edit states
   const [editKeahlian, setEditKeahlian] = useState<string | null>(null);
@@ -264,35 +261,48 @@ const CSRDetail: React.FC = () => {
   };
 
 
-  // Touch event handlers
-  const handleTouchStart = (e: React.TouchEvent, dosenId: number) => {
-    const touch = e.touches[0];
-    setTouchStartPos({ x: touch.clientX, y: touch.clientY });
-    setTouchDraggedDosenId(dosenId);
-    setIsTouchDragging(false);
-  };
+  // HTML5 Drag API handlers - same as KelompokKecil.tsx
+  const handleDragStart = (e: React.DragEvent, dosenId: number) => {
+    setDraggedDosenId(dosenId);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", dosenId.toString());
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!touchStartPos || !touchDraggedDosenId) return;
-    
-    const touch = e.touches[0];
-    const deltaX = Math.abs(touch.clientX - touchStartPos.x);
-    const deltaY = Math.abs(touch.clientY - touchStartPos.y);
-    
-    // Start dragging if moved more than 10px
-    if (deltaX > 10 || deltaY > 10) {
-      setIsTouchDragging(true);
-      setDraggedDosenId(touchDraggedDosenId);
-      // Prevent scrolling during drag
-      e.preventDefault();
+    // Tambahkan styling drag
+    if (e.currentTarget) {
+      (e.currentTarget as HTMLElement).style.opacity = "0.5";
+    }
+
+    // Create custom drag image with + icon
+    const allMappedDosen = Object.values(mapping).flat();
+    const allDosen = [...regularDosen, ...standbyDosen, ...allMappedDosen];
+    const dosen = allDosen.find(d => d.id === dosenId);
+    if (dosen) {
+      const dragElement = document.createElement('div');
+      dragElement.className = 'p-3 bg-brand-500 rounded-lg shadow-lg flex items-center gap-2';
+      dragElement.innerHTML = `
+        <div class="w-8 h-8 bg-white rounded-full flex items-center justify-center">
+          <svg class="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+          </svg>
+        </div>
+        <span class="text-white font-medium">${dosen.name}</span>
+      `;
+      dragElement.style.position = 'absolute';
+      dragElement.style.top = '-1000px';
+      document.body.appendChild(dragElement);
+      e.dataTransfer.setDragImage(dragElement, 0, 0);
+      setTimeout(() => document.body.removeChild(dragElement), 0);
     }
   };
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    setTouchStartPos(null);
-    setTouchDraggedDosenId(null);
-    setIsTouchDragging(false);
+  const handleDragEnd = (e: React.DragEvent) => {
+    e.preventDefault();
     setDraggedDosenId(null);
+
+    // Hapus styling drag
+    if (e.currentTarget) {
+      (e.currentTarget as HTMLElement).style.opacity = "1";
+    }
   };
 
   // Assign dosen ke keahlian (mapping dosen ke CSR)
@@ -734,7 +744,7 @@ const CSRDetail: React.FC = () => {
             {csrKeahlianOptions.length === 0 && !loadingKeahlianOptions && (
               <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                 <p className="text-yellow-800 dark:text-yellow-200 text-sm">
-                  ⚠️ Tidak ada keahlian tersedia untuk CSR {csr?.nomor_csr}. Silakan tambahkan keahlian terlebih dahulu di MataKuliah.tsx.
+                  ⚠️ Tidak ada keahlian tersedia untuk CSR {csr?.nomor_csr}. Silakan tambahkan keahlian terlebih dahulu di halaman Mata Kuliah.
                 </p>
               </div>
             )}
@@ -900,20 +910,6 @@ const CSRDetail: React.FC = () => {
                         setDraggedDosenId(null);
                       }
                     }}
-                    onTouchMove={(e) => {
-                      if (isTouchDragging && draggedDosenId) {
-                        e.preventDefault();
-                      }
-                    }}
-                    onTouchEnd={(e) => {
-                      if (isTouchDragging && draggedDosenId) {
-                        e.preventDefault();
-                        handleAssignDosen(draggedDosenId, k);
-                        setDraggedDosenId(null);
-                        setTouchDraggedDosenId(null);
-                        setIsTouchDragging(false);
-                      }
-                    }}
                   >
                     {mapping[k] && mapping[k].length > 0 ? (
                       mapping[k].map((d) => {
@@ -1050,17 +1046,11 @@ const CSRDetail: React.FC = () => {
                             return (
                               <div
                                 key={dosen.id}
-                                className={`p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-move ${
-                                  isTouchDragging && touchDraggedDosenId === dosen.id
-                                    ? "opacity-50 scale-95 rotate-1"
-                                    : ""
-                                }`}
+                                className="p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-move"
                                 draggable
-                                onDragStart={() => setDraggedDosenId(dosen.id)}
-                                onDragEnd={() => setDraggedDosenId(null)}
-                                onTouchStart={(e) => handleTouchStart(e, dosen.id)}
-                                onTouchMove={handleTouchMove}
-                                onTouchEnd={handleTouchEnd}
+                                onDragStart={(e) => handleDragStart(e, dosen.id)}
+                                onDragEnd={handleDragEnd}
+                                style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
                               >
                                 <div className="flex items-start gap-3 mb-3">
                                   <div
@@ -1168,17 +1158,11 @@ const CSRDetail: React.FC = () => {
                     return (
                       <div
                         key={dosen.id}
-                        className={`p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-move ${
-                          isTouchDragging && touchDraggedDosenId === dosen.id
-                            ? "opacity-50 scale-95 rotate-1"
-                            : ""
-                        }`}
+                        className="p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-move"
                         draggable
-                        onDragStart={() => setDraggedDosenId(dosen.id)}
-                        onDragEnd={() => setDraggedDosenId(null)}
-                        onTouchStart={(e) => handleTouchStart(e, dosen.id)}
-                        onTouchMove={handleTouchMove}
-                        onTouchEnd={handleTouchEnd}
+                        onDragStart={(e) => handleDragStart(e, dosen.id)}
+                        onDragEnd={handleDragEnd}
+                        style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
                       >
                         {/* Header dengan Avatar dan Info Dasar */}
                         <div className="flex items-start gap-3 mb-3">
@@ -1270,17 +1254,11 @@ const CSRDetail: React.FC = () => {
                     return (
                       <div
                         key={dosen.id}
-                        className={`p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-move ${
-                          isTouchDragging && touchDraggedDosenId === dosen.id
-                            ? "opacity-50 scale-95 rotate-1"
-                            : ""
-                        }`}
+                        className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-move"
                         draggable
-                        onDragStart={() => setDraggedDosenId(dosen.id)}
-                        onDragEnd={() => setDraggedDosenId(null)}
-                        onTouchStart={(e) => handleTouchStart(e, dosen.id)}
-                        onTouchMove={handleTouchMove}
-                        onTouchEnd={handleTouchEnd}
+                        onDragStart={(e) => handleDragStart(e, dosen.id)}
+                        onDragEnd={handleDragEnd}
+                        style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
                       >
                         {/* Header dengan Avatar dan Info Dasar */}
                         <div className="flex items-start gap-3 mb-3">

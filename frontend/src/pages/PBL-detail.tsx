@@ -327,10 +327,7 @@ export default function PBL() {
   const [dragOverPBLId, setDragOverPBLId] = useState<number | null>(null);
   const [isMovingDosen, setIsMovingDosen] = useState(false);
   
-  // Touch event states
-  const [touchStartPos, setTouchStartPos] = useState<{ x: number; y: number } | null>(null);
-  const [isTouchDragging, setIsTouchDragging] = useState(false);
-  const [touchDraggedDosen, setTouchDraggedDosen] = useState<Dosen | null>(null);
+  // Drag state - using HTML5 Drag API like KelompokKecil.tsx
   // Tambahkan state untuk assigned dosen per PBL
   const [assignedDosen, setAssignedDosen] = useState<{
     [pblId: number]: Dosen[];
@@ -370,35 +367,43 @@ export default function PBL() {
   const [peranAnggotaCount, setPeranAnggotaCount] = useState<number>(0);
   const [dosenMengajarCount, setDosenMengajarCount] = useState<number>(0);
 
-  // Fungsi untuk mengecek apakah keahlian dosen sesuai dengan mata kuliah
-  const handleTouchStart = (e: React.TouchEvent, dosen: Dosen) => {
-    const touch = e.touches[0];
-    setTouchStartPos({ x: touch.clientX, y: touch.clientY });
-    setTouchDraggedDosen(dosen);
-    setIsTouchDragging(false);
-  };
+  // HTML5 Drag API handlers - same as KelompokKecil.tsx
+  const handleDragStart = (e: React.DragEvent, dosen: Dosen) => {
+    setDraggedDosen(dosen);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", dosen.id.toString());
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!touchStartPos || !touchDraggedDosen) return;
-    
-    const touch = e.touches[0];
-    const deltaX = Math.abs(touch.clientX - touchStartPos.x);
-    const deltaY = Math.abs(touch.clientY - touchStartPos.y);
-    
-    // Start dragging if moved more than 10px
-    if (deltaX > 10 || deltaY > 10) {
-      setIsTouchDragging(true);
-      setDraggedDosen(touchDraggedDosen);
-      // Prevent scrolling during drag
-      e.preventDefault();
+    // Tambahkan styling drag
+    if (e.currentTarget) {
+      (e.currentTarget as HTMLElement).style.opacity = "0.5";
     }
+
+    // Create custom drag image with + icon
+    const dragElement = document.createElement('div');
+    dragElement.className = 'p-3 bg-brand-500 rounded-lg shadow-lg flex items-center gap-2';
+    dragElement.innerHTML = `
+      <div class="w-8 h-8 bg-white rounded-full flex items-center justify-center">
+        <svg class="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+        </svg>
+      </div>
+      <span class="text-white font-medium">${dosen.name}</span>
+    `;
+    dragElement.style.position = 'absolute';
+    dragElement.style.top = '-1000px';
+    document.body.appendChild(dragElement);
+    e.dataTransfer.setDragImage(dragElement, 0, 0);
+    setTimeout(() => document.body.removeChild(dragElement), 0);
   };
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    setTouchStartPos(null);
-    setTouchDraggedDosen(null);
-    setIsTouchDragging(false);
+  const handleDragEnd = (e: React.DragEvent) => {
+    e.preventDefault();
     setDraggedDosen(null);
+
+    // Hapus styling drag
+    if (e.currentTarget) {
+      (e.currentTarget as HTMLElement).style.opacity = "1";
+    }
   };
 
   // Handle dosen drop for touch events
@@ -3394,25 +3399,6 @@ export default function PBL() {
                                       e.preventDefault();
                                       setDragOverPBLId(null);
                                     }}
-                                    onTouchMove={(e) => {
-                                      if (isTouchDragging && draggedDosen) {
-                                        e.preventDefault();
-                                        if (
-                                          draggedDosen &&
-                                          draggedFromPBLId !== null &&
-                                          draggedFromPBLId !== pbl.id
-                                        ) {
-                                          setDragOverPBLId(pbl.id!);
-                                        }
-                                      }
-                                    }}
-                                    onTouchEnd={async (e) => {
-                                      if (isTouchDragging && draggedDosen) {
-                                        e.preventDefault();
-                                        setDragOverPBLId(null);
-                                        await handleDosenDrop(draggedDosen, pbl, mk);
-                                      }
-                                    }}
                                     onDrop={async (e) => {
                                       e.preventDefault();
                                       setDragOverPBLId(null);
@@ -4553,17 +4539,11 @@ export default function PBL() {
                   availableDosenList.map((dosen) => (
                     <div
                       key={dosen.id}
-                      className={`p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-move ${
-                        isTouchDragging && touchDraggedDosen?.id === dosen.id
-                          ? "opacity-50 scale-95 rotate-1"
-                          : ""
-                      }`}
+                      className="p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-move"
                       draggable
-                      onDragStart={() => setDraggedDosen(dosen)}
-                      onDragEnd={() => setDraggedDosen(null)}
-                      onTouchStart={(e) => handleTouchStart(e, dosen)}
-                      onTouchMove={handleTouchMove}
-                      onTouchEnd={handleTouchEnd}
+                      onDragStart={(e) => handleDragStart(e, dosen)}
+                      onDragEnd={handleDragEnd}
+                      style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
                     >
                       {/* Header dengan Avatar dan Info Dasar */}
                       <div className="flex items-start gap-3 mb-3">
@@ -4755,21 +4735,11 @@ export default function PBL() {
                   standbyDosenList.map((dosen) => (
                     <div
                       key={dosen.id}
-                      className={`p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-move ${
-                        draggedDosen?.id === dosen.id
-                          ? "ring-2 ring-yellow-500 scale-105"
-                          : ""
-                      } ${
-                        isTouchDragging && touchDraggedDosen?.id === dosen.id
-                          ? "opacity-50 scale-95 rotate-1"
-                          : ""
-                      }`}
+                      className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-move"
                       draggable
-                      onDragStart={() => setDraggedDosen(dosen)}
-                      onDragEnd={() => setDraggedDosen(null)}
-                      onTouchStart={(e) => handleTouchStart(e, dosen)}
-                      onTouchMove={handleTouchMove}
-                      onTouchEnd={handleTouchEnd}
+                      onDragStart={(e) => handleDragStart(e, dosen)}
+                      onDragEnd={handleDragEnd}
+                      style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
                     >
                       {/* Header dengan Avatar dan Info Dasar */}
                       <div className="flex items-start gap-3 mb-3">
