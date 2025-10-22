@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\CSR;
 use App\Models\MataKuliah;
+use App\Models\KeahlianCSR;
 use Illuminate\Http\Response;
 
 class MataKuliahCSRController extends Controller
@@ -32,6 +33,18 @@ class MataKuliahCSRController extends Controller
         ]);
         $validated['mata_kuliah_kode'] = $kode;
         $csr = CSR::create($validated);
+
+        // Simpan keahlian CSR ke database keahlian_csr
+        if (isset($validated['keahlian_required']) && is_array($validated['keahlian_required'])) {
+            foreach ($validated['keahlian_required'] as $keahlian) {
+                if (!empty(trim($keahlian))) {
+                    KeahlianCSR::create([
+                        'csr_id' => $csr->id,
+                        'keahlian' => trim($keahlian)
+                    ]);
+                }
+            }
+        }
 
         // Log activity
         activity()
@@ -65,12 +78,31 @@ class MataKuliahCSRController extends Controller
         $csr = CSR::findOrFail($id);
         $validated = $request->validate([
             'nomor_csr' => 'sometimes|required|string',
-            'keahlian' => 'nullable|string',
+            'keahlian_required' => 'nullable|array',
+            'keahlian_required.*' => 'string',
             'tanggal_mulai' => 'nullable|date',
             'tanggal_akhir' => 'nullable|date',
         ]);
         
         $csr->update($validated);
+
+        // Update keahlian CSR di database keahlian_csr
+        if (isset($validated['keahlian_required'])) {
+            // Hapus keahlian lama
+            KeahlianCSR::where('csr_id', $csr->id)->delete();
+            
+            // Tambah keahlian baru
+            if (is_array($validated['keahlian_required'])) {
+                foreach ($validated['keahlian_required'] as $keahlian) {
+                    if (!empty(trim($keahlian))) {
+                        KeahlianCSR::create([
+                            'csr_id' => $csr->id,
+                            'keahlian' => trim($keahlian)
+                        ]);
+                    }
+                }
+            }
+        }
 
         // Log activity
         activity()
@@ -93,6 +125,9 @@ class MataKuliahCSRController extends Controller
     public function destroy($id)
     {
         $csr = CSR::findOrFail($id);
+
+        // Hapus keahlian CSR terlebih dahulu
+        KeahlianCSR::where('csr_id', $csr->id)->delete();
 
         // Log activity before deletion
         activity()

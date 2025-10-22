@@ -346,6 +346,9 @@ export default function MataKuliah() {
   >([]);
   // Tambahan state untuk CSR yang dihapus
   const [deletedCsrIds, setDeletedCsrIds] = useState<number[]>([]);
+  // State untuk keahlian CSR
+  const [csrKeahlian, setCsrKeahlian] = useState<{ [csrId: string]: string[] }>({});
+  const [newKeahlianCSR, setNewKeahlianCSR] = useState<{ [csrId: string]: string }>({});
   // State untuk menyimpan CSR asli dari backend saat edit
   const [oldCsrList, setOldCsrList] = useState<CSRItem[]>([]);
   // Tambahkan state untuk semester aktif
@@ -797,35 +800,53 @@ export default function MataKuliah() {
 
         // Sinkronisasi CSR (hanya jika bukan semester Antara)
         if (form.semester !== "Antara") {
-          // 1. Update/POST
-          await Promise.all(
-            csrList.map(async (csr) => {
-              if (csr.id) {
-                // PUT
-                await api.put(`/csrs/${csr.id}`, {
-                  nomor_csr: csr.nomor_csr,
-                  tanggal_mulai: toDateYMD(csr.tanggal_mulai),
-                  tanggal_akhir: toDateYMD(csr.tanggal_akhir),
-                });
-              } else {
-                // POST
-                await api.post(`/mata-kuliah/${form.kode}/csrs`, {
-                  nomor_csr: csr.nomor_csr,
-                  tanggal_mulai: toDateYMD(csr.tanggal_mulai),
-                  tanggal_akhir: toDateYMD(csr.tanggal_akhir),
-                  keahlian_required: csr.keahlian_required || [], // pastikan selalu dikirim
-                });
-              }
-            })
-          );
-          // 2. DELETE
-          await Promise.all(
-            deletedCsrIds.map(async (id) => {
-              try {
-                await api.delete(`/csrs/${id}`);
-              } catch (e) {}
-            })
-          );
+          console.log('Processing CSR for semester:', form.semester);
+          console.log('CSR List:', csrList);
+          console.log('CSR Keahlian:', csrKeahlian);
+          
+          try {
+            // 1. Update/POST CSR dengan keahlian
+            await Promise.all(
+              csrList.map(async (csr, index) => {
+                const csrId = csr.id ? csr.id.toString() : `temp_${index}`;
+                const keahlianList = csrKeahlian[csrId] || [];
+                
+                if (csr.id) {
+                  // PUT - Update CSR yang sudah ada
+                  await api.put(`/csrs/${csr.id}`, {
+                    nomor_csr: csr.nomor_csr,
+                    tanggal_mulai: toDateYMD(csr.tanggal_mulai),
+                    tanggal_akhir: toDateYMD(csr.tanggal_akhir),
+                    keahlian_required: keahlianList,
+                  });
+                } else {
+                  // POST - Create new CSR
+                  await api.post(`/mata-kuliah/${form.kode}/csrs`, {
+                    nomor_csr: csr.nomor_csr,
+                    tanggal_mulai: toDateYMD(csr.tanggal_mulai),
+                    tanggal_akhir: toDateYMD(csr.tanggal_akhir),
+                    keahlian_required: keahlianList,
+                  });
+                }
+              })
+            );
+            
+            // 2. DELETE CSR yang dihapus
+            await Promise.all(
+              deletedCsrIds.map(async (id) => {
+                try {
+                  await api.delete(`/csrs/${id}`);
+                } catch (err) {
+                  console.error('Error deleting CSR:', err);
+                }
+              })
+            );
+            
+            console.log('CSR processing completed successfully');
+          } catch (err) {
+            console.error('Error in CSR processing:', err);
+            // Don't throw error, just log it
+          }
         }
       } else {
         await api.post("/mata-kuliah", {
@@ -913,9 +934,17 @@ export default function MataKuliah() {
         }
       }
     } catch (error: any) {
+      console.error('Error in handleSaveData:', error);
+      console.error('Error response:', error.response);
+      console.error('Error message:', error.message);
+      
       if (error.response?.data?.errors) {
         const errorMessages = Object.values(error.response.data.errors).flat();
         setError(errorMessages.join(", "));
+      } else if (error.response?.data?.message) {
+        setError(error.response.data.message);
+      } else if (error.message) {
+        setError(error.message);
       } else {
         setError("Gagal menyimpan data mata kuliah");
       }
@@ -975,23 +1004,46 @@ export default function MataKuliah() {
     });
     setShowModal(true);
     setEditMode(true);
+    
+    // Reset keahlian CSR states
+    setCsrKeahlian({});
+    setNewKeahlianCSR({});
+    
     // Fetch CSR dari backend (hanya jika bukan semester Antara)
     if (mk.semester !== "Antara") {
       try {
         const res = await api.get(`/mata-kuliah/${mk.kode}/csrs`);
-        setCsrList(Array.isArray(res.data) ? res.data : []);
-        setOldCsrList(Array.isArray(res.data) ? res.data : []);
+        const csrData = Array.isArray(res.data) ? res.data : [];
+        setCsrList(csrData);
+        setOldCsrList(csrData);
         setDeletedCsrIds([]);
+        
+        // Load existing keahlian CSR
+        const keahlianMap: { [csrId: string]: string[] } = {};
+        for (const csr of csrData) {
+          if (csr.id) {
+            try {
+              const keahlianRes = await api.get(`/keahlian-csr/csr/${csr.id}`);
+              keahlianMap[csr.id.toString()] = keahlianRes.data.data?.map((k: any) => k.keahlian) || [];
+            } catch (err) {
+              console.log('No keahlian found for CSR', csr.id);
+              keahlianMap[csr.id.toString()] = [];
+            }
+          }
+        }
+        setCsrKeahlian(keahlianMap);
       } catch (e) {
         setCsrList([]);
         setOldCsrList([]);
         setDeletedCsrIds([]);
+        setCsrKeahlian({});
       }
     } else {
       // Semester Antara tidak memiliki CSR
       setCsrList([]);
       setOldCsrList([]);
       setDeletedCsrIds([]);
+      setCsrKeahlian({});
     }
     // Fetch PBL dari backend jika jenis Blok
     if (mk.jenis === "Blok") {
@@ -1230,6 +1282,9 @@ export default function MataKuliah() {
     setPblList([]);
     setJurnalReadingList([]);
     setOldJurnalReadingList([]);
+    // Reset keahlian CSR states
+    setCsrKeahlian({});
+    setNewKeahlianCSR({});
     // Reset RPS state
     setRpsFile(null);
     setExistingRpsFile(null);
@@ -2218,6 +2273,30 @@ export default function MataKuliah() {
         setDeletedCsrIds((ids) => [...ids, csr.id as number]);
       return list.filter((_, i) => i !== idx);
     });
+  };
+
+  // Fungsi untuk menambah keahlian CSR
+  const handleAddKeahlianCSR = (csrId: string) => {
+    const keahlian = newKeahlianCSR[csrId]?.trim();
+    if (!keahlian) return;
+
+    setCsrKeahlian((prev) => ({
+      ...prev,
+      [csrId]: [...(prev[csrId] || []), keahlian],
+    }));
+
+    setNewKeahlianCSR((prev) => ({
+      ...prev,
+      [csrId]: "",
+    }));
+  };
+
+  // Fungsi untuk menghapus keahlian CSR
+  const handleRemoveKeahlianCSR = (csrId: string, keahlian: string) => {
+    setCsrKeahlian((prev) => ({
+      ...prev,
+      [csrId]: (prev[csrId] || []).filter((k) => k !== keahlian),
+    }));
   };
 
   // Fungsi untuk download RPS file
@@ -4056,68 +4135,134 @@ export default function MataKuliah() {
                               Aksi
                             </span>
                           </div>
-                          {csrList.map((csr, idx) => (
-                            <div
-                              key={csr.id || idx}
-                              className="flex gap-2 my-2 items-center"
-                            >
-                              <input
-                                type="text"
-                                value={csr.nomor_csr}
-                                onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                                  setCsrList((list) =>
-                                    list.map((c, i) =>
-                                      i === idx
-                                        ? { ...c, nomor_csr: e.target.value }
-                                        : c
-                                    )
-                                  )
-                                }
-                                className="w-20 px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 text-center"
-                              />
-                              <input
-                                type="date"
-                                value={toDateInputValue(csr.tanggal_mulai)}
-                                onChange={(e) =>
-                                  setCsrList((list) =>
-                                    list.map((c, i) =>
-                                      i === idx
-                                        ? {
-                                            ...c,
-                                            tanggal_mulai: e.target.value,
-                                          }
-                                        : c
-                                    )
-                                  )
-                                }
-                                className="w-36 px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100"
-                              />
-                              <input
-                                type="date"
-                                value={toDateInputValue(csr.tanggal_akhir)}
-                                onChange={(e) =>
-                                  setCsrList((list) =>
-                                    list.map((c, i) =>
-                                      i === idx
-                                        ? {
-                                            ...c,
-                                            tanggal_akhir: e.target.value,
-                                          }
-                                        : c
-                                    )
-                                  )
-                                }
-                                className="w-36 px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteCsr(idx)}
-                                className="px-3 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
-                              >
-                                Hapus
-                              </button>
-                            </div>
-                          ))}
+                          {csrList.map((csr, idx) => {
+                            const csrId = csr.id ? csr.id.toString() : `temp_${idx}`;
+                            const keahlianList = csrKeahlian[csrId] || [];
+                            const newKeahlian = newKeahlianCSR[csrId] || "";
+                            
+                            return (
+                              <div key={csr.id || idx} className="mb-4">
+                                {/* CSR Info Row */}
+                                <div className="flex gap-2 my-2 items-center">
+                                  <input
+                                    type="text"
+                                    value={csr.nomor_csr}
+                                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                                      setCsrList((list) =>
+                                        list.map((c, i) =>
+                                          i === idx
+                                            ? { ...c, nomor_csr: e.target.value }
+                                            : c
+                                        )
+                                      )
+                                    }
+                                    className="w-20 px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 text-center"
+                                  />
+                                  <input
+                                    type="date"
+                                    value={toDateInputValue(csr.tanggal_mulai)}
+                                    onChange={(e) =>
+                                      setCsrList((list) =>
+                                        list.map((c, i) =>
+                                          i === idx
+                                            ? {
+                                                ...c,
+                                                tanggal_mulai: e.target.value,
+                                              }
+                                            : c
+                                        )
+                                      )
+                                    }
+                                    className="w-36 px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100"
+                                  />
+                                  <input
+                                    type="date"
+                                    value={toDateInputValue(csr.tanggal_akhir)}
+                                    onChange={(e) =>
+                                      setCsrList((list) =>
+                                        list.map((c, i) =>
+                                          i === idx
+                                            ? {
+                                                ...c,
+                                                tanggal_akhir: e.target.value,
+                                              }
+                                            : c
+                                        )
+                                      )
+                                    }
+                                    className="w-36 px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteCsr(idx)}
+                                    className="px-3 py-1 text-xs bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                                  >
+                                    Hapus
+                                  </button>
+                                </div>
+                                
+                                {/* Keahlian CSR Section */}
+                                <div className="ml-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                                      Keahlian CSR {csr.nomor_csr}
+                                    </label>
+                                  </div>
+                                  
+                                  {/* Input Keahlian */}
+                                  <div className="flex gap-2 mb-3">
+                                    <input
+                                      type="text"
+                                      value={newKeahlian}
+                                      onChange={(e) =>
+                                        setNewKeahlianCSR((prev) => ({
+                                          ...prev,
+                                          [csrId]: e.target.value,
+                                        }))
+                                      }
+                                      placeholder="Tambah keahlian..."
+                                      className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-brand-500 focus:border-brand-500 bg-white dark:bg-gray-900 text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAddKeahlianCSR(csrId)}
+                                      disabled={!newKeahlian.trim()}
+                                      className="px-4 py-2 text-sm bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      Tambah
+                                    </button>
+                                  </div>
+                                  
+                                  {/* List Keahlian */}
+                                  {keahlianList.length > 0 && (
+                                    <div className="flex flex-wrap gap-2">
+                                      {keahlianList.map((keahlian, keahlianIdx) => (
+                                        <div
+                                          key={keahlianIdx}
+                                          className="flex items-center gap-2 px-3 py-1 bg-brand-100 dark:bg-brand-900/40 text-brand-800 dark:text-brand-200 rounded-full text-sm"
+                                        >
+                                          <span>{keahlian}</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRemoveKeahlianCSR(csrId, keahlian)}
+                                            className="text-brand-600 dark:text-brand-400 hover:text-brand-800 dark:hover:text-brand-200 transition-colors"
+                                          >
+                                            ×
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  
+                                  {keahlianList.length === 0 && (
+                                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                                      Belum ada keahlian. Tambahkan keahlian untuk CSR ini.
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
                           {csrList.length === 0 && (
                             <div className="text-center py-4 text-gray-500 dark:text-gray-400 text-sm">
                               Belum ada CSR. Klik "Tambah CSR" untuk

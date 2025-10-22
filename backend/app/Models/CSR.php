@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
 
@@ -47,6 +48,12 @@ class CSR extends Model
     public function mataKuliah()
     {
         return $this->belongsTo(MataKuliah::class, 'mata_kuliah_kode', 'kode');
+    }
+
+    // Relasi ke keahlian CSR
+    public function keahlianCSR(): HasMany
+    {
+        return $this->hasMany(KeahlianCSR::class);
     }
 
     // Scope untuk mata kuliah yang tersedia

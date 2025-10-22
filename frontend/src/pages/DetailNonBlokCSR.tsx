@@ -2025,6 +2025,14 @@ export default function DetailNonBlokCSR() {
             <div className="mb-2 text-gray-500 text-xs font-semibold uppercase">Tipe Non-Blok</div>
             <div className="text-base text-gray-800 dark:text-white">{data.tipe_non_block || '-'}</div>
           </div>
+          <div>
+            <div className="mb-2 text-gray-500 text-xs font-semibold uppercase">Keahlian Dibutuhkan</div>
+            <div className="text-base text-gray-800 dark:text-white">
+              {data.keahlian_required && data.keahlian_required.length > 0 
+                ? data.keahlian_required.join(', ') 
+                : '-'}
+            </div>
+          </div>
         </div>
       </div>
 

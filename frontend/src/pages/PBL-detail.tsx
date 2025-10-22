@@ -1,9 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faTrash,
   faBookOpen,
-  faEdit,
   faUsers,
   faTimes,
   faExclamationTriangle,
@@ -328,6 +326,11 @@ export default function PBL() {
   const [draggedFromPBLId, setDraggedFromPBLId] = useState<number | null>(null);
   const [dragOverPBLId, setDragOverPBLId] = useState<number | null>(null);
   const [isMovingDosen, setIsMovingDosen] = useState(false);
+  
+  // Touch event states
+  const [touchStartPos, setTouchStartPos] = useState<{ x: number; y: number } | null>(null);
+  const [isTouchDragging, setIsTouchDragging] = useState(false);
+  const [touchDraggedDosen, setTouchDraggedDosen] = useState<Dosen | null>(null);
   // Tambahkan state untuk assigned dosen per PBL
   const [assignedDosen, setAssignedDosen] = useState<{
     [pblId: number]: Dosen[];
@@ -368,6 +371,120 @@ export default function PBL() {
   const [dosenMengajarCount, setDosenMengajarCount] = useState<number>(0);
 
   // Fungsi untuk mengecek apakah keahlian dosen sesuai dengan mata kuliah
+  const handleTouchStart = (e: React.TouchEvent, dosen: Dosen) => {
+    const touch = e.touches[0];
+    setTouchStartPos({ x: touch.clientX, y: touch.clientY });
+    setTouchDraggedDosen(dosen);
+    setIsTouchDragging(false);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartPos || !touchDraggedDosen) return;
+    
+    const touch = e.touches[0];
+    const deltaX = Math.abs(touch.clientX - touchStartPos.x);
+    const deltaY = Math.abs(touch.clientY - touchStartPos.y);
+    
+    // Start dragging if moved more than 10px
+    if (deltaX > 10 || deltaY > 10) {
+      setIsTouchDragging(true);
+      setDraggedDosen(touchDraggedDosen);
+      // Prevent scrolling during drag
+      e.preventDefault();
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    setTouchStartPos(null);
+    setTouchDraggedDosen(null);
+    setIsTouchDragging(false);
+    setDraggedDosen(null);
+  };
+
+  // Handle dosen drop for touch events
+  const handleDosenDrop = async (dosen: Dosen, pbl: PBL, mk: MataKuliah) => {
+    if (!dosen || dosen.id == null) return;
+    
+    // Jika dosen sudah ada di PBL target, tolak
+    if (
+      pbl.id &&
+      (assignedDosen[pbl.id] || []).some(
+        (d) => d.id === dosen.id
+      )
+    ) {
+      setError("Dosen sudah ada di PBL ini.");
+      return;
+    }
+
+    // Cek apakah keahlian dosen sesuai dengan mata kuliah
+    const isKeahlianMatch = checkKeahlianMatch(dosen, mk);
+
+    // Check if dosen is standby
+    const dosenKeahlian = Array.isArray(dosen.keahlian)
+      ? dosen.keahlian
+      : (dosen.keahlian || "").split(",").map((k) => k.trim());
+    const isStandby = dosenKeahlian.some((k) =>
+      k.toLowerCase().includes("standby")
+    );
+
+    // Validasi keahlian untuk dosen non-standby
+    if (!isStandby && !isKeahlianMatch) {
+      setError(
+        `Keahlian dosen ${dosen.name} tidak sesuai dengan mata kuliah ${mk.nama}. Keahlian dosen: ${dosenKeahlian.join(", ")}, Keahlian yang dibutuhkan: ${(mk.keahlian_required || []).join(", ")}`
+      );
+      return;
+    }
+
+    try {
+      setIsMovingDosen(true);
+      setError("");
+
+      // Check dosen_peran for semester and mata kuliah matching
+      if (dosen.dosen_peran && Array.isArray(dosen.dosen_peran)) {
+        const matchingPeran = dosen.dosen_peran.find((peran: any) => {
+          if (peran.semester === String(mk.semester)) {
+            const peranMkName = peran.mata_kuliah_nama?.toLowerCase() || '';
+            const mkName = mk.nama.toLowerCase();
+            return peranMkName.includes(mkName) || mkName.includes(peranMkName);
+          }
+          return false;
+        });
+
+        if (matchingPeran) {
+          // Dosen memiliki peran yang sesuai
+          const peranUtama = matchingPeran.peran_utama;
+          if (peranUtama === "koordinator" || peranUtama === "tim_blok") {
+            // Dosen koordinator atau tim blok - tidak perlu warning
+          } else if (peranUtama === "dosen_mengajar") {
+            // Dosen mengajar - tidak perlu warning
+          } else {
+            // Peran tidak jelas - warning
+            const warningMsg = `Dosen ${dosen.name} memiliki peran yang tidak jelas untuk ${mk.nama} (${mk.kode}). Peran: ${peranUtama || 'Tidak ditentukan'}`;
+            setWarnings([warningMsg]);
+          }
+        } else {
+          // Dosen tidak memiliki peran yang sesuai
+          if (isKeahlianMatch) {
+            // Tidak perlu warning untuk dosen mengajar dengan keahlian sesuai
+          } else {
+            const warningMsg = `Dosen ${dosen.name} tidak memiliki peran yang sesuai untuk ${mk.nama} (${mk.kode}). Keahlian sesuai tetapi peran tidak cocok.`;
+            setWarnings([warningMsg]);
+          }
+        }
+      }
+
+      // Assign dosen to PBL
+      await handleAssignDosen(dosen, pbl, mk);
+    } catch (error: any) {
+      console.error("Error assigning dosen:", error);
+      setError("Gagal menugaskan dosen: " + error.message);
+    } finally {
+      setIsMovingDosen(false);
+      setDraggedDosen(null);
+      setDraggedFromPBLId(null);
+    }
+  };
+
   const checkKeahlianMatch = (dosen: Dosen, mk: MataKuliah): boolean => {
     const dosenKeahlian = Array.isArray(dosen.keahlian)
       ? dosen.keahlian
@@ -475,6 +592,9 @@ export default function PBL() {
       // PERBAIKAN BARU: Refresh assigned dosen data untuk semua PBL yang berhasil
 
       if (successfulAssignments.length > 0) {
+        // Emit custom event untuk notify PBLGenerate.tsx
+        window.dispatchEvent(new CustomEvent('pbl-assignment-updated'));
+        
         // PERBAIKAN BARU: Langsung tambahkan dosen ke state assignedDosen untuk immediate UI update
         setAssignedDosen((prev) => {
           const updated = { ...prev };
@@ -2113,13 +2233,6 @@ export default function PBL() {
     if (page > totalPages) setPage(1);
   }, [page, totalPages]);
 
-  // Open modal for edit
-  const handleOpenEditModal = (kode: string, index: number, pbl: PBL) => {
-    setEditMode(true);
-    setSelectedPBL({ kode, index, pbl });
-    setForm({ modul_ke: pbl.modul_ke, nama_modul: pbl.nama_modul });
-    setShowModal(true);
-  };
 
   // Open modal for add
   const handleOpenAddModal = (kode: string | undefined) => {
@@ -2135,12 +2248,6 @@ export default function PBL() {
     setShowModal(true);
   };
 
-  // Hapus PBL
-  const handleDeletePbl = (kode: string, index: number) => {
-    const pbl = pblData[kode][index];
-    setPblToDelete({ kode, index, pbl });
-    setShowDeleteModal(true);
-  };
 
   // Tambahkan fungsi handleEditPbl dan handleAddPbl untuk linter fix
   async function handleEditPbl() {
@@ -3287,6 +3394,25 @@ export default function PBL() {
                                       e.preventDefault();
                                       setDragOverPBLId(null);
                                     }}
+                                    onTouchMove={(e) => {
+                                      if (isTouchDragging && draggedDosen) {
+                                        e.preventDefault();
+                                        if (
+                                          draggedDosen &&
+                                          draggedFromPBLId !== null &&
+                                          draggedFromPBLId !== pbl.id
+                                        ) {
+                                          setDragOverPBLId(pbl.id!);
+                                        }
+                                      }
+                                    }}
+                                    onTouchEnd={async (e) => {
+                                      if (isTouchDragging && draggedDosen) {
+                                        e.preventDefault();
+                                        setDragOverPBLId(null);
+                                        await handleDosenDrop(draggedDosen, pbl, mk);
+                                      }
+                                    }}
                                     onDrop={async (e) => {
                                       e.preventDefault();
                                       setDragOverPBLId(null);
@@ -3837,6 +3963,9 @@ export default function PBL() {
 
                                         // PERBAIKAN BARU: Cek status generated data setelah drag assignment
                                         checkHasGeneratedData();
+                                        
+                                        // Emit custom event untuk notify PBLGenerate.tsx setelah drag-drop berhasil
+                                        window.dispatchEvent(new CustomEvent('pbl-assignment-updated'));
                                       } catch (err) {
                                         setError("Gagal assign dosen");
                                         // If assignment fails, refresh data to revert UI changes
@@ -3884,40 +4013,6 @@ export default function PBL() {
                                       {/* Status badge ala CSR */}
                                       <div className="flex flex-row items-center gap-2 sm:ml-4">
                                         {statusBadge}
-                                        <button
-                                          onClick={() =>
-                                            handleOpenEditModal(
-                                              mk.kode,
-                                              pblIdx,
-                                              pbl
-                                            )
-                                          }
-                                          className="inline-flex items-center gap-1 px-2 py-1 text-sm font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 bg-transparent rounded-lg transition"
-                                          title="Edit PBL"
-                                        >
-                                          <FontAwesomeIcon
-                                            icon={faEdit}
-                                            className="w-4 h-4"
-                                          />
-                                          <span className="hidden sm:inline">
-                                            Edit
-                                          </span>
-                                        </button>
-                                        <button
-                                          onClick={() =>
-                                            handleDeletePbl(mk.kode, pblIdx)
-                                          }
-                                          className="inline-flex items-center gap-1 px-2 py-1 text-sm font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 bg-transparent rounded-lg transition"
-                                          title="Hapus PBL"
-                                        >
-                                          <FontAwesomeIcon
-                                            icon={faTrash}
-                                            className="w-4 h-4"
-                                          />
-                                          <span className="hidden sm:inline">
-                                            Hapus
-                                          </span>
-                                        </button>
                                       </div>
                                     </div>
                                     {/* Assigned Dosen Section - NEW STYLE */}
@@ -4458,10 +4553,17 @@ export default function PBL() {
                   availableDosenList.map((dosen) => (
                     <div
                       key={dosen.id}
-                      className="p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-move"
+                      className={`p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-move ${
+                        isTouchDragging && touchDraggedDosen?.id === dosen.id
+                          ? "opacity-50 scale-95 rotate-1"
+                          : ""
+                      }`}
                       draggable
                       onDragStart={() => setDraggedDosen(dosen)}
                       onDragEnd={() => setDraggedDosen(null)}
+                      onTouchStart={(e) => handleTouchStart(e, dosen)}
+                      onTouchMove={handleTouchMove}
+                      onTouchEnd={handleTouchEnd}
                     >
                       {/* Header dengan Avatar dan Info Dasar */}
                       <div className="flex items-start gap-3 mb-3">
@@ -4657,10 +4759,17 @@ export default function PBL() {
                         draggedDosen?.id === dosen.id
                           ? "ring-2 ring-yellow-500 scale-105"
                           : ""
+                      } ${
+                        isTouchDragging && touchDraggedDosen?.id === dosen.id
+                          ? "opacity-50 scale-95 rotate-1"
+                          : ""
                       }`}
                       draggable
                       onDragStart={() => setDraggedDosen(dosen)}
                       onDragEnd={() => setDraggedDosen(null)}
+                      onTouchStart={(e) => handleTouchStart(e, dosen)}
+                      onTouchMove={handleTouchMove}
+                      onTouchEnd={handleTouchEnd}
                     >
                       {/* Header dengan Avatar dan Info Dasar */}
                       <div className="flex items-start gap-3 mb-3">

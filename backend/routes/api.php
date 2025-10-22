@@ -150,6 +150,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/csr/{csr}/mappings', [\App\Http\Controllers\CSRMappingController::class, 'index']);
     Route::post('/csr/{csr}/mappings', [\App\Http\Controllers\CSRMappingController::class, 'store']);
     Route::delete('/csr/{csr}/mappings/{dosen}/{keahlian}', [\App\Http\Controllers\CSRMappingController::class, 'destroy']);
+    
+    // Keahlian CSR Routes
+    Route::post('/keahlian-csr', [\App\Http\Controllers\KeahlianCSRController::class, 'store']);
+    Route::get('/keahlian-csr/csr/{csrId}', [\App\Http\Controllers\KeahlianCSRController::class, 'getByCSR']);
+    Route::delete('/keahlian-csr/csr/{csrId}', [\App\Http\Controllers\KeahlianCSRController::class, 'deleteByCSR']);
+    Route::get('/keahlian-csr/semester-blok', [\App\Http\Controllers\KeahlianCSRController::class, 'getBySemesterBlok']);
 
     Route::get('/pbls/check-blok/{blokId}', [App\Http\Controllers\MataKuliahPBLController::class, 'checkBlokGenerated']);
     Route::post('/pbls/assign-dosen-batch', [App\Http\Controllers\MataKuliahPBLController::class, 'assignDosenBatch']);

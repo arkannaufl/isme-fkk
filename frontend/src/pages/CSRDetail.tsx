@@ -9,7 +9,7 @@ import {
   faGraduationCap,
   faEdit,
   faTrash,
-} from "@fortawesome/free-solid-svg-icons";
+} from "@fortawesome/free-solid-svg-icons"
 
 interface CSR {
   id: number;
@@ -56,6 +56,8 @@ const CSRDetail: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [keahlianList, setKeahlianList] = useState<string[]>([]);
   const [newKeahlian, setNewKeahlian] = useState("");
+  const [csrKeahlianOptions, setCsrKeahlianOptions] = useState<string[]>([]);
+  const [loadingKeahlianOptions, setLoadingKeahlianOptions] = useState(false);
 
   // Dosen states
   const [standbyDosen, setStandbyDosen] = useState<User[]>([]);
@@ -69,6 +71,11 @@ const CSRDetail: React.FC = () => {
   // Mapping and drag states
   const [mapping, setMapping] = useState<{ [keahlian: string]: User[] }>({});
   const [draggedDosenId, setDraggedDosenId] = useState<number | null>(null);
+  
+  // Touch event states
+  const [touchStartPos, setTouchStartPos] = useState<{ x: number; y: number } | null>(null);
+  const [isTouchDragging, setIsTouchDragging] = useState(false);
+  const [touchDraggedDosenId, setTouchDraggedDosenId] = useState<number | null>(null);
 
   // Keahlian edit states
   const [editKeahlian, setEditKeahlian] = useState<string | null>(null);
@@ -79,8 +86,6 @@ const CSRDetail: React.FC = () => {
   const [keahlianToDelete, setKeahlianToDelete] = useState<string | null>(null);
   const [isDeletingKeahlian, setIsDeletingKeahlian] = useState(false);
 
-  // Add keahlian loading state
-  const [isAddingKeahlian, setIsAddingKeahlian] = useState(false);
 
   // PBL states
   const [dosenPBLBySemester, setDosenPBLBySemester] = useState<{
@@ -99,6 +104,7 @@ const CSRDetail: React.FC = () => {
 
       // Set all data from batch response
       setCsr(batchData.csr);
+      // Set keahlianList dari data yang sudah ada di database
       setKeahlianList(batchData.csr?.keahlian_required || []);
       setRegularDosen(batchData.regular_dosen || []);
       setStandbyDosen(batchData.standby_dosen || []);
@@ -122,6 +128,12 @@ const CSRDetail: React.FC = () => {
   useEffect(() => {
     fetchBatchData();
   }, [csrId]);
+
+  useEffect(() => {
+    if (csr) {
+      fetchKeahlianCSROptions();
+    }
+  }, [csr]);
 
   // Mapping data sudah diambil dari batch API, tidak perlu fetch terpisah
 
@@ -149,64 +161,138 @@ const CSRDetail: React.FC = () => {
 
   // CSR data sudah diambil dari batch API, tidak perlu fetch terpisah
 
-  // Tambah keahlian
-  const handleAddKeahlian = async () => {
-    if (!newKeahlian.trim() || !csr || isAddingKeahlian) return;
-
-    setIsAddingKeahlian(true);
+  // Fetch keahlian CSR options dari database keahlian_csr
+  const fetchKeahlianCSROptions = async () => {
+    if (!csr) return;
+    
+    setLoadingKeahlianOptions(true);
     try {
-      // Validasi duplikat (case-insensitive, trim)
+      // Ambil keahlian dari database keahlian_csr berdasarkan CSR ID
+      const response = await api.get(`/keahlian-csr/csr/${csr.id}`);
+      const keahlianList = response.data.data || [];
+      
+      // Ambil semua keahlian dari database keahlian_csr (tidak perlu filter)
+      const availableKeahlian = keahlianList.map((k: any) => k.keahlian);
+      
+      console.log('CSR ID:', csr.id);
+      console.log('Keahlian from database:', availableKeahlian);
+      console.log('CSR keahlian_required:', csr.keahlian_required);
+      
+      setCsrKeahlianOptions(availableKeahlian);
+    } catch (err) {
+      console.error('Error fetching keahlian CSR options:', err);
+      setCsrKeahlianOptions([]);
+    } finally {
+      setLoadingKeahlianOptions(false);
+    }
+  };
+
+  // Tambah keahlian dari dropdown
+  const handleAddKeahlian = async () => {
+    if (!newKeahlian.trim() || !csr) return;
+
+    // Validasi duplikat (case-insensitive, trim) - cek di keahlianList state
       const newK = newKeahlian.trim().toLowerCase();
-      const exists = csr.keahlian_required.some(
+    const exists = keahlianList.some(
         (k) => k.trim().toLowerCase() === newK
       );
       if (exists) {
         setError("Keahlian sudah ada, tidak boleh terduplikat.");
         return;
       }
+    
+    try {
+      // Tambah keahlian ke state keahlianList (langsung masuk ke daftar)
+      const updatedKeahlianList = [...keahlianList, newKeahlian.trim()];
+      setKeahlianList(updatedKeahlianList);
+      
       // Pastikan nama tidak null
       const nama = csr.nama || (csr.mata_kuliah && csr.mata_kuliah.nama) || "";
       if (!nama) {
         setError("Nama CSR belum diisi. Silakan isi nama CSR terlebih dahulu.");
         return;
       }
-      const updated = [...csr.keahlian_required, newKeahlian.trim()];
+      
+      // Save ke database agar persist
       await api.put(`/csr/${csr.id}`, {
         ...csr,
         nama,
-        keahlian_required: updated,
+        keahlian_required: updatedKeahlianList,
       });
+      
+      // Reset dropdown
       setNewKeahlian("");
-      setSuccess("Keahlian berhasil ditambahkan");
-      await fetchBatchData();
+      setSuccess("Keahlian berhasil ditambahkan dan disimpan");
+      
     } catch (err) {
-      setError("Gagal menambah keahlian");
-    } finally {
-      setIsAddingKeahlian(false);
+      setError("Gagal menyimpan keahlian");
+      // Rollback state jika error
+      setKeahlianList(keahlianList);
     }
   };
 
   // Hapus keahlian
   const handleRemoveKeahlian = async (k: string) => {
     if (!csr) return;
+    
+    try {
+      // Hapus dari state keahlianList
+      const updatedKeahlianList = keahlianList.filter(x => x !== k);
+      setKeahlianList(updatedKeahlianList);
+      
     // Pastikan nama tidak null
     const nama = csr.nama || (csr.mata_kuliah && csr.mata_kuliah.nama) || "";
     if (!nama) {
       setError("Nama CSR belum diisi. Silakan isi nama CSR terlebih dahulu.");
       return;
     }
-    const updated = csr.keahlian_required.filter((x) => x !== k);
-    try {
+      
+      // Save ke database agar persist
       await api.put(`/csr/${csr.id}`, {
         ...csr,
         nama,
-        keahlian_required: updated,
+        keahlian_required: updatedKeahlianList,
       });
-      setSuccess("Keahlian berhasil dihapus");
-      await fetchBatchData();
+      
+      setSuccess("Keahlian berhasil dihapus dan disimpan");
+      
     } catch (err) {
       setError("Gagal menghapus keahlian");
+      // Rollback state jika error
+      setKeahlianList(keahlianList);
     }
+  };
+
+
+  // Touch event handlers
+  const handleTouchStart = (e: React.TouchEvent, dosenId: number) => {
+    const touch = e.touches[0];
+    setTouchStartPos({ x: touch.clientX, y: touch.clientY });
+    setTouchDraggedDosenId(dosenId);
+    setIsTouchDragging(false);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartPos || !touchDraggedDosenId) return;
+    
+    const touch = e.touches[0];
+    const deltaX = Math.abs(touch.clientX - touchStartPos.x);
+    const deltaY = Math.abs(touch.clientY - touchStartPos.y);
+    
+    // Start dragging if moved more than 10px
+    if (deltaX > 10 || deltaY > 10) {
+      setIsTouchDragging(true);
+      setDraggedDosenId(touchDraggedDosenId);
+      // Prevent scrolling during drag
+      e.preventDefault();
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    setTouchStartPos(null);
+    setTouchDraggedDosenId(null);
+    setIsTouchDragging(false);
+    setDraggedDosenId(null);
   };
 
   // Assign dosen ke keahlian (mapping dosen ke CSR)
@@ -645,53 +731,48 @@ const CSRDetail: React.FC = () => {
             <p className="text-gray-500 dark:text-gray-300 text-sm mb-6">
               Tambahkan kategori keahlian yang diperlukan untuk penugasan dosen.
             </p>
+            {csrKeahlianOptions.length === 0 && !loadingKeahlianOptions && (
+              <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                <p className="text-yellow-800 dark:text-yellow-200 text-sm">
+                  ⚠️ Tidak ada keahlian tersedia untuk CSR {csr?.nomor_csr}. Silakan tambahkan keahlian terlebih dahulu di MataKuliah.tsx.
+                </p>
+              </div>
+            )}
             {/* Input + Buttons Row */}
             <div className="flex flex-col md:flex-row gap-3 md:gap-4 items-stretch mb-6">
               <div className="relative flex-1">
-                {/* Removed search icon inside input */}
-                <input
-                  type="text"
+                <select
                   value={newKeahlian}
                   onChange={(e) => setNewKeahlian(e.target.value)}
-                  placeholder="Tambah keahlian..."
-                  className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium placeholder-gray-400 dark:placeholder-gray-500 placeholder:font-medium px-4 py-2 shadow-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500 w-full transition-all duration-150 h-[52px] align-middle text-gray-800 dark:text-white"
-                />
+                  className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium px-4 py-2 shadow-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500 w-full transition-all duration-150 h-[52px] align-middle text-gray-800 dark:text-white"
+                  disabled={loadingKeahlianOptions}
+                >
+                  <option value="">Pilih keahlian dari CSR...</option>
+                  {csrKeahlianOptions.map((keahlian) => (
+                    <option key={keahlian} value={keahlian}>
+                      {keahlian}
+                    </option>
+                  ))}
+                </select>
+                {loadingKeahlianOptions && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <svg className="w-4 h-4 animate-spin text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                  </div>
+                )}
               </div>
               <button
                 onClick={handleAddKeahlian}
-                disabled={isAddingKeahlian}
+                disabled={!newKeahlian.trim()}
                 className="flex items-center justify-center gap-2 bg-brand-500 text-white px-4 py-2 rounded-lg font-medium text-sm shadow-md hover:bg-brand-600 hover:scale-105 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-brand-400 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                 style={{ minWidth: "130px" }}
               >
-                {isAddingKeahlian ? (
-                  <>
-                    <svg
-                      className="w-4 h-4 animate-spin text-white"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                      ></path>
-                    </svg>
-                    Menambah...
-                  </>
-                ) : (
-                  "Tambah"
-                )}
+                Tambah
               </button>
             </div>
+            
             <ul className="space-y-5">
               {(keahlianList as string[]).map((k: string) => (
                 <li
@@ -817,6 +898,20 @@ const CSRDetail: React.FC = () => {
                       if (draggedDosenId) {
                         handleAssignDosen(draggedDosenId, k);
                         setDraggedDosenId(null);
+                      }
+                    }}
+                    onTouchMove={(e) => {
+                      if (isTouchDragging && draggedDosenId) {
+                        e.preventDefault();
+                      }
+                    }}
+                    onTouchEnd={(e) => {
+                      if (isTouchDragging && draggedDosenId) {
+                        e.preventDefault();
+                        handleAssignDosen(draggedDosenId, k);
+                        setDraggedDosenId(null);
+                        setTouchDraggedDosenId(null);
+                        setIsTouchDragging(false);
                       }
                     }}
                   >
@@ -955,10 +1050,17 @@ const CSRDetail: React.FC = () => {
                             return (
                               <div
                                 key={dosen.id}
-                                className={`p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-move`}
+                                className={`p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-move ${
+                                  isTouchDragging && touchDraggedDosenId === dosen.id
+                                    ? "opacity-50 scale-95 rotate-1"
+                                    : ""
+                                }`}
                                 draggable
                                 onDragStart={() => setDraggedDosenId(dosen.id)}
                                 onDragEnd={() => setDraggedDosenId(null)}
+                                onTouchStart={(e) => handleTouchStart(e, dosen.id)}
+                                onTouchMove={handleTouchMove}
+                                onTouchEnd={handleTouchEnd}
                               >
                                 <div className="flex items-start gap-3 mb-3">
                                   <div
@@ -1066,10 +1168,17 @@ const CSRDetail: React.FC = () => {
                     return (
                       <div
                         key={dosen.id}
-                        className="p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-move"
+                        className={`p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-move ${
+                          isTouchDragging && touchDraggedDosenId === dosen.id
+                            ? "opacity-50 scale-95 rotate-1"
+                            : ""
+                        }`}
                         draggable
                         onDragStart={() => setDraggedDosenId(dosen.id)}
                         onDragEnd={() => setDraggedDosenId(null)}
+                        onTouchStart={(e) => handleTouchStart(e, dosen.id)}
+                        onTouchMove={handleTouchMove}
+                        onTouchEnd={handleTouchEnd}
                       >
                         {/* Header dengan Avatar dan Info Dasar */}
                         <div className="flex items-start gap-3 mb-3">
@@ -1161,10 +1270,17 @@ const CSRDetail: React.FC = () => {
                     return (
                       <div
                         key={dosen.id}
-                        className={`p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-move`}
+                        className={`p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-move ${
+                          isTouchDragging && touchDraggedDosenId === dosen.id
+                            ? "opacity-50 scale-95 rotate-1"
+                            : ""
+                        }`}
                         draggable
                         onDragStart={() => setDraggedDosenId(dosen.id)}
                         onDragEnd={() => setDraggedDosenId(null)}
+                        onTouchStart={(e) => handleTouchStart(e, dosen.id)}
+                        onTouchMove={handleTouchMove}
+                        onTouchEnd={handleTouchEnd}
                       >
                         {/* Header dengan Avatar dan Info Dasar */}
                         <div className="flex items-start gap-3 mb-3">
