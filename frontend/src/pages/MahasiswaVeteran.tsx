@@ -55,9 +55,10 @@ const MahasiswaVeteran: React.FC = () => {
         
         const response = await mahasiswaVeteranApi.getAll(params);
         setMahasiswaList(response.data);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error fetching mahasiswa veteran:", err);
-        setError("Gagal memuat data mahasiswa");
+        const errorMessage = err.response?.data?.message || err.message || "Gagal memuat data mahasiswa";
+        setError(errorMessage);
       } finally {
         setLoading(false);
       }
@@ -191,9 +192,10 @@ const MahasiswaVeteran: React.FC = () => {
             : m
         )
       );
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error toggling multi-veteran status:", err);
-      setError("Gagal mengupdate status multi-veteran");
+      const errorMessage = err.response?.data?.message || err.message || "Gagal mengupdate status multi-veteran";
+      setError(errorMessage);
     } finally {
       setIsTogglingMultiVeteran(false);
     }

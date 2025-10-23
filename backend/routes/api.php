@@ -150,7 +150,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/csr/{csr}/mappings', [\App\Http\Controllers\CSRMappingController::class, 'index']);
     Route::post('/csr/{csr}/mappings', [\App\Http\Controllers\CSRMappingController::class, 'store']);
     Route::delete('/csr/{csr}/mappings/{dosen}/{keahlian}', [\App\Http\Controllers\CSRMappingController::class, 'destroy']);
-    
+
     // Keahlian CSR Routes
     Route::post('/keahlian-csr', [\App\Http\Controllers\KeahlianCSRController::class, 'store']);
     Route::get('/keahlian-csr/csr/{csrId}', [\App\Http\Controllers\KeahlianCSRController::class, 'getByCSR']);
@@ -570,6 +570,9 @@ Route::middleware(['auth:sanctum', 'validate.token', 'role:super_admin,tim_akade
     Route::get('/', [App\Http\Controllers\MahasiswaVeteranController::class, 'index']);
     Route::post('/toggle', [App\Http\Controllers\MahasiswaVeteranController::class, 'toggleVeteran']);
     Route::post('/bulk-toggle', [App\Http\Controllers\MahasiswaVeteranController::class, 'bulkToggleVeteran']);
+    Route::post('/toggle-multi-veteran', [App\Http\Controllers\MahasiswaVeteranController::class, 'toggleMultiVeteran']);
+    Route::post('/add-to-semester', [App\Http\Controllers\MahasiswaVeteranController::class, 'addVeteranToSemester']);
+    Route::post('/remove-from-semester', [App\Http\Controllers\MahasiswaVeteranController::class, 'removeVeteranFromSemester']);
     Route::post('/release-from-semester', [App\Http\Controllers\MahasiswaVeteranController::class, 'releaseFromSemester']);
     Route::get('/statistics', [App\Http\Controllers\MahasiswaVeteranController::class, 'statistics']);
 });
