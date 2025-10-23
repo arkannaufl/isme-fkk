@@ -1713,30 +1713,16 @@ export default function PBLGenerate() {
       }
 
       // Kumpulkan data untuk semua semester terlebih dahulu
-      console.log(
-        "🔍 PBLGenerate: Starting semester loop, semesters:",
-        semesters
-      );
-      console.log("🔍 PBLGenerate: filteredMataKuliah:", filteredMataKuliah);
 
       for (const semester of semesters) {
-        console.log(`🔍 PBLGenerate: Processing semester ${semester}`);
-        console.log(`🔍 PBLGenerate: currentBlok = ${currentBlok}`);
 
         const mkInSemester = filteredMataKuliah.filter(
           (mk) =>
             String(mk.semester) === String(semester) && mk.blok === currentBlok
         );
 
-        console.log(
-          `🔍 PBLGenerate: mkInSemester for ${semester}:`,
-          mkInSemester
-        );
 
         if (mkInSemester.length === 0) {
-          console.log(
-            `🔍 PBLGenerate: No mata kuliah for semester ${semester}, skipping`
-          );
           continue;
         }
 
@@ -1775,63 +1761,22 @@ export default function PBLGenerate() {
         );
 
         // Hitung total CSR keahlian untuk semester ini (bobot 1.0 - sama dengan modul)
-        console.log(
-          `🔍 PBLGenerate: Processing CSR for semester ${semester}, mkInSemester:`,
-          mkInSemester
-        );
-        console.log(`🔍 PBLGenerate: csrKeahlianData:`, csrKeahlianData);
-
-        console.log(
-          `🔍 PBLGenerate: About to start CSR calculation for semester ${semester}`
-        );
         const totalCSRKeahlian = mkInSemester.reduce((acc, mk) => {
-          console.log(
-            `🔍 PBLGenerate: Processing MK ${mk.kode} for CSR calculation`
-          );
           // Cek apakah ada CSR keahlian untuk mata kuliah ini
           const csrKeahlianForMk = csrKeahlianData[mk.kode] || [];
-          console.log(`🔍 PBLGenerate: CSR for ${mk.kode}:`, csrKeahlianForMk);
 
           const totalKeahlian = csrKeahlianForMk.reduce((sum, csrItem) => {
-            console.log(`🔍 PBLGenerate: CSR item:`, csrItem);
             return sum + (csrItem.keahlian?.length || 0);
           }, 0);
 
-          console.log(
-            `🔍 PBLGenerate: Total keahlian for ${mk.kode}:`,
-            totalKeahlian
-          );
           return acc + totalKeahlian;
         }, 0);
 
-        console.log(
-          `🔍 PBLGenerate: Final totalCSRKeahlian for semester ${semester}:`,
-          totalCSRKeahlian
-        );
-
-        console.log(
-          `🔍 PBLGenerate: Before totalDosenNeeded calculation for semester ${semester}`
-        );
-        console.log(`🔍 PBLGenerate: totalKelompok = ${totalKelompok}`);
-        console.log(`🔍 PBLGenerate: totalModul = ${totalModul}`);
-        console.log(
-          `🔍 PBLGenerate: totalJurnalReading = ${totalJurnalReading}`
-        );
-        console.log(`🔍 PBLGenerate: totalCSRKeahlian = ${totalCSRKeahlian}`);
 
         const totalDosenNeeded = Math.round(
           totalKelompok * (totalModul + totalJurnalReading + totalCSRKeahlian)
         );
 
-        console.log(`🔍 PBLGenerate: totalDosenNeeded = ${totalDosenNeeded}`);
-
-        console.log(`🔍 PBLGenerate: Semester ${semester} calculation:`, {
-          totalKelompok,
-          totalModul,
-          totalJurnalReading,
-          totalCSRKeahlian,
-          totalDosenNeeded,
-        });
 
         // Cari Koordinator dan Tim Blok
         const koordinatorForSemester = dosenList.filter((dosen) => {
@@ -1880,16 +1825,11 @@ export default function PBLGenerate() {
       }).length;
 
       // Step 3: Hitung distribusi proporsional menggunakan Metode 2 (Distribusi Sisa)
-      console.log("🔍 PBLGenerate: semesterNeeds", semesterNeeds);
-      console.log("🔍 PBLGenerate: totalDosenAvailable", totalDosenAvailable);
 
       if (
         Object.keys(semesterNeeds).length === 0 ||
         totalDosenAvailable === 0
       ) {
-        console.log(
-          "❌ PBLGenerate: Tidak ada semester needs atau dosen available"
-        );
         throw new Error(
           "Tidak ada semester yang membutuhkan dosen atau tidak ada dosen tersedia"
         );
@@ -1903,15 +1843,11 @@ export default function PBLGenerate() {
       const semesterPercentages = proportionalResult.percentages;
 
       // Update skala berdasarkan distribusi dan blok
-      console.log("🔍 PBLGenerate: Updating scale for blok", currentBlok);
-      console.log("🔍 PBLGenerate: semesterDistribution", semesterDistribution);
-      console.log("🔍 PBLGenerate: semesterData before update", semesterData);
 
       if (
         !semesterDistribution ||
         Object.keys(semesterDistribution).length === 0
       ) {
-        console.log("❌ PBLGenerate: semesterDistribution kosong");
         throw new Error("Gagal menghitung distribusi semester");
       }
 
@@ -1928,13 +1864,9 @@ export default function PBLGenerate() {
           semesterData[semester].distributed = distributed;
           semesterData[semester].originalNeeds = semesterNeeds[semester];
 
-          console.log(
-            `🔍 PBLGenerate: Semester ${semester} - distributed: ${distributed}, scale: ${scale}`
-          );
         }
       });
 
-      console.log("🔍 PBLGenerate: semesterData after update", semesterData);
 
       // Simpan data distribusi proporsional untuk ditampilkan di UI
       const proportionalData = {
@@ -2074,11 +2006,6 @@ export default function PBLGenerate() {
         if (dosenMengajar.length > 0 && dosenMengajarNeeded > 0) {
           // Dosen sudah diurutkan berdasarkan prioritas keahlian dari getDosenDenganPrioritasKeahlian
           // Tambahkan sorting berdasarkan blok dan skala
-          console.log(`🔍 PBLGenerate: Sorting dosen for semester ${semester}`);
-          console.log(
-            `🔍 PBLGenerate: semesterData[${semester}]`,
-            semesterData[semester]
-          );
 
           const sortedDosenMengajar = dosenMengajar.sort((a, b) => {
             // Prioritas utama: keahlian cocok (sudah diurutkan)
@@ -2091,9 +2018,6 @@ export default function PBLGenerate() {
             const countA = a.pbl_assignment_count || 0;
             const countB = b.pbl_assignment_count || 0;
 
-            console.log(
-              `🔍 PBLGenerate: Dosen ${a.name} (count: ${countA}) vs ${b.name} (count: ${countB}), scale: ${scale}, blok: ${currentBlok}`
-            );
 
             // Blok 1: ignore count, hanya berdasarkan keahlian
             if (currentBlok === 1) {
@@ -3792,23 +3716,10 @@ export default function PBLGenerate() {
 
                     {/* Tampilkan CSR Keahlian untuk semester dan blok ini */}
                     {Object.entries(csrKeahlianData).map(([kode, csrList]) => {
-                      console.log(
-                        `🔍 PBLGenerate: Checking CSR for ${kode}:`,
-                        csrList
-                      );
 
                       // Cek apakah mata kuliah CSR ini relevan dengan semester ini
                       const csrMataKuliah = allMataKuliah.find(
                         (mk: any) => mk.kode === kode
-                      );
-                      console.log(
-                        `🔍 PBLGenerate: CSR Mata Kuliah for ${kode}:`,
-                        csrMataKuliah
-                      );
-                      console.log(
-                        `🔍 PBLGenerate: Current semester: ${semesterNumber} (type: ${typeof semesterNumber}), CSR semester: ${
-                          csrMataKuliah?.semester
-                        } (type: ${typeof csrMataKuliah?.semester})`
                       );
 
                       // Convert both to numbers for comparison
@@ -3819,9 +3730,6 @@ export default function PBLGenerate() {
                         String(csrMataKuliah?.semester || "0")
                       );
 
-                      console.log(
-                        `🔍 PBLGenerate: Converted - Current: ${currentSemesterNum}, CSR: ${csrSemesterNum}`
-                      );
 
                       if (
                         !csrMataKuliah ||
@@ -3829,46 +3737,25 @@ export default function PBLGenerate() {
                         isNaN(csrSemesterNum) ||
                         csrSemesterNum !== currentSemesterNum
                       ) {
-                        console.log(
-                          `❌ PBLGenerate: CSR ${kode} not relevant for semester ${semesterNumber} (${currentSemesterNum} vs ${csrSemesterNum})`
-                        );
                         return null;
                       }
 
                       // Filter CSR berdasarkan blok - ambil nomor blok dari nomor_csr (format: semester.blok)
                       const currentBlok = parseInt(blokId || "1");
-                      console.log(
-                        `🔍 PBLGenerate: Current blok: ${currentBlok}`
-                      );
 
                       const csrForThisBlok = csrList.filter((csrItem) => {
                         const nomorCsr = csrItem.csr.nomor_csr;
-                        console.log(`🔍 PBLGenerate: Checking CSR ${nomorCsr}`);
 
                         // Parse nomor CSR (misal "7.1" -> blok 1, "7.2" -> blok 2)
                         const parts = nomorCsr.split(".");
                         if (parts.length === 2) {
                           const csrBlok = parseInt(parts[1]);
-                          console.log(
-                            `🔍 PBLGenerate: CSR ${nomorCsr} -> blok ${csrBlok}, current blok ${currentBlok}`
-                          );
                           return csrBlok === currentBlok;
                         }
-                        console.log(
-                          `❌ PBLGenerate: CSR ${nomorCsr} format invalid`
-                        );
                         return false;
                       });
 
-                      console.log(
-                        `🔍 PBLGenerate: CSR for blok ${currentBlok}:`,
-                        csrForThisBlok
-                      );
-
                       if (csrForThisBlok.length === 0) {
-                        console.log(
-                          `❌ PBLGenerate: No CSR found for blok ${currentBlok} in ${kode}`
-                        );
                         return null;
                       }
 

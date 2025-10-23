@@ -3184,7 +3184,7 @@ export default function PBL() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-8">
+              <div className="space-y-8 max-h-[1500px] overflow-y-auto hide-scroll">
                 {(sortedSemesters || []).map((semester) => {
                   const semesterPBLs = (allFilteredMataKuliah || []).filter(
                     (mk: MataKuliah) => mk.semester === semester
