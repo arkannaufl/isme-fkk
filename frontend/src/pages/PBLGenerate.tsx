@@ -255,7 +255,6 @@ export default function PBLGenerate() {
           api.get("/kelompok-kecil"),
         ]);
 
-
         // Process PBL data
         const data = pblRes.data || {};
         const jurnalData = jurnalReadingRes.data || {};
@@ -271,7 +270,6 @@ export default function PBLGenerate() {
           }
         );
 
-
         // Process Jurnal Reading data
         const jurnalMap: Record<string, any[]> = {};
         Array.from(
@@ -281,7 +279,7 @@ export default function PBLGenerate() {
         });
 
         // Filter by blok if blokId is provided
-        
+
         let filteredBlokMataKuliah = blokListMapped;
 
         if (blokId) {
@@ -291,51 +289,55 @@ export default function PBLGenerate() {
         }
 
         // Fetch CSR Keahlian data - AMBIL DARI SEMUA MATA KULIAH CSR (TIDAK TERGANTUNG BLOK)
-        const csrKeahlianMap: Record<string, { csr: any; keahlian: string[] }[]> = {};
-        
+        const csrKeahlianMap: Record<
+          string,
+          { csr: any; keahlian: string[] }[]
+        > = {};
+
         // AMBIL SEMUA MATA KULIAH CSR (Non Blok + CSR) - TIDAK TERGANTUNG BLOK
-        const allMataKuliahResponse = await api.get('/mata-kuliah');
+        const allMataKuliahResponse = await api.get("/mata-kuliah");
         const allMataKuliah = allMataKuliahResponse.data || [];
-        
+
         // Filter hanya CSR mata kuliah (Non Blok + CSR)
-        const csrMataKuliah = allMataKuliah.filter((mk: any) => 
-          mk.jenis === "Non Blok" && mk.tipe_non_block === "CSR"
+        const csrMataKuliah = allMataKuliah.filter(
+          (mk: any) => mk.jenis === "Non Blok" && mk.tipe_non_block === "CSR"
         );
-        
-        
+
         for (const mk of csrMataKuliah) {
           try {
-            
             // Ambil CSR dari mata kuliah ini
             const csrResponse = await api.get(`/mata-kuliah/${mk.kode}/csrs`);
-            const csrList = Array.isArray(csrResponse.data) ? csrResponse.data : [];
-            
-            
+            const csrList = Array.isArray(csrResponse.data)
+              ? csrResponse.data
+              : [];
+
             // Ambil keahlian dari setiap CSR dengan detail CSR
             const csrWithKeahlian: { csr: any; keahlian: string[] }[] = [];
             for (const csr of csrList) {
               if (csr.id) {
                 try {
-                  const keahlianResponse = await api.get(`/keahlian-csr/csr/${csr.id}`);
+                  const keahlianResponse = await api.get(
+                    `/keahlian-csr/csr/${csr.id}`
+                  );
                   const keahlianList = keahlianResponse.data.data || [];
-                  const keahlianNames = keahlianList.map((k: any) => k.keahlian);
-                  
+                  const keahlianNames = keahlianList.map(
+                    (k: any) => k.keahlian
+                  );
+
                   csrWithKeahlian.push({
                     csr: csr,
-                    keahlian: keahlianNames
+                    keahlian: keahlianNames,
                   });
-                  
                 } catch (err) {
                   csrWithKeahlian.push({
                     csr: csr,
-                    keahlian: []
+                    keahlian: [],
                   });
                 }
               }
             }
-            
+
             csrKeahlianMap[mk.kode] = csrWithKeahlian;
-            
           } catch (err) {
             csrKeahlianMap[mk.kode] = [];
           }
@@ -357,7 +359,7 @@ export default function PBLGenerate() {
         // Fetch assigned dosen for filtered PBLs
         const allPbls = Object.values(pblMap).flat();
         const pblIds = allPbls.map((pbl) => pbl.id).filter(Boolean);
-        
+
         if (pblIds.length > 0) {
           const assignedRes = await api.post("/pbls/assigned-dosen-batch", {
             pbl_ids: pblIds,
@@ -443,7 +445,10 @@ export default function PBLGenerate() {
         await fetchKelompokKecilData(filteredBlokMataKuliah, semester?.jenis);
 
         // Load proportional distribution data if available
-        await loadProportionalDistribution(parseInt(blokId || "1"), semester?.jenis);
+        await loadProportionalDistribution(
+          parseInt(blokId || "1"),
+          semester?.jenis
+        );
       } catch (err) {
         setError("Gagal memuat data PBL/dosen");
         setBlokMataKuliah([]);
@@ -467,47 +472,53 @@ export default function PBLGenerate() {
           .flat()
           .map((pbl) => pbl.id)
           .filter((id): id is number => id !== undefined);
-        
+
         if (allPblIds.length > 0) {
           const assignedRes = await api.post(
             "/pbl-generate/get-assignments",
             { pbl_ids: allPblIds },
             { params: { _ts: Date.now() } }
           );
-          
+
           if (assignedRes.data.success) {
             const assignmentsData = assignedRes.data.data || {};
             const convertedAssignments: AssignedDosen = {};
-            
-            Object.entries(assignmentsData).forEach(([pblId, assignments]: [string, any[]]) => {
-              convertedAssignments[parseInt(pblId)] = assignments.map((assignment) => ({
-                id: assignment.dosen.id,
-                nid: assignment.dosen.nid,
-                name: assignment.dosen.name,
-                keahlian: assignment.dosen.keahlian || [],
-                pbl_role: assignment.role,
-                pbl_assignment_count: assignment.pbl_assignment_count || 0,
-                dosen_peran: assignment.dosen.dosen_peran || [],
-              }));
-            });
-            
+
+            Object.entries(assignmentsData).forEach(
+              ([pblId, assignments]: [string, any[]]) => {
+                convertedAssignments[parseInt(pblId)] = assignments.map(
+                  (assignment) => ({
+                    id: assignment.dosen.id,
+                    nid: assignment.dosen.nid,
+                    name: assignment.dosen.name,
+                    keahlian: assignment.dosen.keahlian || [],
+                    pbl_role: assignment.role,
+                    pbl_assignment_count: assignment.pbl_assignment_count || 0,
+                    dosen_peran: assignment.dosen.dosen_peran || [],
+                  })
+                );
+              }
+            );
+
             setAssignedDosen(convertedAssignments);
           }
         }
-        
+
         // Also refresh dosen list to update assignment counts
         const freshDosen = await api.get("/users?role=dosen", {
           params: { _ts: Date.now() },
         });
         setDosenList(freshDosen.data || []);
-      } catch (error) {
-      }
+      } catch (error) {}
     };
 
-    window.addEventListener('pbl-assignment-updated', handleAssignmentUpdate);
-    
+    window.addEventListener("pbl-assignment-updated", handleAssignmentUpdate);
+
     return () => {
-      window.removeEventListener('pbl-assignment-updated', handleAssignmentUpdate);
+      window.removeEventListener(
+        "pbl-assignment-updated",
+        handleAssignmentUpdate
+      );
     };
   }, [pblData]);
 
@@ -517,8 +528,7 @@ export default function PBLGenerate() {
       if (!activeSemester) return;
 
       try {
-        
-        const response = await api.get('/proportional-distribution', {
+        const response = await api.get("/proportional-distribution", {
           params: {
             blok_id: blokId,
             active_semester: activeSemester,
@@ -892,7 +902,9 @@ export default function PBLGenerate() {
 
       // Total dosen yang dibutuhkan untuk semester ini = Kelompok × (Modul + Jurnal Reading + CSR Keahlian)
       const dosenNeededForSemester = Math.round(
-        Math.round(kelompokCount * (totalPBL + totalJurnalReading + totalCSRKeahlian))
+        Math.round(
+          kelompokCount * (totalPBL + totalJurnalReading + totalCSRKeahlian)
+        )
       );
       totalDosenNeeded += dosenNeededForSemester;
 
@@ -993,47 +1005,49 @@ export default function PBLGenerate() {
       return acc;
     }, {} as { [key: number]: typeof blokMataKuliah });
 
-    Object.entries(groupedBySemesterForAssignment).forEach(([semester, mataKuliahList]) => {
-      const semesterNumber = parseInt(semester);
+    Object.entries(groupedBySemesterForAssignment).forEach(
+      ([semester, mataKuliahList]) => {
+        const semesterNumber = parseInt(semester);
 
-      // Hitung dosen yang sudah di-assign untuk semester ini (unik per dosen)
-      const assignedDosenSet = new Set<number>();
-      mataKuliahList.forEach((mk) => {
-        (pblData[mk.kode] || []).forEach((pbl) => {
-          if (pbl.id && assignedDosen[pbl.id]?.length > 0) {
-            assignedDosen[pbl.id].forEach((d) => assignedDosenSet.add(d.id));
+        // Hitung dosen yang sudah di-assign untuk semester ini (unik per dosen)
+        const assignedDosenSet = new Set<number>();
+        mataKuliahList.forEach((mk) => {
+          (pblData[mk.kode] || []).forEach((pbl) => {
+            if (pbl.id && assignedDosen[pbl.id]?.length > 0) {
+              assignedDosen[pbl.id].forEach((d) => assignedDosenSet.add(d.id));
+            }
+          });
+        });
+
+        // Hitung distribution untuk semester ini (unik per dosen)
+        assignedDosenSet.forEach((dosenId) => {
+          if (!processedDosen.has(dosenId)) {
+            processedDosen.add(dosenId);
+
+            // Cari dosen dari assignedDosen data
+            let dosenRole = "dosen_mengajar"; // default
+
+            // Cari peran dosen dari assignedDosen data
+            Object.values(assignedDosen).forEach((assignedDosenList) => {
+              assignedDosenList.forEach((dosen) => {
+                if (dosen.id === dosenId) {
+                  dosenRole = dosen.pbl_role || "dosen_mengajar";
+                }
+              });
+            });
+
+            // Hitung berdasarkan peran yang benar (unik per dosen per semester)
+            if (dosenRole === "koordinator") {
+              assignmentDistribution.koordinator++;
+            } else if (dosenRole === "tim_blok") {
+              assignmentDistribution.timBlok++;
+            } else {
+              assignmentDistribution.dosenMengajar++;
+            }
           }
         });
-      });
-
-      // Hitung distribution untuk semester ini (unik per dosen)
-      assignedDosenSet.forEach((dosenId) => {
-        if (!processedDosen.has(dosenId)) {
-          processedDosen.add(dosenId);
-
-          // Cari dosen dari assignedDosen data
-          let dosenRole = "dosen_mengajar"; // default
-          
-          // Cari peran dosen dari assignedDosen data
-          Object.values(assignedDosen).forEach((assignedDosenList) => {
-            assignedDosenList.forEach((dosen) => {
-              if (dosen.id === dosenId) {
-                dosenRole = dosen.pbl_role || "dosen_mengajar";
-              }
-            });
-          });
-
-          // Hitung berdasarkan peran yang benar (unik per dosen per semester)
-          if (dosenRole === "koordinator") {
-            assignmentDistribution.koordinator++;
-          } else if (dosenRole === "tim_blok") {
-            assignmentDistribution.timBlok++;
-          } else {
-            assignmentDistribution.dosenMengajar++;
-          }
-        }
-      });
-    });
+      }
+    );
 
     // Calculate data freshness
     const now = new Date();
@@ -1098,7 +1112,9 @@ export default function PBLGenerate() {
 
       // RUMUS YANG BENAR: Total Dosen Dibutuhkan = Kelompok × (Modul + Jurnal Reading + CSR Keahlian)
       const totalDosenNeeded = Math.round(
-        Math.round(kelompokCount * (totalPBL + totalJurnalReading + totalCSRKeahlian))
+        Math.round(
+          kelompokCount * (totalPBL + totalJurnalReading + totalCSRKeahlian)
+        )
       );
 
       // Hitung dosen yang sudah di-assign (unik per dosen)
@@ -1236,13 +1252,11 @@ export default function PBLGenerate() {
         targetSemesters = [];
       }
 
-
       targetSemesters.forEach((semester) => {
         const mataKuliahSemester = blokMataKuliah.filter(
           (mk) =>
             String(mk.semester) === String(semester) && mk.blok === blokNumber
         );
-
 
         mataKuliahSemester.forEach((mk) => {
           if (mk.keahlian_required && Array.isArray(mk.keahlian_required)) {
@@ -1261,7 +1275,6 @@ export default function PBLGenerate() {
 
   // Helper untuk filter dosen aktif (untuk Total Tersedia - Distribusi Proporsional)
   const getDosenAktif = useCallback(() => {
-
     const filteredDosen = dosenList.filter((dosen) => {
       const keahlian = parseKeahlian(dosen.keahlian);
 
@@ -1272,7 +1285,6 @@ export default function PBLGenerate() {
 
       return !isStandby;
     });
-
 
     return filteredDosen;
   }, [dosenList]);
@@ -1535,7 +1547,6 @@ export default function PBLGenerate() {
 
   // Generate dosen assignments per blok & semester
   const handleGenerateDosen = async () => {
-    
     // Pastikan data yang dipakai fresh dari database (hindari stale state)
     try {
       // Refetch dosen list (no cache)
@@ -1562,14 +1573,13 @@ export default function PBLGenerate() {
       } else {
         setAssignedDosen({});
       }
-    } catch (e) {
-    }
+    } catch (e) {}
 
     // Tentukan blok aktif dari URL parameter
     const currentBlok = parseInt(blokId || "1");
 
     // Validasi data
-    
+
     if (dosenList.length === 0 || Object.keys(pblData).length === 0) {
       setError("Data belum dimuat. Silakan tunggu sebentar.");
       return;
@@ -1596,7 +1606,6 @@ export default function PBLGenerate() {
     } else {
       semesters = [1, 3, 5, 7]; // Default ke semester ganjil
     }
-    
 
     let hasKelompokKecil = false;
     let missingKelompokSemesters: number[] = [];
@@ -1739,7 +1748,9 @@ export default function PBLGenerate() {
         }, 0);
 
         const totalDosenNeeded = Math.round(
-          Math.round(totalKelompok * (totalModul + totalJurnalReading + totalCSRKeahlian))
+          Math.round(
+            totalKelompok * (totalModul + totalJurnalReading + totalCSRKeahlian)
+          )
         );
 
         // Cari Koordinator dan Tim Blok
@@ -1809,7 +1820,7 @@ export default function PBLGenerate() {
 
       // Save proportional distribution to database
       try {
-        await api.post('/proportional-distribution', {
+        await api.post("/proportional-distribution", {
           blok_id: currentBlok,
           active_semester: activeSemesterJenis,
           semester_needs: proportionalData.semesterNeeds,
@@ -1819,7 +1830,6 @@ export default function PBLGenerate() {
           total_needs: proportionalData.totalNeeds,
         });
       } catch (error) {
-        console.error("Failed to save proportional distribution:", error);
         // Don't throw error, just log it - the generate process should continue
       }
 
@@ -1844,7 +1854,7 @@ export default function PBLGenerate() {
 
         // AMBIL HANYA 1 KOORDINATOR per semester yang BELUM di-assign di blok ini
         const selectedKoordinator = koordinatorForSemester.find(
-          dosen => !assignedDosenPerBlok.has(dosen.id)
+          (dosen) => !assignedDosenPerBlok.has(dosen.id)
         );
 
         // ASSIGN KOORDINATOR ke SEMUA modul dalam semester ini
@@ -1865,7 +1875,7 @@ export default function PBLGenerate() {
 
         // ASSIGN TIM BLOK (hanya yang BELUM di-assign di blok ini)
         const selectedTimBlokList = timBlokForSemester.filter(
-          dosen => !assignedDosenPerBlok.has(dosen.id)
+          (dosen) => !assignedDosenPerBlok.has(dosen.id)
         );
 
         for (const selectedTimBlok of selectedTimBlokList) {
@@ -1900,24 +1910,25 @@ export default function PBLGenerate() {
           if (assignedDosenPerBlok.has(dosen.id)) {
             return false;
           }
-          
+
           // FILTER TAMBAHAN: Kecualikan dosen yang punya peran Koordinator/Tim Blok di blok ini
           // Cek dari dosen_peran apakah dia koordinator/tim blok untuk blok ini
           const hasKoordinatorOrTimBlokRoleInThisBlok = dosen.dosen_peran?.some(
             (peran: any) => {
               // Cari mata kuliah yang sesuai dengan peran ini
               const mkForPeran = filteredMataKuliah.find(
-                mk => mk.kode === peran.mata_kuliah_kode
+                (mk) => mk.kode === peran.mata_kuliah_kode
               );
-              
+
               // Cek apakah mata kuliah ini di blok yang sama
-              const isInSameBlok = mkForPeran && mkForPeran.blok === currentBlok;
-              
+              const isInSameBlok =
+                mkForPeran && mkForPeran.blok === currentBlok;
+
               // Cek apakah perannya koordinator atau tim_blok
-              const isKoordinatorOrTimBlok = 
-                peran.tipe_peran === "koordinator" || 
+              const isKoordinatorOrTimBlok =
+                peran.tipe_peran === "koordinator" ||
                 peran.tipe_peran === "tim_blok";
-              
+
               return isInSameBlok && isKoordinatorOrTimBlok;
             }
           );
@@ -1977,7 +1988,7 @@ export default function PBLGenerate() {
             (selectedKoordinator ? 1 : 0) +
             selectedTimBlokList.length +
             dosenToAssign.length;
-          
+
           // Hitung total CSR keahlian untuk semester ini
           const totalCSRKeahlian = mkInSemester.reduce((acc, mk) => {
             const csrKeahlianForMk = csrKeahlianData[mk.kode] || [];
@@ -1986,7 +1997,7 @@ export default function PBLGenerate() {
             }, 0);
             return acc + totalKeahlian;
           }, 0);
-          
+
           const totalDosenNeeded = Math.round(
             totalKelompok * (totalModul + totalJurnalReading + totalCSRKeahlian)
           );
@@ -2013,7 +2024,7 @@ export default function PBLGenerate() {
           // Warning jika tidak ada dosen mengajar yang tersedia
           const totalDosenAssigned =
             (selectedKoordinator ? 1 : 0) + selectedTimBlokList.length;
-          
+
           // Hitung total CSR keahlian untuk semester ini
           const totalCSRKeahlian = mkInSemester.reduce((acc, mk) => {
             const csrKeahlianForMk = csrKeahlianData[mk.kode] || [];
@@ -2022,7 +2033,7 @@ export default function PBLGenerate() {
             }, 0);
             return acc + totalKeahlian;
           }, 0);
-          
+
           const totalDosenNeeded = Math.round(
             totalKelompok * (totalModul + totalJurnalReading + totalCSRKeahlian)
           );
@@ -2051,7 +2062,7 @@ export default function PBLGenerate() {
       // Summary: Dosen yang sudah di-assign di blok ini
 
       // Kirim ke backend
-      
+
       if (assignments.length > 0) {
         const response = await api.post("/pbl-generate/assignments", {
           assignments: assignments,
@@ -2139,15 +2150,14 @@ export default function PBLGenerate() {
 
           // Delete proportional distribution from database
           try {
-            await api.delete('/proportional-distribution', {
+            await api.delete("/proportional-distribution", {
               params: {
                 blok_id: parseInt(blokId || "1"),
                 active_semester: activeSemesterJenis,
                 _ts: Date.now(),
               },
             });
-          } catch (error) {
-          }
+          } catch (error) {}
         } else {
           setError(resetRes.data.message);
         }
@@ -2239,7 +2249,10 @@ export default function PBLGenerate() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {Array.from({ length: 4 }).map((_, idx) => (
-              <div key={idx} className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+              <div
+                key={idx}
+                className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700"
+              >
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
@@ -2277,7 +2290,10 @@ export default function PBLGenerate() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {Array.from({ length: 3 }).map((_, idx) => (
-              <div key={idx} className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+              <div
+                key={idx}
+                className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700"
+              >
                 <div className="flex items-center justify-between h-full">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
@@ -2306,7 +2322,10 @@ export default function PBLGenerate() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {Array.from({ length: 4 }).map((_, idx) => (
-              <div key={idx} className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700">
+              <div
+                key={idx}
+                className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700"
+              >
                 <div className="flex items-center justify-between mb-2">
                   <div className="h-5 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
                   <div className="h-5 w-12 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
@@ -2496,7 +2515,12 @@ export default function PBLGenerate() {
                 {proportionalDistribution.generatedAt && (
                   <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span>Terakhir di-generate: {new Date(proportionalDistribution.generatedAt).toLocaleString('id-ID')}</span>
+                    <span>
+                      Terakhir di-generate:{" "}
+                      {new Date(
+                        proportionalDistribution.generatedAt
+                      ).toLocaleString("id-ID")}
+                    </span>
                   </div>
                 )}
               </div>
@@ -2508,9 +2532,11 @@ export default function PBLGenerate() {
               if (!proportionalDistribution.semesterPercentages[semester])
                 return null;
 
-              const percentage = proportionalDistribution.semesterPercentages[semester];
+              const percentage =
+                proportionalDistribution.semesterPercentages[semester];
               const needs = proportionalDistribution.semesterNeeds[semester];
-              const distribution = proportionalDistribution.semesterDistribution[semester];
+              const distribution =
+                proportionalDistribution.semesterDistribution[semester];
 
               return (
                 <div
@@ -2520,7 +2546,9 @@ export default function PBLGenerate() {
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-                        <span className="text-white font-bold text-sm">{semester}</span>
+                        <span className="text-white font-bold text-sm">
+                          {semester}
+                        </span>
                       </div>
                       <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
                         Semester {semester}
@@ -2532,22 +2560,26 @@ export default function PBLGenerate() {
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-3">
                     <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-700/50 rounded-lg">
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Kebutuhan</span>
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Kebutuhan
+                        </span>
                       </div>
                       <span className="text-sm font-semibold text-gray-900 dark:text-white">
                         {needs} dosen
                       </span>
                     </div>
-                    
+
                     <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-700/50 rounded-lg">
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Distribusi</span>
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Distribusi
+                        </span>
                       </div>
                       <span className="text-sm font-semibold text-green-600 dark:text-green-400">
                         {distribution} dosen
@@ -2626,12 +2658,14 @@ export default function PBLGenerate() {
                 </div>
               </div>
             </div>
-            
+
             <div className="space-y-3">
               <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-700/50 rounded-lg">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Completion Rate</span>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Completion Rate
+                  </span>
                 </div>
                 <span className="text-sm font-semibold text-gray-900 dark:text-white">
                   {pblStatistics.assignmentRate.toFixed(1)}%
@@ -2660,12 +2694,14 @@ export default function PBLGenerate() {
                 </div>
               </div>
             </div>
-            
+
             <div className="space-y-3">
               <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-700/50 rounded-lg">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Standby Used</span>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Standby Used
+                  </span>
                 </div>
                 <span className="text-sm font-semibold text-gray-900 dark:text-white">
                   {pblStatistics.standbyDosenUsage}
@@ -2694,12 +2730,14 @@ export default function PBLGenerate() {
                 </div>
               </div>
             </div>
-            
+
             <div className="space-y-3">
               <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-700/50 rounded-lg">
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Unassigned</span>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Unassigned
+                  </span>
                 </div>
                 <span className="text-sm font-semibold text-gray-900 dark:text-white">
                   {pblStatistics.unassignedPBLCount}
@@ -2736,7 +2774,7 @@ export default function PBLGenerate() {
                 </div>
               </div>
             </div>
-            
+
             <div className="space-y-3">
               <div className="flex items-center justify-between p-3 bg-white dark:bg-gray-700/50 rounded-lg">
                 <div className="flex items-center gap-2">
@@ -2749,7 +2787,9 @@ export default function PBLGenerate() {
                         : "bg-red-400"
                     }`}
                   ></div>
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Data Status</span>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Data Status
+                  </span>
                 </div>
                 <span
                   className={`text-sm font-semibold ${
@@ -2987,7 +3027,8 @@ export default function PBLGenerate() {
                 Generate Dosen
               </h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                Klik tombol di bawah untuk menggenerate penugasan dosen secara otomatis
+                Klik tombol di bawah untuk menggenerate penugasan dosen secara
+                otomatis
               </p>
             </div>
           </div>
@@ -3362,7 +3403,6 @@ export default function PBLGenerate() {
                       </div>
                     </div>
                   </div>
-
                 </div>
               </div>
 
@@ -3604,50 +3644,83 @@ export default function PBLGenerate() {
 
                     {/* Tampilkan CSR Keahlian untuk semester dan blok ini */}
                     {Object.entries(csrKeahlianData).map(([kode, csrList]) => {
-                      console.log(`🔍 PBLGenerate: Checking CSR for ${kode}:`, csrList);
-                      
+                      console.log(
+                        `🔍 PBLGenerate: Checking CSR for ${kode}:`,
+                        csrList
+                      );
+
                       // Cek apakah mata kuliah CSR ini relevan dengan semester ini
-                      const csrMataKuliah = allMataKuliah.find((mk: any) => mk.kode === kode);
-                      console.log(`🔍 PBLGenerate: CSR Mata Kuliah for ${kode}:`, csrMataKuliah);
-                      console.log(`🔍 PBLGenerate: Current semester: ${semesterNumber} (type: ${typeof semesterNumber}), CSR semester: ${csrMataKuliah?.semester} (type: ${typeof csrMataKuliah?.semester})`);
-                      
+                      const csrMataKuliah = allMataKuliah.find(
+                        (mk: any) => mk.kode === kode
+                      );
+                      console.log(
+                        `🔍 PBLGenerate: CSR Mata Kuliah for ${kode}:`,
+                        csrMataKuliah
+                      );
+                      console.log(
+                        `🔍 PBLGenerate: Current semester: ${semesterNumber} (type: ${typeof semesterNumber}), CSR semester: ${
+                          csrMataKuliah?.semester
+                        } (type: ${typeof csrMataKuliah?.semester})`
+                      );
+
                       // Convert both to numbers for comparison
-                      const currentSemesterNum = parseInt(String(semesterNumber));
-                      const csrSemesterNum = parseInt(String(csrMataKuliah?.semester));
-                      
-                      console.log(`🔍 PBLGenerate: Converted - Current: ${currentSemesterNum}, CSR: ${csrSemesterNum}`);
-                      
-                      if (!csrMataKuliah || csrSemesterNum !== currentSemesterNum) {
-                        console.log(`❌ PBLGenerate: CSR ${kode} not relevant for semester ${semesterNumber} (${currentSemesterNum} vs ${csrSemesterNum})`);
+                      const currentSemesterNum = parseInt(
+                        String(semesterNumber)
+                      );
+                      const csrSemesterNum = parseInt(
+                        String(csrMataKuliah?.semester)
+                      );
+
+                      console.log(
+                        `🔍 PBLGenerate: Converted - Current: ${currentSemesterNum}, CSR: ${csrSemesterNum}`
+                      );
+
+                      if (
+                        !csrMataKuliah ||
+                        csrSemesterNum !== currentSemesterNum
+                      ) {
+                        console.log(
+                          `❌ PBLGenerate: CSR ${kode} not relevant for semester ${semesterNumber} (${currentSemesterNum} vs ${csrSemesterNum})`
+                        );
                         return null;
                       }
-                      
+
                       // Filter CSR berdasarkan blok - ambil nomor blok dari nomor_csr (format: semester.blok)
                       const currentBlok = parseInt(blokId || "1");
-                      console.log(`🔍 PBLGenerate: Current blok: ${currentBlok}`);
-                      
+                      console.log(
+                        `🔍 PBLGenerate: Current blok: ${currentBlok}`
+                      );
+
                       const csrForThisBlok = csrList.filter((csrItem) => {
                         const nomorCsr = csrItem.csr.nomor_csr;
-                        console.log(`🔍 PBLGenerate: Checking CSR ${nomorCsr}`);
-                        
+
                         // Parse nomor CSR (misal "7.1" -> blok 1, "7.2" -> blok 2)
-                        const parts = nomorCsr.split('.');
+                        const parts = nomorCsr.split(".");
                         if (parts.length === 2) {
                           const csrBlok = parseInt(parts[1]);
-                          console.log(`🔍 PBLGenerate: CSR ${nomorCsr} -> blok ${csrBlok}, current blok ${currentBlok}`);
+                          console.log(
+                            `🔍 PBLGenerate: CSR ${nomorCsr} -> blok ${csrBlok}, current blok ${currentBlok}`
+                          );
                           return csrBlok === currentBlok;
                         }
-                        console.log(`❌ PBLGenerate: CSR ${nomorCsr} format invalid`);
+                        console.log(
+                          `❌ PBLGenerate: CSR ${nomorCsr} format invalid`
+                        );
                         return false;
                       });
-                      
-                      console.log(`🔍 PBLGenerate: CSR for blok ${currentBlok}:`, csrForThisBlok);
-                      
+
+                      console.log(
+                        `🔍 PBLGenerate: CSR for blok ${currentBlok}:`,
+                        csrForThisBlok
+                      );
+
                       if (csrForThisBlok.length === 0) {
-                        console.log(`❌ PBLGenerate: No CSR found for blok ${currentBlok} in ${kode}`);
+                        console.log(
+                          `❌ PBLGenerate: No CSR found for blok ${currentBlok} in ${kode}`
+                        );
                         return null;
                       }
-                      
+
                       return (
                         <div key={kode} className="mt-6">
                           <div className="p-5 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-gray-800/50">
@@ -3657,7 +3730,9 @@ export default function PBLGenerate() {
                                 className="w-4 h-4 text-blue-600 dark:text-blue-400"
                               />
                               <h4 className="text-sm font-semibold text-gray-800 dark:text-white">
-                                Keahlian CSR Semester {semesterNumber} Blok {currentBlok} - {kode} ({csrForThisBlok.length} CSR)
+                                Keahlian CSR Semester {semesterNumber} Blok{" "}
+                                {currentBlok} - {kode} ({csrForThisBlok.length}{" "}
+                                CSR)
                               </h4>
                             </div>
                             <div className="grid gap-3">
@@ -3679,14 +3754,16 @@ export default function PBLGenerate() {
                                     </span>
                                   </div>
                                   <div className="flex flex-wrap gap-2">
-                                    {csrItem.keahlian.map((keahlian, keahlianIdx) => (
-                                      <div
-                                        key={keahlianIdx}
-                                        className="px-2 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 rounded-full text-xs font-medium"
-                                      >
-                                        {keahlian}
-                                      </div>
-                                    ))}
+                                    {csrItem.keahlian.map(
+                                      (keahlian, keahlianIdx) => (
+                                        <div
+                                          key={keahlianIdx}
+                                          className="px-2 py-1 bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 rounded-full text-xs font-medium"
+                                        >
+                                          {keahlian}
+                                        </div>
+                                      )
+                                    )}
                                   </div>
                                 </div>
                               ))}
@@ -3701,7 +3778,6 @@ export default function PBLGenerate() {
             </div>
           );
         })}
-
       </div>
     </div>
   );

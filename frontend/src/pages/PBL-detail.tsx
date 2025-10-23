@@ -481,7 +481,6 @@ export default function PBL() {
       // Assign dosen to PBL
       await handleAssignDosen(dosen, pbl, mk);
     } catch (error: any) {
-      console.error("Error assigning dosen:", error);
       setError("Gagal menugaskan dosen: " + error.message);
     } finally {
       setIsMovingDosen(false);
