@@ -1072,7 +1072,6 @@ export default function Dosen() {
             }
           });
 
-          console.log("🔍 Setting peran kurikulum from database:", peranKurikulumOptions);
           // Convert to string keys for HeadlessUI comparison
           const peranKurikulumKeys = peranKurikulumOptions.map(peran => 
             `${peran.mataKuliahKode}-${peran.originalName}-${peran.blok}-${peran.semester}`
@@ -1889,11 +1888,8 @@ export default function Dosen() {
 
   // Fungsi untuk memfilter peran kurikulum berdasarkan mata kuliah yang dipilih
   const filterPeranKurikulumByMataKuliah = (mataKuliahKodeList: string[]) => {
-    console.log("🔍 Filtering peran kurikulum for:", mataKuliahKodeList);
-    console.log("🔍 Peran kurikulum options:", peranKurikulumOptions);
     
     if (!mataKuliahKodeList || mataKuliahKodeList.length === 0) {
-      console.log("❌ No mata kuliah selected, clearing options");
       setFilteredPeranKurikulumOptions([]);
       return;
     }
@@ -1904,12 +1900,10 @@ export default function Dosen() {
       .filter(Boolean);
 
     if (selectedMatkulList.length === 0) {
-      console.log("❌ No valid matkul found, clearing options");
       setFilteredPeranKurikulumOptions([]);
       return;
     }
 
-    console.log("✅ Selected matkul list:", selectedMatkulList);
 
     // Ambil peran kurikulum yang spesifik untuk semua mata kuliah yang dipilih
     const allPeranKurikulum: PeranKurikulumOption[] = [];
@@ -1919,7 +1913,6 @@ export default function Dosen() {
       const mataKuliahPeranKurikulum =
         selectedMatkul.peran_dalam_kurikulum || [];
 
-      console.log(`🔍 Peran kurikulum for ${selectedMatkul.kode}:`, mataKuliahPeranKurikulum);
 
       if (Array.isArray(mataKuliahPeranKurikulum)) {
         mataKuliahPeranKurikulum.forEach((peran) => {
@@ -1958,11 +1951,9 @@ export default function Dosen() {
     });
 
 
-    console.log("🔍 Final allPeranKurikulum:", allPeranKurikulum);
     
     // Jika ada peran kurikulum spesifik untuk mata kuliah yang dipilih, gunakan itu
     if (allPeranKurikulum.length > 0) {
-      console.log("✅ Using specific peran kurikulum:", allPeranKurikulum);
       setFilteredPeranKurikulumOptions(allPeranKurikulum);
       return;
     }
@@ -2036,8 +2027,6 @@ export default function Dosen() {
     });
 
 
-    console.log("🔍 Final filteredPeranOptions:", filteredPeranOptions);
-    console.log("🔍 Setting filtered options:", filteredPeranOptions.length > 0 ? filteredPeranOptions : []);
     
     setFilteredPeranKurikulumOptions(
       filteredPeranOptions.length > 0 ? filteredPeranOptions : []
@@ -2068,8 +2057,6 @@ export default function Dosen() {
 
   // Effect untuk sinkronisasi peran kurikulum dengan mata kuliah yang dipilih
   useEffect(() => {
-    console.log("🔄 Mata kuliah changed:", selectedMataKuliahList);
-    console.log("🔄 Current peran kurikulum:", selectedPeranKurikulumList);
     
     if (selectedMataKuliahList.length > 0 && selectedPeranKurikulumList.length > 0) {
       // Filter peran kurikulum yang masih relevan dengan mata kuliah yang dipilih
@@ -2085,12 +2072,10 @@ export default function Dosen() {
           const mataKuliahKode = peranKey.split('-')[0];
           return !selectedMataKuliahList.includes(mataKuliahKode);
         });
-        console.log("🔄 Removing irrelevant peran kurikulum:", removedPeran);
         setSelectedPeranKurikulumList(relevantPeranKurikulum);
       }
     } else if (selectedMataKuliahList.length === 0) {
       // Jika tidak ada mata kuliah yang dipilih, hapus semua peran kurikulum
-      console.log("🔄 No mata kuliah selected, clearing all peran kurikulum");
       setSelectedPeranKurikulumList([]);
     }
   }, [selectedMataKuliahList]);
@@ -4473,8 +4458,6 @@ export default function Dosen() {
                                   multiple
                                 >
                                   {({ open }) => {
-                                    console.log("🔍 Listbox selectedPeranKurikulumList:", selectedPeranKurikulumList);
-                                    console.log("🔍 Listbox filteredPeranKurikulumOptions:", filteredPeranKurikulumOptions);
                                     return (
                                     <div className="relative">
                                       <Listbox.Button className="relative w-full cursor-default rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-2 pl-3 pr-10 text-left text-gray-800 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 sm:text-sm">
@@ -4559,12 +4542,7 @@ export default function Dosen() {
                                                   >
                                                     {({ selected }) => {
                                                       // Debug: Log untuk melihat selected status dan objek yang dibandingkan
-                                                      console.log("🔍 Peran kurikulum option:", peran.name, "Selected:", selected);
-                                                      console.log("🔍 Current peran object:", peran);
-                                                      console.log("🔍 SelectedPeranKurikulumList:", selectedPeranKurikulumList);
                                                       const peranKey = `${peran.mataKuliahKode}-${peran.originalName}-${peran.blok}-${peran.semester}`;
-                                                      console.log("🔍 Peran key:", peranKey);
-                                                      console.log("🔍 Is this peran in selected list?", selectedPeranKurikulumList.includes(peranKey));
                                                       return (
                                                       <div className="flex items-center justify-between">
                                                         <div className="flex flex-col">
