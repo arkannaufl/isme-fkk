@@ -347,8 +347,12 @@ export default function MataKuliah() {
   // Tambahan state untuk CSR yang dihapus
   const [deletedCsrIds, setDeletedCsrIds] = useState<number[]>([]);
   // State untuk keahlian CSR
-  const [csrKeahlian, setCsrKeahlian] = useState<{ [csrId: string]: string[] }>({});
-  const [newKeahlianCSR, setNewKeahlianCSR] = useState<{ [csrId: string]: string }>({});
+  const [csrKeahlian, setCsrKeahlian] = useState<{ [csrId: string]: string[] }>(
+    {}
+  );
+  const [newKeahlianCSR, setNewKeahlianCSR] = useState<{
+    [csrId: string]: string;
+  }>({});
   // State untuk menyimpan CSR asli dari backend saat edit
   const [oldCsrList, setOldCsrList] = useState<CSRItem[]>([]);
   // Tambahkan state untuk semester aktif
@@ -800,17 +804,17 @@ export default function MataKuliah() {
 
         // Sinkronisasi CSR (hanya jika bukan semester Antara)
         if (form.semester !== "Antara") {
-          console.log('Processing CSR for semester:', form.semester);
-          console.log('CSR List:', csrList);
-          console.log('CSR Keahlian:', csrKeahlian);
-          
+          console.log("Processing CSR for semester:", form.semester);
+          console.log("CSR List:", csrList);
+          console.log("CSR Keahlian:", csrKeahlian);
+
           try {
             // 1. Update/POST CSR dengan keahlian
             await Promise.all(
               csrList.map(async (csr, index) => {
                 const csrId = csr.id ? csr.id.toString() : `temp_${index}`;
                 const keahlianList = csrKeahlian[csrId] || [];
-                
+
                 if (csr.id) {
                   // PUT - Update CSR yang sudah ada
                   await api.put(`/csrs/${csr.id}`, {
@@ -830,21 +834,21 @@ export default function MataKuliah() {
                 }
               })
             );
-            
+
             // 2. DELETE CSR yang dihapus
             await Promise.all(
               deletedCsrIds.map(async (id) => {
                 try {
                   await api.delete(`/csrs/${id}`);
                 } catch (err) {
-                  console.error('Error deleting CSR:', err);
+                  console.error("Error deleting CSR:", err);
                 }
               })
             );
-            
-            console.log('CSR processing completed successfully');
+
+            console.log("CSR processing completed successfully");
           } catch (err) {
-            console.error('Error in CSR processing:', err);
+            console.error("Error in CSR processing:", err);
             // Don't throw error, just log it
           }
         }
@@ -912,14 +916,18 @@ export default function MataKuliah() {
           csrList.length > 0
         ) {
           await Promise.all(
-            csrList.map((csr) =>
-              api.post(`/mata-kuliah/${form.kode}/csrs`, {
+            csrList.map((csr, index) => {
+              // Ambil keahlian dari state csrKeahlian, bukan dari csr.keahlian_required
+              const csrId = csr.id ? csr.id.toString() : `temp_${index}`;
+              const keahlianList = csrKeahlian[csrId] || [];
+
+              return api.post(`/mata-kuliah/${form.kode}/csrs`, {
                 nomor_csr: csr.nomor_csr,
                 tanggal_mulai: toDateYMD(csr.tanggal_mulai),
                 tanggal_akhir: toDateYMD(csr.tanggal_akhir),
-                keahlian_required: csr.keahlian_required || [], // pastikan selalu dikirim
-              })
-            )
+                keahlian_required: keahlianList, // Ambil dari state csrKeahlian
+              });
+            })
           );
         }
         if (form.jenis === "Blok" && pblList.length > 0) {
@@ -934,10 +942,10 @@ export default function MataKuliah() {
         }
       }
     } catch (error: any) {
-      console.error('Error in handleSaveData:', error);
-      console.error('Error response:', error.response);
-      console.error('Error message:', error.message);
-      
+      console.error("Error in handleSaveData:", error);
+      console.error("Error response:", error.response);
+      console.error("Error message:", error.message);
+
       if (error.response?.data?.errors) {
         const errorMessages = Object.values(error.response.data.errors).flat();
         setError(errorMessages.join(", "));
@@ -1004,11 +1012,11 @@ export default function MataKuliah() {
     });
     setShowModal(true);
     setEditMode(true);
-    
+
     // Reset keahlian CSR states
     setCsrKeahlian({});
     setNewKeahlianCSR({});
-    
+
     // Fetch CSR dari backend (hanya jika bukan semester Antara)
     if (mk.semester !== "Antara") {
       try {
@@ -1017,16 +1025,17 @@ export default function MataKuliah() {
         setCsrList(csrData);
         setOldCsrList(csrData);
         setDeletedCsrIds([]);
-        
+
         // Load existing keahlian CSR
         const keahlianMap: { [csrId: string]: string[] } = {};
         for (const csr of csrData) {
           if (csr.id) {
             try {
               const keahlianRes = await api.get(`/keahlian-csr/csr/${csr.id}`);
-              keahlianMap[csr.id.toString()] = keahlianRes.data.data?.map((k: any) => k.keahlian) || [];
+              keahlianMap[csr.id.toString()] =
+                keahlianRes.data.data?.map((k: any) => k.keahlian) || [];
             } catch (err) {
-              console.log('No keahlian found for CSR', csr.id);
+              console.log("No keahlian found for CSR", csr.id);
               keahlianMap[csr.id.toString()] = [];
             }
           }
@@ -4136,10 +4145,12 @@ export default function MataKuliah() {
                             </span>
                           </div>
                           {csrList.map((csr, idx) => {
-                            const csrId = csr.id ? csr.id.toString() : `temp_${idx}`;
+                            const csrId = csr.id
+                              ? csr.id.toString()
+                              : `temp_${idx}`;
                             const keahlianList = csrKeahlian[csrId] || [];
                             const newKeahlian = newKeahlianCSR[csrId] || "";
-                            
+
                             return (
                               <div key={csr.id || idx} className="mb-4">
                                 {/* CSR Info Row */}
@@ -4147,11 +4158,16 @@ export default function MataKuliah() {
                                   <input
                                     type="text"
                                     value={csr.nomor_csr}
-                                    onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                                    onChange={(
+                                      e: ChangeEvent<HTMLInputElement>
+                                    ) =>
                                       setCsrList((list) =>
                                         list.map((c, i) =>
                                           i === idx
-                                            ? { ...c, nomor_csr: e.target.value }
+                                            ? {
+                                                ...c,
+                                                nomor_csr: e.target.value,
+                                              }
                                             : c
                                         )
                                       )
@@ -4200,7 +4216,7 @@ export default function MataKuliah() {
                                     Hapus
                                   </button>
                                 </div>
-                                
+
                                 {/* Keahlian CSR Section */}
                                 <div className="ml-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
                                   <div className="flex items-center justify-between mb-2">
@@ -4208,7 +4224,7 @@ export default function MataKuliah() {
                                       Keahlian CSR {csr.nomor_csr}
                                     </label>
                                   </div>
-                                  
+
                                   {/* Input Keahlian */}
                                   <div className="flex gap-2 mb-3">
                                     <input
@@ -4225,38 +4241,48 @@ export default function MataKuliah() {
                                     />
                                     <button
                                       type="button"
-                                      onClick={() => handleAddKeahlianCSR(csrId)}
+                                      onClick={() =>
+                                        handleAddKeahlianCSR(csrId)
+                                      }
                                       disabled={!newKeahlian.trim()}
                                       className="px-4 py-2 text-sm bg-brand-500 text-white rounded-lg hover:bg-brand-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                       Tambah
                                     </button>
                                   </div>
-                                  
+
                                   {/* List Keahlian */}
                                   {keahlianList.length > 0 && (
                                     <div className="flex flex-wrap gap-2">
-                                      {keahlianList.map((keahlian, keahlianIdx) => (
-                                        <div
-                                          key={keahlianIdx}
-                                          className="flex items-center gap-2 px-3 py-1 bg-brand-100 dark:bg-brand-900/40 text-brand-800 dark:text-brand-200 rounded-full text-sm"
-                                        >
-                                          <span>{keahlian}</span>
-                                          <button
-                                            type="button"
-                                            onClick={() => handleRemoveKeahlianCSR(csrId, keahlian)}
-                                            className="text-brand-600 dark:text-brand-400 hover:text-brand-800 dark:hover:text-brand-200 transition-colors"
+                                      {keahlianList.map(
+                                        (keahlian, keahlianIdx) => (
+                                          <div
+                                            key={keahlianIdx}
+                                            className="flex items-center gap-2 px-3 py-1 bg-brand-100 dark:bg-brand-900/40 text-brand-800 dark:text-brand-200 rounded-full text-sm"
                                           >
-                                            ×
-                                          </button>
-                                        </div>
-                                      ))}
+                                            <span>{keahlian}</span>
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                handleRemoveKeahlianCSR(
+                                                  csrId,
+                                                  keahlian
+                                                )
+                                              }
+                                              className="text-brand-600 dark:text-brand-400 hover:text-brand-800 dark:hover:text-brand-200 transition-colors"
+                                            >
+                                              ×
+                                            </button>
+                                          </div>
+                                        )
+                                      )}
                                     </div>
                                   )}
-                                  
+
                                   {keahlianList.length === 0 && (
                                     <div className="text-sm text-gray-500 dark:text-gray-400">
-                                      Belum ada keahlian. Tambahkan keahlian untuk CSR ini.
+                                      Belum ada keahlian. Tambahkan keahlian
+                                      untuk CSR ini.
                                     </div>
                                   )}
                                 </div>

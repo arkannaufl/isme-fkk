@@ -151,6 +151,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/csr/{csr}/mappings', [\App\Http\Controllers\CSRMappingController::class, 'store']);
     Route::delete('/csr/{csr}/mappings/{dosen}/{keahlian}', [\App\Http\Controllers\CSRMappingController::class, 'destroy']);
 
+    // Route untuk auto-delete CSR assignments saat dosen dihapus dari PBL
+    Route::delete('/dosen/{dosenId}/csr-assignments', [\App\Http\Controllers\CSRMappingController::class, 'deleteByDosenSemesterBlok']);
+
     // Keahlian CSR Routes
     Route::post('/keahlian-csr', [\App\Http\Controllers\KeahlianCSRController::class, 'store']);
     Route::get('/keahlian-csr/csr/{csrId}', [\App\Http\Controllers\KeahlianCSRController::class, 'getByCSR']);

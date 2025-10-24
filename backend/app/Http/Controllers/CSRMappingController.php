@@ -17,7 +17,7 @@ class CSRMappingController extends Controller
             ->where('csr_id', $csrId)
             ->get();
         // Return keahlian as well
-        $data = $mappings->map(function($m) {
+        $data = $mappings->map(function ($m) {
             if ($m->dosen) {
                 // Ensure csr_assignment_count is loaded
                 $m->dosen->csr_assignment_count = $m->dosen->csr_assignment_count ?? 0;
@@ -95,4 +95,76 @@ class CSRMappingController extends Controller
         if ($user && $user->csr_assignment_count > 0) $user->decrement('csr_assignment_count');
         return response()->json(['message' => 'Mapping dihapus']);
     }
-} 
+
+    // Auto-delete CSR assignments saat dosen dihapus dari PBL berdasarkan semester dan blok
+    public function deleteByDosenSemesterBlok(Request $request, $dosenId)
+    {
+        $semester = $request->query('semester');
+        $blok = $request->query('blok');
+
+        if (!$semester || !$blok) {
+            return response()->json([
+                'message' => 'Semester dan blok harus disertakan',
+            ], 400);
+        }
+
+        try {
+            // Cari semua CSR yang ada di semester dan blok yang sama
+            // CSR menggunakan nomor_csr format "semester.blok" (contoh: "7.3")
+            // Gunakan LIKE untuk filter berdasarkan semester, lalu filter blok di collection
+            $allCSRs = CSR::where('nomor_csr', 'LIKE', "$semester.%")->get();
+
+            // Filter berdasarkan blok menggunakan accessor
+            $filteredCSRs = $allCSRs->filter(function ($csr) use ($blok) {
+                return $csr->blok == $blok;
+            });
+
+            $csrIds = $filteredCSRs->pluck('id');
+
+            if ($csrIds->isEmpty()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Tidak ada CSR ditemukan untuk semester dan blok tersebut',
+                    'removed_count' => 0,
+                ], 200);
+            }
+
+            // Hitung berapa banyak mapping dosen ini yang ada di CSR semester & blok tersebut
+            $removedCount = CSRMapping::whereIn('csr_id', $csrIds)
+                ->where('dosen_id', $dosenId)
+                ->count();
+
+            if ($removedCount > 0) {
+                // Hapus hanya mapping dosen yang spesifik ini (dosen lain tidak terpengaruh)
+                CSRMapping::whereIn('csr_id', $csrIds)
+                    ->where('dosen_id', $dosenId)
+                    ->delete();
+
+                // Update counter di user
+                $user = User::find($dosenId);
+                if ($user) {
+                    $newCount = max(0, $user->csr_assignment_count - $removedCount);
+                    $user->csr_assignment_count = $newCount;
+                    $user->save();
+                }
+
+                Log::info("Auto-deleted CSR assignments for dosen {$dosenId} in semester {$semester} blok {$blok}: {$removedCount} assignments removed");
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $removedCount > 0
+                    ? "Berhasil menghapus {$removedCount} assignment CSR untuk dosen di semester {$semester} blok {$blok}"
+                    : 'Tidak ada assignment CSR yang dihapus',
+                'removed_count' => $removedCount,
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Error deleting CSR assignments: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat menghapus assignment CSR',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+}

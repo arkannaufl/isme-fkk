@@ -9,7 +9,7 @@ import {
   faGraduationCap,
   faEdit,
   faTrash,
-} from "@fortawesome/free-solid-svg-icons"
+} from "@fortawesome/free-solid-svg-icons";
 
 interface CSR {
   id: number;
@@ -71,7 +71,7 @@ const CSRDetail: React.FC = () => {
   // Mapping and drag states
   const [mapping, setMapping] = useState<{ [keahlian: string]: User[] }>({});
   const [draggedDosenId, setDraggedDosenId] = useState<number | null>(null);
-  
+
   // Drag state - using HTML5 Drag API like KelompokKecil.tsx
 
   // Keahlian edit states
@@ -82,7 +82,6 @@ const CSRDetail: React.FC = () => {
   const [showDeleteKeahlianModal, setShowDeleteKeahlianModal] = useState(false);
   const [keahlianToDelete, setKeahlianToDelete] = useState<string | null>(null);
   const [isDeletingKeahlian, setIsDeletingKeahlian] = useState(false);
-
 
   // PBL states
   const [dosenPBLBySemester, setDosenPBLBySemester] = useState<{
@@ -126,6 +125,28 @@ const CSRDetail: React.FC = () => {
     fetchBatchData();
   }, [csrId]);
 
+  // Event listener untuk auto-refresh saat dosen dihapus dari PBL
+  useEffect(() => {
+    const handleCSRAssignmentUpdate = (event: CustomEvent) => {
+      console.log("CSR Assignment updated from PBL:", event.detail);
+      // Refresh data CSR Detail
+      fetchBatchData();
+    };
+
+    window.addEventListener(
+      "csr-assignment-updated",
+      handleCSRAssignmentUpdate as EventListener
+    );
+
+    return () => {
+      window.removeEventListener(
+        "csr-assignment-updated",
+        handleCSRAssignmentUpdate as EventListener
+      );
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (csr) {
       fetchKeahlianCSROptions();
@@ -161,23 +182,23 @@ const CSRDetail: React.FC = () => {
   // Fetch keahlian CSR options dari database keahlian_csr
   const fetchKeahlianCSROptions = async () => {
     if (!csr) return;
-    
+
     setLoadingKeahlianOptions(true);
     try {
       // Ambil keahlian dari database keahlian_csr berdasarkan CSR ID
       const response = await api.get(`/keahlian-csr/csr/${csr.id}`);
       const keahlianList = response.data.data || [];
-      
+
       // Ambil semua keahlian dari database keahlian_csr (tidak perlu filter)
       const availableKeahlian = keahlianList.map((k: any) => k.keahlian);
-      
-      console.log('CSR ID:', csr.id);
-      console.log('Keahlian from database:', availableKeahlian);
-      console.log('CSR keahlian_required:', csr.keahlian_required);
-      
+
+      console.log("CSR ID:", csr.id);
+      console.log("Keahlian from database:", availableKeahlian);
+      console.log("CSR keahlian_required:", csr.keahlian_required);
+
       setCsrKeahlianOptions(availableKeahlian);
     } catch (err) {
-      console.error('Error fetching keahlian CSR options:', err);
+      console.error("Error fetching keahlian CSR options:", err);
       setCsrKeahlianOptions([]);
     } finally {
       setLoadingKeahlianOptions(false);
@@ -189,38 +210,35 @@ const CSRDetail: React.FC = () => {
     if (!newKeahlian.trim() || !csr) return;
 
     // Validasi duplikat (case-insensitive, trim) - cek di keahlianList state
-      const newK = newKeahlian.trim().toLowerCase();
-    const exists = keahlianList.some(
-        (k) => k.trim().toLowerCase() === newK
-      );
-      if (exists) {
-        setError("Keahlian sudah ada, tidak boleh terduplikat.");
-        return;
-      }
-    
+    const newK = newKeahlian.trim().toLowerCase();
+    const exists = keahlianList.some((k) => k.trim().toLowerCase() === newK);
+    if (exists) {
+      setError("Keahlian sudah ada, tidak boleh terduplikat.");
+      return;
+    }
+
     try {
       // Tambah keahlian ke state keahlianList (langsung masuk ke daftar)
       const updatedKeahlianList = [...keahlianList, newKeahlian.trim()];
       setKeahlianList(updatedKeahlianList);
-      
+
       // Pastikan nama tidak null
       const nama = csr.nama || (csr.mata_kuliah && csr.mata_kuliah.nama) || "";
       if (!nama) {
         setError("Nama CSR belum diisi. Silakan isi nama CSR terlebih dahulu.");
         return;
       }
-      
+
       // Save ke database agar persist
       await api.put(`/csr/${csr.id}`, {
         ...csr,
         nama,
         keahlian_required: updatedKeahlianList,
       });
-      
+
       // Reset dropdown
       setNewKeahlian("");
       setSuccess("Keahlian berhasil ditambahkan dan disimpan");
-      
     } catch (err) {
       setError("Gagal menyimpan keahlian");
       // Rollback state jika error
@@ -231,35 +249,33 @@ const CSRDetail: React.FC = () => {
   // Hapus keahlian
   const handleRemoveKeahlian = async (k: string) => {
     if (!csr) return;
-    
+
     try {
       // Hapus dari state keahlianList
-      const updatedKeahlianList = keahlianList.filter(x => x !== k);
+      const updatedKeahlianList = keahlianList.filter((x) => x !== k);
       setKeahlianList(updatedKeahlianList);
-      
-    // Pastikan nama tidak null
-    const nama = csr.nama || (csr.mata_kuliah && csr.mata_kuliah.nama) || "";
-    if (!nama) {
-      setError("Nama CSR belum diisi. Silakan isi nama CSR terlebih dahulu.");
-      return;
-    }
-      
+
+      // Pastikan nama tidak null
+      const nama = csr.nama || (csr.mata_kuliah && csr.mata_kuliah.nama) || "";
+      if (!nama) {
+        setError("Nama CSR belum diisi. Silakan isi nama CSR terlebih dahulu.");
+        return;
+      }
+
       // Save ke database agar persist
       await api.put(`/csr/${csr.id}`, {
         ...csr,
         nama,
         keahlian_required: updatedKeahlianList,
       });
-      
+
       setSuccess("Keahlian berhasil dihapus dan disimpan");
-      
     } catch (err) {
       setError("Gagal menghapus keahlian");
       // Rollback state jika error
       setKeahlianList(keahlianList);
     }
   };
-
 
   // HTML5 Drag API handlers - same as KelompokKecil.tsx
   const handleDragStart = (e: React.DragEvent, dosenId: number) => {
@@ -275,20 +291,21 @@ const CSRDetail: React.FC = () => {
     // Create custom drag image with + icon
     const allMappedDosen = Object.values(mapping).flat();
     const allDosen = [...regularDosen, ...standbyDosen, ...allMappedDosen];
-    const dosen = allDosen.find(d => d.id === dosenId);
+    const dosen = allDosen.find((d) => d.id === dosenId);
     if (dosen) {
-      const dragElement = document.createElement('div');
-      dragElement.className = 'p-3 bg-brand-500 rounded-lg shadow-lg flex items-center gap-2';
+      const dragElement = document.createElement("div");
+      dragElement.className =
+        "p-3 bg-brand-500 rounded-lg shadow-lg flex items-center gap-2";
       dragElement.innerHTML = `
         <div class="w-8 h-8 bg-white rounded-full flex items-center justify-center">
           <svg class="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
           </svg>
         </div>
-        <span class="text-white font-medium">${dosen.name || 'Dosen'}</span>
+        <span class="text-white font-medium">${dosen.name || "Dosen"}</span>
       `;
-      dragElement.style.position = 'absolute';
-      dragElement.style.top = '-1000px';
+      dragElement.style.position = "absolute";
+      dragElement.style.top = "-1000px";
       document.body.appendChild(dragElement);
       e.dataTransfer.setDragImage(dragElement, 0, 0);
       setTimeout(() => document.body.removeChild(dragElement), 0);
@@ -744,7 +761,9 @@ const CSRDetail: React.FC = () => {
             {csrKeahlianOptions.length === 0 && !loadingKeahlianOptions && (
               <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                 <p className="text-yellow-800 dark:text-yellow-200 text-sm">
-                  ⚠️ Tidak ada keahlian tersedia untuk CSR {csr?.nomor_csr}. Silakan tambahkan keahlian terlebih dahulu di halaman Mata Kuliah.
+                  ⚠️ Tidak ada keahlian tersedia untuk CSR {csr?.nomor_csr}.
+                  Silakan tambahkan keahlian terlebih dahulu di halaman Mata
+                  Kuliah.
                 </p>
               </div>
             )}
@@ -766,9 +785,25 @@ const CSRDetail: React.FC = () => {
                 </select>
                 {loadingKeahlianOptions && (
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                    <svg className="w-4 h-4 animate-spin text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    <svg
+                      className="w-4 h-4 animate-spin text-gray-400"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      ></path>
                     </svg>
                   </div>
                 )}
@@ -782,7 +817,7 @@ const CSRDetail: React.FC = () => {
                 Tambah
               </button>
             </div>
-            
+
             <ul className="space-y-5">
               {(keahlianList as string[]).map((k: string) => (
                 <li
@@ -1048,9 +1083,14 @@ const CSRDetail: React.FC = () => {
                                 key={dosen.id}
                                 className="p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-move"
                                 draggable
-                                onDragStart={(e) => handleDragStart(e, dosen.id)}
+                                onDragStart={(e) =>
+                                  handleDragStart(e, dosen.id)
+                                }
                                 onDragEnd={handleDragEnd}
-                                style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
+                                style={{
+                                  userSelect: "none",
+                                  WebkitUserSelect: "none",
+                                }}
                               >
                                 <div className="flex items-start gap-3 mb-3">
                                   <div
@@ -1162,7 +1202,7 @@ const CSRDetail: React.FC = () => {
                         draggable
                         onDragStart={(e) => handleDragStart(e, dosen.id)}
                         onDragEnd={handleDragEnd}
-                        style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
+                        style={{ userSelect: "none", WebkitUserSelect: "none" }}
                       >
                         {/* Header dengan Avatar dan Info Dasar */}
                         <div className="flex items-start gap-3 mb-3">
@@ -1258,7 +1298,7 @@ const CSRDetail: React.FC = () => {
                         draggable
                         onDragStart={(e) => handleDragStart(e, dosen.id)}
                         onDragEnd={handleDragEnd}
-                        style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
+                        style={{ userSelect: "none", WebkitUserSelect: "none" }}
                       >
                         {/* Header dengan Avatar dan Info Dasar */}
                         <div className="flex items-start gap-3 mb-3">
