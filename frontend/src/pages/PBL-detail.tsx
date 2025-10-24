@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faBookOpen,
@@ -468,13 +468,7 @@ export default function PBL() {
             setWarnings([warningMsg]);
           }
         } else {
-          // Dosen tidak memiliki peran yang sesuai
-          if (isKeahlianMatch) {
-            // Tidak perlu warning untuk dosen mengajar dengan keahlian sesuai
-          } else {
-            const warningMsg = `Dosen ${dosen.name} tidak memiliki peran yang sesuai untuk ${mk.nama} (${mk.kode}). Keahlian sesuai tetapi peran tidak cocok.`;
-            setWarnings([warningMsg]);
-          }
+          // Dosen tidak memiliki peran yang sesuai - tidak perlu warning karena hanya keahlian yang penting
         }
       }
 
@@ -839,18 +833,21 @@ export default function PBL() {
   });
 
   // Dosen regular: tidak memiliki keahlian "standby"
-  const availableDosenList = dosenList.filter((d) => {
-    const keahlian = parseKeahlian(d.keahlian);
-    return (
-      !keahlian.some((k) => k.toLowerCase().includes("standby")) &&
-      (!searchDosen ||
-        (d.name && d.name.toLowerCase().includes(searchDosen.toLowerCase())) ||
-        (d.nid && d.nid.toLowerCase().includes(searchDosen.toLowerCase())) ||
-        keahlian.some((k) =>
-          k.toLowerCase().includes(searchDosen.toLowerCase())
-        ))
-    );
-  });
+  // PERBAIKAN: Tambahkan assignedDosen sebagai dependency untuk real-time updates
+  const availableDosenList = useMemo(() => {
+    return dosenList.filter((d) => {
+      const keahlian = parseKeahlian(d.keahlian);
+      return (
+        !keahlian.some((k) => k.toLowerCase().includes("standby")) &&
+        (!searchDosen ||
+          (d.name && d.name.toLowerCase().includes(searchDosen.toLowerCase())) ||
+          (d.nid && d.nid.toLowerCase().includes(searchDosen.toLowerCase())) ||
+          keahlian.some((k) =>
+            k.toLowerCase().includes(searchDosen.toLowerCase())
+          ))
+      );
+    });
+  }, [dosenList, searchDosen, assignedDosen]); // Tambahkan assignedDosen sebagai dependency
 
   // Untuk expand/collapse per grup peran
   const [expandedGroups, setExpandedGroups] = useState<{
@@ -1245,25 +1242,12 @@ export default function PBL() {
       // Hapus semua warning lama
       const filtered = prev.filter((w) => !w.includes("Semester"));
 
-      // PERBAIKAN BARU: Hapus warning "peran tidak cocok" yang sudah tidak relevan
-      // karena sekarang dosen mengajar dengan keahlian sesuai tidak perlu warning peran tidak cocok
+      // Hapus semua warning terkait peran tidak cocok karena validasi peran sudah dihapus
       const filteredPeranWarnings = filtered.filter((w) => {
-        if (
+        return !(
           w.includes("peran tidak cocok") ||
           w.includes("peran yang sesuai")
-        ) {
-          // Cek apakah dosen yang disebutkan dalam warning masih memiliki masalah peran
-          const dosenNameMatch = w.match(/Dosen ([^ ]+)/);
-          if (dosenNameMatch) {
-            const dosenName = dosenNameMatch[1];
-            const dosen = dosenList.find((d) => d.name === dosenName);
-            if (dosen && dosen.peran_utama === "dosen_mengajar") {
-              // Untuk dosen mengajar, tidak perlu warning peran tidak cocok
-              return false;
-            }
-          }
-        }
-        return true;
+        );
       });
 
       // Tambahkan warning baru
@@ -3417,6 +3401,38 @@ export default function PBL() {
                                         return;
                                       }
 
+                                      // VALIDASI BARU: Cek apakah dosen sudah ada di blok yang sama di semester lain
+                                      const isAlreadyInSameBlok = Object.entries(assignedDosen).some(([pblIdStr, assignedDosenList]) => {
+                                        const pblId = parseInt(pblIdStr);
+                                        if (pblId && assignedDosenList) {
+                                          // Cari semester dari PBL ID ini
+                                          let targetSemester = null;
+                                          Object.entries(pblData).forEach(([mkKode, pbls]) => {
+                                            const pbl = pbls.find(p => p.id === pblId);
+                                            if (pbl) {
+                                              // Cari mata kuliah untuk mendapatkan semester
+                                              const mk = blokMataKuliah.find(m => m.kode === mkKode);
+                                              if (mk) {
+                                                targetSemester = mk.semester;
+                                              }
+                                            }
+                                          });
+                                          
+                                          // Cek apakah dosen sudah ada di blok yang sama
+                                          return assignedDosenList.some(assignedDosen => 
+                                            assignedDosen.id === draggedDosen.id && 
+                                            targetSemester === mk.semester
+                                          );
+                                        }
+                                        return false;
+                                      });
+
+                                      if (isAlreadyInSameBlok) {
+                                        setError(`Dosen ${draggedDosen.name} sudah ada di Blok ${mk.blok} Semester ${mk.semester}. Tidak bisa di-assign ke blok yang sama di semester yang berbeda.`);
+                                        return;
+                                      }
+
+
                                       // Cek apakah keahlian dosen sesuai dengan mata kuliah
                                       const isKeahlianMatch =
                                         checkKeahlianMatch(draggedDosen, mk);
@@ -3629,7 +3645,7 @@ export default function PBL() {
                                       }
 
                                       // Jika tidak ada perfect match dan bukan standby, berikan warning tapi tetap izinkan
-                                      // PERBAIKAN: Untuk dosen_mengajar, jika keahlian sudah sesuai, tidak perlu warning peran tidak cocok
+                                      // Validasi peran sudah dihapus, hanya keahlian yang penting
                                       if (!isPerfectMatch && !isStandby) {
                                         const isKeahlianMatch =
                                           checkKeahlianMatch(draggedDosen, mk);
@@ -3637,16 +3653,7 @@ export default function PBL() {
                                           draggedDosen.peran_utama ===
                                           "dosen_mengajar";
 
-                                        // Jika dosen mengajar dan keahlian sudah sesuai, tidak perlu warning peran tidak cocok
-                                        if (
-                                          isDosenMengajar &&
-                                          isKeahlianMatch
-                                        ) {
-                                          // Tidak perlu warning untuk dosen mengajar dengan keahlian sesuai
-                                        } else {
-                                          const warningMsg = `Dosen ${draggedDosen.name} tidak memiliki peran yang sesuai untuk ${mk.nama} (${mk.kode}). Keahlian sesuai tetapi peran tidak cocok.`;
-                                          setWarnings([warningMsg]);
-                                        }
+                                        // Validasi peran sudah dihapus, hanya keahlian yang penting
                                       }
                                       setIsMovingDosen(true);
                                       try {
@@ -3931,7 +3938,7 @@ export default function PBL() {
                                             ? `Dosen ${draggedDosen.name} (Standby) berhasil di-assign ke semua modul ${mk.nama} (${mk.kode}).`
                                             : isPerfectMatch
                                             ? `Dosen ${draggedDosen.name} berhasil di-assign ke semua modul ${mk.nama} (${mk.kode}). ${matchReason}`
-                                            : `Dosen ${draggedDosen.name} berhasil di-assign ke semua modul ${mk.nama} (${mk.kode}) (keahlian sesuai, peran tidak cocok).`
+                                            : `Dosen ${draggedDosen.name} berhasil di-assign ke semua modul ${mk.nama} (${mk.kode}) (keahlian sesuai).`
                                         );
                                         // Update reporting data secara real-time
                                         await updateReportingData();
@@ -4535,12 +4542,85 @@ export default function PBL() {
               </div>
               <div className="space-y-3 max-h-[500px] overflow-y-auto hide-scroll">
                 {availableDosenList.length > 0 ? (
-                  availableDosenList.map((dosen) => (
+                  availableDosenList.map((dosen) => {
+                    // Calculate peran_counts based on dosen_peran AND PBL assignments
+                    const peran_counts = {
+                      koordinator: 0,
+                      tim_blok: 0,
+                      dosen_mengajar: 0
+                    };
+                    
+                    // PERBAIKAN: Hitung per semester, bukan per modul
+                    const semesterCounts = {
+                      koordinator: new Set(),
+                      tim_blok: new Set(),
+                      dosen_mengajar: new Set()
+                    };
+                    
+                    // Count from dosen_peran (curriculum roles) - PERBAIKAN: Hitung per semester juga
+                    if (dosen.dosen_peran && Array.isArray(dosen.dosen_peran)) {
+                      dosen.dosen_peran.forEach((peran: any) => {
+                        const semester = peran.semester;
+                        const key = `${dosen.id}-${semester}`;
+                        if (peran.tipe_peran === "koordinator") {
+                          semesterCounts.koordinator.add(key);
+                        } else if (peran.tipe_peran === "tim_blok") {
+                          semesterCounts.tim_blok.add(key);
+                        }
+                        // PERBAIKAN: Dosen Mengajar dari dosen_peran TIDAK dihitung untuk badge
+                        // Hanya dari PBL assignments (real-time)
+                      });
+                    }
+                    
+                    // Count from PBL assignments (current assignments) - REAL-TIME
+                    Object.entries(assignedDosen).forEach(([pblIdStr, assignedDosenList]) => {
+                      const pblId = parseInt(pblIdStr);
+                      if (pblId && assignedDosenList) {
+                        // Cari semester dari PBL ID ini
+                        let semester = null;
+                        Object.entries(pblData).forEach(([mkKode, pbls]) => {
+                          const pbl = pbls.find(p => p.id === pblId);
+                          if (pbl) {
+                            // Cari mata kuliah untuk mendapatkan semester
+                            const mk = blokMataKuliah.find(m => m.kode === mkKode);
+                            if (mk) {
+                              semester = mk.semester;
+                            }
+                          }
+                        });
+                        
+                        if (semester) {
+                          assignedDosenList.forEach((assignedDosen) => {
+                            if (assignedDosen.id === dosen.id) {
+                              const key = `${assignedDosen.id}-${semester}`;
+                              if (assignedDosen.pbl_role === "koordinator") {
+                                semesterCounts.koordinator.add(key);
+                              } else if (assignedDosen.pbl_role === "tim_blok") {
+                                semesterCounts.tim_blok.add(key);
+                              } else if (assignedDosen.pbl_role === "dosen_mengajar") {
+                                semesterCounts.dosen_mengajar.add(key);
+                              }
+                            }
+                          });
+                        }
+                      }
+                    });
+                    
+                    // Set counts berdasarkan unique semester assignments
+                    peran_counts.koordinator = semesterCounts.koordinator.size;
+                    peran_counts.tim_blok = semesterCounts.tim_blok.size;
+                    peran_counts.dosen_mengajar = semesterCounts.dosen_mengajar.size;
+                    
+                    
+                    // Add peran_counts to dosen object
+                    const dosenWithCounts = { ...dosen, peran_counts };
+                    
+                    return (
                     <div
-                      key={dosen.id}
+                      key={dosenWithCounts.id}
                       className="p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-move"
                       draggable
-                      onDragStart={(e) => handleDragStart(e, dosen)}
+                      onDragStart={(e) => handleDragStart(e, dosenWithCounts)}
                       onDragEnd={handleDragEnd}
                       style={{ userSelect: 'none', WebkitUserSelect: 'none' }}
                     >
@@ -4548,51 +4628,49 @@ export default function PBL() {
                       <div className="flex items-start gap-3 mb-3">
                         <div className="w-10 h-10 rounded-full bg-brand-500 flex items-center justify-center relative">
                           <span className="text-white text-sm font-bold">
-                            {dosen.name?.charAt(0) || "?"}
+                            {dosenWithCounts.name?.charAt(0) || "?"}
                           </span>
                           <span
                             className="absolute -top-1 -right-1 bg-blue-500 text-white text-[10px] font-semibold rounded-full flex justify-center items-center w-6 h-6 border-2 border-white dark:border-gray-800"
                             title="Jumlah penugasan"
                           >
-                            {typeof dosen.pbl_assignment_count === "number"
-                              ? dosen.pbl_assignment_count
+                            {typeof dosenWithCounts.pbl_assignment_count === "number"
+                              ? dosenWithCounts.pbl_assignment_count
                               : 0}
                             x
                           </span>
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="font-semibold text-gray-800 dark:text-white/90 text-sm mb-1">
-                            {dosen.name}
+                            {dosenWithCounts.name}
                           </div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">
-                            NID: {dosen.nid}
+                            NID: {dosenWithCounts.nid}
                           </div>
                         </div>
                       </div>
                       {/* Peran Counts Badge */}
                       <div className="mb-3 flex flex-wrap gap-2">
-                        {(dosen as any).peran_counts?.koordinator > 0 && (
+                        {dosenWithCounts.peran_counts.koordinator > 0 && (
                           <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-blue-100 text-blue-700 text-xs">
                             Koordinator (
-                            {(dosen as any).peran_counts.koordinator})
+                            {dosenWithCounts.peran_counts.koordinator})
                           </span>
                         )}
-                        {(dosen as any).peran_counts?.tim_blok > 0 && (
+                        {dosenWithCounts.peran_counts.tim_blok > 0 && (
                           <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-green-100 text-green-700 text-xs">
-                            Tim Blok ({(dosen as any).peran_counts.tim_blok})
+                            Tim Blok ({dosenWithCounts.peran_counts.tim_blok})
                           </span>
                         )}
-                        {(dosen as any).peran_counts?.dosen_mengajar > 0 && (
+                        {dosenWithCounts.peran_counts.dosen_mengajar > 0 && (
                           <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-yellow-100 text-yellow-700 text-xs">
                             Dosen Mengajar (
-                            {(dosen as any).peran_counts.dosen_mengajar})
+                            {dosenWithCounts.peran_counts.dosen_mengajar})
                           </span>
                         )}
-                        {(!(dosen as any).peran_counts ||
-                          ((dosen as any).peran_counts.koordinator === 0 &&
-                            (dosen as any).peran_counts.tim_blok === 0 &&
-                            (dosen as any).peran_counts.dosen_mengajar ===
-                              0)) && (
+                        {dosenWithCounts.peran_counts.koordinator === 0 &&
+                          dosenWithCounts.peran_counts.tim_blok === 0 &&
+                          dosenWithCounts.peran_counts.dosen_mengajar === 0 && (
                           <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-gray-200 text-gray-700 text-xs">
                             Standby
                           </span>
@@ -4609,11 +4687,108 @@ export default function PBL() {
                           </div>
                           {["koordinator", "tim_blok", "dosen_mengajar"].map(
                             (tipe) => {
-                              const peranList = Array.isArray(dosen.dosen_peran)
-                                ? dosen.dosen_peran.filter(
-                                    (p) => p.tipe_peran === tipe
-                                  )
-                                : [];
+                              // PERBAIKAN: Pisahkan logika untuk PBL assignments (real-time) dan curriculum roles (static)
+                              const peranKurikulumList = [];
+                              const semesterKurikulum = new Map(); // Untuk menghindari duplikasi per semester
+                              
+                              // 1. Ambil data dari dosen_peran (curriculum roles) - STATIC
+                              if (Array.isArray(dosenWithCounts.dosen_peran)) {
+                                dosenWithCounts.dosen_peran.forEach((peran) => {
+                                  if (peran.tipe_peran === tipe) {
+                                    const semester = peran.semester;
+                                    const key = `${dosenWithCounts.id}-${semester}`;
+                                    
+                                    // Hanya tampilkan jika bukan dosen_mengajar (karena dosen_mengajar harus real-time)
+                                    if (tipe !== "dosen_mengajar") {
+                                      if (!semesterKurikulum.has(key)) {
+                                        semesterKurikulum.set(key, peran);
+                                      }
+                                    }
+                                  }
+                                });
+                              }
+                              
+                              // Convert Map to Array
+                              peranKurikulumList.push(...Array.from(semesterKurikulum.values()));
+                              
+                              // 2. Ambil data dari PBL assignments yang real-time - REAL-TIME
+                              const pblAssignmentList = [];
+                              const semesterAssignments = new Map(); // Untuk menghindari duplikasi per semester
+                              
+                              Object.entries(assignedDosen).forEach(([pblIdStr, assignedDosenList]) => {
+                                const pblId = parseInt(pblIdStr);
+                                if (pblId && assignedDosenList) {
+                                  // Cari semester dari PBL ID ini
+                                  let semester = null;
+                                  let mataKuliahKode = null;
+                                  let mataKuliahNama = null;
+                                  let blok = null;
+                                  
+                                  // Cari dari pblData yang sedang aktif
+                                  Object.entries(pblData).forEach(([mkKode, pbls]) => {
+                                    const pbl = pbls.find(p => p.id === pblId);
+                                    if (pbl) {
+                                      // Cari mata kuliah untuk mendapatkan semester
+                                      const mk = blokMataKuliah.find(m => m.kode === mkKode);
+                                      if (mk) {
+                                        semester = mk.semester;
+                                        mataKuliahKode = mkKode;
+                                        mataKuliahNama = mk.nama;
+                                        blok = mk.blok;
+                                      }
+                                    }
+                                  });
+                                  
+                                  if (semester && mataKuliahKode) {
+                                    assignedDosenList.forEach((assignedDosen) => {
+                                      if (assignedDosen.id === dosenWithCounts.id && assignedDosen.pbl_role === tipe) {
+                                        const key = `${assignedDosen.id}-${semester}`;
+                                        
+                                        if (!semesterAssignments.has(key)) {
+                                          semesterAssignments.set(key, {
+                                            mata_kuliah_kode: mataKuliahKode,
+                                            mata_kuliah_nama: mataKuliahNama,
+                                            semester: semester,
+                                            blok: blok,
+                                            tipe_peran: tipe,
+                                            source: 'pbl_assignment'
+                                          });
+                                        }
+                                      }
+                                    });
+                                  }
+                                }
+                              });
+                              
+                              // Convert Map to Array
+                              pblAssignmentList.push(...Array.from(semesterAssignments.values()));
+                              
+                              // PERBAIKAN: Gunakan perhitungan yang sama dengan badge untuk konsistensi
+                              const expectedCount = dosenWithCounts.peran_counts[tipe];
+                              
+                              // Gabungkan kedua list dengan deduplication per semester
+                              const combinedPeranList = new Map();
+                              
+                              // Tambahkan dari peranKurikulumList
+                              peranKurikulumList.forEach(peran => {
+                                const key = `${peran.mata_kuliah_kode}-${peran.semester}`;
+                                if (!combinedPeranList.has(key)) {
+                                  combinedPeranList.set(key, peran);
+                                }
+                              });
+                              
+                              // Tambahkan dari pblAssignmentList
+                              pblAssignmentList.forEach(peran => {
+                                const key = `${peran.mata_kuliah_kode}-${peran.semester}`;
+                                if (!combinedPeranList.has(key)) {
+                                  combinedPeranList.set(key, peran);
+                                }
+                              });
+                              
+                              const peranList = Array.from(combinedPeranList.values());
+                              const actualCount = peranList.length;
+                              
+                              
                               if (peranList.length === 0) return null;
                               let label = "";
                               let badgeClass = "";
@@ -4681,8 +4856,8 @@ export default function PBL() {
                               );
                             }
                           )}
-                          {(!Array.isArray(dosen.dosen_peran) ||
-                            dosen.dosen_peran.length === 0) && <span>-</span>}
+                          {(!Array.isArray(dosenWithCounts.dosen_peran) ||
+                            dosenWithCounts.dosen_peran.length === 0) && <span>-</span>}
                         </div>
                         {/* Keahlian Section */}
                         <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3">
@@ -4691,7 +4866,7 @@ export default function PBL() {
                             Keahlian
                           </div>
                           <div className="flex flex-wrap gap-1">
-                            {parseKeahlian(dosen.keahlian).map((k, idx) => (
+                            {parseKeahlian(dosenWithCounts.keahlian).map((k, idx) => (
                               <span
                                 key={idx}
                                 className={`text-xs px-2 py-1 rounded-full font-medium ${
@@ -4707,7 +4882,8 @@ export default function PBL() {
                         </div>
                       </div>
                     </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="text-center py-6 text-gray-400 dark:text-gray-500">
                     <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
