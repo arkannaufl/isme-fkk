@@ -39,6 +39,14 @@ class Developer extends Model
         return $query->orderBy('sort_order', 'asc');
     }
 
+    /**
+     * Relationship to Tickets
+     */
+    public function tickets()
+    {
+        return $this->hasMany(Ticket::class, 'assigned_to');
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()

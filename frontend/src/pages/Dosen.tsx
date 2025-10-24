@@ -156,12 +156,10 @@ export default function Dosen() {
     useState<string>("");
   // 1. State untuk peran selection
   const [selectedPeranType, setSelectedPeranType] = useState<string>("none"); // "none", "peran"
-  const [selectedTipePeran, setSelectedTipePeran] =
-    useState<string>("koordinator"); // "koordinator", "tim_blok", "keduanya"
   const [selectedMataKuliah, setSelectedMataKuliah] = useState<string>("");
   // Multi-select peran kurikulum
   const [selectedPeranKurikulumList, setSelectedPeranKurikulumList] = useState<
-    PeranKurikulumOption[]
+    string[]
   >([]);
   // Multi-select mata kuliah untuk multiple blok
   const [selectedMataKuliahList, setSelectedMataKuliahList] = useState<
@@ -409,7 +407,7 @@ export default function Dosen() {
     setModalError("");
     setNewKompetensi("");
     setSelectedPeranType("none");
-    setSelectedTipePeran("koordinator");
+    skipNextPeranResetRef.current = false; // Reset ref saat modal ditutup
     setSelectedMataKuliah("");
     setSelectedMataKuliahList([]);
     setSelectedPeranKurikulumList([]);
@@ -829,17 +827,8 @@ export default function Dosen() {
               // Cek dosen yang sama (baik add maupun edit mode)
               if (dosen.id === form.id) {
                 return dosen.dosen_peran?.some((peran: any) => {
-                  // Cek berdasarkan tipe peran yang dipilih
-                  let tipePeranMatch = false;
-                  if (selectedTipePeran === "koordinator") {
-                    tipePeranMatch = peran.tipe_peran === "koordinator";
-                  } else if (selectedTipePeran === "tim_blok") {
-                    tipePeranMatch = peran.tipe_peran === "tim_blok";
-                  } else if (selectedTipePeran === "keduanya") {
-                    tipePeranMatch =
-                      peran.tipe_peran === "koordinator" ||
-                      peran.tipe_peran === "tim_blok";
-                  }
+                  // Cek semua tipe peran (tidak ada filterisasi)
+                  let tipePeranMatch = true;
 
                   return (
                     tipePeranMatch &&
@@ -879,14 +868,18 @@ export default function Dosen() {
 
           // Buat entri untuk setiap peran kurikulum di setiap mata kuliah
           const peranEntries = selectedPeranKurikulumList
-            .filter((peran) => peran.mataKuliahKode === mataKuliahKode)
-            .map((peran) => ({
+            .filter((peranKey) => peranKey.startsWith(`${mataKuliahKode}-`))
+            .map((peranKey) => {
+              // Parse key back to object properties
+              const [mataKuliahKodeFromKey, originalName, blok, semester] = peranKey.split('-');
+              return {
               mata_kuliah_kode: mataKuliahKode,
-              peran_kurikulum: peran.originalName,
-              blok: peran.blok,
-              semester: peran.semester,
-              tipe_peran: peran.tipePeran,
-            }));
+              peran_kurikulum: originalName,
+              blok: blok,
+              semester: semester,
+              tipe_peran: "tim_blok", // Default, bisa disesuaikan jika diperlukan
+            };
+            });
 
           payload.dosen_peran.push(...peranEntries);
         }
@@ -907,7 +900,10 @@ export default function Dosen() {
         await api.post("/users", payload);
         setSuccess("Data dosen berhasil ditambahkan.");
       }
-      const res = await api.get("/users?role=dosen");
+      // Refresh data dengan timestamp untuk memastikan data fresh dari database
+      const res = await api.get("/users?role=dosen", {
+        params: { _ts: Date.now() }
+      });
       setData(res.data);
       setShowModal(false);
       setEditMode(false);
@@ -1039,23 +1035,11 @@ export default function Dosen() {
           }
         }
 
-        // Ambil tipe peran yang paling banyak (koordinator atau tim_blok)
-        const tipePeranCount = nonMengajar.reduce((acc, p) => {
-          acc[p.tipe_peran] = (acc[p.tipe_peran] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>);
-
-        const mostCommonTipePeran = Object.entries(tipePeranCount).sort(
-          ([, a], [, b]) => b - a
-        )[0][0] as "koordinator" | "tim_blok";
-
         const uniquePeran = Array.from(new Set(allPeranKurikulum));
 
-
-        setSelectedPeranType("peran"); // Set peran khusus ke "peran"
-        setSelectedTipePeran(mostCommonTipePeran); // Set tipe peran yang paling banyak
         // Hindari efek reset membersihkan pilihan saat set MK secara programatik
         skipNextPeranResetRef.current = true;
+        setSelectedPeranType("peran"); // Set peran khusus ke "peran"
         setSelectedMataKuliahList(allMataKuliah); // Set SEMUA mata kuliah yang sudah ada
 
         // Prefill peran kurikulum yang sudah ada
@@ -1067,22 +1051,12 @@ export default function Dosen() {
           allMataKuliah.forEach((mataKuliahKode) => {
             const matkul = matkulList.find((mk) => mk.kode === mataKuliahKode);
             if (matkul) {
-              uniquePeran.forEach((peranName) => {
-                // Tentukan tipe peran berdasarkan nama
-                let tipePeran = "tim_blok"; // default
-                const peranLower = peranName.toLowerCase();
-
-                if (peranLower.includes("koordinator")) {
-                  tipePeran = "koordinator";
-                } else if (
-                  peranLower.includes("tim blok") ||
-                  peranLower.includes("tim_blok") ||
-                  peranLower.includes("penguji") ||
-                  peranLower.includes("asisten") ||
-                  peranLower.includes("tutor")
-                ) {
-                  tipePeran = "tim_blok";
-                }
+              // Cari semua peran yang ada untuk mata kuliah ini dari data dosen_peran
+              const peranForMataKuliah = nonMengajar.filter(p => p.mata_kuliah_kode === mataKuliahKode);
+              
+              peranForMataKuliah.forEach((peranData) => {
+                const peranName = peranData.peran_kurikulum;
+                const tipePeran = peranData.tipe_peran;
 
                 const peranOption: PeranKurikulumOption = {
                   name: `${peranName} (Blok ${matkul.blok} Semester ${matkul.semester})`,
@@ -1098,8 +1072,12 @@ export default function Dosen() {
             }
           });
 
-          setSelectedPeranKurikulumList(peranKurikulumOptions);
-        }, 100); // Delay untuk memastikan useEffect sudah selesai
+          // Convert to string keys for HeadlessUI comparison
+          const peranKurikulumKeys = peranKurikulumOptions.map(peran => 
+            `${peran.mataKuliahKode}-${peran.originalName}-${peran.blok}-${peran.semester}`
+          );
+          setSelectedPeranKurikulumList(peranKurikulumKeys);
+        }, 200); // Delay lebih lama untuk memastikan matkulList sudah ter-load
       } else {
         setSelectedPeranType("none");
         setSelectedMataKuliahList([]); // Set sebagai array kosong untuk multi-select
@@ -1910,8 +1888,8 @@ export default function Dosen() {
 
   // Fungsi untuk memfilter peran kurikulum berdasarkan mata kuliah yang dipilih
   const filterPeranKurikulumByMataKuliah = (mataKuliahKodeList: string[]) => {
+    
     if (!mataKuliahKodeList || mataKuliahKodeList.length === 0) {
-      // Jika tidak ada mata kuliah yang dipilih, tampilkan semua peran kurikulum
       setFilteredPeranKurikulumOptions([]);
       return;
     }
@@ -1926,6 +1904,7 @@ export default function Dosen() {
       return;
     }
 
+
     // Ambil peran kurikulum yang spesifik untuk semua mata kuliah yang dipilih
     const allPeranKurikulum: PeranKurikulumOption[] = [];
 
@@ -1933,6 +1912,7 @@ export default function Dosen() {
     selectedMatkulList.forEach((selectedMatkul, index) => {
       const mataKuliahPeranKurikulum =
         selectedMatkul.peran_dalam_kurikulum || [];
+
 
       if (Array.isArray(mataKuliahPeranKurikulum)) {
         mataKuliahPeranKurikulum.forEach((peran) => {
@@ -1953,17 +1933,8 @@ export default function Dosen() {
             tipePeran = "tim_blok";
           }
 
-          // Filter berdasarkan tipe peran yang dipilih
-          let shouldInclude = false;
-          if (selectedTipePeran === "koordinator") {
-            shouldInclude = tipePeran === "koordinator";
-          } else if (selectedTipePeran === "tim_blok") {
-            shouldInclude = tipePeran === "tim_blok";
-          } else if (selectedTipePeran === "keduanya") {
-            shouldInclude = true; // Include semua
-          }
-
-          if (shouldInclude) {
+           // Tidak ada filterisasi tipe peran - tampilkan semua
+           if (true) {
             const peranOption: PeranKurikulumOption = {
               name: `${peran} (Blok ${selectedMatkul.blok} Semester ${selectedMatkul.semester})`,
               mataKuliahKode: selectedMatkul.kode,
@@ -1980,6 +1951,7 @@ export default function Dosen() {
     });
 
 
+    
     // Jika ada peran kurikulum spesifik untuk mata kuliah yang dipilih, gunakan itu
     if (allPeranKurikulum.length > 0) {
       setFilteredPeranKurikulumOptions(allPeranKurikulum);
@@ -1994,18 +1966,8 @@ export default function Dosen() {
       peranKurikulumOptions.forEach((peran) => {
         const peranLower = peran.toLowerCase();
 
-        // Filter berdasarkan tipe peran yang dipilih
-        let tipePeranMatch = false;
-        if (selectedTipePeran === "koordinator") {
-          tipePeranMatch = peranLower.includes("koordinator");
-        } else if (selectedTipePeran === "tim_blok") {
-          tipePeranMatch =
-            peranLower.includes("tim") || peranLower.includes("blok");
-        } else if (selectedTipePeran === "keduanya") {
-          tipePeranMatch = true; // Semua peran
-        }
-
-        if (tipePeranMatch) {
+         // Tidak ada filterisasi tipe peran - tampilkan semua
+         if (true) {
           const semester = selectedMatkul.semester;
           const blok = selectedMatkul.blok;
 
@@ -2065,6 +2027,7 @@ export default function Dosen() {
     });
 
 
+    
     setFilteredPeranKurikulumOptions(
       filteredPeranOptions.length > 0 ? filteredPeranOptions : []
     );
@@ -2075,26 +2038,45 @@ export default function Dosen() {
     filterPeranKurikulumByMataKuliah(selectedMataKuliahList);
   }, [
     selectedMataKuliahList,
-    selectedTipePeran,
     peranKurikulumOptions,
     matkulList,
   ]);
 
-  // Effect untuk reset peran kurikulum saat tipe peran berubah
-  useEffect(() => {
-    if (selectedPeranType !== "none" && !skipNextPeranResetRef.current) {
-      setSelectedPeranKurikulumList([]);
-    }
-  }, [selectedTipePeran, selectedMataKuliahList]);
 
   // Effect terpisah untuk reset pilihan hanya saat selectedMataKuliahList benar-benar berubah
   useEffect(() => {
     if (selectedMataKuliahList.length > 0) {
       if (skipNextPeranResetRef.current) {
         skipNextPeranResetRef.current = false;
-      } else {
+      } else if (!editMode) {
+        // Jangan reset saat edit mode untuk mencegah checklist hilang
         setSelectedPeranKurikulumList([]);
       }
+    }
+  }, [selectedMataKuliahList, editMode]);
+
+  // Effect untuk sinkronisasi peran kurikulum dengan mata kuliah yang dipilih
+  useEffect(() => {
+    
+    if (selectedMataKuliahList.length > 0 && selectedPeranKurikulumList.length > 0) {
+      // Filter peran kurikulum yang masih relevan dengan mata kuliah yang dipilih
+      const relevantPeranKurikulum = selectedPeranKurikulumList.filter(peranKey => {
+        // Extract mataKuliahKode from key (format: "MKB101-Penguji Skill Lab-1-1")
+        const mataKuliahKode = peranKey.split('-')[0];
+        return selectedMataKuliahList.includes(mataKuliahKode);
+      });
+      
+      // Jika ada peran kurikulum yang tidak relevan lagi, hapus
+      if (relevantPeranKurikulum.length !== selectedPeranKurikulumList.length) {
+        const removedPeran = selectedPeranKurikulumList.filter(peranKey => {
+          const mataKuliahKode = peranKey.split('-')[0];
+          return !selectedMataKuliahList.includes(mataKuliahKode);
+        });
+        setSelectedPeranKurikulumList(relevantPeranKurikulum);
+      }
+    } else if (selectedMataKuliahList.length === 0) {
+      // Jika tidak ada mata kuliah yang dipilih, hapus semua peran kurikulum
+      setSelectedPeranKurikulumList([]);
     }
   }, [selectedMataKuliahList]);
 
@@ -2121,17 +2103,19 @@ export default function Dosen() {
 
   // Function untuk mengecek apakah peran kurikulum option disabled
   const isPeranKurikulumDisabled = (option: PeranKurikulumOption): boolean => {
-    if (selectedTipePeran !== "keduanya") {
+    if (true) { // Tidak ada filterisasi tipe peran
       return false; // Tidak ada conflict jika bukan "keduanya"
     }
 
     // Cek apakah sudah ada peran yang conflict di blok dan semester yang sama
-    const hasConflict = selectedPeranKurikulumList.some((selectedPeran) => {
+    const hasConflict = selectedPeranKurikulumList.some((selectedPeranKey) => {
+      // Parse key to get properties
+      const [mataKuliahKode, originalName, blok, semester] = selectedPeranKey.split('-');
       // Conflict jika berbeda tipe peran tapi sama blok dan semester
       return (
-        selectedPeran.blok === option.blok &&
-        selectedPeran.semester === option.semester &&
-        selectedPeran.tipePeran !== option.tipePeran
+        blok === option.blok &&
+        semester === option.semester &&
+        "tim_blok" !== option.tipePeran // Simplified conflict detection
       );
     });
 
@@ -4310,88 +4294,6 @@ export default function Dosen() {
                                 )}
                               </Listbox>
                             </div>
-                            {/* Dropdown Tipe Peran - hanya muncul jika peran bukan none */}
-                            {selectedPeranType !== "none" && (
-                              <div className="mb-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg w-full">
-                                <div className="mb-2">
-                                  <span className="text-xs text-gray-500">
-                                    Pilih Tipe Peran
-                                  </span>
-                                </div>
-                                <Listbox
-                                  value={selectedTipePeran}
-                                  onChange={setSelectedTipePeran}
-                                >
-                                  {({ open }) => (
-                                    <div className="relative">
-                                      <Listbox.Button className="relative w-full cursor-default rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-2 pl-3 pr-10 text-left text-gray-800 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 sm:text-sm">
-                                        <span className="block truncate">
-                                          {selectedTipePeran ===
-                                            "koordinator" && "Koordinator"}
-                                          {selectedTipePeran === "tim_blok" &&
-                                            "Tim Blok"}
-                                          {selectedTipePeran === "keduanya" &&
-                                            "Keduanya"}
-                                        </span>
-                                        <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                                          <FontAwesomeIcon
-                                            icon={faChevronDown}
-                                            className="h-5 w-5 text-gray-400"
-                                          />
-                                        </span>
-                                      </Listbox.Button>
-                                      <Transition
-                                        show={open}
-                                        as={"div"}
-                                        leave="transition ease-in duration-100"
-                                        leaveFrom="opacity-100"
-                                        leaveTo="opacity-0"
-                                        className="absolute z-50 mt-1 w-full overflow-auto rounded-md bg-white dark:bg-gray-800 py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm max-h-60 hide-scroll"
-                                      >
-                                        <Listbox.Options static>
-                                          <Listbox.Option
-                                            className={({ active }) =>
-                                              `relative cursor-default select-none py-2 pl-4 pr-4 ${
-                                                active
-                                                  ? "bg-brand-100 text-brand-900"
-                                                  : "text-gray-900 dark:text-gray-100"
-                                              }`
-                                            }
-                                            value="koordinator"
-                                          >
-                                            Koordinator
-                                          </Listbox.Option>
-                                          <Listbox.Option
-                                            className={({ active }) =>
-                                              `relative cursor-default select-none py-2 pl-4 pr-4 ${
-                                                active
-                                                  ? "bg-brand-100 text-brand-900"
-                                                  : "text-gray-900 dark:text-gray-100"
-                                              }`
-                                            }
-                                            value="tim_blok"
-                                          >
-                                            Tim Blok
-                                          </Listbox.Option>
-                                          <Listbox.Option
-                                            className={({ active }) =>
-                                              `relative cursor-default select-none py-2 pl-4 pr-4 ${
-                                                active
-                                                  ? "bg-brand-100 text-brand-900"
-                                                  : "text-gray-900 dark:text-gray-100"
-                                              }`
-                                            }
-                                            value="keduanya"
-                                          >
-                                            Keduanya
-                                          </Listbox.Option>
-                                        </Listbox.Options>
-                                      </Transition>
-                                    </div>
-                                  )}
-                                </Listbox>
-                              </div>
-                            )}
                             {/* Dropdown Mata Kuliah - hanya muncul jika peran bukan none */}
                             {selectedPeranType !== "none" && (
                               <div className="mb-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg w-full">
@@ -4555,13 +4457,18 @@ export default function Dosen() {
                                   onChange={setSelectedPeranKurikulumList}
                                   multiple
                                 >
-                                  {({ open }) => (
+                                  {({ open }) => {
+                                    return (
                                     <div className="relative">
                                       <Listbox.Button className="relative w-full cursor-default rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-2 pl-3 pr-10 text-left text-gray-800 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 sm:text-sm">
                                         <span className="block truncate">
                                           {selectedPeranKurikulumList.length > 0
                                             ? selectedPeranKurikulumList
-                                                .map((p) => p.name)
+                                                .map((peranKey) => {
+                                                  // Extract name from key (format: "MKB101-Penguji Skill Lab-1-1")
+                                                  const parts = peranKey.split('-');
+                                                  return parts.slice(1, -2).join('-'); // Get the name part
+                                                })
                                                 .join(", ")
                                             : selectedMataKuliahList.length > 0
                                             ? `Pilih Peran Kurikulum untuk ${selectedMataKuliahList.length} mata kuliah`
@@ -4630,10 +4537,13 @@ export default function Dosen() {
                                                           : "text-gray-900 dark:text-gray-100"
                                                       }`
                                                     }
-                                                    value={peran}
+                                                    value={`${peran.mataKuliahKode}-${peran.originalName}-${peran.blok}-${peran.semester}`}
                                                     disabled={finalDisabled}
                                                   >
-                                                    {({ selected }) => (
+                                                    {({ selected }) => {
+                                                      // Debug: Log untuk melihat selected status dan objek yang dibandingkan
+                                                      const peranKey = `${peran.mataKuliahKode}-${peran.originalName}-${peran.blok}-${peran.semester}`;
+                                                      return (
                                                       <div className="flex items-center justify-between">
                                                         <div className="flex flex-col">
                                                           <span
@@ -4681,7 +4591,8 @@ export default function Dosen() {
                                                           </span>
                                                         )}
                                                       </div>
-                                                    )}
+                                                      );
+                                                    }}
                                                   </Listbox.Option>
                                                 );
                                               }
@@ -4690,7 +4601,8 @@ export default function Dosen() {
                                         </Listbox.Options>
                                       </Transition>
                                     </div>
-                                  )}
+                                    );
+                                  }}
                                 </Listbox>
                               </div>
                             )}

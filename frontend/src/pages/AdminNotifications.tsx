@@ -1164,6 +1164,18 @@ const AdminNotifications: React.FC = () => {
       const title = String(n.title || "").toLowerCase();
       const message = String(n.message || "").toLowerCase();
 
+      // Check for service center notifications
+      if (
+        title.includes("tiket baru") ||
+        title.includes("update status tiket") ||
+        message.includes("tiket baru") ||
+        message.includes("ticket") ||
+        message.includes("bug") ||
+        message.includes("feature") ||
+        message.includes("contact")
+      )
+        return "service_center";
+
       if (title.includes("reschedule") || message.includes("reschedule"))
         return "reschedule";
       if (
@@ -1193,6 +1205,20 @@ const AdminNotifications: React.FC = () => {
       const type = String(n.data?.jadwal_type || "-").toLowerCase();
       const id = String(n.data?.jadwal_id || "-");
       const kind = normalizeKind(n);
+
+      // For service center notifications, use unique key based on ticket data
+      if (kind === "service_center") {
+        const ticketId = n.data?.ticket_id || n.id;
+        const ticketNumber = n.data?.ticket_number || "";
+        const key = `service_center:${ticketId}:${ticketNumber}:${n.id}`;
+        
+        // Service center notifications should not be deduplicated
+        const prev = byKey[key];
+        if (!prev || new Date(n.created_at) > new Date(prev.created_at)) {
+          byKey[key] = n;
+        }
+        continue;
+      }
 
       // For student notifications (PBL, Kuliah Besar, Praktikum, etc.), include user_id to avoid deduplication between different students
       // For lecturer notifications, use the original key without user_id

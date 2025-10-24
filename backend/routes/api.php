@@ -26,6 +26,9 @@ use App\Http\Controllers\KelompokKecilAntaraController;
 use App\Http\Controllers\DashboardTimAkademikController;
 use App\Http\Controllers\ForumController;
 use App\Http\Controllers\SupportCenterController;
+use App\Http\Controllers\TicketController;
+use App\Http\Controllers\KnowledgeController;
+use App\Http\Controllers\MetricsController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\PBLGenerateController;
 use App\Http\Controllers\MahasiswaController;
@@ -150,6 +153,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/csr/{csr}/mappings', [\App\Http\Controllers\CSRMappingController::class, 'index']);
     Route::post('/csr/{csr}/mappings', [\App\Http\Controllers\CSRMappingController::class, 'store']);
     Route::delete('/csr/{csr}/mappings/{dosen}/{keahlian}', [\App\Http\Controllers\CSRMappingController::class, 'destroy']);
+
+    // Route untuk auto-delete CSR assignments saat dosen dihapus dari PBL
+    Route::delete('/dosen/{dosenId}/csr-assignments', [\App\Http\Controllers\CSRMappingController::class, 'deleteByDosenSemesterBlok']);
 
     // Keahlian CSR Routes
     Route::post('/keahlian-csr', [\App\Http\Controllers\KeahlianCSRController::class, 'store']);
@@ -562,6 +568,28 @@ Route::prefix('support-center')->group(function () {
         Route::post('/developers', [SupportCenterController::class, 'store']);
         Route::put('/developers/{id}', [SupportCenterController::class, 'update']);
         Route::delete('/developers/{id}', [SupportCenterController::class, 'destroy']);
+
+        // Ticket management
+        Route::get('/all-tickets', [TicketController::class, 'allTickets']);
+        Route::get('/tickets', [TicketController::class, 'index']);
+        Route::get('/tickets/{id}', [TicketController::class, 'show']);
+        Route::post('/tickets', [TicketController::class, 'store']);
+        Route::put('/tickets/{id}/status', [TicketController::class, 'updateStatus']);
+        Route::post('/tickets/{id}/rate', [TicketController::class, 'rate']);
+
+        // Metrics and analytics
+        Route::get('/metrics', [MetricsController::class, 'index']);
+        Route::get('/metrics/ticket-stats', [MetricsController::class, 'ticketStats']);
+        Route::get('/metrics/priority-stats', [MetricsController::class, 'priorityStats']);
+        Route::get('/metrics/developer-workload', [MetricsController::class, 'developerWorkload']);
+        Route::get('/metrics/monthly-trends', [MetricsController::class, 'monthlyTrends']);
+
+        // Knowledge Base
+        Route::get('/knowledge', [KnowledgeController::class, 'index']);
+        Route::get('/knowledge/all', [KnowledgeController::class, 'all']);
+        Route::post('/knowledge', [KnowledgeController::class, 'store']);
+        Route::post('/knowledge/{id}', [KnowledgeController::class, 'update']);
+        Route::delete('/knowledge/{id}', [KnowledgeController::class, 'destroy']);
     });
 });
 

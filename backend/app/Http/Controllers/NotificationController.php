@@ -256,24 +256,38 @@ class NotificationController extends Controller
                 $q->where('role', 'mahasiswa');
             });
         } elseif ($userType === 'my_notifications') {
-            // Filter notifications for current admin user OR any admin notifications
-            // This includes reschedule notifications sent to any admin
+            // Filter notifications for current admin user only
             $currentUser = Auth::user();
-            $adminIds = User::whereIn('role', ['admin', 'super_admin', 'tim_akademik'])->pluck('id')->toArray();
-
-            $query->where(function ($q) use ($currentUser, $adminIds) {
-                $q->where('user_id', $currentUser->id) // Current admin's notifications
-                    ->orWhereIn('user_id', $adminIds); // Any admin notifications (including reschedule)
-            });
+            
+            if ($currentUser->role === 'super_admin') {
+                // Super Admin can see all admin notifications
+                $adminIds = User::whereIn('role', ['admin', 'super_admin', 'tim_akademik'])->pluck('id')->toArray();
+                $query->where(function ($q) use ($currentUser, $adminIds) {
+                    $q->where('user_id', $currentUser->id) // Current admin's notifications
+                        ->orWhereIn('user_id', $adminIds); // Any admin notifications (including reschedule)
+                });
+            } else {
+                // Tim Akademik can only see their own notifications
+                $query->where('user_id', $currentUser->id);
+            }
         } else {
-            // Default: show all notifications for admin monitoring
+            // Default: show notifications based on user role
             $currentUser = Auth::user();
-            $adminIds = User::whereIn('role', ['admin', 'super_admin', 'tim_akademik'])->pluck('id')->toArray();
-
-            $query->where(function ($q) use ($adminIds) {
-                $q->whereIn('user_id', $adminIds)
-                    ->orWhere('user_id', null); // Include public notifications
-            });
+            
+            if ($currentUser->role === 'super_admin') {
+                // Super Admin can see all admin notifications
+                $adminIds = User::whereIn('role', ['admin', 'super_admin', 'tim_akademik'])->pluck('id')->toArray();
+                $query->where(function ($q) use ($adminIds) {
+                    $q->whereIn('user_id', $adminIds)
+                        ->orWhere('user_id', null); // Include public notifications
+                });
+            } else {
+                // Tim Akademik can only see their own notifications and public notifications
+                $query->where(function ($q) use ($currentUser) {
+                    $q->where('user_id', $currentUser->id) // Their own notifications
+                        ->orWhere('user_id', null); // Public notifications only
+                });
+            }
         }
 
         // Apply search filter

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Contact Message - FK UMJ Service Center</title>
+    <title>Feature Request - FK UMJ Service Center</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -22,7 +22,7 @@
             margin: 20px;
         }
         .header {
-            background: #3b82f6;
+            background: #10b981;
             color: white;
             padding: 40px 32px;
             text-align: center;
@@ -35,7 +35,7 @@
             left: 0;
             right: 0;
             height: 4px;
-            background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%);
+            background: linear-gradient(90deg, #10b981 0%, #059669 100%);
         }
         .header h1 {
             margin: 0 0 8px 0;
@@ -67,7 +67,7 @@
             font-size: 15px;
             line-height: 1.6;
             color: #4a5568;
-            border-left: 3px solid #3b82f6;
+            border-left: 3px solid #10b981;
         }
         .ticket-details {
             background: #ffffff;
@@ -89,7 +89,7 @@
             content: '';
             width: 4px;
             height: 20px;
-            background: #3b82f6;
+            background: #10b981;
             margin-right: 12px;
             border-radius: 2px;
         }
@@ -125,27 +125,23 @@
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
-        .priority-badge.urgent {
+        .priority-badge.critical {
             background: #fef2f2;
             color: #dc2626;
         }
-        .priority-badge.high {
+        .priority-badge.important {
             background: #fff7ed;
             color: #ea580c;
         }
-        .priority-badge.medium {
-            background: #fffbeb;
-            color: #d97706;
-        }
-        .priority-badge.low {
-            background: #f0fdf4;
-            color: #16a34a;
+        .priority-badge.nice-to-have {
+            background: #f1f5f9;
+            color: #64748b;
         }
         .ticket-number {
             font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
             font-weight: 600;
-            color: #3b82f6;
-            background: #eff6ff;
+            color: #10b981;
+            background: #f0fdf4;
             padding: 2px 8px;
             border-radius: 4px;
             font-size: 13px;
@@ -218,7 +214,7 @@
 <body>
     <div class="email-container">
         <div class="header">
-            <h1>📞 Contact Message</h1>
+            <h1>🚀 Feature Request</h1>
             <p>FK UMJ Service Center</p>
         </div>
 
@@ -228,12 +224,12 @@
             </div>
 
             <div class="message">
-                Ini adalah pesan kontak baru yang telah diterima melalui Service Center FK UMJ. Silakan tangani sesuai dengan prioritas yang ditentukan.
+                Ini adalah permintaan fitur baru yang telah diterima melalui Service Center FK UMJ. Silakan evaluasi dan tangani sesuai dengan prioritas yang ditentukan.
             </div>
 
             <div class="ticket-details">
                 <div class="ticket-title">
-                    Detail Pesan Kontak
+                    Detail Permintaan Fitur
                 </div>
 
                 <div class="detail-row">
@@ -244,7 +240,7 @@
                 </div>
 
                 <div class="detail-row">
-                    <div class="detail-label">Dari:</div>
+                    <div class="detail-label">Diajukan oleh:</div>
                     <div class="detail-value">{{ $user_name }} ({{ $user_email }})</div>
                 </div>
 
@@ -254,27 +250,40 @@
                 </div>
 
                 <div class="detail-row">
-                    <div class="detail-label">Subjek:</div>
-                    <div class="detail-value">{{ $subject }}</div>
+                    <div class="detail-label">Judul Fitur:</div>
+                    <div class="detail-value">{{ $title }}</div>
+                </div>
+
+                <div class="detail-row">
+                    <div class="detail-label">Kategori:</div>
+                    <div class="detail-value">{{ $category }}</div>
                 </div>
 
                 <div class="detail-row">
                     <div class="detail-label">Prioritas:</div>
                     <div class="detail-value">
-                        <span class="priority-badge {{ strtolower($priority) }}">{{ $priority }}</span>
+                        <span class="priority-badge {{ strtolower(str_replace(' ', '-', $priority)) }}">{{ $priority }}</span>
                     </div>
                 </div>
 
                 <div class="detail-row">
-                    <div class="detail-label">Pesan:</div>
-                    <div class="detail-value">{{ $message }}</div>
+                    <div class="detail-label">Deskripsi:</div>
+                    <div class="detail-value">{{ $description }}</div>
                 </div>
+
+                @if(!empty($use_case))
+                <div class="divider"></div>
+                <div class="detail-row">
+                    <div class="detail-label">Kasus Penggunaan:</div>
+                    <div class="detail-value">{{ $use_case }}</div>
+                </div>
+                @endif
             </div>
 
             <div class="contact-section">
                 <p class="contact-text">
-                    Silakan tangani pesan kontak ini sesuai dengan SLA yang telah ditetapkan. 
-                    Jika memerlukan informasi tambahan, silakan hubungi pengirim melalui email.
+                    Silakan evaluasi permintaan fitur ini dan berikan feedback kepada pelapor. 
+                    Jika memerlukan informasi tambahan, silakan hubungi pelapor melalui email.
                 </p>
             </div>
         </div>

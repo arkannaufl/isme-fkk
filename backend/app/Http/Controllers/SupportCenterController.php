@@ -3,10 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Developer;
+use App\Models\Ticket;
+use App\Models\Notification;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class SupportCenterController extends Controller
 {
@@ -193,6 +197,7 @@ class SupportCenterController extends Controller
             'developer_id' => 'required|exists:developers,id',
             'user_name' => 'required|string|max:255',
             'user_email' => 'required|email',
+            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120', // Max 5MB per image
         ]);
 
         if ($validator->fails()) {
@@ -204,6 +209,36 @@ class SupportCenterController extends Controller
         }
 
         $developer = Developer::findOrFail($request->developer_id);
+
+        // Create ticket
+        $ticket = Ticket::create([
+            'ticket_number' => 'TK-' . strtoupper(Str::random(8)),
+            'title' => $request->title,
+            'description' => $request->description,
+            'category' => $request->category,
+            'priority' => $request->priority,
+            'status' => 'Open',
+            'assigned_to' => $request->developer_id,
+            'user_name' => $request->user_name,
+            'user_email' => $request->user_email,
+        ]);
+
+        // Handle image uploads
+        $uploadedImages = [];
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $index => $image) {
+                if ($image->isValid()) {
+                    $filename = 'bug_' . $ticket->id . '_' . $index . '_' . time() . '.' . $image->getClientOriginalExtension();
+                    $image->move(public_path('uploads/ticket-images'), $filename);
+                    $uploadedImages[] = 'uploads/ticket-images/' . $filename;
+                }
+            }
+        }
+
+        // Update ticket with images
+        if (!empty($uploadedImages)) {
+            $ticket->update(['images' => $uploadedImages]);
+        }
 
         // Send email to developer
         try {
@@ -219,24 +254,45 @@ class SupportCenterController extends Controller
                 'user_name' => $request->user_name,
                 'user_email' => $request->user_email,
                 'developer_name' => $developer->name,
+                'ticket_number' => $ticket->ticket_number,
             ], function ($message) use ($developer, $request) {
                 $message->to($developer->email)
                     ->subject('[BUG REPORT] ' . $request->title)
                     ->from($request->user_email, $request->user_name);
             });
 
+            \Log::info('Bug report submitted successfully:', [
+                'ticket_id' => $ticket->id,
+                'ticket_number' => $ticket->ticket_number,
+                'user_email' => $ticket->user_email,
+                'user_name' => $ticket->user_name
+            ]);
+
+            // Create notification for Super Admin
+            $this->createNewTicketNotification($ticket);
+
             return response()->json([
                 'success' => true,
-                'message' => 'Laporan bug berhasil dikirim! Kami akan segera menghubungi Anda.'
+                'message' => 'Laporan bug berhasil dikirim! Tiket #' . $ticket->ticket_number . ' telah dibuat. Kami akan segera menghubungi Anda.'
             ]);
         } catch (\Exception $e) {
             // Log the error for debugging
             \Log::error('Email sending failed: ' . $e->getMessage());
 
+            \Log::info('Bug report saved (email failed):', [
+                'ticket_id' => $ticket->id,
+                'ticket_number' => $ticket->ticket_number,
+                'user_email' => $ticket->user_email,
+                'user_name' => $ticket->user_name
+            ]);
+
+            // Create notification for Super Admin even if email fails
+            $this->createNewTicketNotification($ticket);
+
             // Return success anyway but with different message
             return response()->json([
                 'success' => true,
-                'message' => 'Laporan bug berhasil disimpan! Silakan hubungi developer langsung via WhatsApp untuk respons yang lebih cepat: ' . $developer->whatsapp
+                'message' => 'Laporan bug berhasil disimpan! Tiket #' . $ticket->ticket_number . ' telah dibuat. Silakan hubungi developer langsung via WhatsApp untuk respons yang lebih cepat: ' . $developer->whatsapp
             ]);
         }
     }
@@ -255,6 +311,7 @@ class SupportCenterController extends Controller
             'developer_id' => 'required|exists:developers,id',
             'user_name' => 'required|string|max:255',
             'user_email' => 'required|email',
+            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120', // Max 5MB per image
         ]);
 
         if ($validator->fails()) {
@@ -266,6 +323,36 @@ class SupportCenterController extends Controller
         }
 
         $developer = Developer::findOrFail($request->developer_id);
+
+        // Create ticket
+        $ticket = Ticket::create([
+            'ticket_number' => 'TK-' . strtoupper(Str::random(8)),
+            'title' => $request->title,
+            'description' => $request->description,
+            'category' => $request->category,
+            'priority' => $request->priority,
+            'status' => 'Open',
+            'assigned_to' => $request->developer_id,
+            'user_name' => $request->user_name,
+            'user_email' => $request->user_email,
+        ]);
+
+        // Handle image uploads
+        $uploadedImages = [];
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $index => $image) {
+                if ($image->isValid()) {
+                    $filename = 'feature_' . $ticket->id . '_' . $index . '_' . time() . '.' . $image->getClientOriginalExtension();
+                    $image->move(public_path('uploads/ticket-images'), $filename);
+                    $uploadedImages[] = 'uploads/ticket-images/' . $filename;
+                }
+            }
+        }
+
+        // Update ticket with images
+        if (!empty($uploadedImages)) {
+            $ticket->update(['images' => $uploadedImages]);
+        }
 
         // Send email to developer
         try {
@@ -279,24 +366,31 @@ class SupportCenterController extends Controller
                 'user_name' => $request->user_name,
                 'user_email' => $request->user_email,
                 'developer_name' => $developer->name,
+                'ticket_number' => $ticket->ticket_number,
             ], function ($message) use ($developer, $request) {
                 $message->to($developer->email)
                     ->subject('[FEATURE REQUEST] ' . $request->title)
                     ->from($request->user_email, $request->user_name);
             });
 
+            // Create notification for Super Admin
+            $this->createNewTicketNotification($ticket);
+
             return response()->json([
                 'success' => true,
-                'message' => 'Permintaan fitur berhasil dikirim! Kami akan meninjau dan menghubungi Anda.'
+                'message' => 'Permintaan fitur berhasil dikirim! Tiket #' . $ticket->ticket_number . ' telah dibuat. Kami akan meninjau dan menghubungi Anda.'
             ]);
         } catch (\Exception $e) {
             // Log the error for debugging
             \Log::error('Email sending failed: ' . $e->getMessage());
 
+            // Create notification for Super Admin even if email fails
+            $this->createNewTicketNotification($ticket);
+
             // Return success anyway but with different message
             return response()->json([
                 'success' => true,
-                'message' => 'Permintaan fitur berhasil disimpan! Silakan hubungi developer langsung via WhatsApp untuk respons yang lebih cepat: ' . $developer->whatsapp
+                'message' => 'Permintaan fitur berhasil disimpan! Tiket #' . $ticket->ticket_number . ' telah dibuat. Silakan hubungi developer langsung via WhatsApp untuk respons yang lebih cepat: ' . $developer->whatsapp
             ]);
         }
     }
@@ -313,6 +407,7 @@ class SupportCenterController extends Controller
             'developer_id' => 'required|exists:developers,id',
             'user_name' => 'required|string|max:255',
             'user_email' => 'required|email',
+            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120', // Max 5MB per image
         ]);
 
         if ($validator->fails()) {
@@ -325,35 +420,133 @@ class SupportCenterController extends Controller
 
         $developer = Developer::findOrFail($request->developer_id);
 
+        // Create ticket
+        $ticket = Ticket::create([
+            'ticket_number' => 'TK-' . strtoupper(Str::random(8)),
+            'title' => $request->subject,
+            'description' => $request->message,
+            'category' => 'Contact',
+            'priority' => $request->priority,
+            'status' => 'Open',
+            'assigned_to' => $request->developer_id,
+            'user_name' => $request->user_name,
+            'user_email' => $request->user_email,
+        ]);
+
+        // Handle image uploads
+        $uploadedImages = [];
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $index => $image) {
+                if ($image->isValid()) {
+                    $filename = 'contact_' . $ticket->id . '_' . $index . '_' . time() . '.' . $image->getClientOriginalExtension();
+                    $image->move(public_path('uploads/ticket-images'), $filename);
+                    $uploadedImages[] = 'uploads/ticket-images/' . $filename;
+                }
+            }
+        }
+
+        // Update ticket with images
+        if (!empty($uploadedImages)) {
+            $ticket->update(['images' => $uploadedImages]);
+        }
+
         // Send email to developer
         try {
             // Try to send email
-            $emailContent = "Contact Message from Support Center\n\n";
-            $emailContent .= "Subject: " . $request->subject . "\n";
-            $emailContent .= "Priority: " . $request->priority . "\n";
-            $emailContent .= "Message: " . $request->message . "\n";
-            $emailContent .= "From: " . $request->user_name . " (" . $request->user_email . ")\n";
-            $emailContent .= "Assigned to: " . $developer->name . "\n\n";
-            $emailContent .= "This message was sent through the Support Center.";
-
-            Mail::raw($emailContent, function ($message) use ($developer, $request) {
+            Mail::send('emails.contact', [
+                'subject' => $request->subject,
+                'message' => $request->message,
+                'priority' => $request->priority,
+                'user_name' => $request->user_name,
+                'user_email' => $request->user_email,
+                'developer_name' => $developer->name,
+                'ticket_number' => $ticket->ticket_number,
+            ], function ($message) use ($developer, $request) {
                 $message->to($developer->email)
                     ->subject('[CONTACT] ' . $request->subject)
                     ->from($request->user_email, $request->user_name);
             });
 
+            // Create notification for Super Admin
+            $this->createNewTicketNotification($ticket);
+
             return response()->json([
                 'success' => true,
-                'message' => 'Pesan berhasil dikirim! Kami akan segera menghubungi Anda.'
+                'message' => 'Pesan berhasil dikirim! Tiket #' . $ticket->ticket_number . ' telah dibuat. Kami akan segera menghubungi Anda.'
             ]);
         } catch (\Exception $e) {
             // Log the error for debugging
             \Log::error('Email sending failed: ' . $e->getMessage());
 
+            // Create notification for Super Admin even if email fails
+            $this->createNewTicketNotification($ticket);
+
             // Return success anyway but with different message
             return response()->json([
                 'success' => true,
-                'message' => 'Pesan berhasil disimpan! Silakan hubungi developer langsung via WhatsApp untuk respons yang lebih cepat: ' . $developer->whatsapp
+                'message' => 'Pesan berhasil disimpan! Tiket #' . $ticket->ticket_number . ' telah dibuat. Silakan hubungi developer langsung via WhatsApp untuk respons yang lebih cepat: ' . $developer->whatsapp
+            ]);
+        }
+    }
+
+    /**
+     * Create notification for new ticket to Super Admin
+     */
+    private function createNewTicketNotification($ticket)
+    {
+        // Get all Super Admins
+        $superAdmins = User::where('role', 'super_admin')->get();
+
+        foreach ($superAdmins as $admin) {
+            Notification::create([
+                'user_id' => $admin->id,
+                'title' => 'Tiket Baru - ' . $ticket->category,
+                'message' => "Tiket baru #{$ticket->ticket_number} dari {$ticket->user_name} ({$ticket->category}) - {$ticket->title}",
+                'type' => 'info',
+                'data' => [
+                    'ticket_id' => $ticket->id,
+                    'ticket_number' => $ticket->ticket_number,
+                    'category' => $ticket->category,
+                    'priority' => $ticket->priority,
+                    'user_name' => $ticket->user_name,
+                    'user_email' => $ticket->user_email,
+                    'title' => $ticket->title,
+                    'created_at' => $ticket->created_at,
+                ],
+            ]);
+        }
+    }
+
+    /**
+     * Create notification for ticket status update to ticket creator
+     */
+    private function createStatusUpdateNotification($ticket, $oldStatus, $newStatus)
+    {
+        // Find the user who created the ticket
+        $user = User::where('email', $ticket->user_email)->first();
+        
+        if ($user) {
+            $statusMessages = [
+                'Open' => 'Tiket Anda telah dibuka dan sedang dalam antrian penanganan.',
+                'In Progress' => 'Tiket Anda sedang dalam proses penanganan oleh tim developer.',
+                'Resolved' => 'Tiket Anda telah diselesaikan. Silakan konfirmasi apakah masalah sudah teratasi.',
+                'Closed' => 'Tiket Anda telah ditutup. Terima kasih telah menggunakan layanan support kami.',
+            ];
+
+            Notification::create([
+                'user_id' => $user->id,
+                'title' => 'Update Status Tiket #' . $ticket->ticket_number,
+                'message' => "Status tiket Anda telah diubah dari '{$oldStatus}' menjadi '{$newStatus}'. " . ($statusMessages[$newStatus] ?? ''),
+                'type' => $newStatus === 'Closed' ? 'success' : 'info',
+                'data' => [
+                    'ticket_id' => $ticket->id,
+                    'ticket_number' => $ticket->ticket_number,
+                    'old_status' => $oldStatus,
+                    'new_status' => $newStatus,
+                    'category' => $ticket->category,
+                    'title' => $ticket->title,
+                    'updated_at' => now(),
+                ],
             ]);
         }
     }
