@@ -640,9 +640,14 @@ export default function DetailBlok() {
 
       });
 
-      
+      // Ambil dosen standby
+      const standbyRes = await api.get(`/users?role=dosen&keahlian=standby`);
+      const standbyDosen = standbyRes.data || [];
 
-      setPengampuOptions(filteredDosen);
+      // Gabungkan dosen reguler dan dosen standby
+      const allDosen = [...filteredDosen, ...standbyDosen];
+
+      setPengampuOptions(allDosen);
 
     } catch (error) {
 
@@ -783,7 +788,14 @@ export default function DetailBlok() {
 
       });
 
-      setPengampuPraktikumOptions(filteredDosen);
+      // Ambil dosen standby
+      const standbyRes = await api.get(`/users?role=dosen&keahlian=standby`);
+      const standbyDosen = standbyRes.data || [];
+
+      // Gabungkan dosen reguler dan dosen standby
+      const allDosen = [...filteredDosen, ...standbyDosen];
+
+      setPengampuPraktikumOptions(allDosen);
 
     } catch (error) {
 
@@ -5514,10 +5526,26 @@ export default function DetailBlok() {
             const secondRow = jsonData[1];
             if (Array.isArray(secondRow)) {
               // Cek apakah baris kedua berisi penjelasan header (teks dalam kurung)
+              // Hanya deteksi jika baris kedua TIDAK berisi data yang valid (tanggal, jam, dll)
               const hasParentheticalText = secondRow.some(cell => 
                 cell && cell.toString().includes('(') && cell.toString().includes(')')
               );
-              if (hasParentheticalText) {
+              
+              // Cek apakah baris kedua berisi data yang valid (bukan header)
+              const hasValidData = secondRow.some(cell => {
+                if (!cell) return false;
+                const cellStr = cell.toString().trim();
+                // Cek format tanggal (YYYY-MM-DD)
+                if (/^\d{4}-\d{2}-\d{2}$/.test(cellStr)) return true;
+                // Cek format jam (HH:MM)
+                if (/^\d{1,2}:\d{2}$/.test(cellStr)) return true;
+                // Cek angka (untuk kelompok kecil)
+                if (/^\d+$/.test(cellStr)) return true;
+                return false;
+              });
+              
+              // Hanya skip baris kedua jika ada penjelasan TANPA data valid
+              if (hasParentheticalText && !hasValidData) {
                 headerRowCount = 2;
               }
             }
@@ -5529,6 +5557,14 @@ export default function DetailBlok() {
           );
 
           // DEBUG: Log untuk melihat struktur data
+          console.log('Excel parsing debug:', {
+            totalRows: jsonData.length,
+            headerRowCount,
+            firstRow: jsonData[0],
+            secondRow: jsonData[1],
+            dataRowsCount: dataRows.length,
+            firstDataRow: dataRows[0]
+          });
 
           resolve({ data: dataRows, headers });
         } catch (error) {
@@ -9987,7 +10023,7 @@ export default function DetailBlok() {
                   </option>
                 ))}
               </select>
-            </div>
+      </div>
 
             <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
               <style
@@ -10323,12 +10359,12 @@ export default function DetailBlok() {
                 ) : (
 
                   getPaginatedData(
-                    jadwalPraktikum
-                      .slice()
-                      .sort((a: any, b: any) => {
-                        const dateA = new Date(a.tanggal);
-                        const dateB = new Date(b.tanggal);
-                        return dateA.getTime() - dateB.getTime();
+                  jadwalPraktikum
+                  .slice()
+                  .sort((a: any, b: any) => {
+                    const dateA = new Date(a.tanggal);
+                    const dateB = new Date(b.tanggal);
+                    return dateA.getTime() - dateB.getTime();
                       }),
                     praktikumPage,
                     praktikumPageSize
@@ -10885,7 +10921,7 @@ export default function DetailBlok() {
                   </option>
                 ))}
               </select>
-            </div>
+      </div>
 
             <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
               <style
@@ -11643,6 +11679,24 @@ export default function DetailBlok() {
 
                         )}
 
+                      </div>
+
+                      {/* Warning about dosen standby */}
+                      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                        <div className="flex items-start gap-3">
+                          <svg className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                          </svg>
+                          <div>
+                            <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">
+                              Informasi Dosen Standby
+                            </h4>
+                            <p className="text-sm text-blue-700 dark:text-blue-300">
+                              Dosen standby akan selalu muncul di dropdown Pengampu, terlepas dari materi yang dipilih. 
+                              Dosen standby siap untuk di-assign ke jadwal kapan saja.
+                            </p>
+                          </div>
+                        </div>
                       </div>
 
                       <div>
@@ -13133,6 +13187,24 @@ export default function DetailBlok() {
 
                           )}
 
+                        </div>
+
+                        {/* Warning about dosen standby for praktikum */}
+                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                          <div className="flex items-start gap-3">
+                            <svg className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                            </svg>
+                            <div>
+                              <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">
+                                Informasi Dosen Standby
+                              </h4>
+                              <p className="text-sm text-blue-700 dark:text-blue-300">
+                                Dosen standby akan selalu muncul di dropdown Pengampu, terlepas dari materi yang dipilih. 
+                                Dosen standby siap untuk di-assign ke jadwal kapan saja.
+                              </p>
+                            </div>
+                          </div>
                         </div>
 
                         <div>
@@ -17180,12 +17252,12 @@ export default function DetailBlok() {
                 ) : (
 
                   getPaginatedData(
-                    jadwalPBL
-                      .slice()
-                      .sort((a: JadwalPBLType, b: JadwalPBLType) => {
-                        const dateA = new Date(a.tanggal);
-                        const dateB = new Date(b.tanggal);
-                        return dateA.getTime() - dateB.getTime();
+                  jadwalPBL
+                  .slice()
+                  .sort((a: JadwalPBLType, b: JadwalPBLType) => {
+                    const dateA = new Date(a.tanggal);
+                    const dateB = new Date(b.tanggal);
+                    return dateA.getTime() - dateB.getTime();
                       }),
                     pblPage,
                     pblPageSize

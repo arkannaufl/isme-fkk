@@ -5951,12 +5951,12 @@ export default function DetailBlokAntara() {
                   </tr>
                 ) : (
                   getPaginatedData(
-                    jadwalPBL
-                      .slice()
-                      .sort((a: JadwalPBLType, b: JadwalPBLType) => {
-                        const dateA = new Date(a.tanggal);
-                        const dateB = new Date(b.tanggal);
-                        return dateA.getTime() - dateB.getTime();
+                  jadwalPBL
+                  .slice()
+                  .sort((a: JadwalPBLType, b: JadwalPBLType) => {
+                    const dateA = new Date(a.tanggal);
+                    const dateB = new Date(b.tanggal);
+                    return dateA.getTime() - dateB.getTime();
                       }),
                     pblPage,
                     pblPageSize
