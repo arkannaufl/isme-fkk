@@ -1434,6 +1434,27 @@ const SupportCenter: React.FC = () => {
             </div>
           </div>
 
+          {/* Info message for Super Admin */}
+          {isSuperAdmin && (
+            <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <div className="flex items-start space-x-3">
+                <FontAwesomeIcon 
+                  icon={faInfoCircle} 
+                  className="w-5 h-5 text-blue-500 dark:text-blue-400 mt-0.5 flex-shrink-0" 
+                />
+                <div>
+                  <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">
+                    Informasi untuk Super Admin
+                  </h4>
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    Klik pada tiket untuk membuka modal detail dan mengubah status tiket. 
+                    Anda dapat mengubah status dari Open → In Progress → Resolved → Closed.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {(Array.isArray(allTickets) ? allTickets : []).length === 0 ? (
             <div className="text-center py-12">
               <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">

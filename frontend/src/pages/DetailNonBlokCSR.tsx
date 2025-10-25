@@ -15,6 +15,7 @@ const CSR_REGULER_SESSIONS = 3;
 const CSR_RESPONSI_SESSIONS = 2;
 const TEMPLATE_DISPLAY_LIMIT = 10;
 const DEFAULT_PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
 const EXCEL_COLUMN_WIDTHS = {
   TANGGAL: 12,
   JAM_MULAI: 10,
@@ -38,6 +39,7 @@ interface MataKuliah {
   tanggal_mulai?: string;
   tanggal_akhir?: string;
   durasi_minggu?: number | null;
+  keahlian_required?: string[];
 }
 
 interface JadwalCSR {
@@ -139,6 +141,9 @@ export default function DetailNonBlokCSR() {
   const [ruanganList, setRuanganList] = useState<RuanganOption[]>([]);
   const [jamOptions, setJamOptions] = useState<string[]>([]);
 
+  // Pagination state for CSR schedule
+  const [csrPage, setCsrPage] = useState(1);
+  const [csrPageSize, setCsrPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
   
   const [form, setForm] = useState<{
     jenis_csr: 'reguler' | 'responsi' | '';
@@ -171,6 +176,20 @@ export default function DetailNonBlokCSR() {
   const [selectedKategoriValue, setSelectedKategoriValue] = useState<string | null>(null); // State untuk value dropdown
   const [selectedKeahlian, setSelectedKeahlian] = useState<string | null>(null); // State untuk keahlian yang dipilih
   
+  // Pagination logic functions
+  const getPaginatedData = (data: any[], page: number, pageSize: number): any[] => {
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return data.slice(startIndex, endIndex);
+  };
+
+  const getTotalPages = (dataLength: number, pageSize: number): number => {
+    return Math.ceil(dataLength / pageSize);
+  };
+
+  const resetPagination = () => {
+    setCsrPage(1);
+  };
 
   // State untuk import Excel CSR
   const [showCSRTemplateSelectionModal, setShowCSRTemplateSelectionModal] = useState(false);
@@ -2028,8 +2047,8 @@ export default function DetailNonBlokCSR() {
           <div>
             <div className="mb-2 text-gray-500 text-xs font-semibold uppercase">Keahlian Dibutuhkan</div>
             <div className="text-base text-gray-800 dark:text-white">
-              {data.keahlian_required && data.keahlian_required.length > 0 
-                ? data.keahlian_required.join(', ') 
+              {(data as any).keahlian_required && (data as any).keahlian_required.length > 0 
+                ? (data as any).keahlian_required.join(', ') 
                 : '-'}
             </div>
           </div>
@@ -2186,7 +2205,7 @@ export default function DetailNonBlokCSR() {
                     <td colSpan={11} className="text-center py-6 text-gray-400">Tidak ada data CSR</td>
                   </tr>
                 ) : (
-                  jadwalCSR.map((row, i) => (
+                  getPaginatedData(jadwalCSR, csrPage, csrPageSize).map((row, i) => (
                     <tr key={row.id || i} className={i % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
                       <td className="px-4 py-4 text-center">
                         <button
@@ -2203,7 +2222,7 @@ export default function DetailNonBlokCSR() {
                           )}
                         </button>
                       </td>
-                      <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{i + 1}</td>
+                      <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{(csrPage - 1) * csrPageSize + i + 1}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.jenis_csr === 'reguler' ? 'CSR Reguler' : 'CSR Responsi'}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {new Date(row.tanggal).toLocaleDateString('id-ID', { 
@@ -2255,6 +2274,142 @@ export default function DetailNonBlokCSR() {
             >
               {isCSRDeleting ? 'Menghapus...' : `Hapus Terpilih (${selectedCSRItems.length})`}
             </button>
+          </div>
+        )}
+
+        {/* Pagination for CSR */}
+        {true && (
+          <div className="flex items-center justify-between mt-6">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Menampilkan {((csrPage - 1) * csrPageSize) + 1} - {Math.min(csrPage * csrPageSize, jadwalCSR.length)} dari {jadwalCSR.length} data
+              </span>
+              
+              <select
+                value={csrPageSize}
+                onChange={(e) => {
+                  setCsrPageSize(Number(e.target.value));
+                  setCsrPage(1);
+                }}
+                className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
+              >
+                {PAGE_SIZE_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
+              <style
+                dangerouslySetInnerHTML={{
+                  __html: `
+                  .pagination-scroll::-webkit-scrollbar {
+                    height: 6px;
+                  }
+                  .pagination-scroll::-webkit-scrollbar-track {
+                    background: #f1f5f9;
+                    border-radius: 3px;
+                  }
+                  .pagination-scroll::-webkit-scrollbar-thumb {
+                    background: #cbd5e1;
+                    border-radius: 3px;
+                  }
+                  .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                    background: #94a3b8;
+                  }
+                  .dark .pagination-scroll::-webkit-scrollbar-track {
+                    background: #1e293b;
+                  }
+                  .dark .pagination-scroll::-webkit-scrollbar-thumb {
+                    background: #475569;
+                  }
+                  .dark .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                    background: #64748b;
+                  }
+                `,
+                }}
+              />
+
+              <button
+                onClick={() => setCsrPage((p) => Math.max(1, p - 1))}
+                disabled={csrPage === 1}
+                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Previous
+              </button>
+
+              {/* Always show first page if it's not the current page */}
+              {getTotalPages(jadwalCSR.length, csrPageSize) > 1 && (
+                <button
+                  onClick={() => setCsrPage(1)}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    csrPage === 1
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  1
+                </button>
+              )}
+
+              {/* Show pages around current page */}
+              {Array.from({ length: getTotalPages(jadwalCSR.length, csrPageSize) }, (_, i) => {
+                const pageNum = i + 1;
+                // Show pages around current page (2 pages before and after)
+                const shouldShow =
+                  pageNum > 1 &&
+                  pageNum < getTotalPages(jadwalCSR.length, csrPageSize) &&
+                  pageNum >= csrPage - 2 &&
+                  pageNum <= csrPage + 2;
+
+                if (!shouldShow) return null;
+
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCsrPage(pageNum)}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                      csrPage === pageNum
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+
+              {/* Show ellipsis if current page is far from end */}
+              {csrPage < getTotalPages(jadwalCSR.length, csrPageSize) - 3 && (
+                <span className="px-2 text-gray-500 dark:text-gray-400">
+                  ...
+                </span>
+              )}
+
+              {/* Always show last page if it's not the first page */}
+              {getTotalPages(jadwalCSR.length, csrPageSize) > 1 && (
+                <button
+                  onClick={() => setCsrPage(getTotalPages(jadwalCSR.length, csrPageSize))}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    csrPage === getTotalPages(jadwalCSR.length, csrPageSize)
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  {getTotalPages(jadwalCSR.length, csrPageSize)}
+                </button>
+              )}
+
+              <button
+                onClick={() => setCsrPage((p) => Math.min(getTotalPages(jadwalCSR.length, csrPageSize), p + 1))}
+                disabled={csrPage === getTotalPages(jadwalCSR.length, csrPageSize)}
+                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>

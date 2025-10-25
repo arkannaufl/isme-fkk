@@ -15,6 +15,7 @@ const MAX_SESSIONS = 6;
 const MIN_SESSIONS = 1;
 const TEMPLATE_DISPLAY_LIMIT = 10;
 const DEFAULT_PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
 const EXCEL_COLUMN_WIDTHS = {
   TANGGAL: 12,
   JAM_MULAI: 10,
@@ -129,12 +130,31 @@ export default function DetailNonBlokNonCSR() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedDeleteIndex, setSelectedDeleteIndex] = useState<number | null>(null);
   
+  // Pagination logic functions
+  const getPaginatedData = (data: any[], page: number, pageSize: number): any[] => {
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return data.slice(startIndex, endIndex);
+  };
+
+  const getTotalPages = (dataLength: number, pageSize: number): number => {
+    return Math.ceil(dataLength / pageSize);
+  };
+
+  const resetPagination = () => {
+    setNonCsrPage(1);
+  };
+  
   // State untuk dropdown options
   const [dosenList, setDosenList] = useState<DosenOption[]>([]);
   const [ruanganList, setRuanganList] = useState<RuanganOption[]>([]);
   const [jamOptions, setJamOptions] = useState<string[]>([]);
   const [kelompokBesarAgendaOptions, setKelompokBesarAgendaOptions] = useState<{id: string | number, label: string, jumlah_mahasiswa: number}[]>([]);
   const [kelompokBesarMateriOptions, setKelompokBesarMateriOptions] = useState<{id: string | number, label: string, jumlah_mahasiswa: number}[]>([]);
+
+  // Pagination state for Non-CSR schedule
+  const [nonCsrPage, setNonCsrPage] = useState(1);
+  const [nonCsrPageSize, setNonCsrPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
 
   // State untuk import Excel Non-Blok Non-CSR
   const [showNonBlokImportModal, setShowNonBlokImportModal] = useState(false);
@@ -1406,14 +1426,17 @@ export default function DetailNonBlokNonCSR() {
                   <td colSpan={10} className="text-center py-6 text-gray-400">Tidak ada data jadwal</td>
                 </tr>
               ) : (
-                jadwalMateri
-                  .slice()
-                .sort((a, b) => {
-                    const dateA = new Date(a.tanggal);
-                    const dateB = new Date(b.tanggal);
-                  return dateA.getTime() - dateB.getTime();
-                })
-                .map((row, idx) => (
+                getPaginatedData(
+                  jadwalMateri
+                    .slice()
+                    .sort((a, b) => {
+                      const dateA = new Date(a.tanggal);
+                      const dateB = new Date(b.tanggal);
+                      return dateA.getTime() - dateB.getTime();
+                    }),
+                  nonCsrPage,
+                  nonCsrPageSize
+                ).map((row, idx) => (
                     <tr key={row.id} className={row.jenis_baris === 'agenda' ? 'bg-yellow-50 dark:bg-yellow-900/20' : (idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : '')}>
                       <td className="px-4 py-4 text-center">
                         <button
@@ -1430,7 +1453,7 @@ export default function DetailNonBlokNonCSR() {
                           )}
                         </button>
                       </td>
-                      <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{idx + 1}</td>
+                      <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{(nonCsrPage - 1) * nonCsrPageSize + idx + 1}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatTanggalKonsisten(row.tanggal)}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatJamTanpaDetik(row.jam_mulai)}–{formatJamTanpaDetik(row.jam_selesai)}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.jumlah_sesi} x 50 menit</td>
@@ -1484,6 +1507,142 @@ export default function DetailNonBlokNonCSR() {
             >
               {isNonBlokDeleting ? 'Menghapus...' : `Hapus Terpilih (${selectedNonBlokItems.length})`}
             </button>
+          </div>
+        )}
+
+        {/* Pagination for Non-CSR */}
+        {true && (
+          <div className="flex items-center justify-between mt-6">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Menampilkan {((nonCsrPage - 1) * nonCsrPageSize) + 1} - {Math.min(nonCsrPage * nonCsrPageSize, jadwalMateri.length)} dari {jadwalMateri.length} data
+              </span>
+              
+              <select
+                value={nonCsrPageSize}
+                onChange={(e) => {
+                  setNonCsrPageSize(Number(e.target.value));
+                  setNonCsrPage(1);
+                }}
+                className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
+              >
+                {PAGE_SIZE_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
+              <style
+                dangerouslySetInnerHTML={{
+                  __html: `
+                  .pagination-scroll::-webkit-scrollbar {
+                    height: 6px;
+                  }
+                  .pagination-scroll::-webkit-scrollbar-track {
+                    background: #f1f5f9;
+                    border-radius: 3px;
+                  }
+                  .pagination-scroll::-webkit-scrollbar-thumb {
+                    background: #cbd5e1;
+                    border-radius: 3px;
+                  }
+                  .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                    background: #94a3b8;
+                  }
+                  .dark .pagination-scroll::-webkit-scrollbar-track {
+                    background: #1e293b;
+                  }
+                  .dark .pagination-scroll::-webkit-scrollbar-thumb {
+                    background: #475569;
+                  }
+                  .dark .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                    background: #64748b;
+                  }
+                `,
+                }}
+              />
+
+              <button
+                onClick={() => setNonCsrPage((p) => Math.max(1, p - 1))}
+                disabled={nonCsrPage === 1}
+                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Previous
+              </button>
+
+              {/* Always show first page if it's not the current page */}
+              {getTotalPages(jadwalMateri.length, nonCsrPageSize) > 1 && (
+                <button
+                  onClick={() => setNonCsrPage(1)}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    nonCsrPage === 1
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  1
+                </button>
+              )}
+
+              {/* Show pages around current page */}
+              {Array.from({ length: getTotalPages(jadwalMateri.length, nonCsrPageSize) }, (_, i) => {
+                const pageNum = i + 1;
+                // Show pages around current page (2 pages before and after)
+                const shouldShow =
+                  pageNum > 1 &&
+                  pageNum < getTotalPages(jadwalMateri.length, nonCsrPageSize) &&
+                  pageNum >= nonCsrPage - 2 &&
+                  pageNum <= nonCsrPage + 2;
+
+                if (!shouldShow) return null;
+
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setNonCsrPage(pageNum)}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                      nonCsrPage === pageNum
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+
+              {/* Show ellipsis if current page is far from end */}
+              {nonCsrPage < getTotalPages(jadwalMateri.length, nonCsrPageSize) - 3 && (
+                <span className="px-2 text-gray-500 dark:text-gray-400">
+                  ...
+                </span>
+              )}
+
+              {/* Always show last page if it's not the first page */}
+              {getTotalPages(jadwalMateri.length, nonCsrPageSize) > 1 && (
+                <button
+                  onClick={() => setNonCsrPage(getTotalPages(jadwalMateri.length, nonCsrPageSize))}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    nonCsrPage === getTotalPages(jadwalMateri.length, nonCsrPageSize)
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  {getTotalPages(jadwalMateri.length, nonCsrPageSize)}
+                </button>
+              )}
+
+              <button
+                onClick={() => setNonCsrPage((p) => Math.min(getTotalPages(jadwalMateri.length, nonCsrPageSize), p + 1))}
+                disabled={nonCsrPage === getTotalPages(jadwalMateri.length, nonCsrPageSize)}
+                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
 

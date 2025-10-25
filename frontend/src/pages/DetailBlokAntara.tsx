@@ -8,6 +8,9 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPenToSquare, faTrash, faStar } from '@fortawesome/free-solid-svg-icons';
 import { getRuanganOptions } from '../utils/ruanganHelper';
 
+// Constants
+const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
+
 interface MataKuliah {
   kode: string;
   nama: string;
@@ -176,6 +179,53 @@ export default function DetailBlokAntara() {
   const [jadwalJurnalReading, setJadwalJurnalReading] = useState<JadwalJurnalReadingType[]>([]);
   const [jamOptions, setJamOptions] = useState<string[]>([]);
   
+  // Pagination state for all schedule types
+  const [kuliahBesarPage, setKuliahBesarPage] = useState(1);
+  const [kuliahBesarPageSize, setKuliahBesarPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
+  
+  const [praktikumPage, setPraktikumPage] = useState(1);
+  const [praktikumPageSize, setPraktikumPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
+  
+  const [agendaKhususPage, setAgendaKhususPage] = useState(1);
+  const [agendaKhususPageSize, setAgendaKhususPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
+  
+  const [pblPage, setPblPage] = useState(1);
+  const [pblPageSize, setPblPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
+  
+  const [jurnalReadingPage, setJurnalReadingPage] = useState(1);
+  const [jurnalReadingPageSize, setJurnalReadingPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
+  
+  // Pagination logic functions
+  const getPaginatedData = (data: any[], page: number, pageSize: number): any[] => {
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return data.slice(startIndex, endIndex);
+  };
+
+  const getTotalPages = (dataLength: number, pageSize: number): number => {
+    return Math.ceil(dataLength / pageSize);
+  };
+
+  const resetPagination = (scheduleType: 'kuliahBesar' | 'praktikum' | 'agendaKhusus' | 'pbl' | 'jurnalReading') => {
+    switch (scheduleType) {
+      case 'kuliahBesar':
+        setKuliahBesarPage(1);
+        break;
+      case 'praktikum':
+        setPraktikumPage(1);
+        break;
+      case 'agendaKhusus':
+        setAgendaKhususPage(1);
+        break;
+      case 'pbl':
+        setPblPage(1);
+        break;
+      case 'jurnalReading':
+        setJurnalReadingPage(1);
+        break;
+    }
+  };
+  
   // State untuk loading assigned PBL - untuk semester antara menggunakan allDosenOptions
   const [loadingAssignedPBL, setLoadingAssignedPBL] = useState(false);
 
@@ -256,8 +306,7 @@ export default function DetailBlokAntara() {
       const res = await api.get('/kuliah-besar/all-dosen');
       setAllDosenOptions(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
-      console.error('Error fetching all dosen:', error);
-      console.error('Error details:', handleApiError(error, 'Memuat data dosen'));
+      // Error handling is done by handleApiError
     }
   };
 
@@ -269,8 +318,7 @@ export default function DetailBlokAntara() {
       const res = await api.get(`/kelompok-besar-antara`);
       setKelompokBesarAntaraOptions(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
-      console.error('Error fetching kelompok besar antara:', error);
-      console.error('Error details:', handleApiError(error, 'Memuat kelompok besar antara'));
+      // Error handling is done by handleApiError
     } finally {
       setIsLoadingKelompok(false);
     }
@@ -283,7 +331,7 @@ export default function DetailBlokAntara() {
       const res = await api.get('/kelompok-besar-antara/mahasiswa');
       setAllMahasiswaOptions(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
-      console.error('Error fetching mahasiswa:', error);
+      // Error handling is done by handleApiError
     } finally {
       setIsLoadingMahasiswa(false);
     }
@@ -305,8 +353,6 @@ export default function DetailBlokAntara() {
       // Show success message
       alert('Kelompok besar berhasil dibuat!');
     } catch (error: any) {
-      console.error('Error creating kelompok besar antara:', error);
-      console.error('Error details:', handleApiError(error, 'Membuat kelompok besar'));
       alert(handleApiError(error, 'Membuat kelompok besar'));
     } finally {
       setIsCreatingKelompok(false);
@@ -364,8 +410,6 @@ export default function DetailBlokAntara() {
         await api.delete(`/kelompok-besar-antara/${id}`);
         fetchKelompokBesarAntaraOptions();
       } catch (error: any) {
-        console.error('Error deleting kelompok besar antara:', error);
-        console.error('Error details:', handleApiError(error, 'Menghapus kelompok besar'));
         alert(handleApiError(error, 'Menghapus kelompok besar'));
       }
     }
@@ -379,7 +423,7 @@ export default function DetailBlokAntara() {
       const res = await api.get(`/kelompok-kecil-antara`);
       setKelompokKecilAntaraList(Array.isArray(res.data) ? res.data : []);
     } catch (error) {
-      console.error('Error fetching kelompok kecil antara:', error);
+      // Error handling is done by handleApiError
     } finally {
       setIsLoadingKelompokKecilAntara(false);
     }
@@ -401,8 +445,6 @@ export default function DetailBlokAntara() {
       // Show success message
       alert('Kelompok kecil berhasil dibuat!');
     } catch (error: any) {
-      console.error('Error creating kelompok kecil antara:', error);
-      console.error('Error details:', handleApiError(error, 'Membuat kelompok kecil'));
       alert(handleApiError(error, 'Membuat kelompok kecil'));
     } finally {
       setIsCreatingKelompokKecilAntara(false);
@@ -418,8 +460,6 @@ export default function DetailBlokAntara() {
         await api.delete(`/kelompok-kecil-antara/${id}`);
         fetchKelompokKecilAntara();
       } catch (error: any) {
-        console.error('Error deleting kelompok kecil antara:', error);
-        console.error('Error details:', handleApiError(error, 'Menghapus kelompok kecil'));
         alert(handleApiError(error, 'Menghapus kelompok kecil'));
       }
     }
@@ -1004,7 +1044,7 @@ export default function DetailBlokAntara() {
     } catch (err) {
       setErrorBackend('Gagal mengambil data batch');
       setError('Gagal mengambil data batch'); // Set main error state
-      console.error('Batch data fetch error:', err);
+      // Error handling is done by handleApiError
       setLoading(false); // Reset loading state on error
     } finally {
       setLoadingPBL(false);
@@ -1019,7 +1059,6 @@ export default function DetailBlokAntara() {
       const response = await api.get('/ruangan');
       setRuanganList(response.data);
     } catch (err) {
-      console.error('Error fetching ruangan:', err);
       setRuanganList([]);
     }
   }, []);
@@ -2070,7 +2109,6 @@ export default function DetailBlokAntara() {
       await fetchBatchData();
       
     } catch (error) {
-      console.error('Error bulk deleting:', error);
       setErrorBackend('Gagal menghapus jadwal yang dipilih');
     } finally {
       setIsBulkDeleting(false);
@@ -2348,7 +2386,7 @@ export default function DetailBlokAntara() {
                       <td colSpan={10} className="text-center py-6 text-gray-400">Tidak ada data Kuliah Besar</td>
                   </tr>
                 ) : (
-                    jadwalKuliahBesar.map((row, i) => {
+                    getPaginatedData(jadwalKuliahBesar, kuliahBesarPage, kuliahBesarPageSize).map((row, i) => {
                       const dosen = allDosenList.find(d => d.id === row.dosen_id);
                       const ruangan = allRuanganList.find(r => r.id === row.ruangan_id);
                     return (
@@ -2368,7 +2406,7 @@ export default function DetailBlokAntara() {
                             )}
                           </button>
                         </td>
-                        <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{i + 1}</td>
+                        <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{(kuliahBesarPage - 1) * kuliahBesarPageSize + i + 1}</td>
                         <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                           {row.tanggal ? formatTanggalKonsisten(row.tanggal) : ''}
                         </td>
@@ -2429,6 +2467,142 @@ export default function DetailBlokAntara() {
             >
               {isBulkDeleting ? 'Menghapus...' : `Hapus Terpilih (${selectedKuliahBesarItems.length})`}
             </button>
+          </div>
+        )}
+
+        {/* Pagination for Kuliah Besar */}
+        {true && (
+          <div className="flex items-center justify-between mt-6">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Menampilkan {((kuliahBesarPage - 1) * kuliahBesarPageSize) + 1} - {Math.min(kuliahBesarPage * kuliahBesarPageSize, jadwalKuliahBesar.length)} dari {jadwalKuliahBesar.length} data
+              </span>
+              
+              <select
+                value={kuliahBesarPageSize}
+                onChange={(e) => {
+                  setKuliahBesarPageSize(Number(e.target.value));
+                  setKuliahBesarPage(1);
+                }}
+                className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
+              >
+                {PAGE_SIZE_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
+              <style
+                dangerouslySetInnerHTML={{
+                  __html: `
+                  .pagination-scroll::-webkit-scrollbar {
+                    height: 6px;
+                  }
+                  .pagination-scroll::-webkit-scrollbar-track {
+                    background: #f1f5f9;
+                    border-radius: 3px;
+                  }
+                  .pagination-scroll::-webkit-scrollbar-thumb {
+                    background: #cbd5e1;
+                    border-radius: 3px;
+                  }
+                  .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                    background: #94a3b8;
+                  }
+                  .dark .pagination-scroll::-webkit-scrollbar-track {
+                    background: #1e293b;
+                  }
+                  .dark .pagination-scroll::-webkit-scrollbar-thumb {
+                    background: #475569;
+                  }
+                  .dark .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                    background: #64748b;
+                  }
+                `,
+                }}
+              />
+
+              <button
+                onClick={() => setKuliahBesarPage((p) => Math.max(1, p - 1))}
+                disabled={kuliahBesarPage === 1}
+                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Previous
+              </button>
+
+              {/* Always show first page if it's not the current page */}
+              {getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize) > 1 && (
+                <button
+                  onClick={() => setKuliahBesarPage(1)}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    kuliahBesarPage === 1
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  1
+                </button>
+              )}
+
+              {/* Show pages around current page */}
+              {Array.from({ length: getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize) }, (_, i) => {
+                const pageNum = i + 1;
+                // Show pages around current page (2 pages before and after)
+                const shouldShow =
+                  pageNum > 1 &&
+                  pageNum < getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize) &&
+                  pageNum >= kuliahBesarPage - 2 &&
+                  pageNum <= kuliahBesarPage + 2;
+
+                if (!shouldShow) return null;
+
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setKuliahBesarPage(pageNum)}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                      kuliahBesarPage === pageNum
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+
+              {/* Show ellipsis if current page is far from end */}
+              {kuliahBesarPage < getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize) - 3 && (
+                <span className="px-2 text-gray-500 dark:text-gray-400">
+                  ...
+                </span>
+              )}
+
+              {/* Always show last page if it's not the first page */}
+              {getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize) > 1 && (
+                <button
+                  onClick={() => setKuliahBesarPage(getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize))}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    kuliahBesarPage === getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize)
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  {getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize)}
+                </button>
+              )}
+
+              <button
+                onClick={() => setKuliahBesarPage((p) => Math.min(getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize), p + 1))}
+                disabled={kuliahBesarPage === getTotalPages(jadwalKuliahBesar.length, kuliahBesarPageSize)}
+                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -2623,7 +2797,7 @@ export default function DetailBlokAntara() {
                     <td colSpan={9} className="text-center py-6 text-gray-400">Tidak ada data Agenda Khusus</td>
                   </tr>
                 ) : (
-                  jadwalAgendaKhusus.map((row: any, i: number) => (
+                  getPaginatedData(jadwalAgendaKhusus, agendaKhususPage, agendaKhususPageSize).map((row: any, i: number) => (
                     <tr key={row.id} className={i % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
                       <td className="px-4 py-4 text-center">
                         <button
@@ -2640,7 +2814,7 @@ export default function DetailBlokAntara() {
                           )}
                         </button>
                       </td>
-                      <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{i + 1}</td>
+                      <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{(agendaKhususPage - 1) * agendaKhususPageSize + i + 1}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {formatTanggalKonsisten(row.tanggal)}
                       </td>
@@ -2683,6 +2857,142 @@ export default function DetailBlokAntara() {
             >
               {isBulkDeleting ? 'Menghapus...' : `Hapus Terpilih (${selectedAgendaKhususItems.length})`}
             </button>
+          </div>
+        )}
+
+        {/* Pagination for Agenda Khusus */}
+        {true && (
+          <div className="flex items-center justify-between mt-6">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Menampilkan {((agendaKhususPage - 1) * agendaKhususPageSize) + 1} - {Math.min(agendaKhususPage * agendaKhususPageSize, jadwalAgendaKhusus.length)} dari {jadwalAgendaKhusus.length} data
+              </span>
+              
+              <select
+                value={agendaKhususPageSize}
+                onChange={(e) => {
+                  setAgendaKhususPageSize(Number(e.target.value));
+                  setAgendaKhususPage(1);
+                }}
+                className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
+              >
+                {PAGE_SIZE_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
+              <style
+                dangerouslySetInnerHTML={{
+                  __html: `
+                  .pagination-scroll::-webkit-scrollbar {
+                    height: 6px;
+                  }
+                  .pagination-scroll::-webkit-scrollbar-track {
+                    background: #f1f5f9;
+                    border-radius: 3px;
+                  }
+                  .pagination-scroll::-webkit-scrollbar-thumb {
+                    background: #cbd5e1;
+                    border-radius: 3px;
+                  }
+                  .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                    background: #94a3b8;
+                  }
+                  .dark .pagination-scroll::-webkit-scrollbar-track {
+                    background: #1e293b;
+                  }
+                  .dark .pagination-scroll::-webkit-scrollbar-thumb {
+                    background: #475569;
+                  }
+                  .dark .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                    background: #64748b;
+                  }
+                `,
+                }}
+              />
+
+              <button
+                onClick={() => setAgendaKhususPage((p) => Math.max(1, p - 1))}
+                disabled={agendaKhususPage === 1}
+                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Previous
+              </button>
+
+              {/* Always show first page if it's not the current page */}
+              {getTotalPages(jadwalAgendaKhusus.length, agendaKhususPageSize) > 1 && (
+                <button
+                  onClick={() => setAgendaKhususPage(1)}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    agendaKhususPage === 1
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  1
+                </button>
+              )}
+
+              {/* Show pages around current page */}
+              {Array.from({ length: getTotalPages(jadwalAgendaKhusus.length, agendaKhususPageSize) }, (_, i) => {
+                const pageNum = i + 1;
+                // Show pages around current page (2 pages before and after)
+                const shouldShow =
+                  pageNum > 1 &&
+                  pageNum < getTotalPages(jadwalAgendaKhusus.length, agendaKhususPageSize) &&
+                  pageNum >= agendaKhususPage - 2 &&
+                  pageNum <= agendaKhususPage + 2;
+
+                if (!shouldShow) return null;
+
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setAgendaKhususPage(pageNum)}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                      agendaKhususPage === pageNum
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+
+              {/* Show ellipsis if current page is far from end */}
+              {agendaKhususPage < getTotalPages(jadwalAgendaKhusus.length, agendaKhususPageSize) - 3 && (
+                <span className="px-2 text-gray-500 dark:text-gray-400">
+                  ...
+                </span>
+              )}
+
+              {/* Always show last page if it's not the first page */}
+              {getTotalPages(jadwalAgendaKhusus.length, agendaKhususPageSize) > 1 && (
+                <button
+                  onClick={() => setAgendaKhususPage(getTotalPages(jadwalAgendaKhusus.length, agendaKhususPageSize))}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    agendaKhususPage === getTotalPages(jadwalAgendaKhusus.length, agendaKhususPageSize)
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  {getTotalPages(jadwalAgendaKhusus.length, agendaKhususPageSize)}
+                </button>
+              )}
+
+              <button
+                onClick={() => setAgendaKhususPage((p) => Math.min(getTotalPages(jadwalAgendaKhusus.length, agendaKhususPageSize), p + 1))}
+                disabled={agendaKhususPage === getTotalPages(jadwalAgendaKhusus.length, agendaKhususPageSize)}
+                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -5640,14 +5950,17 @@ export default function DetailBlokAntara() {
                     <td colSpan={11} className="text-center py-6 text-gray-400">Tidak ada data PBL</td>
                   </tr>
                 ) : (
-                  jadwalPBL
-                  .slice()
-                  .sort((a: JadwalPBLType, b: JadwalPBLType) => {
-                    const dateA = new Date(a.tanggal);
-                    const dateB = new Date(b.tanggal);
-                    return dateA.getTime() - dateB.getTime();
-                  })
-                  .map((row: JadwalPBLType, i: number) => (
+                  getPaginatedData(
+                    jadwalPBL
+                      .slice()
+                      .sort((a: JadwalPBLType, b: JadwalPBLType) => {
+                        const dateA = new Date(a.tanggal);
+                        const dateB = new Date(b.tanggal);
+                        return dateA.getTime() - dateB.getTime();
+                      }),
+                    pblPage,
+                    pblPageSize
+                  ).map((row: JadwalPBLType, i: number) => (
                     <tr key={row.id} className={i % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
                       <td className="px-4 py-4 text-center">
                         <button
@@ -5664,7 +5977,7 @@ export default function DetailBlokAntara() {
                           )}
                         </button>
                       </td>
-                      <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{i + 1}</td>
+                      <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{(pblPage - 1) * pblPageSize + i + 1}</td>
                         <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {row.tanggal ? formatTanggalKonsisten(row.tanggal) : ''}
                         </td>
@@ -5723,6 +6036,142 @@ export default function DetailBlokAntara() {
             >
               {isBulkDeleting ? 'Menghapus...' : `Hapus Terpilih (${selectedPBLItems.length})`}
             </button>
+          </div>
+        )}
+
+        {/* Pagination for PBL */}
+        {true && (
+          <div className="flex items-center justify-between mt-6">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Menampilkan {((pblPage - 1) * pblPageSize) + 1} - {Math.min(pblPage * pblPageSize, jadwalPBL.length)} dari {jadwalPBL.length} data
+              </span>
+              
+              <select
+                value={pblPageSize}
+                onChange={(e) => {
+                  setPblPageSize(Number(e.target.value));
+                  setPblPage(1);
+                }}
+                className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
+              >
+                {PAGE_SIZE_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
+              <style
+                dangerouslySetInnerHTML={{
+                  __html: `
+                  .pagination-scroll::-webkit-scrollbar {
+                    height: 6px;
+                  }
+                  .pagination-scroll::-webkit-scrollbar-track {
+                    background: #f1f5f9;
+                    border-radius: 3px;
+                  }
+                  .pagination-scroll::-webkit-scrollbar-thumb {
+                    background: #cbd5e1;
+                    border-radius: 3px;
+                  }
+                  .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                    background: #94a3b8;
+                  }
+                  .dark .pagination-scroll::-webkit-scrollbar-track {
+                    background: #1e293b;
+                  }
+                  .dark .pagination-scroll::-webkit-scrollbar-thumb {
+                    background: #475569;
+                  }
+                  .dark .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                    background: #64748b;
+                  }
+                `,
+                }}
+              />
+
+              <button
+                onClick={() => setPblPage((p) => Math.max(1, p - 1))}
+                disabled={pblPage === 1}
+                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Previous
+              </button>
+
+              {/* Always show first page if it's not the current page */}
+              {getTotalPages(jadwalPBL.length, pblPageSize) > 1 && (
+                <button
+                  onClick={() => setPblPage(1)}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    pblPage === 1
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  1
+                </button>
+              )}
+
+              {/* Show pages around current page */}
+              {Array.from({ length: getTotalPages(jadwalPBL.length, pblPageSize) }, (_, i) => {
+                const pageNum = i + 1;
+                // Show pages around current page (2 pages before and after)
+                const shouldShow =
+                  pageNum > 1 &&
+                  pageNum < getTotalPages(jadwalPBL.length, pblPageSize) &&
+                  pageNum >= pblPage - 2 &&
+                  pageNum <= pblPage + 2;
+
+                if (!shouldShow) return null;
+
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setPblPage(pageNum)}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                      pblPage === pageNum
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+
+              {/* Show ellipsis if current page is far from end */}
+              {pblPage < getTotalPages(jadwalPBL.length, pblPageSize) - 3 && (
+                <span className="px-2 text-gray-500 dark:text-gray-400">
+                  ...
+                </span>
+              )}
+
+              {/* Always show last page if it's not the first page */}
+              {getTotalPages(jadwalPBL.length, pblPageSize) > 1 && (
+                <button
+                  onClick={() => setPblPage(getTotalPages(jadwalPBL.length, pblPageSize))}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    pblPage === getTotalPages(jadwalPBL.length, pblPageSize)
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  {getTotalPages(jadwalPBL.length, pblPageSize)}
+                </button>
+              )}
+
+              <button
+                onClick={() => setPblPage((p) => Math.min(getTotalPages(jadwalPBL.length, pblPageSize), p + 1))}
+                disabled={pblPage === getTotalPages(jadwalPBL.length, pblPageSize)}
+                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -5855,7 +6304,7 @@ export default function DetailBlokAntara() {
                     <td colSpan={11} className="text-center py-6 text-gray-400">Tidak ada data Jurnal Reading</td>
                   </tr>
                 ) : (
-                  jadwalJurnalReading.map((row: any, i: number) => (
+                  getPaginatedData(jadwalJurnalReading, jurnalReadingPage, jurnalReadingPageSize).map((row: any, i: number) => (
                     <tr key={row.id} className={i % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
                       <td className="px-4 py-4 text-center">
                         <button
@@ -5872,7 +6321,7 @@ export default function DetailBlokAntara() {
                           )}
                         </button>
                       </td>
-                      <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{i + 1}</td>
+                      <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{(jurnalReadingPage - 1) * jurnalReadingPageSize + i + 1}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {row.tanggal ? formatTanggalKonsisten(row.tanggal) : ''}
                       </td>
@@ -5978,6 +6427,142 @@ export default function DetailBlokAntara() {
             >
               {isBulkDeleting ? 'Menghapus...' : `Hapus Terpilih (${selectedJurnalReadingItems.length})`}
             </button>
+          </div>
+        )}
+
+        {/* Pagination for Jurnal Reading */}
+        {true && (
+          <div className="flex items-center justify-between mt-6">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Menampilkan {((jurnalReadingPage - 1) * jurnalReadingPageSize) + 1} - {Math.min(jurnalReadingPage * jurnalReadingPageSize, jadwalJurnalReading.length)} dari {jadwalJurnalReading.length} data
+              </span>
+              
+              <select
+                value={jurnalReadingPageSize}
+                onChange={(e) => {
+                  setJurnalReadingPageSize(Number(e.target.value));
+                  setJurnalReadingPage(1);
+                }}
+                className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
+              >
+                {PAGE_SIZE_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
+              <style
+                dangerouslySetInnerHTML={{
+                  __html: `
+                  .pagination-scroll::-webkit-scrollbar {
+                    height: 6px;
+                  }
+                  .pagination-scroll::-webkit-scrollbar-track {
+                    background: #f1f5f9;
+                    border-radius: 3px;
+                  }
+                  .pagination-scroll::-webkit-scrollbar-thumb {
+                    background: #cbd5e1;
+                    border-radius: 3px;
+                  }
+                  .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                    background: #94a3b8;
+                  }
+                  .dark .pagination-scroll::-webkit-scrollbar-track {
+                    background: #1e293b;
+                  }
+                  .dark .pagination-scroll::-webkit-scrollbar-thumb {
+                    background: #475569;
+                  }
+                  .dark .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                    background: #64748b;
+                  }
+                `,
+                }}
+              />
+
+              <button
+                onClick={() => setJurnalReadingPage((p) => Math.max(1, p - 1))}
+                disabled={jurnalReadingPage === 1}
+                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Previous
+              </button>
+
+              {/* Always show first page if it's not the current page */}
+              {getTotalPages(jadwalJurnalReading.length, jurnalReadingPageSize) > 1 && (
+                <button
+                  onClick={() => setJurnalReadingPage(1)}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    jurnalReadingPage === 1
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  1
+                </button>
+              )}
+
+              {/* Show pages around current page */}
+              {Array.from({ length: getTotalPages(jadwalJurnalReading.length, jurnalReadingPageSize) }, (_, i) => {
+                const pageNum = i + 1;
+                // Show pages around current page (2 pages before and after)
+                const shouldShow =
+                  pageNum > 1 &&
+                  pageNum < getTotalPages(jadwalJurnalReading.length, jurnalReadingPageSize) &&
+                  pageNum >= jurnalReadingPage - 2 &&
+                  pageNum <= jurnalReadingPage + 2;
+
+                if (!shouldShow) return null;
+
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setJurnalReadingPage(pageNum)}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                      jurnalReadingPage === pageNum
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+
+              {/* Show ellipsis if current page is far from end */}
+              {jurnalReadingPage < getTotalPages(jadwalJurnalReading.length, jurnalReadingPageSize) - 3 && (
+                <span className="px-2 text-gray-500 dark:text-gray-400">
+                  ...
+                </span>
+              )}
+
+              {/* Always show last page if it's not the first page */}
+              {getTotalPages(jadwalJurnalReading.length, jurnalReadingPageSize) > 1 && (
+                <button
+                  onClick={() => setJurnalReadingPage(getTotalPages(jadwalJurnalReading.length, jurnalReadingPageSize))}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    jurnalReadingPage === getTotalPages(jadwalJurnalReading.length, jurnalReadingPageSize)
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  {getTotalPages(jadwalJurnalReading.length, jurnalReadingPageSize)}
+                </button>
+              )}
+
+              <button
+                onClick={() => setJurnalReadingPage((p) => Math.min(getTotalPages(jadwalJurnalReading.length, jurnalReadingPageSize), p + 1))}
+                disabled={jurnalReadingPage === getTotalPages(jadwalJurnalReading.length, jurnalReadingPageSize)}
+                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>
