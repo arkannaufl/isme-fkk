@@ -260,8 +260,17 @@ class JadwalPraktikumController extends Controller
     // Cek bentrok antar jenis baris
     private function isBentrok($data, $ignoreId = null)
     {
-        // Cek bentrok dengan jadwal Praktikum
+        // Ambil data mata kuliah untuk mendapatkan semester
+        $mataKuliah = \App\Models\MataKuliah::where('kode', $data['mata_kuliah_kode'])->first();
+        $semester = $mataKuliah ? $mataKuliah->semester : null;
+
+        // Cek bentrok dengan jadwal Praktikum (dengan filter semester)
         $praktikumBentrok = JadwalPraktikum::where('tanggal', $data['tanggal'])
+            ->whereHas('mataKuliah', function ($q) use ($semester) {
+                if ($semester) {
+                    $q->where('semester', $semester);
+                }
+            })
             ->where(function ($q) use ($data) {
                 $q->where('kelas_praktikum', $data['kelas_praktikum'])
                     ->orWhere('ruangan_id', $data['ruangan_id']);
@@ -274,32 +283,52 @@ class JadwalPraktikumController extends Controller
             $praktikumBentrok->where('id', '!=', $ignoreId);
         }
 
-        // Cek bentrok dengan jadwal PBL
+        // Cek bentrok dengan jadwal PBL (dengan filter semester)
         $pblBentrok = \App\Models\JadwalPBL::where('tanggal', $data['tanggal'])
+            ->whereHas('mataKuliah', function ($q) use ($semester) {
+                if ($semester) {
+                    $q->where('semester', $semester);
+                }
+            })
             ->where('ruangan_id', $data['ruangan_id'])
             ->where(function ($q) use ($data) {
                 $q->where('jam_mulai', '<', $data['jam_selesai'])
                     ->where('jam_selesai', '>', $data['jam_mulai']);
             });
 
-        // Cek bentrok dengan jadwal Kuliah Besar
+        // Cek bentrok dengan jadwal Kuliah Besar (dengan filter semester)
         $kuliahBesarBentrok = \App\Models\JadwalKuliahBesar::where('tanggal', $data['tanggal'])
+            ->whereHas('mataKuliah', function ($q) use ($semester) {
+                if ($semester) {
+                    $q->where('semester', $semester);
+                }
+            })
             ->where('ruangan_id', $data['ruangan_id'])
             ->where(function ($q) use ($data) {
                 $q->where('jam_mulai', '<', $data['jam_selesai'])
                     ->where('jam_selesai', '>', $data['jam_mulai']);
             });
 
-        // Cek bentrok dengan jadwal Agenda Khusus
+        // Cek bentrok dengan jadwal Agenda Khusus (dengan filter semester)
         $agendaKhususBentrok = \App\Models\JadwalAgendaKhusus::where('tanggal', $data['tanggal'])
+            ->whereHas('mataKuliah', function ($q) use ($semester) {
+                if ($semester) {
+                    $q->where('semester', $semester);
+                }
+            })
             ->where('ruangan_id', $data['ruangan_id'])
             ->where(function ($q) use ($data) {
                 $q->where('jam_mulai', '<', $data['jam_selesai'])
                     ->where('jam_selesai', '>', $data['jam_mulai']);
             });
 
-        // Cek bentrok dengan jadwal Jurnal Reading
+        // Cek bentrok dengan jadwal Jurnal Reading (dengan filter semester)
         $jurnalBentrok = \App\Models\JadwalJurnalReading::where('tanggal', $data['tanggal'])
+            ->whereHas('mataKuliah', function ($q) use ($semester) {
+                if ($semester) {
+                    $q->where('semester', $semester);
+                }
+            })
             ->where('ruangan_id', $data['ruangan_id'])
             ->where(function ($q) use ($data) {
                 $q->where('jam_mulai', '<', $data['jam_selesai'])
@@ -316,8 +345,17 @@ class JadwalPraktikumController extends Controller
 
     private function checkBentrokWithDetail($data, $ignoreId = null): ?string
     {
-        // Cek bentrok dengan jadwal Praktikum
+        // Ambil data mata kuliah untuk mendapatkan semester
+        $mataKuliah = \App\Models\MataKuliah::where('kode', $data['mata_kuliah_kode'])->first();
+        $semester = $mataKuliah ? $mataKuliah->semester : null;
+
+        // Cek bentrok dengan jadwal Praktikum (dengan filter semester)
         $praktikumBentrok = JadwalPraktikum::where('tanggal', $data['tanggal'])
+            ->whereHas('mataKuliah', function ($q) use ($semester) {
+                if ($semester) {
+                    $q->where('semester', $semester);
+                }
+            })
             ->where(function ($q) use ($data) {
                 $q->where('kelas_praktikum', $data['kelas_praktikum'])
                     ->orWhere('ruangan_id', $data['ruangan_id']);
@@ -340,8 +378,13 @@ class JadwalPraktikumController extends Controller
                 $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
         }
 
-        // Cek bentrok dengan jadwal PBL
+        // Cek bentrok dengan jadwal PBL (dengan filter semester)
         $pblBentrok = \App\Models\JadwalPBL::where('tanggal', $data['tanggal'])
+            ->whereHas('mataKuliah', function ($q) use ($semester) {
+                if ($semester) {
+                    $q->where('semester', $semester);
+                }
+            })
             ->where('ruangan_id', $data['ruangan_id'])
             ->where(function ($q) use ($data) {
                 $q->where('jam_mulai', '<', $data['jam_selesai'])
@@ -358,8 +401,13 @@ class JadwalPraktikumController extends Controller
                 $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
         }
 
-        // Cek bentrok dengan jadwal Kuliah Besar
+        // Cek bentrok dengan jadwal Kuliah Besar (dengan filter semester)
         $kuliahBesarBentrok = \App\Models\JadwalKuliahBesar::where('tanggal', $data['tanggal'])
+            ->whereHas('mataKuliah', function ($q) use ($semester) {
+                if ($semester) {
+                    $q->where('semester', $semester);
+                }
+            })
             ->where('ruangan_id', $data['ruangan_id'])
             ->where(function ($q) use ($data) {
                 $q->where('jam_mulai', '<', $data['jam_selesai'])
@@ -376,8 +424,13 @@ class JadwalPraktikumController extends Controller
                 $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
         }
 
-        // Cek bentrok dengan jadwal Agenda Khusus
+        // Cek bentrok dengan jadwal Agenda Khusus (dengan filter semester)
         $agendaKhususBentrok = \App\Models\JadwalAgendaKhusus::where('tanggal', $data['tanggal'])
+            ->whereHas('mataKuliah', function ($q) use ($semester) {
+                if ($semester) {
+                    $q->where('semester', $semester);
+                }
+            })
             ->where('ruangan_id', $data['ruangan_id'])
             ->where(function ($q) use ($data) {
                 $q->where('jam_mulai', '<', $data['jam_selesai'])
@@ -394,8 +447,13 @@ class JadwalPraktikumController extends Controller
                 $jamMulaiFormatted . "-" . $jamSelesaiFormatted . " (" . $bentrokReason . ")";
         }
 
-        // Cek bentrok dengan jadwal Jurnal Reading
+        // Cek bentrok dengan jadwal Jurnal Reading (dengan filter semester)
         $jurnalBentrok = \App\Models\JadwalJurnalReading::where('tanggal', $data['tanggal'])
+            ->whereHas('mataKuliah', function ($q) use ($semester) {
+                if ($semester) {
+                    $q->where('semester', $semester);
+                }
+            })
             ->where('ruangan_id', $data['ruangan_id'])
             ->where(function ($q) use ($data) {
                 $q->where('jam_mulai', '<', $data['jam_selesai'])

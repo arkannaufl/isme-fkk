@@ -580,16 +580,26 @@ export default function PBL() {
       // Assign dosen ke PBL dalam semester dan blok yang sama
       const assignPromises = (semesterPBLs || []).map(async (semesterPbl) => {
         try {
-          // Tentukan role berdasarkan dosen_peran
+          // PERBAIKAN: Tentukan role berdasarkan dosen_peran untuk semester dan blok yang sama
           let role = "dosen_mengajar"; // default
           const dosenPeran = dosen.dosen_peran?.find(
-            (peran: any) =>
-              peran.semester === currentSemester &&
-              (peran.tipe_peran === "koordinator" ||
-                peran.tipe_peran === "tim_blok")
+            (peran: any) => {
+              // Cek semester (konversi ke string untuk perbandingan)
+              const peranSemester = String(peran.semester);
+              const currentSemesterStr = String(currentSemester);
+              
+              // Cek apakah dosen punya peran koordinator/tim_blok di semester yang sama
+              const hasRole = peran.tipe_peran === "koordinator" || 
+                             peran.tipe_peran === "tim_blok";
+              
+              return peranSemester === currentSemesterStr && hasRole;
+            }
           );
           if (dosenPeran) {
             role = dosenPeran.tipe_peran;
+            console.log(`Dosen ${dosen.name} memiliki peran ${role} di semester ${currentSemester}`);
+          } else {
+            console.log(`Dosen ${dosen.name} tidak memiliki peran koordinator/tim_blok di semester ${currentSemester}, menggunakan default: dosen_mengajar`);
           }
 
           const response = await api.post(
@@ -4328,11 +4338,12 @@ export default function PBL() {
                                                       }
 
                                                       try {
-                                                        // Cari semua PBL dalam semester yang sama yang memiliki dosen ini
+                                                        // PERBAIKAN: Cari PBL dalam semester DAN blok yang sama (bukan semua blok dalam semester)
                                                         const currentSemester =
                                                           mk.semester;
+                                                        const currentBlok = mk.blok;
 
-                                                        const semesterPBLs =
+                                                        const blokPBLs =
                                                           Object.values(
                                                             pblData || {}
                                                           )
@@ -4346,32 +4357,34 @@ export default function PBL() {
                                                                   m.kode ===
                                                                   p.mata_kuliah_kode
                                                               );
+                                                              // PERBAIKAN: Filter berdasarkan semester DAN blok
                                                               const isMatch =
                                                                 mk &&
                                                                 mk.semester ==
-                                                                  currentSemester;
+                                                                  currentSemester &&
+                                                                mk.blok === currentBlok;
                                                               return isMatch;
                                                             });
 
                                                         const removePromises = (
-                                                          semesterPBLs || []
+                                                          blokPBLs || []
                                                         ).map(
                                                           async (
-                                                            semesterPbl
+                                                            blokPbl
                                                           ) => {
-                                                            const semesterAssigned =
+                                                            const blokAssigned =
                                                               assignedDosen[
-                                                                semesterPbl.id!
+                                                                blokPbl.id!
                                                               ] || [];
                                                             if (
-                                                              semesterAssigned.some(
+                                                              blokAssigned.some(
                                                                 (d) =>
                                                                   d.id ===
                                                                   dosen.id
                                                               )
                                                             ) {
                                                               return api.delete(
-                                                                `/pbls/${semesterPbl.id}/unassign-dosen/${dosen.id}`
+                                                                `/pbls/${blokPbl.id}/unassign-dosen/${dosen.id}`
                                                               );
                                                             }
                                                             return Promise.resolve();
@@ -4441,28 +4454,28 @@ export default function PBL() {
 
                                                         // Hapus dosen dari role assignments
                                                         (
-                                                          semesterPBLs || []
+                                                          blokPBLs || []
                                                         ).forEach(
-                                                          (semesterPbl) => {
+                                                          (blokPbl) => {
                                                             if (
-                                                              semesterPbl.id
+                                                              blokPbl.id
                                                             ) {
                                                               if (
                                                                 newRoleAssignments[
-                                                                  semesterPbl.id
+                                                                  blokPbl.id
                                                                 ]
                                                               ) {
                                                                 if (
                                                                   newRoleAssignments[
-                                                                    semesterPbl
+                                                                    blokPbl
                                                                       .id
                                                                   ].koordinator
                                                                 ) {
                                                                   newRoleAssignments[
-                                                                    semesterPbl.id
+                                                                    blokPbl.id
                                                                   ].koordinator =
                                                                     newRoleAssignments[
-                                                                      semesterPbl
+                                                                      blokPbl
                                                                         .id
                                                                     ].koordinator!.filter(
                                                                       (id) =>
@@ -4472,15 +4485,15 @@ export default function PBL() {
                                                                 }
                                                                 if (
                                                                   newRoleAssignments[
-                                                                    semesterPbl
+                                                                    blokPbl
                                                                       .id
                                                                   ].timBlok
                                                                 ) {
                                                                   newRoleAssignments[
-                                                                    semesterPbl.id
+                                                                    blokPbl.id
                                                                   ].timBlok =
                                                                     newRoleAssignments[
-                                                                      semesterPbl
+                                                                      blokPbl
                                                                         .id
                                                                     ].timBlok!.filter(
                                                                       (id) =>
@@ -4503,8 +4516,8 @@ export default function PBL() {
                                                         // Set success message dengan info CSR jika dihapus
                                                         const successMessage =
                                                           csrRemoved
-                                                            ? `Dosen ${dosen.name} berhasil di-unassign dari semua modul PBL Semester ${mk.semester} Blok ${mk.blok} dan juga dihapus dari assignment CSR terkait.`
-                                                            : `Dosen ${dosen.name} berhasil di-unassign dari semua modul PBL Semester ${mk.semester} Blok ${mk.blok}.`;
+                                                            ? `Dosen ${dosen.name} berhasil di-unassign dari semua modul PBL Blok ${mk.blok} Semester ${mk.semester} dan juga dihapus dari assignment CSR terkait.`
+                                                            : `Dosen ${dosen.name} berhasil di-unassign dari semua modul PBL Blok ${mk.blok} Semester ${mk.semester}.`;
                                                         setSuccess(
                                                           successMessage
                                                         );
@@ -4552,7 +4565,7 @@ export default function PBL() {
                                                                   mk.semester,
                                                                 blok: mk.blok,
                                                                 pblIds: (
-                                                                  semesterPBLs ||
+                                                                  blokPBLs ||
                                                                   []
                                                                 )
                                                                   .map(
