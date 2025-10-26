@@ -694,10 +694,11 @@ class JadwalNonBlokNonCSRController extends Controller
                         }
                     }
 
-                    // Validasi konflik jadwal
-                    $conflict = $this->checkConflict($row, $kode);
-                    if ($conflict) {
-                        throw new \Exception($conflict . " (Baris " . ($index + 1) . ")");
+                    // Validasi bentrok dengan semua jadwal (mempertimbangkan semester)
+                    $row['mata_kuliah_kode'] = $kode;
+                    $bentrokMessage = $this->checkBentrokWithDetail($row, null);
+                    if ($bentrokMessage) {
+                        throw new \Exception($bentrokMessage . " (Baris " . ($index + 1) . ")");
                     }
 
                     // Validasi kapasitas ruangan
@@ -823,6 +824,143 @@ class JadwalNonBlokNonCSRController extends Controller
         }
 
         return null;
+    }
+
+    private function checkBentrokWithDetail($data, $ignoreId = null): ?string
+    {
+        // Ambil data mata kuliah untuk mendapatkan semester
+        $mataKuliah = \App\Models\MataKuliah::where('kode', $data['mata_kuliah_kode'])->first();
+        $semester = $mataKuliah ? $mataKuliah->semester : null;
+
+        // Cek bentrok dengan jadwal Non Blok Non CSR (dengan filter semester)
+        $nonBlokNonCSRBentrok = JadwalNonBlokNonCSR::where('tanggal', $data['tanggal'])
+            ->whereHas('mataKuliah', function ($q) use ($semester) {
+                if ($semester) {
+                    $q->where('semester', $semester);
+                }
+            })
+            ->where(function ($q) use ($data) {
+                $q->where('ruangan_id', $data['ruangan_id']);
+                
+                // Cek bentrok dosen jika ada
+                if (isset($data['dosen_id']) && $data['dosen_id']) {
+                    $q->orWhere('dosen_id', $data['dosen_id']);
+                }
+            })
+            ->where(function ($q) use ($data) {
+                $q->where('jam_mulai', '<', $data['jam_selesai'])
+                    ->where('jam_selesai', '>', $data['jam_mulai']);
+            });
+        if ($ignoreId) {
+            $nonBlokNonCSRBentrok->where('id', '!=', $ignoreId);
+        }
+
+        // Cek bentrok dengan jadwal PBL (dengan filter semester)
+        $pblBentrok = \App\Models\JadwalPBL::where('tanggal', $data['tanggal'])
+            ->whereHas('mataKuliah', function ($q) use ($semester) {
+                if ($semester) {
+                    $q->where('semester', $semester);
+                }
+            })
+            ->where('ruangan_id', $data['ruangan_id'])
+            ->where(function ($q) use ($data) {
+                $q->where('jam_mulai', '<', $data['jam_selesai'])
+                    ->where('jam_selesai', '>', $data['jam_mulai']);
+            });
+
+        // Cek bentrok dengan jadwal Kuliah Besar (dengan filter semester)
+        $kuliahBesarBentrok = \App\Models\JadwalKuliahBesar::where('tanggal', $data['tanggal'])
+            ->whereHas('mataKuliah', function ($q) use ($semester) {
+                if ($semester) {
+                    $q->where('semester', $semester);
+                }
+            })
+            ->where('ruangan_id', $data['ruangan_id'])
+            ->where(function ($q) use ($data) {
+                $q->where('jam_mulai', '<', $data['jam_selesai'])
+                    ->where('jam_selesai', '>', $data['jam_mulai']);
+            });
+
+        // Cek bentrok dengan jadwal Agenda Khusus (dengan filter semester)
+        $agendaKhususBentrok = \App\Models\JadwalAgendaKhusus::where('tanggal', $data['tanggal'])
+            ->whereHas('mataKuliah', function ($q) use ($semester) {
+                if ($semester) {
+                    $q->where('semester', $semester);
+                }
+            })
+            ->where('ruangan_id', $data['ruangan_id'])
+            ->where(function ($q) use ($data) {
+                $q->where('jam_mulai', '<', $data['jam_selesai'])
+                    ->where('jam_selesai', '>', $data['jam_mulai']);
+            });
+
+        // Cek bentrok dengan jadwal Praktikum (dengan filter semester)
+        $praktikumBentrok = \App\Models\JadwalPraktikum::where('tanggal', $data['tanggal'])
+            ->whereHas('mataKuliah', function ($q) use ($semester) {
+                if ($semester) {
+                    $q->where('semester', $semester);
+                }
+            })
+            ->where('ruangan_id', $data['ruangan_id'])
+            ->where(function ($q) use ($data) {
+                $q->where('jam_mulai', '<', $data['jam_selesai'])
+                    ->where('jam_selesai', '>', $data['jam_mulai']);
+            });
+
+        // Cek bentrok dengan jadwal Jurnal Reading (dengan filter semester)
+        $jurnalBentrok = \App\Models\JadwalJurnalReading::where('tanggal', $data['tanggal'])
+            ->whereHas('mataKuliah', function ($q) use ($semester) {
+                if ($semester) {
+                    $q->where('semester', $semester);
+                }
+            })
+            ->where('ruangan_id', $data['ruangan_id'])
+            ->where(function ($q) use ($data) {
+                $q->where('jam_mulai', '<', $data['jam_selesai'])
+                    ->where('jam_selesai', '>', $data['jam_mulai']);
+            });
+
+        // Cek bentrok dengan jadwal CSR (dengan filter semester)
+        $csrBentrok = \App\Models\JadwalCSR::where('tanggal', $data['tanggal'])
+            ->whereHas('mataKuliah', function ($q) use ($semester) {
+                if ($semester) {
+                    $q->where('semester', $semester);
+                }
+            })
+            ->where('ruangan_id', $data['ruangan_id'])
+            ->where(function ($q) use ($data) {
+                $q->where('jam_mulai', '<', $data['jam_selesai'])
+                    ->where('jam_selesai', '>', $data['jam_mulai']);
+            });
+
+        // Cek bentrok dengan kelompok besar (jika ada kelompok_besar_id di jadwal lain)
+        $kelompokBesarBentrok = $this->checkKelompokBesarBentrok($data, $ignoreId);
+
+        return $nonBlokNonCSRBentrok->exists() || $pblBentrok->exists() ||
+            $kuliahBesarBentrok->exists() || $agendaKhususBentrok->exists() ||
+            $praktikumBentrok->exists() || $jurnalBentrok->exists() ||
+            $csrBentrok->exists() || $kelompokBesarBentrok;
+    }
+
+    private function checkKelompokBesarBentrok($data, $ignoreId = null)
+    {
+        if (!isset($data['kelompok_besar_id']) || !$data['kelompok_besar_id']) {
+            return false;
+        }
+
+        // Cek bentrok dengan jadwal yang menggunakan kelompok besar yang sama
+        $bentrok = JadwalNonBlokNonCSR::where('tanggal', $data['tanggal'])
+            ->where('kelompok_besar_id', $data['kelompok_besar_id'])
+            ->where(function ($q) use ($data) {
+                $q->where('jam_mulai', '<', $data['jam_selesai'])
+                    ->where('jam_selesai', '>', $data['jam_mulai']);
+            });
+        
+        if ($ignoreId) {
+            $bentrok->where('id', '!=', $ignoreId);
+        }
+
+        return $bentrok->exists();
     }
 
     private function validateRuanganCapacity($ruanganId, $kelompokBesarId)

@@ -640,9 +640,15 @@ export default function DetailBlok() {
 
       });
 
-      // Ambil dosen standby
-      const standbyRes = await api.get(`/users?role=dosen&keahlian=standby`);
-      const standbyDosen = standbyRes.data || [];
+      // Ambil dosen standby (case insensitive)
+      const standbyRes = await api.get(`/users?role=dosen`);
+      const allDosenData = standbyRes.data || [];
+      const standbyDosen = allDosenData.filter((dosen: any) => {
+        const keahlian = Array.isArray(dosen.keahlian) 
+          ? dosen.keahlian 
+          : (dosen.keahlian || '').split(',').map((k: string) => k.trim());
+        return keahlian.some(k => k.toLowerCase() === 'standby');
+      });
 
       // Gabungkan dosen reguler dan dosen standby
       const allDosen = [...filteredDosen, ...standbyDosen];
@@ -788,9 +794,15 @@ export default function DetailBlok() {
 
       });
 
-      // Ambil dosen standby
-      const standbyRes = await api.get(`/users?role=dosen&keahlian=standby`);
-      const standbyDosen = standbyRes.data || [];
+      // Ambil dosen standby (case insensitive)
+      const standbyRes = await api.get(`/users?role=dosen`);
+      const allDosenData = standbyRes.data || [];
+      const standbyDosen = allDosenData.filter((dosen: any) => {
+        const keahlian = Array.isArray(dosen.keahlian) 
+          ? dosen.keahlian 
+          : (dosen.keahlian || '').split(',').map((k: string) => k.trim());
+        return keahlian.some(k => k.toLowerCase() === 'standby');
+      });
 
       // Gabungkan dosen reguler dan dosen standby
       const allDosen = [...filteredDosen, ...standbyDosen];
@@ -4462,7 +4474,7 @@ export default function DetailBlok() {
 
       const kelompokKecilOptions = kelompokKecilList || [];
 
-      const dosenOptions = allDosenList || [];
+      const dosenOptions = assignedDosenPBL || [];
 
       const ruanganOptions = allRuanganList || [];
 
@@ -4615,7 +4627,6 @@ export default function DetailBlok() {
               (modul.nama_modul && m.nama_modul === modul.nama_modul)
             )
           )
-          .slice(0, 10)
           .map(modul => {
             const namaModul = modul.nama_modul || `Modul ${modul.id || 'Unknown'}`;
             return [`• ${namaModul}`];
@@ -4635,16 +4646,15 @@ export default function DetailBlok() {
             }
           });
           
-          // Convert map to array dan ambil 10 pertama
+          // Convert map to array
           return Array.from(kelompokMap.entries())
-            .slice(0, 10)
             .map(([namaKelompok, jumlahAnggota]) => 
               [`• ${namaKelompok} (${jumlahAnggota} mahasiswa)`]
             );
         })(),
         [''],
         ['👨‍🏫 DOSEN YANG TERSEDIA:'],
-        ['• Dosen yang tersedia adalah dosen yang sudah di-generate untuk blok dan semester ini'],
+        ['• Dosen yang tersedia adalah dosen yang sudah di-assign untuk PBL mata kuliah ini'],
         ['• Termasuk dosen standby yang ditugaskan untuk mata kuliah ini'],
         ...dosenOptions
           .filter((dosen, index, self) => 
@@ -4654,7 +4664,6 @@ export default function DetailBlok() {
               (dosen.name && d.name === dosen.name)
             )
           )
-          .slice(0, 10)
           .map(dosen => {
             const namaDosen = dosen.name || `Dosen ${dosen.id || 'Unknown'}`;
             return [`• ${namaDosen}`];
@@ -4669,7 +4678,6 @@ export default function DetailBlok() {
               (ruangan.nama && r.nama === ruangan.nama)
             )
           )
-          .slice(0, 10)
           .map(ruangan => {
             const namaRuangan = ruangan.nama || `Ruangan ${ruangan.id || 'Unknown'}`;
             const kapasitas = ruangan.kapasitas || 0;
@@ -4702,7 +4710,7 @@ export default function DetailBlok() {
         [''],
         ['👨‍🏫 VALIDASI DOSEN:'],
         ['• Nama dosen harus ada di database'],
-        ['• Dosen harus sudah di-generate untuk blok dan semester ini'],
+        ['• Dosen harus sudah di-assign untuk PBL mata kuliah ini'],
         ['• Termasuk dosen standby yang ditugaskan'],
         [''],
         ['🏢 VALIDASI RUANGAN:'],
@@ -4739,7 +4747,8 @@ export default function DetailBlok() {
       XLSX.writeFile(wb, fileName);
 
     } catch (error) {
-
+      console.error('Error downloading PBL template:', error);
+      alert('Gagal mendownload template PBL. Silakan coba lagi.');
     }
   };
 
@@ -4750,6 +4759,19 @@ export default function DetailBlok() {
     try {
       // Fetch kelas praktikum untuk template
       const kelasPraktikumForTemplate = await fetchKelasPraktikumForTemplate(data.semester);
+      
+      // Ambil dosen standby untuk ditampilkan di template (case insensitive)
+      const standbyRes = await api.get(`/users?role=dosen`);
+      const allDosenData = standbyRes.data || [];
+      const standbyDosen = allDosenData.filter(dosen => {
+        const keahlian = Array.isArray(dosen.keahlian) 
+          ? dosen.keahlian 
+          : (dosen.keahlian || '').split(',').map((k: string) => k.trim());
+        return keahlian.some(k => k.toLowerCase() === 'standby');
+      });
+      
+      // Gabungkan dosen reguler dengan dosen standby
+      const allDosenForTemplate = [...dosenList, ...standbyDosen];
       
       // Ambil data yang diperlukan untuk template
       const startDate = data?.tanggal_mulai ? new Date(data.tanggal_mulai) : new Date();
@@ -4847,7 +4869,8 @@ export default function DetailBlok() {
         ['📊 KETERSEDIAAN DATA:'],
         [''],
         ['👨‍🏫 DOSEN YANG TERSEDIA (dengan keahlian):'],
-        ...dosenList.slice(0, TEMPLATE_DISPLAY_LIMIT).map(dosen => {
+        ['• Termasuk dosen standby yang tersedia untuk semua materi'],
+        ...allDosenForTemplate.map(dosen => {
           const keahlian = Array.isArray(dosen.keahlian) 
             ? dosen.keahlian 
             : (dosen.keahlian || '').split(',').map((k: string) => k.trim());
@@ -4855,16 +4878,16 @@ export default function DetailBlok() {
         }),
         [''],
         ['🏢 RUANGAN YANG TERSEDIA:'],
-        ...ruanganList.slice(0, TEMPLATE_DISPLAY_LIMIT).map(ruangan => [`• ${ruangan.nama}`]),
+        ...ruanganList.map(ruangan => [`• ${ruangan.nama}`]),
         [''],
         ['📚 KELAS PRAKTIKUM YANG TERSEDIA:'],
         ...(kelasPraktikumForTemplate.length > 0 
-          ? kelasPraktikumForTemplate.slice(0, TEMPLATE_DISPLAY_LIMIT).map(kelas => [`• ${kelas}`])
+          ? kelasPraktikumForTemplate.map(kelas => [`• ${kelas}`])
           : [['• Belum ada kelas praktikum yang dibuat untuk semester ini']]
         ),
         [''],
         ['📚 MATERI YANG TERSEDIA (dari keahlian_required mata kuliah):'],
-        ...(data?.keahlian_required || []).slice(0, TEMPLATE_DISPLAY_LIMIT).map(keahlian => [`• ${keahlian}`]),
+        ...(data?.keahlian_required || []).map(keahlian => [`• ${keahlian}`]),
         [''],
         ['⚠️ VALIDASI SISTEM:'],
         [''],
@@ -4910,6 +4933,8 @@ export default function DetailBlok() {
       const fileName = `Template_Import_Praktikum_${data?.nama || 'MataKuliah'}_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
+      console.error('Error downloading Praktikum template:', error);
+      alert('Gagal mendownload template Praktikum. Silakan coba lagi.');
     }
 
   };
@@ -4920,9 +4945,22 @@ export default function DetailBlok() {
 
     try {
 
+      // Ambil dosen standby untuk ditampilkan di template (case insensitive)
+      const standbyRes = await api.get(`/users?role=dosen`);
+      const allDosenData = standbyRes.data || [];
+      const standbyDosen = allDosenData.filter(dosen => {
+        const keahlian = Array.isArray(dosen.keahlian) 
+          ? dosen.keahlian 
+          : (dosen.keahlian || '').split(',').map((k: string) => k.trim());
+        return keahlian.some(k => k.toLowerCase() === 'standby');
+      });
+      
+      // Gabungkan dosen reguler dengan dosen standby
+      const allDosenForTemplate = [...dosenList, ...standbyDosen];
+
       // Ambil data dosen dan ruangan yang tersedia
 
-      const dosenTersedia = dosenList.length > 0 ? dosenList.slice(0, 2) : [
+      const dosenTersedia = allDosenForTemplate.length > 0 ? allDosenForTemplate.slice(0, 2) : [
 
         { name: "Dosen 1" },
 
@@ -5012,9 +5050,9 @@ export default function DetailBlok() {
 
       
 
-      // Cari dosen yang memiliki keahlian yang sesuai
+      // Cari dosen yang memiliki keahlian yang sesuai (termasuk dosen standby)
 
-      const dosenDenganKeahlian = dosenList.filter(dosen => {
+      const dosenDenganKeahlian = allDosenForTemplate.filter(dosen => {
 
         const keahlian = Array.isArray(dosen.keahlian) 
 
@@ -5022,7 +5060,7 @@ export default function DetailBlok() {
 
           : (dosen.keahlian || '').split(',').map((k: string) => k.trim());
 
-        return materiTersedia.some(materi => keahlian.includes(materi));
+        return materiTersedia.some(materi => keahlian.includes(materi)) || keahlian.includes('standby');
 
       });
 
@@ -5144,7 +5182,8 @@ export default function DetailBlok() {
                   ['📊 KETERSEDIAAN DATA:'],
                   [''],
                   ['👨‍🏫 DOSEN YANG TERSEDIA (dengan keahlian):'],
-                  ...dosenList.slice(0, TEMPLATE_DISPLAY_LIMIT).map(dosen => {
+                  ['• Termasuk dosen standby yang tersedia untuk semua materi'],
+                  ...allDosenForTemplate.map(dosen => {
                     const keahlian = Array.isArray(dosen.keahlian) 
 
                       ? dosen.keahlian 
@@ -5157,15 +5196,15 @@ export default function DetailBlok() {
                   [''],
 
                   ['🏢 RUANGAN YANG TERSEDIA:'],
-                  ...ruanganList.slice(0, TEMPLATE_DISPLAY_LIMIT).map(ruangan => [`• ${ruangan.nama}`]),
+                  ...ruanganList.map(ruangan => [`• ${ruangan.nama}`]),
                   [''],
 
                   ['👥 KELOMPOK BESAR YANG TERSEDIA:'],
-                  ...kelompokBesarOptions.slice(0, TEMPLATE_DISPLAY_LIMIT).map(kelompok => [`• ${kelompok.id} - ${kelompok.label}`]),
+                  ...kelompokBesarOptions.map(kelompok => [`• ${kelompok.id} - ${kelompok.label}`]),
                   [''],
 
                   ['📚 MATERI YANG TERSEDIA (dari keahlian_required mata kuliah):'],
-                  ...(data?.keahlian_required || []).slice(0, TEMPLATE_DISPLAY_LIMIT).map(keahlian => [`• ${keahlian}`]),
+                  ...(data?.keahlian_required || []).map(keahlian => [`• ${keahlian}`]),
                   [''],
 
                   ['⚠️ VALIDASI SISTEM:'],
@@ -5232,9 +5271,8 @@ export default function DetailBlok() {
       XLSX.writeFile(wb, "Template_Import_JadwalKuliahBesar.xlsx");
 
     } catch (error) {
-
-      // Error downloading template
-
+      console.error('Error downloading Kuliah Besar template:', error);
+      alert('Gagal mendownload template Kuliah Besar. Silakan coba lagi.');
     }
 
   };
@@ -5341,10 +5379,10 @@ export default function DetailBlok() {
         ['📊 KETERSEDIAAN DATA:'],
         [''],
         ['🏢 RUANGAN YANG TERSEDIA:'],
-        ...ruanganList.slice(0, TEMPLATE_DISPLAY_LIMIT).map(ruangan => [`• ${ruangan.nama}`]),
+        ...ruanganList.map(ruangan => [`• ${ruangan.nama}`]),
         [''],
         ['👥 KELOMPOK BESAR YANG TERSEDIA:'],
-        ...kelompokBesarOptions.slice(0, TEMPLATE_DISPLAY_LIMIT).map(kelompok => [`• ${kelompok.id} - ${kelompok.label}`]),
+        ...kelompokBesarOptions.map(kelompok => [`• ${kelompok.id} - ${kelompok.label}`]),
         [''],
         ['⚠️ VALIDASI SISTEM:'],
         [''],
@@ -5397,6 +5435,8 @@ export default function DetailBlok() {
       const fileName = `Template_Import_AgendaKhusus_${data?.nama || 'MataKuliah'}_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
+      console.error('Error downloading Agenda Khusus template:', error);
+      alert('Gagal mendownload template Agenda Khusus. Silakan coba lagi.');
     }
   };
 
@@ -7582,7 +7622,7 @@ export default function DetailBlok() {
           tanggal: contohTanggal1,
           jam_mulai: '07.20',
           topik: topikJurnalReadingList[0] || 'Contoh Topik 1',
-          dosen: allDosenList[0]?.name || 'Dr. John Doe',
+          dosen: assignedDosenPBL[0]?.name || 'Dr. John Doe',
           ruangan: ruanganList[0]?.nama || 'Ruang 1',
           kelompok_kecil: kelompokKecilTersedia[0]?.nama_kelompok || 'Kelompok A1',
           jumlah_sesi: 2
@@ -7591,7 +7631,7 @@ export default function DetailBlok() {
           tanggal: contohTanggal2,
           jam_mulai: '10.40',
           topik: topikJurnalReadingList[1] || 'Contoh Topik 2',
-          dosen: allDosenList[1]?.name || 'Dr. Jane Smith',
+          dosen: assignedDosenPBL[1]?.name || 'Dr. Jane Smith',
           ruangan: ruanganList[1]?.nama || 'Ruang 2',
           kelompok_kecil: kelompokKecilTersedia[1]?.nama_kelompok || 'Kelompok A2',
           jumlah_sesi: 2
@@ -7651,7 +7691,7 @@ export default function DetailBlok() {
         ['📊 KETERSEDIAAN DATA:'],
         [''],
         ['🏢 RUANGAN YANG TERSEDIA:'],
-        ...ruanganList.slice(0, TEMPLATE_DISPLAY_LIMIT).map(ruangan => [`• ${ruangan.nama}`]),
+        ...ruanganList.map(ruangan => [`• ${ruangan.nama}`]),
         [''],
         ['👥 KELOMPOK KECIL YANG TERSEDIA:'],
         ...(() => {
@@ -7667,18 +7707,17 @@ export default function DetailBlok() {
             }
           });
           
-          // Convert map to array dan ambil 10 pertama
+          // Convert map to array
           return Array.from(kelompokMap.entries())
-            .slice(0, 10)
             .map(([namaKelompok, jumlahAnggota]) => 
               [`• ${namaKelompok} (${jumlahAnggota} mahasiswa)`]
             );
         })(),
         [''],
         ['👨‍🏫 DOSEN YANG TERSEDIA:'],
-        ['• Dosen yang tersedia adalah dosen yang sudah di-generate untuk blok dan semester ini'],
+        ['• Dosen yang tersedia adalah dosen yang sudah di-assign untuk PBL mata kuliah ini'],
         ['• Termasuk dosen standby yang ditugaskan untuk mata kuliah ini'],
-        ...allDosenList
+        ...assignedDosenPBL
           .filter((dosen, index, self) => 
             // Hapus duplikasi berdasarkan ID atau nama
             index === self.findIndex(d => 
@@ -7686,7 +7725,6 @@ export default function DetailBlok() {
               (dosen.name && d.name === dosen.name)
             )
           )
-          .slice(0, 10)
           .map(dosen => {
             const namaDosen = dosen.name || `Dosen ${dosen.id || 'Unknown'}`;
             return [`• ${namaDosen}`];
@@ -7716,7 +7754,7 @@ export default function DetailBlok() {
         [''],
         ['👨‍🏫 VALIDASI DOSEN:'],
         ['• Dosen wajib diisi'],
-        ['• Hanya boleh menggunakan dosen yang sudah di-generate untuk blok dan semester ini atau dosen standby'],
+        ['• Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini atau dosen standby'],
         ['• Nama dosen harus sesuai dengan yang ada di database'],
         [''],
         ['🏢 VALIDASI RUANGAN:'],
@@ -7755,7 +7793,8 @@ export default function DetailBlok() {
       XLSX.writeFile(wb, fileName);
 
     } catch (error) {
-      // Handle error silently
+      console.error('Error downloading Jurnal Reading template:', error);
+      alert('Gagal mendownload template Jurnal Reading. Silakan coba lagi.');
     }
   };
 

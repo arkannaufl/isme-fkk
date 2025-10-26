@@ -597,10 +597,7 @@ export default function PBL() {
           );
           if (dosenPeran) {
             role = dosenPeran.tipe_peran;
-            console.log(`Dosen ${dosen.name} memiliki peran ${role} di semester ${currentSemester}`);
-          } else {
-            console.log(`Dosen ${dosen.name} tidak memiliki peran koordinator/tim_blok di semester ${currentSemester}, menggunakan default: dosen_mengajar`);
-          }
+           }
 
           const response = await api.post(
             `/pbls/${semesterPbl.id}/assign-dosen`,
@@ -4418,12 +4415,6 @@ export default function PBL() {
                                                         } catch (csrError: any) {
                                                           // Abaikan error jika dosen tidak ada di CSR
                                                           // Error ini normal jika dosen tidak di-assign ke CSR
-                                                          console.log(
-                                                            "CSR cleanup:",
-                                                            csrError?.response
-                                                              ?.data?.message ||
-                                                              "No CSR assignments found"
-                                                          );
                                                         }
 
                                                         // PERBAIKAN: Cek apakah ada yang gagal

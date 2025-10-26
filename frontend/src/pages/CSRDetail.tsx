@@ -128,7 +128,6 @@ const CSRDetail: React.FC = () => {
   // Event listener untuk auto-refresh saat dosen dihapus dari PBL
   useEffect(() => {
     const handleCSRAssignmentUpdate = (event: CustomEvent) => {
-      console.log("CSR Assignment updated from PBL:", event.detail);
       // Refresh data CSR Detail
       fetchBatchData();
     };
@@ -192,9 +191,6 @@ const CSRDetail: React.FC = () => {
       // Ambil semua keahlian dari database keahlian_csr (tidak perlu filter)
       const availableKeahlian = keahlianList.map((k: any) => k.keahlian);
 
-      console.log("CSR ID:", csr.id);
-      console.log("Keahlian from database:", availableKeahlian);
-      console.log("CSR keahlian_required:", csr.keahlian_required);
 
       setCsrKeahlianOptions(availableKeahlian);
     } catch (err) {

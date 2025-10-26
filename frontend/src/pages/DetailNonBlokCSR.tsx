@@ -367,12 +367,11 @@ export default function DetailNonBlokCSR() {
         ['📊 KETERSEDIAAN DATA:'],
         [''],
         ['⏰ JAM YANG TERSEDIA:'],
-        ...jamOptions.slice(0, TEMPLATE_DISPLAY_LIMIT).map(jam => [`• ${jam}`]),
+        ...jamOptions.map(jam => [`• ${jam}`]),
         [''],
         ['👥 KELOMPOK KECIL YANG TERSEDIA:'],
         ...(kelompokKecilWithCount && kelompokKecilWithCount.length > 0 ? 
           kelompokKecilWithCount
-            .slice(0, TEMPLATE_DISPLAY_LIMIT)
             .map(kelompok => [`• Kelompok ${kelompok.nama_kelompok} (${kelompok.jumlah_anggota} mahasiswa)`]) : 
           [['• Belum ada data kelompok kecil']]),
         [''],
@@ -382,10 +381,10 @@ export default function DetailNonBlokCSR() {
         ),
         [''],
         ['👨‍🏫 DOSEN YANG TERSEDIA:'],
-        ...dosenList.slice(0, TEMPLATE_DISPLAY_LIMIT).map(dosen => [`• ${dosen.name} (${dosen.nid}) - ${dosen.keahlian}`]),
+        ...dosenList.map(dosen => [`• ${dosen.name} (${dosen.nid}) - ${dosen.keahlian}`]),
         [''],
         ['🏢 RUANGAN YANG TERSEDIA:'],
-        ...ruanganList.slice(0, TEMPLATE_DISPLAY_LIMIT).map(ruangan => [`• ${ruangan.nama} (Kapasitas: ${ruangan.kapasitas || 'N/A'})`]),
+        ...ruanganList.map(ruangan => [`• ${ruangan.nama} (Kapasitas: ${ruangan.kapasitas || 'N/A'})`]),
         [''],
         ['⚠️ VALIDASI SISTEM:'],
         [''],
@@ -445,7 +444,8 @@ export default function DetailNonBlokCSR() {
       // Download file
       XLSX.writeFile(wb, `Template_CSR_${data?.nama || 'MataKuliah'}.xlsx`);
     } catch (error) {
-      // Error generating template
+      console.error('Error downloading CSR template:', error);
+      alert('Gagal mendownload template CSR. Silakan coba lagi.');
     }
   };
 

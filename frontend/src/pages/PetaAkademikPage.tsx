@@ -759,6 +759,7 @@ export default function PetaAkademikPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [jadwalHarian, setJadwalHarian] = useState<any[]>([]);
   const [isLoadingJadwal, setIsLoadingJadwal] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("Semua");
 
   // Badge color function for schedule types
   const getBadgeColor = (jenisJadwal: string) => {
@@ -812,6 +813,7 @@ export default function PetaAkademikPage() {
     setIsModalOpen(false);
     setSelectedCourse(null);
     setJadwalHarian([]);
+    setActiveTab("Semua");
   }, []);
 
   const fetchAllData = useCallback(async () => {
@@ -916,6 +918,47 @@ export default function PetaAkademikPage() {
     };
     fetchCSRData();
   }, [data]);
+
+  // Filter schedules based on active tab
+  const filteredJadwalHarian = useMemo(() => {
+    if (activeTab === "Semua") {
+      return jadwalHarian;
+    }
+    return jadwalHarian.filter(
+      (schedule) =>
+        (schedule.jenis_jadwal_display || schedule.jenis_baris) === activeTab
+    );
+  }, [jadwalHarian, activeTab]);
+
+  // Get unique schedule types for tabs with counts
+  const scheduleTypes = useMemo(() => {
+    // Define all possible schedule types in desired order
+    const allTypes = [
+      "Kuliah Besar",
+      "PBL",
+      "Praktikum",
+      "CSR Reguler",
+      "CSR Responsi",
+      "Jurnal Reading",
+      "Agenda Khusus",
+      "Non Blok Non CSR",
+    ];
+
+    // Count actual schedules
+    const typeCounts = new Map<string, number>();
+    jadwalHarian.forEach((schedule) => {
+      const type = schedule.jenis_jadwal_display || schedule.jenis_baris;
+      if (type) {
+        typeCounts.set(type, (typeCounts.get(type) || 0) + 1);
+      }
+    });
+
+    // Return all types with their counts (0 if not found)
+    return allTypes.map((type) => ({
+      type,
+      count: typeCounts.get(type) || 0,
+    }));
+  }, [jadwalHarian]);
 
   const { ganjilLayouts, genapLayouts, antaraLayouts, colorMap, holidayMap } =
     useMemo(() => {
@@ -1286,7 +1329,7 @@ export default function PetaAkademikPage() {
 
                 {/* Modal Content */}
                 <div className="space-y-6">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                       Jadwal Lengkap
                     </h3>
@@ -1298,16 +1341,68 @@ export default function PetaAkademikPage() {
                         </div>
                       ) : (
                         <span className="text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full">
-                          {jadwalHarian.length} jadwal tersedia
+                          {filteredJadwalHarian.length} dari {jadwalHarian.length} jadwal
                         </span>
                       )}
                     </div>
                   </div>
 
+                  {/* Tab Filters */}
+                  {!isLoadingJadwal && (
+                    <div className="flex flex-wrap gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                      <button
+                        onClick={() => setActiveTab("Semua")}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center gap-2 ${
+                          activeTab === "Semua"
+                            ? "bg-blue-500 text-white shadow-md"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                        }`}
+                      >
+                        <span>Semua</span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-xs ${
+                            activeTab === "Semua"
+                              ? "bg-blue-600 text-white"
+                              : "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                          }`}
+                        >
+                          {jadwalHarian.length}
+                        </span>
+                      </button>
+                      {scheduleTypes.map(({ type, count }) => (
+                        <button
+                          key={type}
+                          onClick={() => setActiveTab(type)}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center gap-2 ${
+                            activeTab === type
+                              ? "bg-blue-500 text-white shadow-md"
+                              : count === 0
+                              ? "bg-gray-100 text-gray-400 cursor-default dark:bg-gray-800 dark:text-gray-500"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                          }`}
+                          disabled={count === 0 && activeTab !== type}
+                        >
+                          <span>{type}</span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-xs ${
+                              activeTab === type
+                                ? "bg-blue-600 text-white"
+                                : count === 0
+                                ? "bg-gray-200 text-gray-400 dark:bg-gray-700 dark:text-gray-500"
+                                : "bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                            }`}
+                          >
+                            {count}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="bg-gray-50 dark:bg-gray-900/50 rounded-2xl p-6">
                     {isLoadingJadwal ? (
                       <JadwalHarianSkeleton />
-                    ) : jadwalHarian.length > 0 ? (
+                    ) : filteredJadwalHarian.length > 0 ? (
                       <div className="overflow-x-auto">
                         <table className="w-full">
                           <thead>
@@ -1333,7 +1428,7 @@ export default function PetaAkademikPage() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                            {jadwalHarian.map((schedule, index) => (
+                            {filteredJadwalHarian.map((schedule, index) => (
                               <tr
                                 key={index}
                                 className="hover:bg-white dark:hover:bg-gray-800/50 transition-colors duration-200"
@@ -1414,12 +1509,23 @@ export default function PetaAkademikPage() {
                           </svg>
                         </div>
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                          Tidak ada jadwal
+                          {activeTab === "Semua"
+                            ? "Tidak ada jadwal"
+                            : `Tidak ada jadwal ${activeTab}`}
                         </h3>
                         <p className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
-                          Belum ada jadwal harian untuk mata kuliah ini. Silakan
-                          hubungi administrator untuk menambahkan jadwal.
+                          {activeTab === "Semua"
+                            ? "Belum ada jadwal harian untuk mata kuliah ini. Silakan hubungi administrator untuk menambahkan jadwal."
+                            : `Tidak ada jadwal dengan jenis ${activeTab} untuk mata kuliah ini.`}
                         </p>
+                        {activeTab !== "Semua" && jadwalHarian.length > 0 && (
+                          <button
+                            onClick={() => setActiveTab("Semua")}
+                            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200"
+                          >
+                            Lihat Semua Jadwal
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

@@ -248,7 +248,9 @@ class JadwalPraktikumController extends Controller
 
             $filtered = $dosen->filter(function ($d) use ($keahlian) {
                 $arr = is_array($d->keahlian) ? $d->keahlian : (is_string($d->keahlian) ? explode(',', $d->keahlian) : []);
-                return in_array($keahlian, array_map('trim', $arr));
+                $keahlianDosen = array_map('trim', $arr);
+                // Case insensitive comparison
+                return in_array(strtolower($keahlian), array_map('strtolower', $keahlianDosen));
             })->values();
 
             return response()->json($filtered);
@@ -982,6 +984,7 @@ class JadwalPraktikumController extends Controller
                 }
 
                 // Validasi bentrok
+                $row['mata_kuliah_kode'] = $kode; // Tambahkan mata_kuliah_kode untuk checkBentrokWithDetail
                 $bentrokMessage = $this->checkBentrokWithDetail($row, null);
                 if ($bentrokMessage) {
                     $errors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;

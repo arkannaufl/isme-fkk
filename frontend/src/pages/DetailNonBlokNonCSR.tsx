@@ -345,23 +345,23 @@ export default function DetailNonBlokNonCSR() {
         ['📊 KETERSEDIAAN DATA:'],
         [''],
         ['⏰ JAM YANG TERSEDIA:'],
-        ...jamOptions.slice(0, TEMPLATE_DISPLAY_LIMIT).map(jam => [`• ${jam}`]),
+        ...jamOptions.map(jam => [`• ${jam}`]),
         [''],
         ['👥 KELOMPOK BESAR YANG TERSEDIA:'],
         ...(kelompokBesarAgendaOptions.length > 0 ? 
-          kelompokBesarAgendaOptions.slice(0, TEMPLATE_DISPLAY_LIMIT).map(kb => [`• ${kb.label}`]) :
+          kelompokBesarAgendaOptions.map(kb => [`• ${kb.label}`]) :
           [['• Belum ada data kelompok besar']]
         ),
         [''],
         ['👨‍🏫 DOSEN YANG TERSEDIA:'],
         ...(dosenList.length > 0 ? 
-          dosenList.slice(0, TEMPLATE_DISPLAY_LIMIT).map(dosen => [`• ${dosen.name} (${dosen.nid})`]) :
+          dosenList.map(dosen => [`• ${dosen.name} (${dosen.nid})`]) :
           [['• Belum ada data dosen']]
         ),
         [''],
         ['🏢 RUANGAN YANG TERSEDIA:'],
         ...(ruanganList.length > 0 ? 
-          ruanganList.slice(0, TEMPLATE_DISPLAY_LIMIT).map(ruangan => [`• ${ruangan.nama} (Kapasitas: ${ruangan.kapasitas || 'N/A'})`]) :
+          ruanganList.map(ruangan => [`• ${ruangan.nama} (Kapasitas: ${ruangan.kapasitas || 'N/A'})`]) :
           [['• Belum ada data ruangan']]
         ),
         [''],
@@ -421,7 +421,8 @@ export default function DetailNonBlokNonCSR() {
       // Download file
       XLSX.writeFile(wb, `Template_Non_Blok_Non_CSR_${data.kode}.xlsx`);
     } catch (error) {
-      // Error downloading template
+      console.error('Error downloading Non-Blok Non-CSR template:', error);
+      alert('Gagal mendownload template Non-Blok Non-CSR. Silakan coba lagi.');
     }
   };
 
