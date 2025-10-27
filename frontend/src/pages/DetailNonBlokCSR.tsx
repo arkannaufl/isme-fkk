@@ -225,6 +225,10 @@ export default function DetailNonBlokCSR() {
   const [isCSRDeleting, setIsCSRDeleting] = useState(false);
   const [csrSuccess, setCSRSuccess] = useState<string | null>(null);
 
+  // State untuk export Excel CSR
+  const [showCSRExportModal, setShowCSRExportModal] = useState(false);
+  const [selectedCSRExportTemplate, setSelectedCSRExportTemplate] = useState<'APLIKASI' | 'SIAKAD' | null>(null);
+
   function hitungJamSelesai(jamMulai: string, jumlahSesi: number) {
     if (!jamMulai) return '';
     const [jamStr, menitStr] = jamMulai.split(/[.:]/);
@@ -1686,8 +1690,8 @@ export default function DetailNonBlokCSR() {
     }
   };
 
-  // Fungsi untuk export Excel CSR
-  const exportCSRExcel = async () => {
+  // Fungsi untuk export Excel CSR (Template Aplikasi)
+  const exportCSRExcelAplikasi = async () => {
     try {
       if (jadwalCSR.length === 0) {
         alert('Tidak ada data CSR untuk diekspor');
@@ -1769,11 +1773,39 @@ export default function DetailNonBlokCSR() {
       XLSX.utils.book_append_sheet(wb, infoWs, 'Info Mata Kuliah');
 
       // Download file
-      const fileName = `Export_CSR_${data?.kode || 'MataKuliah'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      const fileName = `Export_CSR_Aplikasi_${data?.kode || 'MataKuliah'}_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
-      alert('Gagal mengekspor data CSR');
+      console.error('Error exporting CSR (Aplikasi):', error);
+      alert('Gagal mengekspor data CSR (Template Aplikasi)');
     }
+  };
+
+  // Fungsi untuk export Excel CSR (Template SIAKAD) - Placeholder
+  const exportCSRExcelSIAKAD = async () => {
+    try {
+      if (jadwalCSR.length === 0) {
+        alert('Tidak ada data CSR untuk diekspor');
+        return;
+      }
+
+      // TODO: Implementasi template SIAKAD
+      alert('Template SIAKAD untuk export jadwal CSR belum diimplementasikan. Silakan gunakan Template Aplikasi terlebih dahulu.');
+    } catch (error) {
+      console.error('Error exporting CSR (SIAKAD):', error);
+      alert('Gagal mengekspor data CSR (Template SIAKAD)');
+    }
+  };
+
+  // Fungsi untuk menangani export berdasarkan template yang dipilih
+  const handleCSRExport = async () => {
+    if (selectedCSRExportTemplate === 'APLIKASI') {
+      await exportCSRExcelAplikasi();
+    } else if (selectedCSRExportTemplate === 'SIAKAD') {
+      await exportCSRExcelSIAKAD();
+    }
+    setShowCSRExportModal(false);
+    setSelectedCSRExportTemplate(null);
   };
 
   // Initial load dengan loading state
@@ -2096,7 +2128,7 @@ export default function DetailNonBlokCSR() {
             
             {/* Export Excel Button */}
             <button
-              onClick={exportCSRExcel}
+              onClick={() => setShowCSRExportModal(true)}
               disabled={jadwalCSR.length === 0}
               className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
                 jadwalCSR.length === 0 
@@ -3986,6 +4018,185 @@ export default function DetailNonBlokCSR() {
                     ) : (
                       'Hapus'
                     )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Export CSR */}
+      <AnimatePresence>
+        {showCSRExportModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowCSRExportModal(false)}
+            />
+            
+            {/* Modal Content */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => setShowCSRExportModal(false)}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+              
+              <div>
+                <div className="flex items-center justify-between pb-4 sm:pb-6">
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
+                      Pilih Format Template
+                    </h2>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Pilih format template yang sesuai dengan file Excel Anda
+                    </p>
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="mb-3 sm:mb-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Pilih jenis template yang ingin digunakan
+                    </label>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {/* Template Aplikasi */}
+                    <div
+                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
+                        selectedCSRExportTemplate === 'APLIKASI'
+                          ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600'
+                          : ''
+                      }`}
+                      onClick={() => setSelectedCSRExportTemplate('APLIKASI')}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                            selectedCSRExportTemplate === 'APLIKASI'
+                              ? 'bg-brand-500 border-brand-500'
+                              : 'border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          {selectedCSRExportTemplate === 'APLIKASI' && (
+                            <svg
+                              className="w-2.5 h-2.5 text-white"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                          <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            Template Aplikasi
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            File dari download template atau export Excel aplikasi ini
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Template SIAKAD */}
+                    <div
+                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
+                        selectedCSRExportTemplate === 'SIAKAD'
+                          ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600'
+                          : ''
+                      }`}
+                      onClick={() => setSelectedCSRExportTemplate('SIAKAD')}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                            selectedCSRExportTemplate === 'SIAKAD'
+                              ? 'bg-brand-500 border-brand-500'
+                              : 'border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          {selectedCSRExportTemplate === 'SIAKAD' && (
+                            <svg
+                              className="w-2.5 h-2.5 text-white"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="w-10 h-10 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
+                          <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-green-600 dark:text-green-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            Template SIAKAD
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            File dari sistem SIAKAD dengan format standar
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end gap-2 pt-2 relative z-20">
+                  <button
+                    onClick={() => setShowCSRExportModal(false)}
+                    className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={handleCSRExport}
+                    disabled={!selectedCSRExportTemplate}
+                    className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 ease-in-out ${
+                      selectedCSRExportTemplate
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                        : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    Export
                   </button>
                 </div>
               </div>
