@@ -2113,6 +2113,7 @@ export default function PetaBlok() {
   const PAGE_SIZE_OPTIONS = [5, 7, 10, 15, 30];
   const [pageSize, setPageSize] = useState(7);
   const [page, setPage] = useState(0);
+  const [dateInput, setDateInput] = useState("");
   const totalPages = Math.ceil(hariList.length / pageSize || 1);
 
   // Filter hariList berdasarkan search dan pagination
@@ -2151,11 +2152,63 @@ export default function PetaBlok() {
     setPage(0); // Reset ke halaman pertama
   };
 
+  // Fungsi untuk navigasi ke tanggal tertentu
+  const handleDateJump = (selectedDate: string) => {
+    if (!selectedDate) return;
+    
+    // Cari indeks tanggal yang cocok dalam hariList
+    const targetIndex = hariList.findIndex(day => 
+      day.tanggal === selectedDate || 
+      day.tanggal === formatTanggalKonsisten(selectedDate)
+    );
+    
+    if (targetIndex === -1) {
+      alert("Tanggal tidak ditemukan dalam jadwal");
+      return;
+    }
+    
+    // Hitung halaman berdasarkan indeks
+    const targetPage = Math.floor(targetIndex / pageSize);
+    setPage(targetPage);
+  };
+
+  // Generate tanggal per 7 hari untuk dropdown
+  const getDateOptions = () => {
+    const options = [];
+    const totalPages = Math.ceil(hariList.length / pageSize);
+    
+    for (let i = 0; i < totalPages; i++) {
+      const startIndex = i * pageSize;
+      const endIndex = Math.min(startIndex + pageSize - 1, hariList.length - 1);
+      
+      if (hariList[startIndex] && hariList[endIndex]) {
+        const startDate = hariList[startIndex].tanggal;
+        const endDate = hariList[endIndex].tanggal;
+        const startDateFormatted = formatTanggalIndonesia(startDate);
+        const endDateFormatted = formatTanggalIndonesia(endDate);
+        
+        options.push({
+          value: startDate,
+          label: `${startDateFormatted} - ${endDateFormatted}`,
+          page: i
+        });
+      }
+    }
+    
+    return options;
+  };
+
   // Reset search dan page saat blok atau semester berubah
   useEffect(() => {
     setSearch("");
     setPage(0);
+    setDateInput("");
   }, [blok, semester, tipe]);
+
+  // Reset dropdown saat page berubah
+  useEffect(() => {
+    setDateInput("");
+  }, [page]);
 
   // Tidak lagi gunakan rowSpan; setiap sel berisi list item bertumpuk
 
@@ -3200,6 +3253,26 @@ export default function PetaBlok() {
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600 dark:text-gray-300">
+              Lompat ke:
+            </span>
+            <select
+              value={dateInput}
+              onChange={(e) => {
+                setDateInput(e.target.value);
+                handleDateJump(e.target.value);
+              }}
+              className="px-2 py-1 text-sm border border-gray-300 rounded dark:bg-gray-800 dark:border-gray-600 dark:text-white bg-gray-100 min-w-[200px]"
+            >
+              <option value="">Pilih periode tanggal</option>
+              {getDateOptions().map((option, index) => (
+                <option key={index} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <button
             onClick={prevPage}
             disabled={page === 0}

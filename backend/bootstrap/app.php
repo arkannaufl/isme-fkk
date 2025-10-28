@@ -20,6 +20,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'security.headers' => \App\Http\Middleware\SecurityHeaders::class,
             'validate.token' => \App\Http\Middleware\ValidateActiveToken::class,
         ]);
+
+        // Apply CORS middleware globally
+        $middleware->append(\Illuminate\Http\Middleware\HandleCors::class);
         
         // Apply security headers globally
         $middleware->append(\App\Http\Middleware\SecurityHeaders::class);

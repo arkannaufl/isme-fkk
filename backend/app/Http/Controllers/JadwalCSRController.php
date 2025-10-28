@@ -71,6 +71,7 @@ class JadwalCSRController extends Controller
                 'kelompok_kecil_id' => 'required|exists:kelompok_kecil,id',
                 'kategori_id' => 'required|exists:csrs,id',
                 'topik' => 'required|string',
+                'status_konfirmasi' => 'belum_konfirmasi',
             ]);
 
             // Validasi kapasitas ruangan

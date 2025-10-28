@@ -124,6 +124,8 @@ Route::middleware('auth:sanctum')->prefix('reporting')->group(function () {
     Route::get('/export', [ReportingController::class, 'export']);
     Route::get('/dosen-csr', [ReportingController::class, 'dosenCsrReport']);
     Route::get('/dosen-pbl', [ReportingController::class, 'dosenPblReport']);
+    Route::get('/jadwal-all', [ReportingController::class, 'jadwalAll']);
+    Route::get('/blok-data-excel', [ReportingController::class, 'getBlokDataForExcel']);
 });
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -639,3 +641,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/users/{id}/email-status', [UserController::class, 'getEmailStatus']);
     Route::put('/users/{id}/verify-email', [UserController::class, 'verifyEmail']);
 });
+
+// Report routes untuk export Excel
+Route::get('/report/export-excel-non-blok', [App\Http\Controllers\ReportController::class, 'exportExcelNonBlok']);

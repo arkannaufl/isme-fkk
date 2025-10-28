@@ -104,7 +104,9 @@ class JadwalPBLController extends Controller
             return response()->json(['message' => $bentrokMessage], 422);
         }
 
-        $jadwal = JadwalPBL::create($data);
+        $jadwal = JadwalPBL::create(array_merge($data, [
+            'status_konfirmasi' => 'belum_konfirmasi'
+        ]));
 
         // Log activity
         activity()

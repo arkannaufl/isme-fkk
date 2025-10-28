@@ -9,6 +9,16 @@ import {
   faBookOpen,
   faUserTie,
 } from "@fortawesome/free-solid-svg-icons";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import ExcelJS from "exceljs";
+
+// Extend jsPDF type to include autoTable
+declare module "jspdf" {
+  interface jsPDF {
+    autoTable: (options: any) => jsPDF;
+  }
+}
 
 interface DosenCSRReport {
   dosen_id: number;
@@ -141,12 +151,15 @@ const ReportingDosen: React.FC = () => {
         let data = Array.isArray(response.data.data) ? response.data.data : [];
         
         // Debug: log response dan data
-
-
+        console.log('=== API RESPONSE DEBUG ===');
+        console.log('API Response:', response.data);
+        console.log('Data length:', data.length);
+        console.log('Sample data:', data[0]);
+        console.log('=== END API DEBUG ===');
         
         data = data.map((d: DosenPBLReport) => {
           // Debug: log setiap dosen
-
+          console.log('Processing dosen:', d.dosen_name, 'per_semester:', d.per_semester?.length);
           
           // HAPUS: proses JSON.parse/overwrite keahlian di sini
           let allTanggalMulai: string[] = [];
@@ -177,6 +190,11 @@ const ReportingDosen: React.FC = () => {
         total: response.data.total || 0,
       });
     } catch (error) {
+      console.error('=== API ERROR ===');
+      console.error('Error fetching data:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('=== END API ERROR ===');
+      
       if (activeTab === "csr") {
         setAllDosenCsrReport([]);
         setDosenCsrReport([]);
@@ -328,6 +346,1220 @@ const ReportingDosen: React.FC = () => {
     }
   };
 
+  const handleExportPDF = async () => {
+    try {
+      const doc = new jsPDF();
+      
+      // Set font
+      doc.setFont("helvetica");
+      
+      // Load dan add logo asli dari file PNG
+      try {
+        // Fetch logo dari public folder
+        const logoResponse = await fetch('/images/logo/logo-umj.png');
+        const logoBlob = await logoResponse.blob();
+        const logoUrl = URL.createObjectURL(logoBlob);
+        
+        // Add logo ke PDF (ukuran kecil)
+        const logoSize = 30;
+        const logoX = 105 - logoSize/2;
+        const logoY = 5;
+        
+        doc.addImage(logoUrl, 'PNG', logoX, logoY, logoSize, logoSize);
+        
+        // Cleanup URL
+        URL.revokeObjectURL(logoUrl);
+      } catch (logoError) {
+        console.warn('Logo tidak bisa dimuat, menggunakan teks alternatif');
+        // Fallback jika logo tidak bisa dimuat
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("LOGO UMJ", 105, 25, { align: "center" });
+      }
+      
+      // Header Universitas
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.text("UNIVERSITAS MUHAMMADIYAH JAKARTA", 105, 50, { align: "center" });
+      
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "normal");
+      doc.text("Fakultas Kedokteran", 105, 58, { align: "center" });
+      doc.text("Program Studi Kedokteran", 105, 64, { align: "center" });
+      
+      doc.setFontSize(10);
+      doc.text("Jl. KH. Ahmad Dahlan, Cirendeu, Ciputat, Tangerang Selatan", 105, 70, { align: "center" });
+      doc.text("Telp. (021) 742-3740 - Fax. (021) 742-3740", 105, 76, { align: "center" });
+      
+      // Garis pemisah
+      doc.setLineWidth(0.5);
+      doc.line(20, 82, 190, 82);
+      
+      // Judul Laporan
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("LAPORAN KINERJA DOSEN", 105, 92, { align: "center" });
+      
+      // Nomor laporan
+      const reportNumber = `${Math.floor(Math.random() * 10) + 1}/UMJ-FK/8/2025`;
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(`No: ${reportNumber}`, 105, 100, { align: "center" });
+      
+      let currentY = 115;
+      
+      // Informasi penandatangan
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text("Saya yang bertanda tangan di bawah ini:", 20, currentY);
+      currentY += 8;
+      
+      doc.text("Nama : Kepala Program Studi Kedokteran", 20, currentY);
+      currentY += 6;
+      doc.text("Jabatan : Kepala Program Studi", 20, currentY);
+      currentY += 6;
+      doc.text("Alamat : Jl. KH. Ahmad Dahlan, Cirendeu, Ciputat, Tangerang Selatan", 20, currentY);
+      
+      // Halaman Kedua - Tabel Data Dosen PBL Blok 1
+      doc.addPage();
+      
+      // Judul Halaman Kedua
+      doc.setFontSize(16);
+      doc.setFont("helvetica", "bold");
+      doc.text("REPORTING DOSEN", 20, 20);
+      
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "normal");
+      doc.text("BLOK 1 :", 20, 30);
+      
+      // Filter data dosen PBL untuk Blok 1
+      const dosenBlok1 = dosenPblReport.filter((dosen) => {
+        // Cek apakah dosen mengajar di Blok 1
+        return dosen.per_semester.some((sem) => 
+          sem.modul_pbl && sem.modul_pbl.some((modul) => modul.blok === 1)
+        );
+      });
+      
+      if (dosenBlok1.length > 0) {
+        // Prepare table data
+        const tableColumns = [
+          "NAMA\nDOSEN",
+          "PERAN", 
+          "KEAHLIAN",
+          "TOTAL\nMODUL\nPBL",
+          "TOTAL\nPBL",
+          "TOTAL\nWAKTU",
+          "PER\nSEMESTER",
+          "TANGGAL\nMULAI",
+          "TANGGAL\nAKHIR"
+        ];
+        
+        const tableData = dosenBlok1.map((dosen) => {
+          // Get role information
+          let peranText = "-";
+          if (Array.isArray((dosen as any).dosen_peran) && (dosen as any).dosen_peran.length > 0) {
+            const peranList = (dosen as any).dosen_peran.map((p: any) => {
+              const tipeLabel: Record<string, string> = {
+                koordinator: "Koordinator",
+                tim_blok: "Tim Blok", 
+                dosen_mengajar: "Dosen Mengajar",
+                mengajar: "Dosen Mengajar"
+              };
+              return tipeLabel[p.tipe_peran] || p.tipe_peran;
+            });
+            peranText = peranList.join(", ");
+          } else if ((dosen as any).peran_utama) {
+            const peranLabel: Record<string, string> = {
+              koordinator: "Koordinator",
+              tim_blok: "Tim Blok",
+              dosen_mengajar: "Dosen Mengajar", 
+              mengajar: "Dosen Mengajar",
+              standby: "Standby"
+            };
+            peranText = peranLabel[(dosen as any).peran_utama] || (dosen as any).peran_utama;
+          }
+          
+          // Get expertise
+          let keahlianText = "-";
+          if (Array.isArray(dosen.keahlian) && dosen.keahlian.length > 0) {
+            keahlianText = dosen.keahlian.join(", ");
+          } else if (typeof dosen.keahlian === "string") {
+            const keahlianStr = String(dosen.keahlian);
+            if (keahlianStr.trim()) {
+              keahlianText = keahlianStr;
+            }
+          }
+          
+          // Calculate totals for Blok 1 only
+          let totalModulBlok1 = 0;
+          let totalPblBlok1 = 0;
+          let totalWaktuBlok1 = 0;
+          let perSemesterText = "";
+          
+          // Filter data per semester untuk Blok 1
+          const semesterBlok1 = dosen.per_semester.filter((sem) => 
+            sem.modul_pbl && sem.modul_pbl.some((modul) => modul.blok === 1)
+          );
+          
+          totalModulBlok1 = semesterBlok1.reduce((acc, sem) => 
+            acc + (sem.modul_pbl ? sem.modul_pbl.filter(modul => modul.blok === 1).length : 0), 0
+          );
+          
+          const mkSet = new Set<string>();
+          semesterBlok1.forEach((sem) => {
+            sem.modul_pbl.filter(modul => modul.blok === 1).forEach((modul) => {
+              mkSet.add(modul.mata_kuliah_kode);
+            });
+          });
+          totalPblBlok1 = mkSet.size;
+          
+          totalWaktuBlok1 = semesterBlok1.reduce((acc, sem) => 
+            acc + (sem.modul_pbl ? sem.modul_pbl.filter(modul => modul.blok === 1).reduce((sum, modul) => sum + modul.waktu_menit, 0) : 0), 0
+          );
+          
+          perSemesterText = semesterBlok1.map(sem => 
+            `Semester ${sem.semester}: ${sem.modul_pbl.filter(modul => modul.blok === 1).length} PBL / ${sem.modul_pbl.filter(modul => modul.blok === 1).reduce((sum, modul) => sum + modul.jumlah_sesi, 0)} sesi`
+          ).join(", ");
+          
+          const totalJam = Math.floor(totalWaktuBlok1 / 60);
+          const totalMenit = totalWaktuBlok1 % 60;
+          const waktuText = totalJam > 0 ? `${totalJam}j ${totalMenit}m` : `${totalMenit}m`;
+          
+          // Format tanggal
+          const tanggalMulai = dosen.tanggal_mulai ? 
+            new Date(dosen.tanggal_mulai).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : 
+            "-";
+          const tanggalAkhir = dosen.tanggal_akhir ? 
+            new Date(dosen.tanggal_akhir).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : 
+            "-";
+          
+          return [
+            dosen.dosen_name,
+            peranText,
+            keahlianText,
+            totalModulBlok1.toString(),
+            totalPblBlok1.toString(),
+            waktuText,
+            perSemesterText,
+            tanggalMulai,
+            tanggalAkhir
+          ];
+        });
+        
+        // Add table
+        autoTable(doc, {
+          head: [tableColumns],
+          body: tableData,
+          startY: 40,
+          tableWidth: 'auto',
+          styles: {
+            fontSize: 8,
+            cellPadding: 3,
+            overflow: 'linebreak',
+            cellWidth: 'wrap',
+            halign: 'center',
+            valign: 'middle',
+            fillColor: [255, 255, 255], // Background putih
+            textColor: [0, 0, 0], // Teks hitam
+            lineColor: [255, 255, 255], // Border transparan
+            lineWidth: 0
+          },
+          headStyles: {
+            fillColor: [255, 255, 255], // Background putih
+            textColor: [0, 0, 0], // Teks hitam
+            fontStyle: 'bold',
+            overflow: 'linebreak',
+            cellWidth: 'wrap',
+            halign: 'center',
+            valign: 'middle',
+            lineColor: [0, 0, 0], // Border hitam hanya di bottom
+            lineWidth: { bottom: 0.5 } // Hanya bottom border
+          },
+          alternateRowStyles: {
+            fillColor: [255, 255, 255], // Background putih
+            overflow: 'linebreak',
+            cellWidth: 'wrap',
+            halign: 'center',
+            valign: 'middle',
+            textColor: [0, 0, 0], // Teks hitam
+            lineColor: [255, 255, 255], // Border transparan
+            lineWidth: 0
+          },
+          columnStyles: {
+            0: { cellWidth: 'auto', overflow: 'linebreak', halign: 'left', fillColor: [255, 255, 255], textColor: [0, 0, 0], lineColor: [255, 255, 255], lineWidth: 0 }, // NAMA DOSEN
+            1: { cellWidth: 'auto', overflow: 'linebreak', halign: 'center', fillColor: [255, 255, 255], textColor: [0, 0, 0], lineColor: [255, 255, 255], lineWidth: 0 }, // PERAN
+            2: { cellWidth: 'auto', overflow: 'linebreak', halign: 'left', fillColor: [255, 255, 255], textColor: [0, 0, 0], lineColor: [255, 255, 255], lineWidth: 0 }, // KEAHLIAN
+            3: { cellWidth: 'auto', overflow: 'linebreak', halign: 'center', fillColor: [255, 255, 255], textColor: [0, 0, 0], lineColor: [255, 255, 255], lineWidth: 0 }, // TOTAL MODUL PBL
+            4: { cellWidth: 'auto', overflow: 'linebreak', halign: 'center', fillColor: [255, 255, 255], textColor: [0, 0, 0], lineColor: [255, 255, 255], lineWidth: 0 }, // TOTAL PBL
+            5: { cellWidth: 'auto', overflow: 'linebreak', halign: 'center', fillColor: [255, 255, 255], textColor: [0, 0, 0], lineColor: [255, 255, 255], lineWidth: 0 }, // TOTAL WAKTU
+            6: { cellWidth: 'auto', overflow: 'linebreak', halign: 'left', fillColor: [255, 255, 255], textColor: [0, 0, 0], lineColor: [255, 255, 255], lineWidth: 0 }, // PER SEMESTER
+            7: { cellWidth: 'auto', overflow: 'linebreak', halign: 'center', fillColor: [255, 255, 255], textColor: [0, 0, 0], lineColor: [255, 255, 255], lineWidth: 0 }, // TANGGAL MULAI
+            8: { cellWidth: 'auto', overflow: 'linebreak', halign: 'center', fillColor: [255, 255, 255], textColor: [0, 0, 0], lineColor: [255, 255, 255], lineWidth: 0 }  // TANGGAL AKHIR
+          },
+          margin: { left: 15, right: 15 }
+        });
+      } else {
+        // Jika tidak ada data Blok 1
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "normal");
+        doc.text("Tidak ada data dosen untuk Blok 1", 20, 50);
+      }
+      
+      // Save the PDF
+      const filename = `laporan-kinerja-dosen-${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(filename);
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      // Bisa ditambahkan toast notification di sini
+    }
+  };
+
+  const handleExportExcel = async (blokNumber: number = 1) => {
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet(`Dosen PBL Blok ${blokNumber}`);
+
+      // Set column headers
+      worksheet.columns = [
+        { header: 'NAMA DOSEN', key: 'nama', width: 30 },
+        { header: 'PERAN', key: 'peran', width: 18 },
+        { header: 'KEAHLIAN', key: 'keahlian', width: 25 },
+        { header: 'TOTAL MODUL PBL', key: 'total_modul', width: 18 },
+        { header: 'TOTAL PBL', key: 'total_pbl', width: 15 },
+        { header: 'TOTAL WAKTU', key: 'total_waktu', width: 18 },
+        { header: 'PER SEMESTER', key: 'per_semester', width: 40 },
+        { header: 'TANGGAL MULAI', key: 'tanggal_mulai', width: 18 },
+        { header: 'TANGGAL AKHIR', key: 'tanggal_akhir', width: 18 }
+      ];
+
+      // Style header row - hijau gelap dengan teks putih
+      worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      worksheet.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF2D5016' } // Hijau gelap
+      };
+      worksheet.getRow(1).alignment = { horizontal: 'center', vertical: 'middle' };
+
+      // Style data rows - background putih dengan teks hitam
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber > 1) { // Skip header row
+          row.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFFFFF' } // Background putih
+          };
+          row.font = { color: { argb: 'FF000000' } }; // Teks hitam
+        }
+      });
+
+      // Add borders to all cells
+      worksheet.eachRow((row, rowNumber) => {
+        row.eachCell((cell, colNumber) => {
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+            left: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+            bottom: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+            right: { style: 'thin', color: { argb: 'FFCCCCCC' } }
+          };
+        });
+      });
+
+      // Filter data dosen PBL untuk Blok yang dipilih
+      const dosenBlok = dosenPblReport.filter((dosen) => {
+        return dosen.per_semester.some((sem) => 
+          sem.modul_pbl && sem.modul_pbl.some((modul) => modul.blok === blokNumber)
+        );
+      });
+
+      // Add data rows
+      dosenBlok.forEach((dosen) => {
+        // Get role information
+        let peranText = "-";
+        if (Array.isArray((dosen as any).dosen_peran) && (dosen as any).dosen_peran.length > 0) {
+          const peranList = (dosen as any).dosen_peran.map((p: any) => {
+            const tipeLabel: Record<string, string> = {
+              koordinator: "Koordinator",
+              tim_blok: "Tim Blok", 
+              dosen_mengajar: "Dosen Mengajar",
+              mengajar: "Dosen Mengajar"
+            };
+            return tipeLabel[p.tipe_peran] || p.tipe_peran;
+          });
+          peranText = peranList.join(", ");
+        } else if ((dosen as any).peran_utama) {
+          const peranLabel: Record<string, string> = {
+            koordinator: "Koordinator",
+            tim_blok: "Tim Blok",
+            dosen_mengajar: "Dosen Mengajar", 
+            mengajar: "Dosen Mengajar",
+            standby: "Standby"
+          };
+          peranText = peranLabel[(dosen as any).peran_utama] || (dosen as any).peran_utama;
+        }
+
+        // Get expertise
+        let keahlianText = "-";
+        if (Array.isArray(dosen.keahlian) && dosen.keahlian.length > 0) {
+          keahlianText = dosen.keahlian.join(", ");
+        } else if (typeof dosen.keahlian === "string") {
+          const keahlianStr = String(dosen.keahlian);
+          if (keahlianStr.trim()) {
+            keahlianText = keahlianStr;
+          }
+        }
+
+        // Calculate totals for Blok 1 only
+        let totalModulBlok1 = 0;
+        let totalPblBlok1 = 0;
+        let totalWaktuBlok1 = 0;
+        let perSemesterText = "";
+
+        // Filter data per semester untuk Blok yang dipilih
+        const semesterBlok = dosen.per_semester.filter((sem) => 
+          sem.modul_pbl && sem.modul_pbl.some((modul) => modul.blok === blokNumber)
+        );
+
+        totalModulBlok1 = semesterBlok.reduce((acc, sem) => 
+          acc + (sem.modul_pbl ? sem.modul_pbl.filter(modul => modul.blok === blokNumber).length : 0), 0
+        );
+
+        const mkSet = new Set<string>();
+        semesterBlok.forEach((sem) => {
+          sem.modul_pbl.filter(modul => modul.blok === blokNumber).forEach((modul) => {
+            mkSet.add(modul.mata_kuliah_kode);
+          });
+        });
+        totalPblBlok1 = mkSet.size;
+
+        totalWaktuBlok1 = semesterBlok.reduce((acc, sem) => 
+          acc + (sem.modul_pbl ? sem.modul_pbl.filter(modul => modul.blok === blokNumber).reduce((sum, modul) => sum + modul.waktu_menit, 0) : 0), 0
+        );
+
+        perSemesterText = semesterBlok.map(sem => 
+          `Semester ${sem.semester}: ${sem.modul_pbl.filter(modul => modul.blok === blokNumber).length} PBL / ${sem.modul_pbl.filter(modul => modul.blok === blokNumber).reduce((sum, modul) => sum + modul.jumlah_sesi, 0)} sesi`
+        ).join(", ");
+
+        const totalJam = Math.floor(totalWaktuBlok1 / 60);
+        const totalMenit = totalWaktuBlok1 % 60;
+        const waktuText = totalJam > 0 ? `${totalJam}j ${totalMenit}m` : `${totalMenit}m`;
+
+        // Format tanggal
+        const tanggalMulai = dosen.tanggal_mulai ? 
+          new Date(dosen.tanggal_mulai).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : 
+          "-";
+        const tanggalAkhir = dosen.tanggal_akhir ? 
+          new Date(dosen.tanggal_akhir).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : 
+          "-";
+
+        worksheet.addRow({
+          nama: dosen.dosen_name,
+          peran: peranText,
+          keahlian: keahlianText,
+          total_modul: totalModulBlok1,
+          total_pbl: totalPblBlok1,
+          total_waktu: waktuText,
+          per_semester: perSemesterText,
+          tanggal_mulai: tanggalMulai,
+          tanggal_akhir: tanggalAkhir
+        });
+      });
+
+      // Auto-fit columns
+      worksheet.columns.forEach(column => {
+        column.width = Math.max(column.width || 10, 15);
+      });
+
+      // Generate Excel file
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `laporan-dosen-pbl-blok${blokNumber}-${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+    } catch (error) {
+      console.error('Error generating Excel:', error);
+      // Bisa ditambahkan toast notification di sini
+    }
+  };
+
+  const handleExportExcelAll = async () => {
+    try {
+        // Debug logging untuk melihat data yang tersedia
+        console.log('=== DEBUG EXCEL EXPORT - BLOK DATA BASED ===');
+        console.log('Total dosen PBL:', dosenPblReport.length);
+        
+        // Ambil data blok dari API yang sudah kita buat
+        const blokResponse = await api.get('/reporting/blok-data-excel');
+        const blokData = blokResponse.data.data || [];
+        console.log('=== API RESPONSE DEBUG ===');
+        console.log('API Response Status:', blokResponse.status);
+        console.log('API Response Data:', blokResponse.data);
+        console.log('Total blok data:', blokData.length);
+        console.log('Sample blok data:', blokData[0]);
+        console.log('=== END API RESPONSE DEBUG ===');
+        
+        // Ambil data dosen untuk mapping
+        const dosenResponse = await api.get('/users');
+        const dosenData = dosenResponse.data.data || [];
+        console.log('Total dosen:', dosenData.length);
+        
+        // Buat mapping dosen
+        const dosenMap = {};
+        dosenData.forEach(dosen => {
+          dosenMap[dosen.id] = dosen.name;
+        });
+        
+        console.log('=== END DEBUG ===');
+      
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Reporting Dosen PBL');
+
+      // Set column headers with wider widths to prevent text truncation
+      // Only define columns for Blok data (6 columns: NAMA DOSEN, PBL 1, PBL 2, PRAKTIKUM, KULIAH BESAR, JURNAL READING)
+      worksheet.columns = [
+        { header: 'NAMA DOSEN', key: 'nama', width: 35 }, // Increased for longer names
+        { header: 'PBL 1', key: 'pbl1', width: 15 }, // Increased for better visibility
+        { header: 'PBL 2', key: 'pbl2', width: 15 }, // Increased for better visibility
+        { header: 'PRAKTIKUM', key: 'praktikum', width: 18 }, // Increased for full text
+        { header: 'KULIAH BESAR', key: 'kuliah_besar', width: 25 }, // Increased for full text
+        { header: 'JURNAL READING', key: 'jurnal_reading', width: 25 } // Increased for full text
+      ];
+
+      let currentRow = 1;
+
+      // Add main title
+      worksheet.mergeCells(`A${currentRow}:F${currentRow}`);
+      worksheet.getCell(`A${currentRow}`).value = 'Reporting Dosen PBL';
+      worksheet.getCell(`A${currentRow}`).font = { size: 16, bold: true };
+      worksheet.getCell(`A${currentRow}`).alignment = { horizontal: 'center' };
+      
+      // Make columns G onwards white and empty
+      for (let i = 7; i <= 20; i++) { // Columns G to T
+        const cell = worksheet.getCell(`${String.fromCharCode(64 + i)}${currentRow}`);
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFFFFFF' } // Background putih
+        };
+        cell.value = ''; // Empty value
+      }
+      
+      currentRow += 2;
+
+      // Add subtitle
+      worksheet.mergeCells(`A${currentRow}:F${currentRow}`);
+      worksheet.getCell(`A${currentRow}`).value = `Blok: 1-4 | Export: ${new Date().toLocaleDateString('id-ID')}`;
+      worksheet.getCell(`A${currentRow}`).font = { size: 12 };
+      worksheet.getCell(`A${currentRow}`).alignment = { horizontal: 'center' };
+      
+      // Make columns G onwards white and empty
+      for (let i = 7; i <= 20; i++) { // Columns G to T
+        const cell = worksheet.getCell(`${String.fromCharCode(64 + i)}${currentRow}`);
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFFFFFFF' } // Background putih
+        };
+        cell.value = ''; // Empty value
+      }
+      
+      currentRow += 2;
+
+      // Group data blok by dosen, blok, dan semester
+      const jadwalByDosenBlokSemester: { [key: string]: any } = {};
+      
+      console.log('=== PROCESSING BLOK DATA ===');
+      console.log('Total blok data:', blokData.length);
+      
+      // Debug: Cek struktur data blok
+      if (blokData.length === 0) {
+        console.error('❌ ERROR: Blok data kosong!');
+        console.error('API Response:', blokResponse.data);
+        return;
+      }
+      
+      console.log('Sample blok data structure:', {
+        blok: blokData[0].blok,
+        semester: blokData[0].semester,
+        mata_kuliah_nama: blokData[0].mata_kuliah_nama,
+        kuliah_besar: blokData[0].kuliah_besar,
+        praktikum: blokData[0].praktikum
+      });
+      
+      // Process data blok dari API
+      blokData.forEach((blokDataItem: any) => {
+        const blok = blokDataItem.blok;
+        const semester = blokDataItem.semester;
+        
+        console.log(`Processing Blok ${blok}, Semester ${semester}: ${blokDataItem.mata_kuliah_nama}`);
+        
+        // Skip processing if this is non blok data (we'll handle it separately)
+        if (blok === null || blok === undefined) {
+          console.log(`  Skipping non blok data for semester ${semester}`);
+          return;
+        }
+        
+        // Process PBL 1
+        if (blokDataItem.pbl1 && blokDataItem.pbl1.length > 0) {
+          console.log(`  PBL 1: ${blokDataItem.pbl1.length} jadwal`);
+          blokDataItem.pbl1.forEach((jadwal: any) => {
+            const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
+            if (!jadwalByDosenBlokSemester[key]) {
+              jadwalByDosenBlokSemester[key] = {
+                dosen_name: jadwal.dosen_name,
+                blok: blok,
+                semester: semester,
+                pbl1: 0,
+                pbl2: 0,
+                csrReguler: 0,
+                csrResponsi: 0,
+                praktikum: 0,
+                kuliahBesar: 0,
+                jurnalReading: 0,
+                materi: 0
+              };
+            }
+            jadwalByDosenBlokSemester[key].pbl1 += jadwal.jumlah_sesi;
+            console.log(`    ${jadwal.dosen_name}: ${jadwal.jumlah_sesi} sesi`);
+          });
+        }
+        
+        // Process PBL 2
+        if (blokDataItem.pbl2 && blokDataItem.pbl2.length > 0) {
+          console.log(`  PBL 2: ${blokDataItem.pbl2.length} jadwal`);
+          blokDataItem.pbl2.forEach((jadwal: any) => {
+            const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
+            if (!jadwalByDosenBlokSemester[key]) {
+              jadwalByDosenBlokSemester[key] = {
+                dosen_name: jadwal.dosen_name,
+                blok: blok,
+                semester: semester,
+                pbl1: 0,
+                pbl2: 0,
+                csrReguler: 0,
+                csrResponsi: 0,
+                praktikum: 0,
+                kuliahBesar: 0,
+                jurnalReading: 0,
+                materi: 0
+              };
+            }
+            jadwalByDosenBlokSemester[key].pbl2 += jadwal.jumlah_sesi;
+            console.log(`    ${jadwal.dosen_name}: ${jadwal.jumlah_sesi} sesi`);
+          });
+        }
+        
+        // Skip CSR Reguler and CSR Responsi for blok data (only for non blok)
+        console.log(`  CSR Reguler: SKIPPED (only for non blok)`);
+        console.log(`  CSR Responsi: SKIPPED (only for non blok)`);
+        
+        // Process Praktikum
+        if (blokDataItem.praktikum && blokDataItem.praktikum.length > 0) {
+          console.log(`  Praktikum: ${blokDataItem.praktikum.length} jadwal`);
+          blokDataItem.praktikum.forEach((jadwal: any) => {
+            const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
+            if (!jadwalByDosenBlokSemester[key]) {
+              jadwalByDosenBlokSemester[key] = {
+                dosen_name: jadwal.dosen_name,
+                blok: blok,
+                semester: semester,
+                pbl1: 0,
+                pbl2: 0,
+                csrReguler: 0,
+                csrResponsi: 0,
+                praktikum: 0,
+                kuliahBesar: 0,
+                jurnalReading: 0,
+                materi: 0
+              };
+            }
+            jadwalByDosenBlokSemester[key].praktikum += jadwal.jumlah_sesi;
+            console.log(`    ${jadwal.dosen_name}: ${jadwal.jumlah_sesi} sesi`);
+          });
+        }
+        
+        // Process Kuliah Besar
+        if (blokDataItem.kuliah_besar && blokDataItem.kuliah_besar.length > 0) {
+          console.log(`  Kuliah Besar: ${blokDataItem.kuliah_besar.length} jadwal`);
+          blokDataItem.kuliah_besar.forEach((jadwal: any) => {
+            const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
+            if (!jadwalByDosenBlokSemester[key]) {
+              jadwalByDosenBlokSemester[key] = {
+                dosen_name: jadwal.dosen_name,
+                blok: blok,
+                semester: semester,
+                pbl1: 0,
+                pbl2: 0,
+                csrReguler: 0,
+                csrResponsi: 0,
+                praktikum: 0,
+                kuliahBesar: 0,
+                jurnalReading: 0,
+                materi: 0
+              };
+            }
+            jadwalByDosenBlokSemester[key].kuliahBesar += jadwal.jumlah_sesi;
+            console.log(`    ${jadwal.dosen_name}: ${jadwal.jumlah_sesi} sesi`);
+            console.log(`    Key: ${key}`);
+            console.log(`    Data after:`, jadwalByDosenBlokSemester[key]);
+          });
+        } else {
+          console.log(`  Kuliah Besar: 0 jadwal`);
+        }
+        
+        // Process Jurnal Reading
+        if (blokDataItem.jurnal_reading && blokDataItem.jurnal_reading.length > 0) {
+          console.log(`  Jurnal Reading: ${blokDataItem.jurnal_reading.length} jadwal`);
+          blokDataItem.jurnal_reading.forEach((jadwal: any) => {
+            const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
+            if (!jadwalByDosenBlokSemester[key]) {
+              jadwalByDosenBlokSemester[key] = {
+                dosen_name: jadwal.dosen_name,
+                blok: blok,
+                semester: semester,
+                pbl1: 0,
+                pbl2: 0,
+                csrReguler: 0,
+                csrResponsi: 0,
+                praktikum: 0,
+                kuliahBesar: 0,
+                jurnalReading: 0,
+                materi: 0
+              };
+            }
+            jadwalByDosenBlokSemester[key].jurnalReading += jadwal.jumlah_sesi;
+            console.log(`    ${jadwal.dosen_name}: ${jadwal.jumlah_sesi} sesi`);
+          });
+        }
+        
+        // Skip Materi for blok data (only for non blok)
+        console.log(`  Materi: SKIPPED (only for non blok)`);
+      });
+
+      // Process non blok data separately
+      console.log('=== PROCESSING NON BLOK DATA ===');
+      blokData.forEach((blokDataItem: any) => {
+        const blok = blokDataItem.blok;
+        const semester = blokDataItem.semester;
+        
+        // Only process non blok data
+        if (blok !== null && blok !== undefined) {
+          return;
+        }
+        
+        console.log(`Processing Non Blok Semester ${semester}: ${blokDataItem.mata_kuliah_nama}`);
+        
+        // Process CSR Reguler for non blok
+        if (blokDataItem.csr_reguler && blokDataItem.csr_reguler.length > 0) {
+          console.log(`  CSR Reguler: ${blokDataItem.csr_reguler.length} jadwal`);
+          blokDataItem.csr_reguler.forEach((jadwal: any) => {
+            const key = `${jadwal.dosen_name}_nonblok_semester${semester}`;
+            if (!jadwalByDosenBlokSemester[key]) {
+              jadwalByDosenBlokSemester[key] = {
+                dosen_name: jadwal.dosen_name,
+                blok: null, // Non blok
+                semester: semester,
+                pbl1: 0,
+                pbl2: 0,
+                csrReguler: 0,
+                csrResponsi: 0,
+                praktikum: 0,
+                kuliahBesar: 0,
+                jurnalReading: 0,
+                materi: 0
+              };
+            }
+            jadwalByDosenBlokSemester[key].csrReguler += jadwal.jumlah_sesi;
+            console.log(`    ${jadwal.dosen_name}: ${jadwal.jumlah_sesi} sesi`);
+          });
+        }
+        
+        // Process CSR Responsi for non blok
+        if (blokDataItem.csr_responsi && blokDataItem.csr_responsi.length > 0) {
+          console.log(`  CSR Responsi: ${blokDataItem.csr_responsi.length} jadwal`);
+          blokDataItem.csr_responsi.forEach((jadwal: any) => {
+            const key = `${jadwal.dosen_name}_nonblok_semester${semester}`;
+            if (!jadwalByDosenBlokSemester[key]) {
+              jadwalByDosenBlokSemester[key] = {
+                dosen_name: jadwal.dosen_name,
+                blok: null, // Non blok
+                semester: semester,
+                pbl1: 0,
+                pbl2: 0,
+                csrReguler: 0,
+                csrResponsi: 0,
+                praktikum: 0,
+                kuliahBesar: 0,
+                jurnalReading: 0,
+                materi: 0
+              };
+            }
+            jadwalByDosenBlokSemester[key].csrResponsi += jadwal.jumlah_sesi;
+            console.log(`    ${jadwal.dosen_name}: ${jadwal.jumlah_sesi} sesi`);
+          });
+        }
+        
+        // Process Materi for non blok
+        if (blokDataItem.materi && blokDataItem.materi.length > 0) {
+          console.log(`  Materi: ${blokDataItem.materi.length} jadwal`);
+          blokDataItem.materi.forEach((jadwal: any) => {
+            const key = `${jadwal.dosen_name}_nonblok_semester${semester}`;
+            if (!jadwalByDosenBlokSemester[key]) {
+              jadwalByDosenBlokSemester[key] = {
+                dosen_name: jadwal.dosen_name,
+                blok: null, // Non blok
+                semester: semester,
+                pbl1: 0,
+                pbl2: 0,
+                csrReguler: 0,
+                csrResponsi: 0,
+                praktikum: 0,
+                kuliahBesar: 0,
+                jurnalReading: 0,
+                materi: 0
+              };
+            }
+            jadwalByDosenBlokSemester[key].materi += jadwal.jumlah_sesi;
+            console.log(`    ${jadwal.dosen_name}: ${jadwal.jumlah_sesi} sesi`);
+          });
+        }
+      });
+
+      console.log('=== END PROCESSING ===');
+      console.log('Total jadwal grouped:', Object.keys(jadwalByDosenBlokSemester).length);
+      console.log('Sample grouped data:', Object.values(jadwalByDosenBlokSemester)[0]);
+      
+      // Debug: Cek apakah ada data yang akan ditampilkan
+      if (Object.keys(jadwalByDosenBlokSemester).length === 0) {
+        console.error('❌ ERROR: Tidak ada data yang diproses!');
+        console.error('Blok data length:', blokData.length);
+        console.error('Sample blok data:', blokData[0]);
+        return;
+      }
+      
+      // Debug: Tampilkan semua data yang akan ditampilkan di Excel
+      console.log('=== EXCEL DATA PREVIEW ===');
+      console.log('Total data to display:', Object.keys(jadwalByDosenBlokSemester).length);
+      Object.values(jadwalByDosenBlokSemester).forEach((data: any, index) => {
+        if (index < 10) { // Tampilkan 10 data pertama
+          console.log(`Data ${index + 1}:`, {
+            dosen_name: data.dosen_name,
+            blok: data.blok,
+            semester: data.semester,
+            pbl1: data.pbl1,
+            pbl2: data.pbl2,
+            csrReguler: data.csrReguler,
+            csrResponsi: data.csrResponsi,
+            praktikum: data.praktikum,
+            kuliahBesar: data.kuliahBesar,
+            jurnalReading: data.jurnalReading,
+            materi: data.materi
+          });
+        }
+      });
+      console.log('=== END EXCEL DATA PREVIEW ===');
+
+      // Process each blok (1-4)
+      for (let blokNumber = 1; blokNumber <= 4; blokNumber++) {
+        // Add blok title
+        worksheet.mergeCells(`A${currentRow}:F${currentRow}`);
+        worksheet.getCell(`A${currentRow}`).value = `blok ${blokNumber}`;
+        worksheet.getCell(`A${currentRow}`).font = { size: 14, bold: true };
+        worksheet.getCell(`A${currentRow}`).alignment = { horizontal: 'left' };
+        // Clear background color for merged cells
+        worksheet.getCell(`A${currentRow}`).fill = { type: 'pattern', pattern: 'none' };
+        
+        // Make columns G onwards white and empty
+        for (let i = 7; i <= 20; i++) { // Columns G to T
+          const cell = worksheet.getCell(`${String.fromCharCode(64 + i)}${currentRow}`);
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFFFFF' } // Background putih
+          };
+          cell.value = ''; // Empty value
+        }
+        
+        currentRow += 1;
+
+        // Process each semester (1-7) for this blok
+        for (let semesterNumber = 1; semesterNumber <= 7; semesterNumber++) {
+          // Get data for this specific blok and semester first
+          const dosenData = Object.values(jadwalByDosenBlokSemester).filter((data: any) => 
+            data.blok === blokNumber && String(data.semester) === String(semesterNumber)
+          );
+          
+          console.log(`🔍 Checking Blok ${blokNumber}, Semester ${semesterNumber}: ${dosenData.length} dosen`);
+
+          // Only add semester if there is data (skip completely empty sections)
+          if (dosenData.length > 0) {
+            console.log(`✅ FOUND DATA for Blok ${blokNumber}, Semester ${semesterNumber}: ${dosenData.length} dosen`);
+            
+          // Add semester title
+          worksheet.mergeCells(`A${currentRow}:F${currentRow}`);
+          worksheet.getCell(`A${currentRow}`).value = `Semester ${semesterNumber}`;
+          worksheet.getCell(`A${currentRow}`).font = { size: 12, bold: true };
+          worksheet.getCell(`A${currentRow}`).alignment = { horizontal: 'left' };
+          // Clear background color for merged cells
+          worksheet.getCell(`A${currentRow}`).fill = { type: 'pattern', pattern: 'none' };
+          
+          // Make columns G onwards white and empty
+          for (let i = 7; i <= 20; i++) { // Columns G to T
+            const cell = worksheet.getCell(`${String.fromCharCode(64 + i)}${currentRow}`);
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: 'FFFFFFFF' } // Background putih
+            };
+            cell.value = ''; // Empty value
+          }
+          
+          currentRow += 1;
+
+          // Add header row for this semester (blok data - no CSR and Materi)
+          const headerRow = worksheet.getRow(currentRow);
+          headerRow.values = [
+            'NAMA DOSEN', 'PBL 1', 'PBL 2', 'PRAKTIKUM', 'KULIAH BESAR', 'JURNAL READING'
+          ];
+            
+        // Style header row - only for columns A-F
+        for (let i = 1; i <= 6; i++) {
+          const cell = headerRow.getCell(i);
+          cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF2D5016' } // Hijau gelap
+          };
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        }
+        
+        // Make columns G onwards white and empty
+        for (let i = 7; i <= 20; i++) { // Columns G to T
+          const cell = headerRow.getCell(i);
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFFFFF' } // Background putih
+          };
+          cell.value = ''; // Empty value
+        }
+            
+            currentRow += 1;
+            
+            // Add data rows for this specific semester and blok
+            dosenData.forEach((data: any) => {
+              console.log(`📝 Adding row for ${data.dosen_name} - Blok ${blokNumber}, Semester ${semesterNumber}:`, {
+                pbl1: data.pbl1,
+                pbl2: data.pbl2,
+                praktikum: data.praktikum,
+                kuliahBesar: data.kuliahBesar,
+                jurnalReading: data.jurnalReading
+              });
+
+              // Add data row (blok data - no CSR and Materi)
+              const dataRow = worksheet.getRow(currentRow);
+              const rowValues = [
+                data.dosen_name,
+                data.pbl1 || 0,
+                data.pbl2 || 0,
+                data.praktikum || 0,
+                data.kuliahBesar || 0,
+                data.jurnalReading || 0
+              ];
+              
+              dataRow.values = rowValues;
+
+              console.log(`📊 Excel row ${currentRow} values:`, rowValues);
+
+              // Style data row - only columns A-F
+              for (let i = 1; i <= 6; i++) {
+                const cell = dataRow.getCell(i);
+                cell.fill = {
+                  type: 'pattern',
+                  pattern: 'solid',
+                  fgColor: { argb: 'FFFFFFFF' } // Background putih
+                };
+                cell.font = { color: { argb: 'FF000000' } }; // Teks hitam
+                
+                // Set alignment for numeric columns (all except NAMA DOSEN)
+                if (i >= 2) {
+                  cell.alignment = { horizontal: 'center' };
+                }
+              }
+              
+              // Make columns G onwards white and empty
+              for (let i = 7; i <= 20; i++) { // Columns G to T
+                const cell = dataRow.getCell(i);
+                cell.fill = {
+                  type: 'pattern',
+                  pattern: 'solid',
+                  fgColor: { argb: 'FFFFFFFF' } // Background putih
+                };
+                cell.value = ''; // Empty value
+              }
+
+              currentRow += 1;
+            });
+            
+            currentRow += 1; // Add space between semesters
+          } else {
+            console.log(`❌ NO DATA for Blok ${blokNumber}, Semester ${semesterNumber} - SKIPPING COMPLETELY`);
+            // Skip this semester completely if no data (don't add any title or header)
+          }
+        }
+
+        currentRow += 1; // Add space between bloks
+      }
+
+      // Add Non Blok section after all bloks
+        // Add non blok title
+        worksheet.mergeCells(`A${currentRow}:D${currentRow}`);
+        worksheet.getCell(`A${currentRow}`).value = `Non Blok`;
+        worksheet.getCell(`A${currentRow}`).font = { size: 14, bold: true };
+        worksheet.getCell(`A${currentRow}`).alignment = { horizontal: 'left' };
+        // Clear background color for merged cells
+        worksheet.getCell(`A${currentRow}`).fill = { type: 'pattern', pattern: 'none' };
+        
+        // Make columns E onwards white and empty
+        for (let i = 5; i <= 20; i++) { // Columns E to T
+          const cell = worksheet.getCell(`${String.fromCharCode(64 + i)}${currentRow}`);
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFFFFF' } // Background putih
+          };
+          cell.value = ''; // Empty value
+        }
+        
+        currentRow += 1;
+
+      // Process each semester (1-7) for non blok
+      for (let semesterNumber = 1; semesterNumber <= 7; semesterNumber++) {
+        // Add semester title
+        worksheet.mergeCells(`A${currentRow}:D${currentRow}`);
+        worksheet.getCell(`A${currentRow}`).value = `Semester ${semesterNumber}`;
+        worksheet.getCell(`A${currentRow}`).font = { size: 12, bold: true };
+        worksheet.getCell(`A${currentRow}`).alignment = { horizontal: 'left' };
+        // Clear background color for merged cells
+        worksheet.getCell(`A${currentRow}`).fill = { type: 'pattern', pattern: 'none' };
+        
+        // Make columns E onwards white and empty
+        for (let i = 5; i <= 20; i++) { // Columns E to T
+          const cell = worksheet.getCell(`${String.fromCharCode(64 + i)}${currentRow}`);
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFFFFF' } // Background putih
+          };
+          cell.value = ''; // Empty value
+        }
+        
+        currentRow += 1;
+
+        // Add header row for this semester (only CSR Reguler, CSR Responsi, Materi)
+        const headerRow = worksheet.getRow(currentRow);
+        headerRow.values = [
+          'NAMA DOSEN', 'CSR REGULER', 'CSR RESPONSI', 'MATERI'
+        ];
+        
+        // Style header row - only for columns A-D
+        for (let i = 1; i <= 4; i++) {
+          const cell = headerRow.getCell(i);
+          cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF2D5016' } // Hijau gelap
+          };
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        }
+        
+        // Make columns E onwards white and empty
+        for (let i = 5; i <= 20; i++) { // Columns E to T
+          const cell = headerRow.getCell(i);
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFFFFF' } // Background putih
+          };
+          cell.value = ''; // Empty value
+        }
+        
+        currentRow += 1;
+
+        // Get data for non blok semester
+        const nonBlokData = Object.values(jadwalByDosenBlokSemester).filter((data: any) => 
+          data.blok === null && String(data.semester) === String(semesterNumber)
+        );
+
+        console.log(`=== NON BLOK SEMESTER ${semesterNumber} ===`);
+        console.log(`Non Blok Semester ${semesterNumber}:`, {
+          totalDosen: nonBlokData.length,
+          dosenNames: nonBlokData.map((d: any) => d.dosen_name)
+        });
+
+        if (nonBlokData.length > 0) {
+          console.log(`✅ FOUND NON BLOK DATA for Semester ${semesterNumber}: ${nonBlokData.length} dosen`);
+          console.log('Dosen names:', nonBlokData.map((d: any) => d.dosen_name));
+          console.log('Dosen data details:', nonBlokData);
+          
+          // Add data rows for non blok semester
+          nonBlokData.forEach((data: any) => {
+            console.log(`📝 Adding non blok row for ${data.dosen_name} - Semester ${semesterNumber}:`, {
+              csrReguler: data.csrReguler,
+              csrResponsi: data.csrResponsi,
+              materi: data.materi
+            });
+
+          // Add data row
+          const dataRow = worksheet.getRow(currentRow);
+          const rowValues = [
+            data.dosen_name,
+            data.csrReguler || 0,
+            data.csrResponsi || 0,
+            data.materi || 0
+          ];
+            
+            dataRow.values = rowValues;
+
+            console.log(`📊 Non blok Excel row ${currentRow} values:`, rowValues);
+
+            // Style data row - only columns A-D for non-blok
+            for (let i = 1; i <= 4; i++) {
+              const cell = dataRow.getCell(i);
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFFFFFFF' } // Background putih
+              };
+              cell.font = { color: { argb: 'FF000000' } }; // Teks hitam
+              
+              // Set alignment for numeric columns (all except NAMA DOSEN)
+              if (i >= 2) {
+                cell.alignment = { horizontal: 'center' };
+              }
+            }
+            
+            // Make columns E onwards white and empty
+            for (let i = 5; i <= 20; i++) { // Columns E to T
+              const cell = dataRow.getCell(i);
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFFFFFFF' } // Background putih
+              };
+              cell.value = ''; // Empty value
+            }
+
+            currentRow += 1;
+          });
+        } else {
+          console.log(`❌ NO NON BLOK DATA for Semester ${semesterNumber}`);
+          
+          // Add empty row if no data for this semester
+          worksheet.mergeCells(`A${currentRow}:D${currentRow}`);
+          const emptyRow = worksheet.getRow(currentRow);
+          emptyRow.getCell(1).value = 'Tidak ada data untuk semester ini';
+          emptyRow.font = { italic: true };
+          
+          // Style empty row - only columns A-D
+          for (let i = 1; i <= 4; i++) {
+            const cell = emptyRow.getCell(i);
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: 'FFFFFFFF' } // Background putih
+            };
+            cell.font = { italic: true, color: { argb: 'FF000000' } }; // Teks hitam italic
+          }
+          
+          // Make columns E onwards white and empty
+          for (let i = 5; i <= 20; i++) { // Columns E to T
+            const cell = emptyRow.getCell(i);
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: 'FFFFFFFF' } // Background putih
+            };
+            cell.value = ''; // Empty value
+          }
+          currentRow += 1;
+        }
+
+        currentRow += 1; // Add space between semesters
+      }
+
+      // Add borders to all cells (only for the 6 relevant columns: A-F)
+      worksheet.eachRow((row, rowNumber) => {
+        row.eachCell((cell, colNumber) => {
+          if (rowNumber > 2 && colNumber <= 6) { // Skip title rows and only apply to columns A-F
+            cell.border = {
+              top: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+              left: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+              bottom: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+              right: { style: 'thin', color: { argb: 'FFCCCCCC' } }
+            };
+          }
+        });
+      });
+
+      // Generate Excel file
+      console.log('=== GENERATING EXCEL FILE ===');
+      console.log('Total rows in worksheet:', worksheet.rowCount);
+      console.log('Current row:', currentRow);
+      console.log('Total data processed:', Object.keys(jadwalByDosenBlokSemester).length);
+      
+      // Debug: Cek apakah worksheet memiliki data
+      if (worksheet.rowCount <= 3) {
+        console.error('❌ ERROR: Worksheet tidak memiliki data!');
+        console.error('Row count:', worksheet.rowCount);
+        console.error('Current row:', currentRow);
+        return;
+      }
+      
+      // Debug: Tampilkan beberapa baris Excel untuk memastikan data ada
+      console.log('=== EXCEL CONTENT PREVIEW ===');
+      for (let i = 1; i <= Math.min(10, worksheet.rowCount); i++) {
+        const row = worksheet.getRow(i);
+        const rowValues = [];
+        for (let j = 1; j <= 6; j++) { // Only show 6 columns (A-F)
+          rowValues.push(row.getCell(j).value || '');
+        }
+        console.log(`Row ${i}:`, rowValues);
+      }
+      console.log('=== END EXCEL CONTENT PREVIEW ===');
+      
+      const buffer = await workbook.xlsx.writeBuffer();
+      console.log('Excel buffer size:', buffer.byteLength);
+      
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      console.log('Excel blob size:', blob.size);
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `laporan-dosen-pbl-semua-blok-${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      console.log('✅ Excel file generated and downloaded successfully!');
+
+    } catch (error) {
+      console.error('Error generating Excel All:', error);
+      // Bisa ditambahkan toast notification di sini
+    }
+  };
+
   const getCurrentReportData = () => {
     return activeTab === "csr" ? dosenCsrReport : dosenPblReport;
   };
@@ -366,13 +1598,17 @@ const ReportingDosen: React.FC = () => {
             {getDescription()}
           </p>
         </div>
-        <button
-          onClick={handleExport}
-          className="w-fit flex items-center gap-2 px-5 text-sm py-2 bg-brand-500 text-white rounded-lg shadow hover:bg-brand-600 transition-colors font-semibold"
-        >
-          <DownloadIcon className="w-5 h-5" />
-          Export Data .JSON
-        </button>
+        <div className="flex flex-wrap gap-3">
+          {activeTab === "pbl" && (
+            <button
+              onClick={handleExportExcelAll}
+              className="w-fit flex items-center gap-2 px-5 text-sm py-2 bg-indigo-500 text-white rounded-lg shadow hover:bg-indigo-600 transition-colors font-semibold"
+            >
+              <DownloadIcon className="w-5 h-5" />
+              Export Excel
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Tab Navigation */}
@@ -798,7 +2034,7 @@ const ReportingDosen: React.FC = () => {
                                             <div className="ml-4 mt-2 space-y-2">
                                               <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
                                                 <div className="flex items-start gap-3">
-                                                  {/* Icon */}
+                                                  {/* Icon */}ang
                                                   <div className="w-8 h-8 rounded-full bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center flex-shrink-0">
                                                     <FontAwesomeIcon 
                                                       icon={faBookOpen} 

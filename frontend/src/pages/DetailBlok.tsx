@@ -10022,6 +10022,9 @@ export default function DetailBlok() {
 
                       const ruangan = allRuanganList.find(r => r.id === row.ruangan_id);
 
+                      // Hitung index yang benar berdasarkan pagination
+                      const actualIndex = (kuliahBesarPage - 1) * kuliahBesarPageSize + i;
+
                     return (
 
                       <tr key={row.id} className={i % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
@@ -10070,7 +10073,7 @@ export default function DetailBlok() {
 
                         <td className="px-4 py-4 text-center whitespace-nowrap">
 
-                          <button onClick={() => handleEditJadwalKuliahBesar(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
+                          <button onClick={() => handleEditJadwalKuliahBesar(actualIndex)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
 
                             <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
 
@@ -10080,7 +10083,7 @@ export default function DetailBlok() {
 
                           <button onClick={() => { 
 
-                            setSelectedDeleteIndex(i); 
+                            setSelectedDeleteIndex(actualIndex); 
 
                             setSelectedDeleteType('materi');
 
