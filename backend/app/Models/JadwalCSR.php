@@ -29,6 +29,13 @@ class JadwalCSR extends Model
         'status_reschedule',
         'reschedule_reason',
         'created_by',
+        // SIAKAD fields
+        'siakad_kurikulum',
+        'siakad_kode_mk',
+        'siakad_nama_kelas',
+        'siakad_jenis_pertemuan',
+        'siakad_metode',
+        'siakad_dosen_pengganti',
     ];
 
     protected $casts = [

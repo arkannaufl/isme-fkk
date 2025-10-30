@@ -466,4 +466,163 @@ class JadwalHarianController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Get today's schedule for a specific dosen
+     */
+    public function getTodayScheduleForDosen($dosenId)
+    {
+        try {
+            $today = now()->format('Y-m-d');
+            $todaySchedules = collect();
+
+            // Get PBL schedules for today
+            $pblSchedules = JadwalPBL::with(['mataKuliah', 'dosen', 'ruangan'])
+                ->where('dosen_id', $dosenId)
+                ->where('tanggal', $today)
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'type' => 'pbl',
+                        'mata_kuliah' => $item->mataKuliah->nama ?? 'N/A',
+                        'dosen' => $item->dosen->name ?? 'N/A',
+                        'ruangan' => $item->ruangan->nama ?? 'N/A',
+                        'waktu' => $item->jam_mulai . ' - ' . $item->jam_selesai,
+                        'topik' => $item->pbl_tipe ?? 'N/A',
+                        'status_konfirmasi' => $item->status_konfirmasi,
+                        'status_reschedule' => $item->status_reschedule,
+                        'semester_type' => $item->semester_type,
+                    ];
+                });
+            $todaySchedules = $todaySchedules->concat($pblSchedules);
+
+            // Get Kuliah Besar schedules for today
+            $kuliahBesarSchedules = JadwalKuliahBesar::with(['mataKuliah', 'dosen', 'ruangan'])
+                ->where('dosen_id', $dosenId)
+                ->where('tanggal', $today)
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'type' => 'kuliah_besar',
+                        'mata_kuliah' => $item->mataKuliah->nama ?? 'N/A',
+                        'dosen' => $item->dosen->name ?? 'N/A',
+                        'ruangan' => $item->ruangan->nama ?? 'N/A',
+                        'waktu' => $item->jam_mulai . ' - ' . $item->jam_selesai,
+                        'topik' => $item->materi ?? $item->topik ?? 'N/A',
+                        'status_konfirmasi' => $item->status_konfirmasi,
+                        'status_reschedule' => $item->status_reschedule,
+                        'semester_type' => $item->semester_type,
+                    ];
+                });
+            $todaySchedules = $todaySchedules->concat($kuliahBesarSchedules);
+
+            // Get Praktikum schedules for today (check if dosen is assigned)
+            $praktikumSchedules = JadwalPraktikum::with(['mataKuliah', 'ruangan', 'dosen'])
+                ->where('tanggal', $today)
+                ->get()
+                ->filter(function ($item) use ($dosenId) {
+                    // Check if dosen is in the dosen array
+                    return $item->dosen && collect($item->dosen)->contains('id', $dosenId);
+                })
+                ->map(function ($item) use ($dosenId) {
+                    $dosen = collect($item->dosen)->firstWhere('id', $dosenId);
+                    return [
+                        'id' => $item->id,
+                        'type' => 'praktikum',
+                        'mata_kuliah' => $item->mataKuliah->nama ?? 'N/A',
+                        'dosen' => $dosen['name'] ?? 'N/A',
+                        'ruangan' => $item->ruangan->nama ?? 'N/A',
+                        'waktu' => $item->jam_mulai . ' - ' . $item->jam_selesai,
+                        'topik' => $item->materi ?? 'N/A',
+                        'status_konfirmasi' => $item->status_konfirmasi,
+                        'status_reschedule' => $item->status_reschedule,
+                        'semester_type' => $item->semester_type,
+                    ];
+                });
+            $todaySchedules = $todaySchedules->concat($praktikumSchedules);
+
+            // Get Jurnal Reading schedules for today
+            $jurnalSchedules = JadwalJurnalReading::with(['mataKuliah', 'dosen', 'ruangan'])
+                ->where('dosen_id', $dosenId)
+                ->where('tanggal', $today)
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'type' => 'jurnal',
+                        'mata_kuliah' => $item->mataKuliah->nama ?? 'N/A',
+                        'dosen' => $item->dosen->name ?? 'N/A',
+                        'ruangan' => $item->ruangan->nama ?? 'N/A',
+                        'waktu' => $item->jam_mulai . ' - ' . $item->jam_selesai,
+                        'topik' => $item->topik ?? 'N/A',
+                        'status_konfirmasi' => $item->status_konfirmasi,
+                        'status_reschedule' => $item->status_reschedule,
+                        'semester_type' => $item->semester_type,
+                    ];
+                });
+            $todaySchedules = $todaySchedules->concat($jurnalSchedules);
+
+            // Get CSR schedules for today
+            $csrSchedules = JadwalCSR::with(['mataKuliah', 'dosen', 'ruangan'])
+                ->where('dosen_id', $dosenId)
+                ->where('tanggal', $today)
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'type' => 'csr',
+                        'mata_kuliah' => $item->mataKuliah->nama ?? 'N/A',
+                        'dosen' => $item->dosen->name ?? 'N/A',
+                        'ruangan' => $item->ruangan->nama ?? 'N/A',
+                        'waktu' => $item->jam_mulai . ' - ' . $item->jam_selesai,
+                        'topik' => $item->topik ?? 'N/A',
+                        'status_konfirmasi' => $item->status_konfirmasi,
+                        'status_reschedule' => $item->status_reschedule,
+                        'semester_type' => $item->semester_type,
+                    ];
+                });
+            $todaySchedules = $todaySchedules->concat($csrSchedules);
+
+            // Get Non Blok Non CSR schedules for today
+            $nonBlokSchedules = JadwalNonBlokNonCSR::with(['mataKuliah', 'dosen', 'ruangan'])
+                ->where('dosen_id', $dosenId)
+                ->where('tanggal', $today)
+                ->get()
+                ->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'type' => 'non_blok_non_csr',
+                        'mata_kuliah' => $item->mataKuliah->nama ?? 'N/A',
+                        'dosen' => $item->dosen->name ?? 'N/A',
+                        'ruangan' => $item->ruangan->nama ?? 'N/A',
+                        'waktu' => $item->jam_mulai . ' - ' . $item->jam_selesai,
+                        'topik' => $item->materi ?? $item->agenda ?? 'N/A',
+                        'status_konfirmasi' => $item->status_konfirmasi,
+                        'status_reschedule' => $item->status_reschedule,
+                        'semester_type' => $item->semester_type,
+                    ];
+                });
+            $todaySchedules = $todaySchedules->concat($nonBlokSchedules);
+
+            // Sort by time - extract start time for sorting
+            $sortedSchedules = $todaySchedules->sortBy(function ($item) {
+                // Extract start time from "07.20 - 09.00" or "07:20 - 09:00"
+                $timeString = str_replace('.', ':', $item['waktu']);
+                $startTime = explode(' - ', $timeString)[0];
+                return \Carbon\Carbon::createFromFormat('H:i', $startTime);
+            })->values();
+
+            return response()->json([
+                'message' => 'Data jadwal hari ini berhasil diambil',
+                'data' => $sortedSchedules
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal mengambil data jadwal hari ini',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

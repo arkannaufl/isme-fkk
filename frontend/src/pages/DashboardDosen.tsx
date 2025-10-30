@@ -161,6 +161,23 @@ interface JadwalJurnalReading {
   created_at: string;
 }
 
+interface TodayScheduleItem {
+  id: number;
+  type: string;
+  mata_kuliah: string;
+  dosen: string;
+  ruangan: string;
+  waktu: string;
+  topik: string;
+  status_konfirmasi:
+    | "belum_konfirmasi"
+    | "bisa"
+    | "tidak_bisa"
+    | "waiting_reschedule";
+  status_reschedule?: "waiting" | "approved" | "rejected";
+  semester_type?: "reguler" | "antara";
+}
+
 interface Notification {
   id: number;
   title: string;
@@ -301,6 +318,42 @@ const SkeletonTable = () => (
   </div>
 );
 
+const SkeletonTodaySchedule = () => (
+  <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+    <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse"></div>
+        <div>
+          <div className="h-6 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
+          <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+        </div>
+      </div>
+    </div>
+    <div className="space-y-3">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 animate-pulse">
+          <div className="flex items-start space-x-4">
+            <div className="w-11 h-11 bg-gray-200 dark:bg-gray-600 rounded-lg animate-pulse"></div>
+            <div className="flex-1 space-y-2">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="h-5 w-3/4 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
+                <div className="h-6 w-20 bg-gray-200 dark:bg-gray-600 rounded-full animate-pulse"></div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="h-4 w-24 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
+                <div className="h-4 w-32 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
+                <div className="h-4 w-28 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
+                <div className="h-4 w-20 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
+              </div>
+            </div>
+            <div className="w-16 h-8 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 export default function DashboardDosen() {
   const navigate = useNavigate();
 
@@ -389,6 +442,7 @@ export default function DashboardDosen() {
   >([]);
   const [jadwalCSR, setJadwalCSR] = useState<any[]>([]);
   const [jadwalNonBlokNonCSR, setJadwalNonBlokNonCSR] = useState<any[]>([]);
+  const [todaySchedule, setTodaySchedule] = useState<TodayScheduleItem[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeSemester, setActiveSemester] = useState<
@@ -535,6 +589,7 @@ export default function DashboardDosen() {
         api.get(`/jadwal-praktikum/dosen/${userData.id}${semesterParams}`),
         api.get(`/jadwal-jurnal-reading/dosen/${userData.id}${semesterParams}`),
         api.get(`/notifications/dosen/${userData.id}`),
+        api.get(`/dosen/${userData.id}/today-schedule`),
       ];
 
       // Only fetch CSR and Non Blok Non CSR for regular semester
@@ -560,6 +615,7 @@ export default function DashboardDosen() {
         jadwalPraktikumResult,
         jadwalJurnalReadingResult,
         notifResult,
+        todayScheduleResult,
         ...otherResults
       ] = responses;
 
@@ -586,6 +642,11 @@ export default function DashboardDosen() {
       );
       setNotifications(
         notifResult.status === "fulfilled" ? notifResult.value.data || [] : []
+      );
+      setTodaySchedule(
+        todayScheduleResult.status === "fulfilled"
+          ? todayScheduleResult.value.data.data || []
+          : []
       );
 
       // Handle CSR and Non Blok Non CSR based on semester type
@@ -1381,6 +1442,11 @@ export default function DashboardDosen() {
             <SkeletonHeader />
           </div>
 
+          {/* Today's Schedule Skeleton */}
+          <div className="col-span-12 mb-6">
+            <SkeletonTodaySchedule />
+          </div>
+
           {/* Notifications Skeleton */}
           <div className="col-span-12 mb-6">
             <SkeletonCard />
@@ -1632,6 +1698,8 @@ export default function DashboardDosen() {
           </motion.div>
         </div>
 
+        {/* Today's Schedule Section moved below Notifications */}
+
         {/* Notifications Section */}
         <div className="col-span-12 mb-6">
           <motion.div
@@ -1777,6 +1845,153 @@ export default function DashboardDosen() {
                 </h3>
                 <p className="text-gray-600 dark:text-gray-400">
                   Anda tidak memiliki notifikasi baru saat ini
+                </p>
+              </div>
+            )}
+          </motion.div>
+        </div>
+
+        {/* Today's Schedule Section */}
+        <div className="col-span-12 mb-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <FontAwesomeIcon
+                    icon={faCalendar}
+                    className="text-white text-lg"
+                  />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Jadwal Hari Ini
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {currentTime.toLocaleDateString('id-ID', {
+                      weekday: 'long',
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric'
+                    })}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {todaySchedule.length > 0 ? (
+              <div className="space-y-3">
+                {todaySchedule.map((schedule, index) => (
+                  <motion.div
+                    key={schedule.id || index}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 hover:shadow-md hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-300"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start space-x-4 flex-1">
+                        <div className="flex-shrink-0">
+                          <div className={`w-11 h-11 rounded-lg flex items-center justify-center shadow-sm ${
+                            schedule.type === 'kuliah_besar' ? 'bg-gradient-to-br from-blue-500 to-blue-600' :
+                            schedule.type === 'pbl' ? 'bg-gradient-to-br from-emerald-500 to-emerald-600' :
+                            schedule.type === 'praktikum' ? 'bg-gradient-to-br from-violet-500 to-violet-600' :
+                            schedule.type === 'jurnal' ? 'bg-gradient-to-br from-indigo-500 to-indigo-600' :
+                            schedule.type === 'csr' ? 'bg-gradient-to-br from-amber-500 to-amber-600' :
+                            schedule.type === 'non_blok_non_csr' ? 'bg-gradient-to-br from-rose-500 to-rose-600' :
+                            'bg-gradient-to-br from-gray-500 to-gray-600'
+                          }`}>
+                            <FontAwesomeIcon
+                              icon={
+                                schedule.type === 'kuliah_besar' ? faGraduationCap :
+                                schedule.type === 'pbl' ? faBookOpen :
+                                schedule.type === 'praktikum' ? faFlask :
+                                schedule.type === 'jurnal' ? faNewspaper :
+                                schedule.type === 'csr' ? faUsers :
+                                schedule.type === 'non_blok_non_csr' ? faCalendar :
+                                faCalendar
+                              }
+                              className="text-white text-sm"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h3 className="text-base font-semibold text-gray-900 dark:text-white truncate">
+                              {schedule.mata_kuliah}
+                            </h3>
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
+                              schedule.type === 'kuliah_besar' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200' :
+                              schedule.type === 'pbl' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200' :
+                              schedule.type === 'praktikum' ? 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-200' :
+                              schedule.type === 'jurnal' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200' :
+                              schedule.type === 'csr' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200' :
+                              schedule.type === 'non_blok_non_csr' ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-200' :
+                              'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-200'
+                            }`}>
+                              {schedule.type === 'kuliah_besar' ? 'Kuliah Besar' :
+                               schedule.type === 'pbl' ? 'PBL' :
+                               schedule.type === 'praktikum' ? 'Praktikum' :
+                               schedule.type === 'jurnal' ? 'Jurnal Reading' :
+                               schedule.type === 'csr' ? 'CSR' :
+                               schedule.type === 'non_blok_non_csr' ? 'Non Blok' :
+                               schedule.type}
+                            </span>
+                            {getStatusBadge(schedule.status_konfirmasi, schedule.status_reschedule)}
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-400">
+                            <div className="flex items-center gap-2">
+                              <FontAwesomeIcon icon={faClock} className="w-3.5 h-3.5 text-gray-400" />
+                              <span className="font-medium">{schedule.waktu.replace('.', ':')}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <FontAwesomeIcon icon={faGraduationCap} className="w-3.5 h-3.5 text-gray-400" />
+                              <span className="truncate">{schedule.dosen}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <FontAwesomeIcon icon={faBookOpen} className="w-3.5 h-3.5 text-gray-400" />
+                              <span className="truncate">{schedule.ruangan}</span>
+                            </div>
+                            {schedule.topik && (
+                              <div className="flex items-center gap-2">
+                                <FontAwesomeIcon icon={faFileAlt} className="w-3.5 h-3.5 text-gray-400" />
+                                <span className="truncate">{schedule.topik}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex-shrink-0 ml-4">
+                        <div className="text-right">
+                          <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                            {schedule.waktu.split(' - ')[0].replace('.', ':')}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {schedule.waktu.split(' - ')[1].replace('.', ':')}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FontAwesomeIcon
+                    icon={faCalendar}
+                    className="w-8 h-8 text-gray-400"
+                  />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Tidak Ada Jadwal Hari Ini
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400">
+                  Anda tidak memiliki jadwal mengajar untuk hari ini
                 </p>
               </div>
             )}

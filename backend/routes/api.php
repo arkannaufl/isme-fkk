@@ -318,6 +318,9 @@ Route::middleware('auth:sanctum')->get('/jadwal-non-blok-non-csr/dosen/{dosenId}
 Route::middleware('auth:sanctum')->put('/jadwal-non-blok-non-csr/{id}/konfirmasi', [App\Http\Controllers\JadwalNonBlokNonCSRController::class, 'konfirmasiJadwal']);
 Route::middleware('auth:sanctum')->post('/jadwal-non-blok-non-csr/{id}/reschedule', [App\Http\Controllers\JadwalNonBlokNonCSRController::class, 'reschedule']);
 
+// Jadwal Hari Ini untuk dosen
+Route::middleware('auth:sanctum')->get('/dosen/{dosenId}/today-schedule', [App\Http\Controllers\JadwalHarianController::class, 'getTodayScheduleForDosen']);
+
 Route::middleware('auth:sanctum')->prefix('mata-kuliah/{kode}/kelompok/{kelompok}/pertemuan/{pertemuan}')->group(function () {
     Route::get('penilaian-pbl', [App\Http\Controllers\PenilaianPBLController::class, 'index']);
     Route::post('penilaian-pbl', [App\Http\Controllers\PenilaianPBLController::class, 'store']);

@@ -38,6 +38,13 @@ class JadwalPraktikumController extends Controller
             'jumlah_sesi' => 'required|integer|min:1|max:6',
             'dosen_ids' => 'required|array|min:1',
             'dosen_ids.*' => 'exists:users,id',
+            // SIAKAD fields
+            'siakad_kurikulum' => 'nullable|string',
+            'siakad_kode_mk' => 'nullable|string',
+            'siakad_kelompok' => 'nullable|string',
+            'siakad_jenis_pertemuan' => 'nullable|string',
+            'siakad_metode' => 'nullable|string',
+            'siakad_dosen_pengganti' => 'nullable|string',
         ]);
         $data['mata_kuliah_kode'] = $kode;
         $data['created_by'] = $request->input('created_by', auth()->id());
@@ -56,38 +63,22 @@ class JadwalPraktikumController extends Controller
 
         $jadwal = JadwalPraktikum::create($data);
 
-
-
-        // Log activity
-
-
-        activity()
-
-
-            ->log('Jadwal Praktikum deleted');
-
-
+        // Sync dosen (replace semua dosen yang ada)
+        $jadwal->dosen()->sync($data['dosen_ids']);
 
         // Log activity
-
-
         activity()
-
-
-            ->log('Jadwal Praktikum updated');
-
-
-
-        // Log activity
-
-
-        activity()
-
-
+            ->performedOn($jadwal)
+            ->withProperties([
+                'mata_kuliah_kode' => $kode,
+                'tanggal' => $data['tanggal'],
+                'jam_mulai' => $data['jam_mulai'],
+                'jam_selesai' => $data['jam_selesai'],
+                'materi' => $data['materi'],
+                'topik' => $data['topik'],
+                'kelas_praktikum' => $data['kelas_praktikum']
+            ])
             ->log('Jadwal Praktikum created');
-
-        // Attach dosen
-        $jadwal->dosen()->attach($data['dosen_ids']);
 
         // Kirim notifikasi ke semua dosen yang di-assign
         foreach ($data['dosen_ids'] as $dosenId) {
@@ -118,6 +109,13 @@ class JadwalPraktikumController extends Controller
             'jumlah_sesi' => 'required|integer|min:1|max:6',
             'dosen_ids' => 'required|array|min:1',
             'dosen_ids.*' => 'exists:users,id',
+            // SIAKAD fields
+            'siakad_kurikulum' => 'nullable|string',
+            'siakad_kode_mk' => 'nullable|string',
+            'siakad_kelompok' => 'nullable|string',
+            'siakad_jenis_pertemuan' => 'nullable|string',
+            'siakad_metode' => 'nullable|string',
+            'siakad_dosen_pengganti' => 'nullable|string',
         ]);
         $data['mata_kuliah_kode'] = $kode;
         $data['created_by'] = $request->input('created_by', auth()->id());
@@ -136,29 +134,22 @@ class JadwalPraktikumController extends Controller
 
         $jadwal->update($data);
 
-
-        // Log activity
-
-        activity()
-
-            ->log('Jadwal Praktikum deleted');
-
-
-        // Log activity
-
-        activity()
-
-            ->log('Jadwal Praktikum updated');
-
-
-        // Log activity
-
-        activity()
-
-            ->log('Jadwal Praktikum created');
-
         // Sync dosen (replace semua dosen yang ada)
         $jadwal->dosen()->sync($data['dosen_ids']);
+
+        // Log activity
+        activity()
+            ->performedOn($jadwal)
+            ->withProperties([
+                'mata_kuliah_kode' => $kode,
+                'tanggal' => $data['tanggal'],
+                'jam_mulai' => $data['jam_mulai'],
+                'jam_selesai' => $data['jam_selesai'],
+                'materi' => $data['materi'],
+                'topik' => $data['topik'],
+                'kelas_praktikum' => $data['kelas_praktikum']
+            ])
+            ->log('Jadwal Praktikum updated');
 
         // Load relasi untuk response
         $jadwal->load(['mataKuliah', 'ruangan', 'dosen']);
@@ -172,26 +163,10 @@ class JadwalPraktikumController extends Controller
         $jadwal = JadwalPraktikum::findOrFail($id);
         $jadwal->delete();
 
-
         // Log activity
-
         activity()
-
+            ->performedOn($jadwal)
             ->log('Jadwal Praktikum deleted');
-
-
-        // Log activity
-
-        activity()
-
-            ->log('Jadwal Praktikum updated');
-
-
-        // Log activity
-
-        activity()
-
-            ->log('Jadwal Praktikum created');
         return response()->json(['message' => 'Jadwal praktikum berhasil dihapus']);
     }
 
@@ -947,6 +922,13 @@ class JadwalPraktikumController extends Controller
                 'data.*.dosen_id' => 'required|exists:users,id',
                 'data.*.ruangan_id' => 'required|exists:ruangan,id',
                 'data.*.jumlah_sesi' => 'nullable|integer|min:1|max:6',
+                // SIAKAD fields
+                'data.*.siakad_kurikulum' => 'nullable|string',
+                'data.*.siakad_kode_mk' => 'nullable|string',
+                'data.*.siakad_kelompok' => 'nullable|string',
+                'data.*.siakad_jenis_pertemuan' => 'nullable|string',
+                'data.*.siakad_metode' => 'nullable|string',
+                'data.*.siakad_dosen_pengganti' => 'nullable|string',
             ]);
 
             $importedData = [];
@@ -1010,8 +992,28 @@ class JadwalPraktikumController extends Controller
                     // Set mata_kuliah_kode
                     $row['mata_kuliah_kode'] = $kode;
 
+                    // Siapkan data untuk disimpan termasuk kolom SIAKAD
+                    $jadwalData = [
+                        'mata_kuliah_kode' => $kode,
+                        'tanggal' => $row['tanggal'],
+                        'jam_mulai' => $row['jam_mulai'],
+                        'jam_selesai' => $row['jam_selesai'],
+                        'materi' => $row['materi'],
+                        'topik' => $row['topik'],
+                        'kelas_praktikum' => $row['kelas_praktikum'],
+                        'ruangan_id' => $row['ruangan_id'],
+                        'jumlah_sesi' => $row['jumlah_sesi'],
+                        // SIAKAD fields
+                        'siakad_kurikulum' => $row['siakad_kurikulum'] ?? null,
+                        'siakad_kode_mk' => $row['siakad_kode_mk'] ?? null,
+                        'siakad_kelompok' => $row['siakad_kelompok'] ?? null,
+                        'siakad_jenis_pertemuan' => $row['siakad_jenis_pertemuan'] ?? null,
+                        'siakad_metode' => $row['siakad_metode'] ?? null,
+                        'siakad_dosen_pengganti' => $row['siakad_dosen_pengganti'] ?? null,
+                    ];
+
                     // Buat jadwal praktikum
-                    $jadwal = JadwalPraktikum::create($row);
+                    $jadwal = JadwalPraktikum::create($jadwalData);
 
                     // Attach dosen (praktikum menggunakan single dosen, bukan multiple)
                     $jadwal->dosen()->attach($row['dosen_id']);
@@ -1031,7 +1033,14 @@ class JadwalPraktikumController extends Controller
                             'jam_selesai' => $row['jam_selesai'],
                             'materi' => $row['materi'],
                             'topik' => $row['topik'],
-                            'kelas_praktikum' => $row['kelas_praktikum']
+                            'kelas_praktikum' => $row['kelas_praktikum'],
+                            // SIAKAD fields
+                            'siakad_kurikulum' => $row['siakad_kurikulum'] ?? null,
+                            'siakad_kode_mk' => $row['siakad_kode_mk'] ?? null,
+                            'siakad_kelompok' => $row['siakad_kelompok'] ?? null,
+                            'siakad_jenis_pertemuan' => $row['siakad_jenis_pertemuan'] ?? null,
+                            'siakad_metode' => $row['siakad_metode'] ?? null,
+                            'siakad_dosen_pengganti' => $row['siakad_dosen_pengganti'] ?? null,
                         ])
                         ->log("Jadwal Praktikum imported: {$row['materi']} - {$row['topik']}");
                 } catch (\Exception $e) {

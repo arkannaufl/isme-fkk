@@ -61,6 +61,15 @@ class JadwalPBLController extends Controller
             'jam_selesai' => 'required|string',
             'jumlah_sesi' => 'nullable|integer|min:1|max:6',
             'pbl_tipe' => 'nullable|string',
+            // SIAKAD fields
+            'siakad_kurikulum' => 'nullable|string',
+            'siakad_kode_mk' => 'nullable|string',
+            'siakad_nama_kelas' => 'nullable|string',
+            'topik' => 'nullable|string',
+            'siakad_substansi' => 'nullable|string',
+            'siakad_jenis_pertemuan' => 'nullable|string',
+            'siakad_metode' => 'nullable|string',
+            'siakad_dosen_pengganti' => 'nullable|string',
         ]);
 
         // Validasi: harus ada salah satu dari kelompok_kecil_id atau kelompok_kecil_antara_id
@@ -234,6 +243,15 @@ class JadwalPBLController extends Controller
             'jam_selesai' => 'required|string',
             'jumlah_sesi' => 'nullable|integer|min:1|max:6',
             'pbl_tipe' => 'nullable|string',
+            // SIAKAD fields
+            'siakad_kurikulum' => 'nullable|string',
+            'siakad_kode_mk' => 'nullable|string',
+            'siakad_nama_kelas' => 'nullable|string',
+            'topik' => 'nullable|string',
+            'siakad_substansi' => 'nullable|string',
+            'siakad_jenis_pertemuan' => 'nullable|string',
+            'siakad_metode' => 'nullable|string',
+            'siakad_dosen_pengganti' => 'nullable|string',
         ]);
 
         // Validasi: harus ada salah satu dari kelompok_kecil_id atau kelompok_kecil_antara_id
@@ -365,6 +383,14 @@ class JadwalPBLController extends Controller
                 'data.*.pbl_tipe' => 'required|string|in:PBL 1,PBL 2',
                 'data.*.topik' => 'nullable|string',
                 'data.*.jumlah_sesi' => 'nullable|integer|min:1|max:6',
+                // SIAKAD fields
+                'data.*.siakad_kurikulum' => 'nullable|string',
+                'data.*.siakad_kode_mk' => 'nullable|string',
+                'data.*.siakad_nama_kelas' => 'nullable|string',
+                'data.*.siakad_substansi' => 'nullable|string',
+                'data.*.siakad_jenis_pertemuan' => 'nullable|string',
+                'data.*.siakad_metode' => 'nullable|string',
+                'data.*.siakad_dosen_pengganti' => 'nullable|string',
             ]);
 
             $importedData = [];
@@ -388,7 +414,7 @@ class JadwalPBLController extends Controller
                 }
 
                 // Validasi bentrok
-                $row['mata_kuliah_kode'] = $kode; // Tambahkan mata_kuliah_kode untuk checkBentrokWithDetail
+                $row['mata_kuliah_kode'] = $kode;
                 $bentrokMessage = $this->checkBentrokWithDetail($row, null);
                 if ($bentrokMessage) {
                     $errors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;

@@ -2155,6 +2155,14 @@ class JadwalKuliahBesarController extends Controller
                         'jumlah_sesi' => $data['jumlah_sesi'],
                         'kelompok_besar_id' => $data['kelompok_besar_id'] ?? null,
                         'kelompok_besar_antara_id' => $data['kelompok_besar_antara_id'] ?? null,
+                        // SIAKAD fields
+                        'siakad_kurikulum' => $data['siakad_kurikulum'] ?? null,
+                        'siakad_kode_mk' => $data['siakad_kode_mk'] ?? null,
+                        'siakad_nama_kelas' => $data['siakad_nama_kelas'] ?? null,
+                        'siakad_kelompok' => $data['siakad_kelompok'] ?? null,
+                        'siakad_jenis_pertemuan' => $data['siakad_jenis_pertemuan'] ?? null,
+                        'siakad_metode' => $data['siakad_metode'] ?? null,
+                        'siakad_dosen_pengganti' => $data['siakad_dosen_pengganti'] ?? null,
                     ];
 
                     // Untuk semester antara, set dosen_ids
