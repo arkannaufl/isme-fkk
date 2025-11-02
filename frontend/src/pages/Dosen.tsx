@@ -35,7 +35,7 @@ type UserDosen = {
   peran_kurikulum?: string[] | string;
   keahlian?: string[] | string;
   // Tambahan untuk fitur peran utama
-  peran_utama?: "koordinator" | "tim_blok" | "dosen_mengajar";
+  peran_utama?: "koordinator" | "tim_blok" | "dosen_mengajar" | "standby";
   matkul_ketua_nama?: string;
   matkul_ketua_semester?: number;
   matkul_anggota_nama?: string;
@@ -131,6 +131,8 @@ export default function Dosen() {
   const [availableKeahlian, setAvailableKeahlian] = useState<string[]>([]);
   const [newKeahlian, setNewKeahlian] = useState("");
   const [filterKeahlian, setFilterKeahlian] = useState<string[]>([]);
+  // State untuk filter status dosen (all, standby, reguler)
+  const [filterStatus, setFilterStatus] = useState<"all" | "standby" | "reguler">("all");
   // Tambahkan state untuk daftar peran kurikulum global
   const [peranKurikulumOptions, setPeranKurikulumOptions] = useState<string[]>(
     []
@@ -598,8 +600,7 @@ export default function Dosen() {
               .filter(
                 (item) =>
                   item !== "" &&
-                  item.toLowerCase() !== "standby" &&
-                  item !== "Standby"
+                  !item.toLowerCase().includes("standby")
               );
           } else if (
             typeof d.keahlian === "string" &&
@@ -613,8 +614,7 @@ export default function Dosen() {
                   .filter(
                     (item) =>
                       item !== "" &&
-                      item.toLowerCase() !== "standby" &&
-                      item !== "Standby"
+                      !item.toLowerCase().includes("standby")
                   );
             } catch {
               // Bukan JSON, split biasa
@@ -625,8 +625,7 @@ export default function Dosen() {
               .filter(
                 (item) =>
                   item !== "" &&
-                  item.toLowerCase() !== "standby" &&
-                  item !== "Standby"
+                  !item.toLowerCase().includes("standby")
               );
           }
           return [];
@@ -652,6 +651,27 @@ export default function Dosen() {
     const allValues = Object.values(d).join(" ").toLowerCase();
     return allValues.includes(q);
   });
+
+  // Helper function untuk menentukan apakah dosen adalah standby
+  const isDosenStandby = (d: UserDosen): boolean => {
+    // Cek dari peran_utama
+    if (d.peran_utama === "standby") {
+      return true;
+    }
+    
+    // Cek dari keahlian yang mengandung "standby"
+    const keahlianArray =
+      typeof d.keahlian === "string"
+        ? d.keahlian
+            .split(",")
+            .map((item) => item.trim())
+            .filter((item) => item !== "")
+        : Array.isArray(d.keahlian)
+        ? d.keahlian.map((item) => item.trim()).filter((item) => item !== "")
+        : [];
+    
+    return keahlianArray.some((k) => k.toLowerCase().includes("standby"));
+  };
 
   // Apply additional filters
   const filteredAndSearchedData = filteredData.filter((d) => {
@@ -685,7 +705,13 @@ export default function Dosen() {
       filterKeahlian.some((selectedK) =>
         dosenKeahlianArray.includes(selectedK)
       );
-    return matchKompetensi && matchKeahlian;
+    // Status (Standby/Reguler)
+    const matchStatus =
+      filterStatus === "all" ||
+      (filterStatus === "standby" && isDosenStandby(d)) ||
+      (filterStatus === "reguler" && !isDosenStandby(d));
+    
+    return matchKompetensi && matchKeahlian && matchStatus;
   });
 
   // Generate unique kompetensi options for filter, sorted alphabetically
@@ -707,6 +733,7 @@ export default function Dosen() {
   ).sort();
 
   // Generate unique keahlian options for filter, sorted alphabetically
+  // Filter out keahlian yang mengandung "standby" (case-insensitive)
   const uniqueKeahlianOptions = Array.from(
     new Set(
       data.flatMap((d) =>
@@ -714,9 +741,11 @@ export default function Dosen() {
           ? d.keahlian
               .split(",")
               .map((item) => item.trim())
-              .filter((item) => item !== "")
+              .filter((item) => item !== "" && !item.toLowerCase().includes("standby"))
           : Array.isArray(d.keahlian)
-          ? d.keahlian.map((item) => item.trim()).filter((item) => item !== "")
+          ? d.keahlian
+              .map((item) => item.trim())
+              .filter((item) => item !== "" && !item.toLowerCase().includes("standby"))
           : []
       )
     )
@@ -2548,355 +2577,49 @@ export default function Dosen() {
       <h1 className="text-2xl font-semibold text-gray-800 dark:text-white mb-4">
         Daftar Dosen
       </h1>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
-        <div className="flex gap-2">
-          <button
-            onClick={() => {
-              setShowModal(true);
-              setEditMode(false);
-            }}
-            className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition"
-          >
-            Input Data
-          </button>
-          <label className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 text-sm font-medium shadow-theme-xs hover:bg-green-200 dark:hover:bg-green-800 transition cursor-pointer">
-            <FontAwesomeIcon
-              icon={faFileExcel}
-              className="w-5 h-5 text-green-700 dark:text-green-200"
-            />
-            Import Excel
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls"
-              className="hidden"
-              onChange={handleImport}
-            />
-          </label>
-          <button
-            onClick={downloadTemplate}
-            className="px-4 py-2 rounded-lg bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 text-sm font-medium shadow-theme-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition flex items-center gap-2"
-          >
-            <FontAwesomeIcon icon={faDownload} className="w-5 h-5" />
-            Download Template Excel
-          </button>
-          <button
-            onClick={exportToExcel}
-            className="px-4 py-2 rounded-lg bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 text-sm font-medium shadow-theme-xs hover:bg-purple-200 dark:hover:bg-purple-800 transition flex items-center gap-2"
-          >
-            <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5" />
-            Export ke Excel
-          </button>
-        </div>
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-0">
-          <div className="relative w-full md:w-80">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
-              <svg
-                className="fill-gray-500 dark:fill-gray-400"
-                width="20"
-                height="20"
-                viewBox="0 0 20 20"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  fillRule="evenodd"
-                  clipRule="evenodd"
-                  d="M3.04175 9.37363C3.04175 5.87693 5.87711 3.04199 9.37508 3.04199C12.8731 3.04199 15.7084 5.87693 15.7084 9.37363C15.7084 12.8703 12.8731 15.7053 9.37508 15.7053C5.87711 15.7053 3.04175 12.8703 3.04175 9.37363ZM9.37508 1.54199C5.04902 1.54199 1.54175 5.04817 1.54175 9.37363C1.54175 13.6991 5.04902 17.2053 9.37508 17.2053C11.2674 17.2053 13.003 16.5344 14.357 15.4176L17.177 18.238C17.4699 18.5309 17.9448 18.5309 18.2377 18.238C18.5306 17.9451 18.5306 17.4703 18.2377 17.1774L15.418 14.3573C16.5365 13.0033 17.2084 11.2669 17.2084 9.37363C17.2084 5.04817 13.7011 1.54199 9.37508 1.54199Z"
-                  fill=""
-                />
-              </svg>
-            </span>
-            <input
-              type="text"
-              placeholder="Cari apa saja di semua kolom data..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              className="h-11 w-full rounded-lg border border-gray-200 bg-transparent py-2.5 pl-12 pr-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-white/[0.03] dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-            />
-          </div>
-          <Listbox
-            value={filterKompetensi}
-            onChange={handleFilterKompetensiChange}
-            multiple
-          >
-            {({ open }) => (
-              <div className="relative w-full md:w-60">
-                <Listbox.Button className="relative h-11 w-full cursor-default rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-2 pl-3 pr-10 text-left text-gray-800 dark:text-white shadow-theme-xs focus:outline-none focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-white/75 focus-visible:ring-offset-2 focus-visible:ring-offset-brand-300 sm:text-sm">
-                  <span className="block truncate">
-                    {filterKompetensi.length === 0
-                      ? "Semua Kompetensi"
-                      : filterKompetensi.join(", ")}
-                  </span>
-                  <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                    <FontAwesomeIcon
-                      icon={faChevronDown}
-                      className="h-5 w-5 text-gray-400"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </Listbox.Button>
-                <Transition
-                  show={open}
-                  as={"div"}
-                  leave="transition ease-in duration-100"
-                  leaveFrom="opacity-100"
-                  leaveTo="opacity-0"
-                  className="absolute z-50 mt-1 w-full overflow-auto rounded-md bg-gray-50 dark:bg-gray-800 py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm max-h-60 hide-scroll"
-                >
-                  <Listbox.Option
-                    className={({ active }) =>
-                      `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
-                        active
-                          ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
-                          : "text-gray-900 dark:text-gray-100"
-                      }`
-                    }
-                    value="all_kompetensi" // Changed value to a string
-                  >
-                    {({ selected: _selected }) => (
-                      <div className="flex items-center justify-between">
-                        <span
-                          className={`block truncate ${
-                            filterKompetensi.length === 0
-                              ? "font-medium"
-                              : "font-normal" // Check if filterKompetensi is empty for 'selected' state
-                          }`}
-                        >
-                          Semua Kompetensi
-                        </span>
-                        <button
-                          type="button"
-                          aria-checked={filterKompetensi.length === 0} // Check if filterKompetensi is empty for aria-checked
-                          role="checkbox"
-                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500
-                            ${
-                              filterKompetensi.length === 0
-                                ? "bg-brand-500 border-brand-500"
-                                : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                            }
-                            cursor-pointer`}
-                        >
-                          {filterKompetensi.length === 0 && (
-                            <svg
-                              className="w-3 h-3 text-white"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth={3}
-                              viewBox="0 0 24 24"
-                            >
-                              <polyline points="20 7 11 17 4 10" />
-                            </svg>
-                          )}
-                        </button>
-                      </div>
-                    )}
-                  </Listbox.Option>
-                  {uniqueKompetensiOptions.map((kompetensi, kompetensiIdx) => (
-                    <Listbox.Option
-                      key={kompetensiIdx}
-                      className={({ active }) =>
-                        `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
-                          active
-                            ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
-                            : "text-gray-900 dark:text-gray-100"
-                        }`
-                      }
-                      value={kompetensi}
-                    >
-                      {({ selected: _selected }) => (
-                        <div className="flex items-center justify-between">
-                          <span
-                            className={`block truncate ${
-                              _selected ? "font-medium" : "font-normal"
-                            }`}
-                          >
-                            {kompetensi}
-                          </span>
-                          {/* Render checkbox only if this option is selected AND 'all_kompetensi' is NOT selected */}
-                          {_selected && filterKompetensi.length > 0 && (
-                            <button
-                              type="button"
-                              aria-checked={_selected}
-                              role="checkbox"
-                              className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500
-                                ${
-                                  _selected
-                                    ? "bg-brand-500 border-brand-500"
-                                    : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                                }
-                                cursor-pointer`}
-                            >
-                              {_selected && (
-                                <svg
-                                  className="w-3 h-3 text-white"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth={3}
-                                  viewBox="0 0 24 24"
-                                >
-                                  <polyline points="20 7 11 17 4 10" />
-                                </svg>
-                              )}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </Listbox.Option>
-                  ))}
-                </Transition>
-              </div>
-            )}
-          </Listbox>
-          <Listbox
-            value={filterKeahlian}
-            onChange={handleFilterKeahlianChange}
-            multiple
-          >
-            {({ open }) => (
-              <div className="relative w-full md:w-60 mt-2 md:mt-0">
-                <Listbox.Button className="relative h-11 w-full cursor-default rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-2 pl-3 pr-10 text-left text-gray-800 dark:text-white shadow-theme-xs focus:outline-none focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-white/75 focus-visible:ring-offset-2 focus-visible:ring-offset-brand-300 sm:text-sm">
-                  <span className="block truncate">
-                    {filterKeahlian.length === 0
-                      ? "Semua Keahlian"
-                      : filterKeahlian
-                          .map((k) =>
-                            typeof k === "string"
-                              ? k.replace(/^\[|\]$/g, "")
-                              : String(k)
-                          )
-                          .join(", ")}
-                  </span>
-                  <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                    <FontAwesomeIcon
-                      icon={faChevronDown}
-                      className="h-5 w-5 text-gray-400"
-                      aria-hidden="true"
-                    />
-                  </span>
-                </Listbox.Button>
-                <Transition
-                  show={open}
-                  as={"div"}
-                  leave="transition ease-in duration-100"
-                  leaveFrom="opacity-100"
-                  leaveTo="opacity-0"
-                  className="absolute z-50 mt-1 w-full overflow-auto rounded-md bg-gray-50 dark:bg-gray-800 py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm max-h-60 hide-scroll"
-                >
-                  <Listbox.Options static>
-                    <Listbox.Option
-                      className={({ active }) =>
-                        `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
-                          active
-                            ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
-                            : "text-gray-900 dark:text-gray-100"
-                        }`
-                      }
-                      value="all_keahlian"
-                    >
-                      {({ selected: _selected }) => (
-                        <div className="flex items-center justify-between">
-                          <span
-                            className={`block truncate ${
-                              filterKeahlian.length === 0
-                                ? "font-medium"
-                                : "font-normal"
-                            }`}
-                          >
-                            Semua Keahlian
-                          </span>
-                          <button
-                            type="button"
-                            aria-checked={filterKeahlian.length === 0}
-                            role="checkbox"
-                            className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                              filterKeahlian.length === 0
-                                ? "bg-brand-500 border-brand-500"
-                                : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                            } cursor-pointer`}
-                          >
-                            {filterKeahlian.length === 0 && (
-                              <svg
-                                className="w-3 h-3 text-white"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth={3}
-                                viewBox="0 0 24 24"
-                              >
-                                <polyline points="20 7 11 17 4 10" />
-                              </svg>
-                            )}
-                          </button>
-                        </div>
-                      )}
-                    </Listbox.Option>
-                    {uniqueKeahlianOptions.map((keahlian, idx) => (
-                      <Listbox.Option
-                        key={idx}
-                        className={({ active }) =>
-                          `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
-                            active
-                              ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
-                              : "text-gray-900 dark:text-gray-100"
-                          }`
-                        }
-                        value={keahlian}
-                      >
-                        {({ selected: _selected }) => (
-                          <div className="flex items-center justify-between">
-                            <span
-                              className={`block truncate ${
-                                _selected ? "font-medium" : "font-normal"
-                              }`}
-                            >
-                              {keahlian}
-                            </span>
-                            {_selected && filterKeahlian.length > 0 && (
-                              <button
-                                type="button"
-                                aria-checked={_selected}
-                                role="checkbox"
-                                className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
-                                  _selected
-                                    ? "bg-brand-500 border-brand-500"
-                                    : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
-                                } cursor-pointer`}
-                              >
-                                {_selected && (
-                                  <svg
-                                    className="w-3 h-3 text-white"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth={3}
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <polyline points="20 7 11 17 4 10" />
-                                  </svg>
-                                )}
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </Listbox.Option>
-                    ))}
-                  </Listbox.Options>
-                </Transition>
-              </div>
-            )}
-          </Listbox>
-        </div>
+      {/* Baris 1: Action Buttons */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        <button
+          onClick={() => {
+            setShowModal(true);
+            setEditMode(false);
+          }}
+          className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition"
+        >
+          Input Data
+        </button>
+        <label className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 text-sm font-medium shadow-theme-xs hover:bg-green-200 dark:hover:bg-green-800 transition cursor-pointer">
+          <FontAwesomeIcon
+            icon={faFileExcel}
+            className="w-5 h-5 text-green-700 dark:text-green-200"
+          />
+          Import Excel
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={handleImport}
+          />
+        </label>
+        <button
+          onClick={downloadTemplate}
+          className="px-4 py-2 rounded-lg bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 text-sm font-medium shadow-theme-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition flex items-center gap-2"
+        >
+          <FontAwesomeIcon icon={faDownload} className="w-5 h-5" />
+          Download Template Excel
+        </button>
+        <button
+          onClick={exportToExcel}
+          className="px-4 py-2 rounded-lg bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 text-sm font-medium shadow-theme-xs hover:bg-purple-200 dark:hover:bg-purple-800 transition flex items-center gap-2"
+        >
+          <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5" />
+          Export ke Excel
+        </button>
       </div>
-      {error && (
-        <div className="bg-red-100 rounded-md p-3 mb-4">
-          <p className="text-sm text-red-600">{error}</p>
-        </div>
-      )}
-      {/* Preview Data Section (now below search bar) */}
+      {/* Preview Data Section (above search bar and filters) */}
       {importedFile && (
-        <div className="w-full mt-4">
+        <div className="w-full mb-6">
           <div className="mb-2 text-sm text-gray-700 dark:text-gray-200 font-semibold">
             Preview Data:{" "}
             <span className="font-normal text-gray-500 dark:text-gray-400">
@@ -2932,7 +2655,7 @@ export default function Dosen() {
             </div>
           )}
           {/* Table Preview dengan style dan pagination sama seperti table dosen utama */}
-          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03] mb-4">
             <div
               className="max-w-full overflow-x-auto"
               style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
@@ -3162,7 +2885,7 @@ export default function Dosen() {
               </div>
             </div>
           </div>
-          <div className="flex gap-2 mt-4 mb-6">
+          <div className="flex gap-2">
             <button
               className="px-4 py-2 rounded-lg bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
               onClick={() => {
@@ -3216,6 +2939,472 @@ export default function Dosen() {
           </div>
         </div>
       )}
+      {error && (
+        <div className="bg-red-100 rounded-md p-3 mb-4">
+          <p className="text-sm text-red-600">{error}</p>
+        </div>
+      )}
+      {/* Baris 2: Search Bar dan Filter Dropdowns */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-6">
+        {/* Search Bar */}
+        <div className="relative w-full lg:w-auto lg:flex-1 lg:max-w-md">
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
+              <svg
+                className="fill-gray-500 dark:fill-gray-400"
+                width="20"
+                height="20"
+                viewBox="0 0 20 20"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  fillRule="evenodd"
+                  clipRule="evenodd"
+                  d="M3.04175 9.37363C3.04175 5.87693 5.87711 3.04199 9.37508 3.04199C12.8731 3.04199 15.7084 5.87693 15.7084 9.37363C15.7084 12.8703 12.8731 15.7053 9.37508 15.7053C5.87711 15.7053 3.04175 12.8703 3.04175 9.37363ZM9.37508 1.54199C5.04902 1.54199 1.54175 5.04817 1.54175 9.37363C1.54175 13.6991 5.04902 17.2053 9.37508 17.2053C11.2674 17.2053 13.003 16.5344 14.357 15.4176L17.177 18.238C17.4699 18.5309 17.9448 18.5309 18.2377 18.238C18.5306 17.9451 18.5306 17.4703 18.2377 17.1774L15.418 14.3573C16.5365 13.0033 17.2084 11.2669 17.2084 9.37363C17.2084 5.04817 13.7011 1.54199 9.37508 1.54199Z"
+                  fill=""
+                />
+              </svg>
+            </span>
+            <input
+              type="text"
+              placeholder="Cari apa saja di semua kolom data..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              className="h-11 w-full rounded-lg border border-gray-200 bg-transparent py-2.5 pl-12 pr-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-white/[0.03] dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+            />
+        </div>
+        {/* Filter Dropdowns */}
+        <div className="flex flex-wrap gap-2">
+          <Listbox
+            value={filterKompetensi}
+            onChange={handleFilterKompetensiChange}
+            multiple
+          >
+            {({ open }) => (
+              <div className="relative w-full sm:w-[180px] md:w-[200px]">
+                <Listbox.Button className="relative h-11 w-full cursor-default rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-2 pl-3 pr-10 text-left text-gray-800 dark:text-white shadow-theme-xs focus:outline-none focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-white/75 focus-visible:ring-offset-2 focus-visible:ring-offset-brand-300 sm:text-sm">
+                  <span className="block truncate">
+                    {filterKompetensi.length === 0
+                      ? "Semua Kompetensi"
+                      : filterKompetensi.join(", ")}
+                  </span>
+                  <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                    <FontAwesomeIcon
+                      icon={faChevronDown}
+                      className="h-5 w-5 text-gray-400"
+                      aria-hidden="true"
+                    />
+                  </span>
+                </Listbox.Button>
+                <Transition
+                  show={open}
+                  as={"div"}
+                  leave="transition ease-in duration-100"
+                  leaveFrom="opacity-100"
+                  leaveTo="opacity-0"
+                  className="absolute z-50 mt-1 w-full overflow-auto rounded-md bg-gray-50 dark:bg-gray-800 py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm max-h-60 hide-scroll"
+                >
+                  <Listbox.Option
+                    className={({ active }) =>
+                      `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
+                        active
+                          ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
+                          : "text-gray-900 dark:text-gray-100"
+                      }`
+                    }
+                    value="all_kompetensi" // Changed value to a string
+                  >
+                    {({ selected: _selected }) => (
+                      <div className="flex items-center justify-between">
+                        <span
+                          className={`block truncate ${
+                            filterKompetensi.length === 0
+                              ? "font-medium"
+                              : "font-normal" // Check if filterKompetensi is empty for 'selected' state
+                          }`}
+                        >
+                          Semua Kompetensi
+                        </span>
+                        <button
+                          type="button"
+                          aria-checked={filterKompetensi.length === 0} // Check if filterKompetensi is empty for aria-checked
+                          role="checkbox"
+                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500
+                            ${
+                              filterKompetensi.length === 0
+                                ? "bg-brand-500 border-brand-500"
+                                : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                            }
+                            cursor-pointer`}
+                        >
+                          {filterKompetensi.length === 0 && (
+                            <svg
+                              className="w-3 h-3 text-white"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={3}
+                              viewBox="0 0 24 24"
+                            >
+                              <polyline points="20 7 11 17 4 10" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </Listbox.Option>
+                  {uniqueKompetensiOptions.map((kompetensi, kompetensiIdx) => (
+                    <Listbox.Option
+                      key={kompetensiIdx}
+                      className={({ active }) =>
+                        `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
+                          active
+                            ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
+                            : "text-gray-900 dark:text-gray-100"
+                        }`
+                      }
+                      value={kompetensi}
+                    >
+                      {({ selected: _selected }) => (
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`block truncate ${
+                              _selected ? "font-medium" : "font-normal"
+                            }`}
+                          >
+                            {kompetensi}
+                          </span>
+                          {/* Render checkbox only if this option is selected AND 'all_kompetensi' is NOT selected */}
+                          {_selected && filterKompetensi.length > 0 && (
+                            <button
+                              type="button"
+                              aria-checked={_selected}
+                              role="checkbox"
+                              className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500
+                                ${
+                                  _selected
+                                    ? "bg-brand-500 border-brand-500"
+                                    : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                                }
+                                cursor-pointer`}
+                            >
+                              {_selected && (
+                                <svg
+                                  className="w-3 h-3 text-white"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth={3}
+                                  viewBox="0 0 24 24"
+                                >
+                                  <polyline points="20 7 11 17 4 10" />
+                                </svg>
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </Listbox.Option>
+                  ))}
+                </Transition>
+              </div>
+            )}
+          </Listbox>
+          <Listbox
+            value={filterKeahlian}
+            onChange={handleFilterKeahlianChange}
+            multiple
+          >
+            {({ open }) => (
+              <div className="relative w-full sm:w-[180px] md:w-[200px]">
+                <Listbox.Button className="relative h-11 w-full cursor-default rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-2 pl-3 pr-10 text-left text-gray-800 dark:text-white shadow-theme-xs focus:outline-none focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-white/75 focus-visible:ring-offset-2 focus-visible:ring-offset-brand-300 sm:text-sm">
+                  <span className="block truncate">
+                    {filterKeahlian.length === 0
+                      ? "Semua Keahlian"
+                      : filterKeahlian
+                          .map((k) =>
+                            typeof k === "string"
+                              ? k.replace(/^\[|\]$/g, "")
+                              : String(k)
+                          )
+                          .join(", ")}
+                  </span>
+                  <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                    <FontAwesomeIcon
+                      icon={faChevronDown}
+                      className="h-5 w-5 text-gray-400"
+                      aria-hidden="true"
+                    />
+                  </span>
+                </Listbox.Button>
+                <Transition
+                  show={open}
+                  as={"div"}
+                  leave="transition ease-in duration-100"
+                  leaveFrom="opacity-100"
+                  leaveTo="opacity-0"
+                  className="absolute z-50 mt-1 w-full overflow-auto rounded-md bg-gray-50 dark:bg-gray-800 py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm max-h-60 hide-scroll"
+                >
+                  <Listbox.Options static>
+                    <Listbox.Option
+                      className={({ active }) =>
+                        `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
+                          active
+                            ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
+                            : "text-gray-900 dark:text-gray-100"
+                        }`
+                      }
+                      value="all_keahlian"
+                    >
+                      {({ selected: _selected }) => (
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`block truncate ${
+                              filterKeahlian.length === 0
+                                ? "font-medium"
+                                : "font-normal"
+                            }`}
+                          >
+                            Semua Keahlian
+                          </span>
+                          <button
+                            type="button"
+                            aria-checked={filterKeahlian.length === 0}
+                            role="checkbox"
+                            className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
+                              filterKeahlian.length === 0
+                                ? "bg-brand-500 border-brand-500"
+                                : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                            } cursor-pointer`}
+                          >
+                            {filterKeahlian.length === 0 && (
+                              <svg
+                                className="w-3 h-3 text-white"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth={3}
+                                viewBox="0 0 24 24"
+                              >
+                                <polyline points="20 7 11 17 4 10" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </Listbox.Option>
+                    {uniqueKeahlianOptions.map((keahlian, idx) => (
+                      <Listbox.Option
+                        key={idx}
+                        className={({ active }) =>
+                          `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
+                            active
+                              ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
+                              : "text-gray-900 dark:text-gray-100"
+                          }`
+                        }
+                        value={keahlian}
+                      >
+                        {({ selected: _selected }) => (
+                          <div className="flex items-center justify-between">
+                            <span
+                              className={`block truncate ${
+                                _selected ? "font-medium" : "font-normal"
+                              }`}
+                            >
+                              {keahlian}
+                            </span>
+                            {_selected && filterKeahlian.length > 0 && (
+                              <button
+                                type="button"
+                                aria-checked={_selected}
+                                role="checkbox"
+                                className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
+                                  _selected
+                                    ? "bg-brand-500 border-brand-500"
+                                    : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                                } cursor-pointer`}
+                              >
+                                {_selected && (
+                                  <svg
+                                    className="w-3 h-3 text-white"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth={3}
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <polyline points="20 7 11 17 4 10" />
+                                  </svg>
+                                )}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </Listbox.Option>
+                    ))}
+                  </Listbox.Options>
+                </Transition>
+              </div>
+            )}
+          </Listbox>
+          <Listbox
+            value={filterStatus}
+            onChange={(value) => {
+              setFilterStatus(value as "all" | "standby" | "reguler");
+              setPage(1); // Reset page saat filter berubah
+            }}
+          >
+            {({ open }) => (
+              <div className="relative w-full sm:w-[180px] md:w-[200px]">
+                <Listbox.Button className="relative h-11 w-full cursor-default rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-2 pl-3 pr-10 text-left text-gray-800 dark:text-white shadow-theme-xs focus:outline-none focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-white/75 focus-visible:ring-offset-2 focus-visible:ring-offset-brand-300 sm:text-sm">
+                  <span className="block truncate">
+                    {filterStatus === "all"
+                      ? "Semua Kategori"
+                      : filterStatus === "standby"
+                      ? "Standby"
+                      : "Reguler"}
+                  </span>
+                  <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                    <FontAwesomeIcon
+                      icon={faChevronDown}
+                      className="h-5 w-5 text-gray-400"
+                      aria-hidden="true"
+                    />
+                  </span>
+                </Listbox.Button>
+                <Transition
+                  show={open}
+                  as={"div"}
+                  leave="transition ease-in duration-100"
+                  leaveFrom="opacity-100"
+                  leaveTo="opacity-0"
+                  className="absolute z-50 mt-1 w-full overflow-auto rounded-md bg-gray-50 dark:bg-gray-800 py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm max-h-60 hide-scroll"
+                >
+                  <Listbox.Options static>
+                    <Listbox.Option
+                      className={({ active }) =>
+                        `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
+                          active
+                            ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
+                            : "text-gray-900 dark:text-gray-100"
+                        }`
+                      }
+                      value="all"
+                    >
+                      {({ selected }) => (
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`block truncate ${
+                              selected ? "font-medium" : "font-normal"
+                            }`}
+                          >
+                            Semua Kategori
+                          </span>
+                          {selected && (
+                            <span className="text-brand-500">
+                              <svg
+                                className="w-5 h-5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M5 13l4 4L19 7"
+                                />
+                              </svg>
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </Listbox.Option>
+                    <Listbox.Option
+                      className={({ active }) =>
+                        `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
+                          active
+                            ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
+                            : "text-gray-900 dark:text-gray-100"
+                        }`
+                      }
+                      value="standby"
+                    >
+                      {({ selected }) => (
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`block truncate ${
+                              selected ? "font-medium" : "font-normal"
+                            }`}
+                          >
+                            Standby
+                          </span>
+                          {selected && (
+                            <span className="text-brand-500">
+                              <svg
+                                className="w-5 h-5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M5 13l4 4L19 7"
+                                />
+                              </svg>
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </Listbox.Option>
+                    <Listbox.Option
+                      className={({ active }) =>
+                        `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
+                          active
+                            ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
+                            : "text-gray-900 dark:text-gray-100"
+                        }`
+                      }
+                      value="reguler"
+                    >
+                      {({ selected }) => (
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`block truncate ${
+                              selected ? "font-medium" : "font-normal"
+                            }`}
+                          >
+                            Reguler
+                          </span>
+                          {selected && (
+                            <span className="text-brand-500">
+                              <svg
+                                className="w-5 h-5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M5 13l4 4L19 7"
+                                />
+                              </svg>
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </Listbox.Option>
+                  </Listbox.Options>
+                </Transition>
+              </div>
+            )}
+          </Listbox>
+        </div>
+      </div>
       {/* Success Messages */}
       <AnimatePresence>
         {success && (
@@ -4672,10 +4861,12 @@ export default function Dosen() {
                           value={
                             Array.isArray(form.kompetensi)
                               ? form.kompetensi
-                              : (form.kompetensi || "")
+                              : typeof form.kompetensi === "string"
+                              ? (form.kompetensi || "")
                                   .split(",")
                                   .map((k) => k.trim())
                                   .filter((k) => k !== "")
+                              : []
                           }
                           onChange={(newSelection) => {
                             // Cek apakah keahlian mengandung standby
@@ -4706,9 +4897,11 @@ export default function Dosen() {
                               ? form.keahlian.some(
                                   (k) => k.toLowerCase() === "standby"
                                 )
-                              : (form.keahlian || "")
+                              : typeof form.keahlian === "string"
+                              ? (form.keahlian || "")
                                   .toLowerCase()
                                   .includes("standby")
+                              : false
                           }
                         >
                           {({ open }) => (
@@ -4854,10 +5047,12 @@ export default function Dosen() {
                           value={
                             Array.isArray(form.keahlian)
                               ? form.keahlian
-                              : (form.keahlian || "")
+                              : typeof form.keahlian === "string"
+                              ? (form.keahlian || "")
                                   .split(",")
                                   .map((k) => k.trim())
                                   .filter((k) => k !== "")
+                              : []
                           }
                           onChange={(newSelection) => {
                             // Validasi standby: jika ada "standby", harus HANYA "standby"

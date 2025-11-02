@@ -2423,68 +2423,70 @@ const AdminNotifications: React.FC = () => {
                 </svg>
               </button>
 
-              <div className="flex-1 flex flex-col min-h-0">
-                {/* Header */}
-                <div className="flex items-center space-x-4 mb-6 flex-shrink-0">
-                  <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center">
-                    <FontAwesomeIcon
-                      icon={faCog}
-                      className="w-6 h-6 text-blue-600 dark:text-blue-400"
-                    />
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                {/* Scrollable Content */}
+                <div className="flex-1 overflow-y-auto hide-scroll pr-2 -mr-2">
+                  {/* Header */}
+                  <div className="flex items-center space-x-4 mb-6 flex-shrink-0">
+                    <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center">
+                      <FontAwesomeIcon
+                        icon={faCog}
+                        className="w-6 h-6 text-blue-600 dark:text-blue-400"
+                      />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                        Kelola Penggantian Dosen
+                      </h2>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Penerima: {selectedNotification.user_name}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">
-                      Kelola Penggantian Dosen
-                    </h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Penerima: {selectedNotification.user_name}
-                    </p>
-                  </div>
-                </div>
 
-                {/* Jadwal Info */}
-                <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 flex-shrink-0">
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2">
-                    Detail Jadwal
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-400">
-                        Mata Kuliah:
-                      </span>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {selectedNotification.data?.mata_kuliah || "N/A"}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-400">
-                        Tanggal:
-                      </span>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {selectedNotification.data?.tanggal || "N/A"}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-400">
-                        Waktu:
-                      </span>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {selectedNotification.data?.waktu || "N/A"}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-400">
-                        Ruangan:
-                      </span>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {selectedNotification.data?.ruangan || "N/A"}
-                      </p>
+                  {/* Jadwal Info */}
+                  <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 flex-shrink-0">
+                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2">
+                      Detail Jadwal
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          Mata Kuliah:
+                        </span>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {selectedNotification.data?.mata_kuliah || "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          Tanggal:
+                        </span>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {selectedNotification.data?.tanggal || "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          Waktu:
+                        </span>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {selectedNotification.data?.waktu || "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          Ruangan:
+                        </span>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {selectedNotification.data?.ruangan || "N/A"}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Action Selection */}
-                <div className="mb-4 flex-shrink-0">
+                  {/* Action Selection */}
+                  <div className="mb-4 flex-shrink-0">
                   <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
                     Pilih Aksi:
                   </h4>
@@ -2605,146 +2607,147 @@ const AdminNotifications: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Dosen Selection (only if replace is selected) */}
-                {replacementAction === "replace" && (
-                  <div className="mb-4">
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
-                      Pilih Dosen Pengganti:
-                    </h4>
+                  {/* Dosen Selection (only if replace is selected) */}
+                  {replacementAction === "replace" && (
+                    <div className="mb-4 flex-shrink-0">
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
+                        Pilih Dosen Pengganti:
+                      </h4>
 
-                    {/* Search Bar */}
-                    <div className="mb-3">
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <svg
-                            className="h-5 w-5 text-gray-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                            />
-                          </svg>
-                        </div>
-                        <input
-                          type="text"
-                          placeholder="Cari nama dosen..."
-                          value={dosenSearchQuery}
-                          onChange={(e) => setDosenSearchQuery(e.target.value)}
-                          className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                      </div>
-                    </div>
-
-                    {loadingDosen ? (
-                      <div className="text-center py-8">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                          Memuat daftar dosen...
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-xl hide-scroll">
-                        {filteredDosenList.length === 0 ? (
-                          <div className="text-center py-8">
-                            <p className="text-gray-500 dark:text-gray-400">
-                              {dosenSearchQuery
-                                ? "Tidak ada dosen yang cocok dengan pencarian"
-                                : "Tidak ada dosen tersedia"}
-                            </p>
+                      {/* Search Bar */}
+                      <div className="mb-3">
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg
+                              className="h-5 w-5 text-gray-400"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                              />
+                            </svg>
                           </div>
-                        ) : (
-                          <div className="space-y-2 p-2">
-                            {filteredDosenList.map((dosen) => {
-                              // Check if dosen is standby based on keahlian
-                              const isStandby = Array.isArray(dosen.keahlian)
-                                ? dosen.keahlian.some((k: string) =>
-                                    k.toLowerCase().includes("standby")
-                                  )
-                                : (dosen.keahlian || "")
-                                    .toLowerCase()
-                                    .includes("standby");
+                          <input
+                            type="text"
+                            placeholder="Cari nama dosen..."
+                            value={dosenSearchQuery}
+                            onChange={(e) => setDosenSearchQuery(e.target.value)}
+                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                        </div>
+                      </div>
 
-                              const avatar = getAvatarFromName(
-                                dosen.name,
-                                isStandby
-                              );
-                              return (
-                                <label
-                                  key={dosen.id}
-                                  className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all duration-200 ${
-                                    selectedDosen?.id === dosen.id
-                                      ? "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600"
-                                      : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
-                                  }`}
-                                >
-                                  <div
-                                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center mr-3 ${
+                      {loadingDosen ? (
+                        <div className="text-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                            Memuat daftar dosen...
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-xl hide-scroll">
+                          {filteredDosenList.length === 0 ? (
+                            <div className="text-center py-8">
+                              <p className="text-gray-500 dark:text-gray-400">
+                                {dosenSearchQuery
+                                  ? "Tidak ada dosen yang cocok dengan pencarian"
+                                  : "Tidak ada dosen tersedia"}
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="space-y-2 p-2">
+                              {filteredDosenList.map((dosen) => {
+                                // Check if dosen is standby based on keahlian
+                                const isStandby = Array.isArray(dosen.keahlian)
+                                  ? dosen.keahlian.some((k: string) =>
+                                      k.toLowerCase().includes("standby")
+                                    )
+                                  : (dosen.keahlian || "")
+                                      .toLowerCase()
+                                      .includes("standby");
+
+                                const avatar = getAvatarFromName(
+                                  dosen.name,
+                                  isStandby
+                                );
+                                return (
+                                  <label
+                                    key={dosen.id}
+                                    className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all duration-200 ${
                                       selectedDosen?.id === dosen.id
-                                        ? "bg-blue-500 border-blue-500"
-                                        : "border-gray-300 dark:border-gray-600"
+                                        ? "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600"
+                                        : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
                                     }`}
                                   >
-                                    {selectedDosen?.id === dosen.id && (
-                                      <svg
-                                        className="w-2.5 h-2.5 text-white"
-                                        fill="currentColor"
-                                        viewBox="0 0 20 20"
-                                      >
-                                        <path
-                                          fillRule="evenodd"
-                                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                          clipRule="evenodd"
-                                        />
-                                      </svg>
-                                    )}
-                                  </div>
-                                  <input
-                                    type="radio"
-                                    name="selectedDosen"
-                                    value={dosen.id}
-                                    checked={selectedDosen?.id === dosen.id}
-                                    onChange={() => setSelectedDosen(dosen)}
-                                    className="sr-only"
-                                  />
-                                  {/* Avatar */}
-                                  <div
-                                    className={`w-10 h-10 ${avatar.color} rounded-full flex items-center justify-center text-white font-semibold text-sm mr-3`}
-                                  >
-                                    {avatar.initial}
-                                  </div>
-                                  {/* Dosen Info */}
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <p className="font-medium text-gray-900 dark:text-white">
-                                        {dosen.name}
-                                      </p>
-                                      {isStandby && (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 text-xs font-medium">
-                                          Standby
-                                        </span>
+                                    <div
+                                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center mr-3 ${
+                                        selectedDosen?.id === dosen.id
+                                          ? "bg-blue-500 border-blue-500"
+                                          : "border-gray-300 dark:border-gray-600"
+                                      }`}
+                                    >
+                                      {selectedDosen?.id === dosen.id && (
+                                        <svg
+                                          className="w-2.5 h-2.5 text-white"
+                                          fill="currentColor"
+                                          viewBox="0 0 20 20"
+                                        >
+                                          <path
+                                            fillRule="evenodd"
+                                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                            clipRule="evenodd"
+                                          />
+                                        </svg>
                                       )}
                                     </div>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                      {dosen.email}
-                                    </p>
-                                  </div>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
+                                    <input
+                                      type="radio"
+                                      name="selectedDosen"
+                                      value={dosen.id}
+                                      checked={selectedDosen?.id === dosen.id}
+                                      onChange={() => setSelectedDosen(dosen)}
+                                      className="sr-only"
+                                    />
+                                    {/* Avatar */}
+                                    <div
+                                      className={`w-10 h-10 ${avatar.color} rounded-full flex items-center justify-center text-white font-semibold text-sm mr-3`}
+                                    >
+                                      {avatar.initial}
+                                    </div>
+                                    {/* Dosen Info */}
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <p className="font-medium text-gray-900 dark:text-white">
+                                          {dosen.name}
+                                        </p>
+                                        {isStandby && (
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 text-xs font-medium">
+                                            Standby
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        {dosen.email}
+                                      </p>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {/* Footer */}
-                <div className="flex justify-end gap-3 pt-4 flex-shrink-0 border-t border-gray-200 dark:border-gray-700 mt-4">
+                <div className="flex justify-end gap-3 pt-4 flex-shrink-0 border-t border-gray-200 dark:border-gray-700 mt-auto">
                   <button
                     onClick={() => setShowReplacementModal(false)}
                     className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"

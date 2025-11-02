@@ -959,8 +959,8 @@ class JadwalPBLController extends Controller
                 }
             })
             ->where(function ($q) use ($data, $kelompokKecilId) {
-                $q->where('pbl_id', $data['pbl_id'])
-                    ->orWhere('ruangan_id', $data['ruangan_id']);
+                // pbl_id sama tidak dianggap bentrok; hanya bentrok jika berbagi resource nyata
+                $q->where('ruangan_id', $data['ruangan_id']);
 
                 // Cek bentrok kelompok kecil
                 if ($kelompokKecilId) {
@@ -1099,8 +1099,8 @@ class JadwalPBLController extends Controller
                 }
             })
             ->where(function ($q) use ($data, $kelompokKecilId) {
-                $q->where('pbl_id', $data['pbl_id'])
-                    ->orWhere('ruangan_id', $data['ruangan_id']);
+                // pbl_id sama tidak dianggap bentrok; hanya bentrok jika berbagi resource nyata
+                $q->where('ruangan_id', $data['ruangan_id']);
 
                 // Cek bentrok kelompok kecil
                 if ($kelompokKecilId) {
@@ -1291,12 +1291,17 @@ class JadwalPBLController extends Controller
                 $reasons[] = "Dosen: " . ($dosen ? $dosen->name : 'Tidak diketahui');
             }
 
-            // Cek jika jadwal yang bentrok juga menggunakan multiple dosen
-            if (isset($jadwalBentrok->dosen_ids) && is_array($jadwalBentrok->dosen_ids)) {
-                $intersectingDosenIds = array_intersect($data['dosen_ids'], $jadwalBentrok->dosen_ids);
-                if (!empty($intersectingDosenIds)) {
-                    $dosenNames = \App\Models\User::whereIn('id', $intersectingDosenIds)->pluck('name')->toArray();
-                    $reasons[] = "Dosen: " . implode(', ', $dosenNames);
+            // Cek jika jadwal yang bentrok juga menggunakan multiple dosen (handle JSON string)
+            if (isset($jadwalBentrok->dosen_ids) && $jadwalBentrok->dosen_ids) {
+                $otherDosenIds = is_array($jadwalBentrok->dosen_ids)
+                    ? $jadwalBentrok->dosen_ids
+                    : (is_string($jadwalBentrok->dosen_ids) ? (json_decode($jadwalBentrok->dosen_ids, true) ?: []) : []);
+                if (!empty($otherDosenIds)) {
+                    $intersectingDosenIds = array_intersect($data['dosen_ids'], $otherDosenIds);
+                    if (!empty($intersectingDosenIds)) {
+                        $dosenNames = \App\Models\User::whereIn('id', $intersectingDosenIds)->pluck('name')->toArray();
+                        $reasons[] = "Dosen: " . implode(', ', $dosenNames);
+                    }
                 }
             }
         }
@@ -1324,9 +1329,34 @@ class JadwalPBLController extends Controller
             $reasons[] = "PBL ID: " . $data['pbl_id'];
         }
 
+        // Fallback: jika belum ada alasan spesifik, tampilkan konteks jadwal lain agar informatif
+        if (empty($reasons)) {
+            $fallback = [];
+            if (isset($jadwalBentrok->dosen_id) && $jadwalBentrok->dosen_id) {
+                $dosen = \App\Models\User::find($jadwalBentrok->dosen_id);
+                if ($dosen) $fallback[] = "Dosen: {$dosen->name}";
+            }
+            if (isset($jadwalBentrok->ruangan_id) && $jadwalBentrok->ruangan_id) {
+                $ruangan = \App\Models\Ruangan::find($jadwalBentrok->ruangan_id);
+                if ($ruangan) $fallback[] = "Ruangan: {$ruangan->nama}";
+            }
+            if (isset($jadwalBentrok->kelompok_kecil_id) && $jadwalBentrok->kelompok_kecil_id) {
+                $kk = \App\Models\KelompokKecil::find($jadwalBentrok->kelompok_kecil_id);
+                if ($kk) $fallback[] = "Kelompok Kecil: {$kk->nama_kelompok}";
+            }
+            if (isset($jadwalBentrok->kelompok_kecil_antara_id) && $jadwalBentrok->kelompok_kecil_antara_id) {
+                $kka = \App\Models\KelompokKecilAntara::find($jadwalBentrok->kelompok_kecil_antara_id);
+                if ($kka) $fallback[] = "Kelompok Kecil Antara: {$kka->nama_kelompok}";
+            }
+            if (isset($jadwalBentrok->pbl_id)) {
+                $fallback[] = "PBL ID: " . $jadwalBentrok->pbl_id;
+            }
+            $reasons = $fallback;
+        }
+
         return implode(', ', $reasons);
     }
-
+    
     /**
      * Send notification to mahasiswa in the kelompok
      */
