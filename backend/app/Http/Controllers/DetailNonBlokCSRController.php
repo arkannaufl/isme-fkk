@@ -48,6 +48,43 @@ class DetailNonBlokCSRController extends Controller
                     }
                     $item->jam_selesai = $jamSelesai;
                 }
+                // Ensure dosen_id is included
+                if (!$item->dosen_id && $item->dosen) {
+                    $item->dosen_id = $item->dosen->id;
+                }
+                // Ensure ruangan_id is included
+                if (!$item->ruangan_id && $item->ruangan) {
+                    $item->ruangan_id = $item->ruangan->id;
+                }
+                // Ensure kelompok_kecil_id is included
+                if (!$item->kelompok_kecil_id && $item->kelompokKecil) {
+                    $item->kelompok_kecil_id = $item->kelompokKecil->id;
+                }
+                // Ensure kategori_id is included
+                if (!$item->kategori_id && $item->kategori) {
+                    $item->kategori_id = $item->kategori->id;
+                }
+                // Ensure topik is included
+                if (empty($item->topik)) {
+                    $originalTopik = $item->getOriginal('topik');
+                    if ($originalTopik) {
+                        $item->topik = $originalTopik;
+                    }
+                }
+                // Ensure jenis_csr is included
+                if (empty($item->jenis_csr)) {
+                    $originalJenisCSR = $item->getOriginal('jenis_csr');
+                    if ($originalJenisCSR) {
+                        $item->jenis_csr = $originalJenisCSR;
+                    }
+                }
+                // Ensure jumlah_sesi is included
+                if (!$item->jumlah_sesi) {
+                    $originalJumlahSesi = $item->getOriginal('jumlah_sesi');
+                    if ($originalJumlahSesi) {
+                        $item->jumlah_sesi = $originalJumlahSesi;
+                    }
+                }
                 return $item;
             });
 

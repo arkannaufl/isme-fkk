@@ -1805,13 +1805,28 @@ export default function DetailNonBlokCSR() {
   }
 
   function handleEditJadwal(idx: number) {
+    // Validasi index dan data
+    if (idx < 0 || idx >= jadwalCSR.length) {
+      console.error('Invalid index for jadwalCSR:', idx);
+      return;
+    }
+
     const row = jadwalCSR[idx];
+    
+    // Validasi bahwa row ada dan memiliki ID
+    if (!row || !row.id) {
+      console.error('Invalid row data or missing ID:', row);
+      return;
+    }
+
+    // Cari data berdasarkan ID untuk memastikan data yang benar (jika ada perubahan urutan)
+    const actualRow = jadwalCSR.find(j => j.id === row.id) || row;
     
     // Format tanggal untuk input date (YYYY-MM-DD)
     let formattedTanggal = '';
-    if (row.tanggal) {
+    if (actualRow.tanggal) {
       try {
-        const date = new Date(row.tanggal);
+        const date = new Date(actualRow.tanggal);
         if (!isNaN(date.getTime())) {
           formattedTanggal = date.toISOString().split('T')[0];
         }
@@ -1826,31 +1841,31 @@ export default function DetailNonBlokCSR() {
       return jam.replace(':', '.');
     };
     
-    const jamMulai = formatJamUntukDropdown(row.jam_mulai || '');
-    const jamSelesai = formatJamUntukDropdown(row.jam_selesai || '');
+    const jamMulai = formatJamUntukDropdown(actualRow.jam_mulai || '');
+    const jamSelesai = formatJamUntukDropdown(actualRow.jam_selesai || '');
     
     setForm({
-      jenis_csr: row.jenis_csr,
+      jenis_csr: actualRow.jenis_csr || '',
       tanggal: formattedTanggal,
       jam_mulai: jamMulai,
-      jumlah_sesi: row.jumlah_sesi,
+      jumlah_sesi: actualRow.jumlah_sesi || 3,
       jam_selesai: jamSelesai,
-      dosen_id: row.dosen_id,
-      ruangan_id: row.ruangan_id,
-      kelompok_kecil_id: row.kelompok_kecil_id,
-      kategori_id: row.kategori_id,
-      topik: row.topik,
+      dosen_id: actualRow.dosen_id || null,
+      ruangan_id: actualRow.ruangan_id || null,
+      kelompok_kecil_id: actualRow.kelompok_kecil_id || null,
+      kategori_id: actualRow.kategori_id || null,
+      topik: actualRow.topik || '',
     });
     
     // Set selectedKategoriValue untuk dropdown
-    setSelectedKategoriValue(row.kategori_id ? `${row.kategori_id}_0` : null);
+    setSelectedKategoriValue(actualRow.kategori_id ? `${actualRow.kategori_id}_0` : null);
     
     // Set selectedKeahlian berdasarkan data yang ada
-    if (row.kategori_id) {
-      const kategoriData = kategoriList.find(k => k.id === row.kategori_id);
+    if (actualRow.kategori_id) {
+      const kategoriData = kategoriList.find(k => k.id === actualRow.kategori_id);
       if (kategoriData?.keahlian_required && kategoriData.keahlian_required.length > 0) {
         // Cari keahlian yang sesuai dengan dosen yang dipilih
-        const selectedDosen = dosenList.find(d => d.id === row.dosen_id);
+        const selectedDosen = dosenList.find(d => d.id === actualRow.dosen_id);
         if (selectedDosen && selectedDosen.keahlian) {
           setSelectedKeahlian(selectedDosen.keahlian);
         } else {
@@ -1864,7 +1879,10 @@ export default function DetailNonBlokCSR() {
       setSelectedKeahlian(null);
     }
     
-    setEditIndex(idx);
+    // Set editIndex berdasarkan ID untuk memastikan konsistensi
+    const actualIndex = jadwalCSR.findIndex(j => j.id === row.id);
+    setEditIndex(actualIndex >= 0 ? actualIndex : idx);
+    
     setShowModal(true);
     setErrorForm('');
     setErrorBackend('');
@@ -2554,7 +2572,12 @@ export default function DetailNonBlokCSR() {
                             </svg>
                             <span className="hidden sm:inline">Absensi</span>
                           </button>
-                          <button onClick={() => handleEditJadwal(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition" title="Edit Jadwal">
+                          <button onClick={() => {
+                            // Cari index berdasarkan ID untuk memastikan data yang benar
+                            const actualCSRIndex = (csrPage - 1) * csrPageSize + i;
+                            const correctIndex = jadwalCSR.findIndex(j => j.id === row.id);
+                            handleEditJadwal(correctIndex >= 0 ? correctIndex : actualCSRIndex);
+                          }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition" title="Edit Jadwal">
                             <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
                             <span className="hidden sm:inline">Edit</span>
                           </button>

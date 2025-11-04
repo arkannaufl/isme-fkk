@@ -81,7 +81,6 @@ class CSRController extends Controller
 
             // Log activity
 
-
             activity()
 
 

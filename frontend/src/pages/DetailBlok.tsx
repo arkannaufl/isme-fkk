@@ -1261,12 +1261,33 @@ export default function DetailBlok() {
 
 
   function handleEditJadwal(idx: number, jenisBaris?: string) {
-
     // Untuk PBL, gunakan jadwalPBL
+    // Validasi index dan data
+    if (jenisBaris === 'pbl') {
+      if (idx < 0 || idx >= jadwalPBL.length) {
+        console.error('Invalid index for jadwalPBL:', idx);
+        return;
+      }
+    }
 
     const row = jenisBaris === 'pbl' ? jadwalPBL[idx] : null;
 
     if (!row) return;
+
+    // Validasi bahwa row ada dan memiliki ID untuk PBL
+    if (jenisBaris === 'pbl' && (!row.id)) {
+      console.error('Invalid row data or missing ID for PBL:', row);
+      return;
+    }
+
+    // Cari data berdasarkan ID untuk memastikan data yang benar (jika ada perubahan urutan)
+    if (jenisBaris === 'pbl' && row.id) {
+      const actualRow = jadwalPBL.find(j => j.id === row.id) || row;
+      if (actualRow !== row) {
+        // Update row dengan actualRow jika berbeda
+        Object.assign(row, actualRow);
+      }
+    }
 
     let tglISO = '';
 
@@ -3161,53 +3182,49 @@ export default function DetailBlok() {
   // Handler edit jadwal kuliah besar
 
   function handleEditJadwalKuliahBesar(idx: number) {
+    // Validasi index dan data
+    if (idx < 0 || idx >= jadwalKuliahBesar.length) {
+      console.error('Invalid index for jadwalKuliahBesar:', idx);
+      return;
+    }
 
     const row = jadwalKuliahBesar[idx];
+    
+    // Validasi bahwa row ada dan memiliki ID
+    if (!row || !row.id) {
+      console.error('Invalid row data or missing ID:', row);
+      return;
+    }
+
+    // Cari data berdasarkan ID untuk memastikan data yang benar (jika ada perubahan urutan)
+    const actualRow = jadwalKuliahBesar.find(j => j.id === row.id) || row;
 
     setForm({
-
-      hariTanggal: row.tanggal,
-
-      jamMulai: row.jam_mulai,
-
-      jumlahKali: row.jumlah_sesi || 2,
-
-      jamSelesai: row.jam_selesai,
-
-        pengampu: row.dosen_id,
-
-      materi: row.materi,
-
-      topik: row.topik || '',
-
-      lokasi: row.ruangan_id,
-
+      hariTanggal: actualRow.tanggal || '',
+      jamMulai: actualRow.jam_mulai || '',
+      jumlahKali: actualRow.jumlah_sesi || 2,
+      jamSelesai: actualRow.jam_selesai || '',
+      pengampu: actualRow.dosen_id || null,
+      materi: actualRow.materi || '',
+      topik: actualRow.topik || '',
+      lokasi: actualRow.ruangan_id || null,
       jenisBaris: 'materi',
-
       agenda: '',
-
       kelasPraktikum: '',
-
       pblTipe: '',
-
       modul: null,
-
       kelompok: '',
-
-        kelompokBesar: row.kelompok_besar_id || null,
-
+      kelompokBesar: actualRow.kelompok_besar_id || null,
       useRuangan: true,
-
       fileJurnal: null,
-
     });
 
-    setEditIndex(idx);
+    // Set editIndex berdasarkan ID untuk memastikan konsistensi
+    const actualIndex = jadwalKuliahBesar.findIndex(j => j.id === row.id);
+    setEditIndex(actualIndex >= 0 ? actualIndex : idx);
 
     setShowModal(true);
-
     resetErrorForm();
-
   }
 
 
@@ -3333,53 +3350,49 @@ export default function DetailBlok() {
   // Handler edit jadwal agenda khusus
 
   function handleEditJadwalAgendaKhusus(idx: number) {
+    // Validasi index dan data
+    if (idx < 0 || idx >= jadwalAgendaKhusus.length) {
+      console.error('Invalid index for jadwalAgendaKhusus:', idx);
+      return;
+    }
 
     const row = jadwalAgendaKhusus[idx];
+    
+    // Validasi bahwa row ada dan memiliki ID
+    if (!row || !row.id) {
+      console.error('Invalid row data or missing ID:', row);
+      return;
+    }
+
+    // Cari data berdasarkan ID untuk memastikan data yang benar (jika ada perubahan urutan)
+    const actualRow = jadwalAgendaKhusus.find(j => j.id === row.id) || row;
 
     setForm({
-
-      hariTanggal: row.tanggal,
-
-      jamMulai: row.jam_mulai,
-
-      jumlahKali: row.jumlah_sesi || 2,
-
-      jamSelesai: row.jam_selesai,
-
+      hariTanggal: actualRow.tanggal || '',
+      jamMulai: actualRow.jam_mulai || '',
+      jumlahKali: actualRow.jumlah_sesi || 2,
+      jamSelesai: actualRow.jam_selesai || '',
       pengampu: null,
-
       materi: '',
-
       topik: '',
-
-      lokasi: row.use_ruangan ? row.ruangan_id : null,
-
+      lokasi: actualRow.use_ruangan ? (actualRow.ruangan_id || null) : null,
       jenisBaris: 'agenda',
-
-      agenda: row.agenda,
-
+      agenda: actualRow.agenda || '',
       kelasPraktikum: '',
-
       pblTipe: '',
-
       modul: null,
-
       kelompok: '',
-
-      kelompokBesar: row.kelompok_besar_id || null,
-
-      useRuangan: row.use_ruangan !== undefined ? row.use_ruangan : true,
-
+      kelompokBesar: actualRow.kelompok_besar_id || null,
+      useRuangan: actualRow.use_ruangan !== undefined ? actualRow.use_ruangan : true,
       fileJurnal: null,
-
     });
 
-    setEditIndex(idx);
+    // Set editIndex berdasarkan ID untuk memastikan konsistensi
+    const actualIndex = jadwalAgendaKhusus.findIndex(j => j.id === row.id);
+    setEditIndex(actualIndex >= 0 ? actualIndex : idx);
 
     setShowModal(true);
-
     resetErrorForm();
-
   }
 
 
@@ -3519,53 +3532,61 @@ export default function DetailBlok() {
   // Handler edit jadwal praktikum
 
   function handleEditJadwalPraktikum(idx: number) {
+    // Validasi index dan data
+    if (idx < 0 || idx >= jadwalPraktikum.length) {
+      console.error('Invalid index for jadwalPraktikum:', idx);
+      return;
+    }
 
     const row = jadwalPraktikum[idx];
+    
+    // Validasi bahwa row ada dan memiliki ID
+    if (!row || !row.id) {
+      console.error('Invalid row data or missing ID:', row);
+      return;
+    }
+
+    // Cari data berdasarkan ID untuk memastikan data yang benar (jika ada perubahan urutan)
+    const actualRow = jadwalPraktikum.find(j => j.id === row.id) || row;
+
+    // Handle dosen - support both single dosen_id and multiple dosen array
+    let pengampuValue: number | number[] | null = null;
+    if (actualRow.dosen_ids && Array.isArray(actualRow.dosen_ids) && actualRow.dosen_ids.length > 0) {
+      pengampuValue = actualRow.dosen_ids;
+    } else if (actualRow.dosen && Array.isArray(actualRow.dosen) && actualRow.dosen.length > 0) {
+      pengampuValue = actualRow.dosen.map((d: any) => d.id || d);
+    } else if (actualRow.dosen_id) {
+      pengampuValue = actualRow.dosen_id;
+    } else if (actualRow.dosen && !Array.isArray(actualRow.dosen)) {
+      pengampuValue = actualRow.dosen.id || actualRow.dosen;
+    }
 
     setForm({
-
-      hariTanggal: row.tanggal,
-
-      jamMulai: row.jam_mulai,
-
-      jumlahKali: Number(row.jumlah_sesi || 2),
-
-      jamSelesai: row.jam_selesai,
-
-      pengampu: row.dosen?.map((d: any) => d.id) || [],
-
-      materi: row.materi,
-
-      topik: row.topik || '',
-
-      lokasi: row.ruangan_id,
-
+      hariTanggal: actualRow.tanggal || '',
+      jamMulai: actualRow.jam_mulai || '',
+      jumlahKali: Number(actualRow.jumlah_sesi || 2),
+      jamSelesai: actualRow.jam_selesai || '',
+      pengampu: pengampuValue,
+      materi: actualRow.materi || '',
+      topik: actualRow.topik || '',
+      lokasi: actualRow.ruangan_id || null,
       jenisBaris: 'praktikum',
-
       agenda: '',
-
-      kelasPraktikum: row.kelas_praktikum,
-
+      kelasPraktikum: actualRow.kelas_praktikum || '',
       pblTipe: '',
-
       modul: null,
-
       kelompok: '',
-
       kelompokBesar: null,
-
       useRuangan: true,
-
       fileJurnal: null,
-
     });
 
-    setEditIndex(idx);
+    // Set editIndex berdasarkan ID untuk memastikan konsistensi
+    const actualIndex = jadwalPraktikum.findIndex(j => j.id === row.id);
+    setEditIndex(actualIndex >= 0 ? actualIndex : idx);
 
     setShowModal(true);
-
     resetErrorForm();
-
   }
 
 
@@ -3825,77 +3846,79 @@ export default function DetailBlok() {
   // Handler edit jadwal jurnal reading
 
   function handleEditJadwalJurnalReading(idx: number) {
-
-    const row = jadwalJurnalReading[idx];
-
-    
-
-    setForm({
-
-      hariTanggal: row.tanggal || '',
-
-      jamMulai: row.jam_mulai || '',
-
-      jumlahKali: Number(row.jumlah_sesi || 1),
-
-      jamSelesai: row.jam_selesai || '',
-
-      pengampu: row.dosen_id || null,
-
-      materi: '',
-
-      topik: row.topik || '',
-
-      lokasi: row.ruangan_id || null,
-
-      jenisBaris: 'jurnal',
-
-      agenda: '',
-
-      kelasPraktikum: '',
-
-      pblTipe: '',
-
-      modul: null,
-
-      kelompok: row.kelompok_kecil?.nama_kelompok || '',
-
-      kelompokBesar: null,
-
-      useRuangan: true,
-
-      fileJurnal: null,
-
-    });
-
-    
-
-    // Set informasi file yang sudah ada di backend
-
-    if (row.file_jurnal) {
-
-      setExistingFileJurnal({
-
-        name: row.file_jurnal.split('/').pop() || 'File Jurnal',
-
-        url: row.file_jurnal
-
-      });
-
-    } else {
-
-      setExistingFileJurnal(null);
-
+    // Validasi index dan data
+    if (idx < 0 || idx >= jadwalJurnalReading.length) {
+      console.error('Invalid index for jadwalJurnalReading:', idx);
+      return;
     }
 
+    const row = jadwalJurnalReading[idx];
     
+    // Validasi bahwa row ada dan memiliki ID
+    if (!row || !row.id) {
+      console.error('Invalid row data or missing ID:', row);
+      return;
+    }
 
-    setEditIndex(idx);
+    // Cari data berdasarkan ID untuk memastikan data yang benar (jika ada perubahan urutan)
+    const actualRow = jadwalJurnalReading.find(j => j.id === row.id) || row;
+
+    // Handle kelompok - support both kelompok_kecil and kelompok_kecil_antara
+    let kelompokValue = '';
+    if (actualRow.kelompok_kecil_antara?.nama_kelompok) {
+      kelompokValue = actualRow.kelompok_kecil_antara.nama_kelompok;
+    } else if (actualRow.kelompok_kecil?.nama_kelompok) {
+      kelompokValue = actualRow.kelompok_kecil.nama_kelompok;
+    } else if (actualRow.nama_kelompok) {
+      kelompokValue = actualRow.nama_kelompok;
+    }
+
+    // Handle dosen - support both dosen_id and dosen_ids
+    let pengampuValue: number | null = null;
+    if (actualRow.dosen_ids && Array.isArray(actualRow.dosen_ids) && actualRow.dosen_ids.length > 0) {
+      pengampuValue = actualRow.dosen_ids[0]; // Take first dosen for single select
+    } else if (actualRow.dosen_id) {
+      pengampuValue = actualRow.dosen_id;
+    } else if (actualRow.dosen?.id) {
+      pengampuValue = actualRow.dosen.id;
+    }
+
+    setForm({
+      hariTanggal: actualRow.tanggal || '',
+      jamMulai: actualRow.jam_mulai || '',
+      jumlahKali: Number(actualRow.jumlah_sesi || 1),
+      jamSelesai: actualRow.jam_selesai || '',
+      pengampu: pengampuValue,
+      materi: '',
+      topik: actualRow.topik || '',
+      lokasi: actualRow.ruangan_id || null,
+      jenisBaris: 'jurnal',
+      agenda: '',
+      kelasPraktikum: '',
+      pblTipe: '',
+      modul: null,
+      kelompok: kelompokValue,
+      kelompokBesar: null,
+      useRuangan: true,
+      fileJurnal: null,
+    });
+
+    // Set informasi file yang sudah ada di backend
+    if (actualRow.file_jurnal) {
+      setExistingFileJurnal({
+        name: actualRow.file_jurnal.split('/').pop() || 'File Jurnal',
+        url: actualRow.file_jurnal
+      });
+    } else {
+      setExistingFileJurnal(null);
+    }
+
+    // Set editIndex berdasarkan ID untuk memastikan konsistensi
+    const actualIndex = jadwalJurnalReading.findIndex(j => j.id === row.id);
+    setEditIndex(actualIndex >= 0 ? actualIndex : idx);
 
     setShowModal(true);
-
     resetErrorForm();
-
   }
 
 
@@ -10451,7 +10474,11 @@ export default function DetailBlok() {
 
                         <td className="px-4 py-4 text-center whitespace-nowrap">
 
-                          <button onClick={() => handleEditJadwalKuliahBesar(actualIndex)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
+                          <button onClick={() => {
+                            // Cari index berdasarkan ID untuk memastikan data yang benar
+                            const correctIndex = jadwalKuliahBesar.findIndex(j => j.id === row.id);
+                            handleEditJadwalKuliahBesar(correctIndex >= 0 ? correctIndex : actualIndex);
+                          }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
 
                             <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
 
@@ -10925,7 +10952,12 @@ export default function DetailBlok() {
 
                     <td className="px-4 py-4 text-center whitespace-nowrap">
 
-                      <button onClick={() => handleEditJadwalPraktikum(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
+                      <button onClick={() => {
+                        // Cari index berdasarkan ID untuk memastikan data yang benar
+                        const actualPraktikumIndex = (praktikumPage - 1) * praktikumPageSize + i;
+                        const correctIndex = jadwalPraktikum.findIndex(j => j.id === row.id);
+                        handleEditJadwalPraktikum(correctIndex >= 0 ? correctIndex : actualPraktikumIndex);
+                      }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
 
                         <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
 
@@ -11359,7 +11391,12 @@ export default function DetailBlok() {
 
                     <td className="px-4 py-4 text-center whitespace-nowrap">
 
-                        <button onClick={() => handleEditJadwalAgendaKhusus(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
+                        <button onClick={() => {
+                          // Cari index berdasarkan ID untuk memastikan data yang benar
+                          const actualAgendaIndex = (agendaKhususPage - 1) * agendaKhususPageSize + i;
+                          const correctIndex = jadwalAgendaKhusus.findIndex(j => j.id === row.id);
+                          handleEditJadwalAgendaKhusus(correctIndex >= 0 ? correctIndex : actualAgendaIndex);
+                        }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
 
                         <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
 
@@ -18466,7 +18503,12 @@ export default function DetailBlok() {
 
                         </button>
 
-                          <button onClick={() => handleEditJadwalJurnalReading(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition" title="Edit Jadwal">
+                          <button onClick={() => {
+                            // Cari index berdasarkan ID untuk memastikan data yang benar
+                            const actualJurnalIndex = (jurnalReadingPage - 1) * jurnalReadingPageSize + i;
+                            const correctIndex = jadwalJurnalReading.findIndex(j => j.id === row.id);
+                            handleEditJadwalJurnalReading(correctIndex >= 0 ? correctIndex : actualJurnalIndex);
+                          }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition" title="Edit Jadwal">
 
                           <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
 

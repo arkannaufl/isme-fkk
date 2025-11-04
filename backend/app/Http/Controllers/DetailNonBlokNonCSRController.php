@@ -22,7 +22,7 @@ class DetailNonBlokNonCSRController extends Controller
             }
 
             // Get jadwal Non-Blok Non-CSR with eager loading
-            $jadwalNonBlokNonCSR = JadwalNonBlokNonCSR::with(['dosen', 'ruangan'])
+            $jadwalNonBlokNonCSR = JadwalNonBlokNonCSR::with(['dosen', 'ruangan', 'kelompokBesar'])
                 ->where('mata_kuliah_kode', $kode)
                 ->orderBy('tanggal', 'asc')
                 ->orderBy('jam_mulai', 'asc')
@@ -30,6 +30,56 @@ class DetailNonBlokNonCSRController extends Controller
                 ->map(function ($item) {
                     // Add dosen_names attribute for frontend
                     $item->dosen_names = $item->dosen_names;
+                    
+                    // Ensure dosen_id is included
+                    if (!$item->dosen_id && $item->dosen) {
+                        $item->dosen_id = $item->dosen->id;
+                    }
+                    // Ensure ruangan_id is included
+                    if (!$item->ruangan_id && $item->ruangan) {
+                        $item->ruangan_id = $item->ruangan->id;
+                    }
+                    // Ensure kelompok_besar_id is included from relationship
+                    if (!$item->kelompok_besar_id && $item->kelompokBesar) {
+                        $item->kelompok_besar_id = $item->kelompokBesar->id;
+                    }
+                    // Ensure materi is included
+                    if (empty($item->materi)) {
+                        $originalMateri = $item->getOriginal('materi');
+                        if ($originalMateri) {
+                            $item->materi = $originalMateri;
+                        }
+                    }
+                    // Ensure agenda is included
+                    if (empty($item->agenda) && $item->jenis_baris === 'agenda') {
+                        $originalAgenda = $item->getOriginal('agenda');
+                        if ($originalAgenda) {
+                            $item->agenda = $originalAgenda;
+                        }
+                    }
+                    // Ensure jenis_baris is included
+                    if (empty($item->jenis_baris)) {
+                        $originalJenisBaris = $item->getOriginal('jenis_baris');
+                        if ($originalJenisBaris) {
+                            $item->jenis_baris = $originalJenisBaris;
+                        }
+                    }
+                    // Ensure use_ruangan is included
+                    if ($item->use_ruangan === null) {
+                        $originalUseRuangan = $item->getOriginal('use_ruangan');
+                        if ($originalUseRuangan !== null) {
+                            $item->use_ruangan = $originalUseRuangan;
+                        } else {
+                            $item->use_ruangan = true; // Default value
+                        }
+                    }
+                    // Ensure jumlah_sesi is included
+                    if (!$item->jumlah_sesi) {
+                        $originalJumlahSesi = $item->getOriginal('jumlah_sesi');
+                        if ($originalJumlahSesi) {
+                            $item->jumlah_sesi = $originalJumlahSesi;
+                        }
+                    }
                     return $item;
                 });
 
