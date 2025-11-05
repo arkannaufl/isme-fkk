@@ -114,9 +114,16 @@ class DetailBlokController extends Controller
                 if ($jadwal->jam_selesai) {
                     $jadwal->jam_selesai = $this->formatJamForFrontend($jadwal->jam_selesai);
                 }
-                // Ensure kelompok_besar_id is included from relationship if not already set
-                if (!$jadwal->kelompok_besar_id && $jadwal->kelompokBesar) {
+                // Ensure kelompok_besar_id is explicitly included in response
+                // Prioritize from relationship, then from original attribute, then null
+                $originalKelompokBesarId = $jadwal->getOriginal('kelompok_besar_id');
+                if ($jadwal->kelompokBesar && $jadwal->kelompokBesar->id) {
                     $jadwal->kelompok_besar_id = $jadwal->kelompokBesar->id;
+                } elseif ($originalKelompokBesarId !== null) {
+                    $jadwal->kelompok_besar_id = $originalKelompokBesarId;
+                } else {
+                    // Explicitly set to null to ensure field is included in JSON response
+                    $jadwal->kelompok_besar_id = null;
                 }
                 // Ensure dosen_id is included (even if dosen_ids exists)
                 if (!$jadwal->dosen_id && $jadwal->dosen) {
@@ -195,12 +202,14 @@ class DetailBlokController extends Controller
                 if ($jadwal->dosen && $jadwal->dosen->isNotEmpty()) {
                     $jadwal->dosen_ids = $jadwal->dosen->pluck('id')->toArray();
                 }
-                // Ensure kelas_praktikum is included and not null
-                if (empty($jadwal->kelas_praktikum)) {
-                    $original = $jadwal->getOriginal('kelas_praktikum');
-                    if ($original) {
-                        $jadwal->kelas_praktikum = $original;
-                    }
+                // Ensure kelas_praktikum is explicitly included in response
+                // Always get from original attribute to ensure it's included even if empty
+                $originalKelasPraktikum = $jadwal->getOriginal('kelas_praktikum');
+                if ($originalKelasPraktikum !== null) {
+                    $jadwal->kelas_praktikum = $originalKelasPraktikum;
+                } else {
+                    // Explicitly set to empty string to ensure field is included in JSON response
+                    $jadwal->kelas_praktikum = '';
                 }
                 // Ensure materi is included
                 if (empty($jadwal->materi)) {

@@ -3214,7 +3214,9 @@ export default function DetailBlok() {
       pblTipe: '',
       modul: null,
       kelompok: '',
-      kelompokBesar: actualRow.kelompok_besar_id || null,
+      kelompokBesar: actualRow.kelompok_besar_id !== undefined && actualRow.kelompok_besar_id !== null 
+        ? Number(actualRow.kelompok_besar_id) 
+        : null,
       useRuangan: true,
       fileJurnal: null,
     });
@@ -3382,7 +3384,9 @@ export default function DetailBlok() {
       pblTipe: '',
       modul: null,
       kelompok: '',
-      kelompokBesar: actualRow.kelompok_besar_id || null,
+      kelompokBesar: actualRow.kelompok_besar_id !== undefined && actualRow.kelompok_besar_id !== null 
+        ? Number(actualRow.kelompok_besar_id) 
+        : null,
       useRuangan: actualRow.use_ruangan !== undefined ? actualRow.use_ruangan : true,
       fileJurnal: null,
     });
@@ -3572,7 +3576,9 @@ export default function DetailBlok() {
       lokasi: actualRow.ruangan_id || null,
       jenisBaris: 'praktikum',
       agenda: '',
-      kelasPraktikum: actualRow.kelas_praktikum || '',
+      kelasPraktikum: actualRow.kelas_praktikum !== undefined && actualRow.kelas_praktikum !== null 
+        ? String(actualRow.kelas_praktikum) 
+        : '',
       pblTipe: '',
       modul: null,
       kelompok: '',
