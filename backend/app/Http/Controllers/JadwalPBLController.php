@@ -274,9 +274,17 @@ class JadwalPBLController extends Controller
         }
 
         // Pastikan kelompok_kecil_id ada untuk semester reguler, atau null untuk semester antara
-        if (!isset($data['kelompok_kecil_id'])) {
+        // JANGAN override jika sudah ada nilai (untuk semester reguler)
+        // Hanya set null jika benar-benar tidak ada dan tidak ada kelompok_kecil_antara_id
+        if (!isset($data['kelompok_kecil_id']) && !isset($data['kelompok_kecil_antara_id'])) {
             $data['kelompok_kecil_id'] = null;
         }
+        
+        // Log untuk debugging
+        \Log::info('Jadwal PBL Update - Request data:', [
+            'kelompok_kecil_id' => $data['kelompok_kecil_id'] ?? 'not set',
+            'kelompok_kecil_antara_id' => $data['kelompok_kecil_antara_id'] ?? 'not set',
+        ]);
 
         // Pastikan dosen_id diset ke null jika menggunakan dosen_ids
         if (isset($data['dosen_ids']) && is_array($data['dosen_ids']) && !empty($data['dosen_ids'])) {
@@ -303,6 +311,14 @@ class JadwalPBLController extends Controller
         $jadwal->resetPenilaianSubmitted();
 
         $jadwal->update($data);
+        
+        // Log untuk debugging - pastikan data tersimpan dengan benar
+        $jadwal->refresh();
+        \Log::info('Jadwal PBL Update - After save:', [
+            'id' => $jadwal->id,
+            'kelompok_kecil_id' => $jadwal->kelompok_kecil_id,
+            'kelompok_kecil_antara_id' => $jadwal->kelompok_kecil_antara_id,
+        ]);
 
         // Log activity
         activity()

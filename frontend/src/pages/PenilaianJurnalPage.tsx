@@ -115,7 +115,10 @@ export default function PenilaianJurnalPage() {
         // Set data tutor
         if (data.tutor_data) {
           setNamaTutor(data.tutor_data.nama_tutor || "");
-          setTanggalParaf(data.tutor_data.tanggal_paraf || "");
+          // Format tanggal dari ISO (2025-10-31T00:00:00.000000Z) ke yyyy-MM-dd untuk input type="date"
+          const tanggalParafRaw = data.tutor_data.tanggal_paraf || "";
+          const tanggalParafFormatted = tanggalParafRaw ? tanggalParafRaw.split('T')[0] : "";
+          setTanggalParaf(tanggalParafFormatted);
           setSignatureParaf(data.tutor_data.signature_paraf || null);
         }
 
@@ -132,7 +135,6 @@ export default function PenilaianJurnalPage() {
         }
       })
       .catch((err: unknown) => {
-        console.error("Error fetching data:", err);
         const error = err as {
           response?: { status?: number; data?: { message?: string } };
         };
@@ -248,11 +250,6 @@ export default function PenilaianJurnalPage() {
       );
       return true;
     } catch (error: unknown) {
-      console.error("Error saving absensi:", error);
-      console.error(
-        "Error details:",
-        handleApiError(error, "Menyimpan absensi")
-      );
       setError(handleApiError(error, "Menyimpan absensi"));
       return false;
     }
@@ -300,11 +297,6 @@ export default function PenilaianJurnalPage() {
       );
       setSuccess("Absensi dan penilaian berhasil disimpan!");
     } catch (error: unknown) {
-      console.error("Error saving penilaian:", error);
-      console.error(
-        "Error details:",
-        handleApiError(error, "Menyimpan penilaian")
-      );
       setError(handleApiError(error, "Menyimpan penilaian"));
     } finally {
       setSaving(false);

@@ -1534,7 +1534,7 @@ export default function DetailBlokAntara() {
     
     try {
       await api.put(`/mata-kuliah/${kode}/jadwal-pbl/${id}`, updatedFormPBL);
-      fetchBatchData();
+      await fetchBatchData();
     } catch (err: any) {
       if (err.response && err.response.data && err.response.data.message) {
         setErrorBackend(err.response.data.message);
@@ -5701,11 +5701,12 @@ export default function DetailBlokAntara() {
     // Validasi kelompok kecil hanya untuk jenis baris PBL
     if (form.jenisBaris === 'pbl') {
       // Cari objek kelompok kecil antara yang cocok
+      // Pencarian kelompok harus berdasarkan nama_kelompok, bukan ID
+      // karena dropdown menggunakan nama_kelompok sebagai value
       const kelompokObj = kelompokKecilAntaraList.find(
-        k =>
-          `Kelompok ${k.nama_kelompok}` === form.kelompok ||
-          k.nama_kelompok === form.kelompok ||
-          String(k.id) === form.kelompok
+        k => k.nama_kelompok === form.kelompok
+      ) || kelompokKecilAntaraList.find(
+        k => `Kelompok ${k.nama_kelompok}` === form.kelompok
       );
       if (!kelompokObj) {
         setErrorForm('Kelompok kecil tidak valid!');
@@ -5727,11 +5728,12 @@ export default function DetailBlokAntara() {
       if (editIndex !== null) {
       // EDIT MODE (PUT)
       if (form.jenisBaris === 'pbl' && jadwalPBL[editIndex] && jadwalPBL[editIndex].id) {
+        // Pencarian kelompok harus berdasarkan nama_kelompok, bukan ID
+        // karena dropdown menggunakan nama_kelompok sebagai value
         const kelompokObj = kelompokKecilAntaraList.find(
-          k =>
-            `Kelompok ${k.nama_kelompok}` === form.kelompok ||
-            k.nama_kelompok === form.kelompok ||
-            String(k.id) === form.kelompok
+          k => k.nama_kelompok === form.kelompok
+        ) || kelompokKecilAntaraList.find(
+          k => `Kelompok ${k.nama_kelompok}` === form.kelompok
         );
         if (!kelompokObj) {
           setErrorForm('Kelompok kecil tidak valid!');
@@ -5998,7 +6000,7 @@ export default function DetailBlokAntara() {
                         </td>
                         <td className="px-4 py-4 text-center whitespace-nowrap">
                           <button
-                            onClick={() => navigate(`/penilaian-pbl-antara/${kode}/${row.kelompok_kecil_antara?.nama_kelompok || ''}/${row.pbl_tipe || ''}?rowIndex=${i}`)}
+                            onClick={() => navigate(`/penilaian-pbl-antara/${kode}/${row.kelompok_kecil_antara?.nama_kelompok || ''}/${row.pbl_tipe || ''}?rowIndex=${i}&jadwal_id=${row.id || ''}`)}
                             className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-yellow-500 hover:text-yellow-600 dark:hover:text-yellow-400 transition mr-2"
                             title="Nilai"
                           >

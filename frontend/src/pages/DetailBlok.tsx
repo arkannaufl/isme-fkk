@@ -3021,7 +3021,7 @@ export default function DetailBlok() {
 
       await api.put(`/mata-kuliah/${kode}/jadwal-pbl/${id}`, updatedFormPBL);
 
-      fetchBatchData();
+      await fetchBatchData();
 
     } catch (err: any) {
 
@@ -5992,16 +5992,6 @@ export default function DetailBlok() {
           const dataRows = jsonData.slice(headerRowCount).filter((row: any[]) => 
             row.some(cell => cell && cell.toString().trim() !== '')
           );
-
-          // DEBUG: Log untuk melihat struktur data
-          console.log('Excel parsing debug:', {
-            totalRows: jsonData.length,
-            headerRowCount,
-            firstRow: jsonData[0],
-            secondRow: jsonData[1],
-            dataRowsCount: dataRows.length,
-            firstDataRow: dataRows[0]
-          });
 
           resolve({ data: dataRows, headers });
         } catch (error) {
@@ -16724,17 +16714,12 @@ export default function DetailBlok() {
     if (form.jenisBaris === 'pbl') {
 
       // Cari objek kelompok kecil yang cocok
-
+      // Pencarian harus berdasarkan nama_kelompok, bukan ID
+      // karena dropdown menggunakan nama_kelompok sebagai value
       const kelompokObj = kelompokKecilList.find(
-
-        k =>
-
-          `Kelompok ${k.nama_kelompok}` === form.kelompok ||
-
-          k.nama_kelompok === form.kelompok ||
-
-          String(k.id) === form.kelompok
-
+        k => k.nama_kelompok === form.kelompok
+      ) || kelompokKecilList.find(
+        k => `Kelompok ${k.nama_kelompok}` === form.kelompok
       );
 
       if (!kelompokObj) {
@@ -16777,16 +16762,12 @@ export default function DetailBlok() {
 
       if (form.jenisBaris === 'pbl' && jadwalPBL[editIndex] && jadwalPBL[editIndex].id) {
 
+        // Pencarian kelompok harus berdasarkan nama_kelompok, bukan ID
+        // karena dropdown menggunakan nama_kelompok sebagai value
         const kelompokObj = kelompokKecilList.find(
-
-          k =>
-
-            `Kelompok ${k.nama_kelompok}` === form.kelompok ||
-
-            k.nama_kelompok === form.kelompok ||
-
-            String(k.id) === form.kelompok
-
+          k => k.nama_kelompok === form.kelompok
+        ) || kelompokKecilList.find(
+          k => `Kelompok ${k.nama_kelompok}` === form.kelompok
         );
 
         if (!kelompokObj) {
@@ -17873,7 +17854,7 @@ export default function DetailBlok() {
 
                           <button
 
-                            onClick={() => navigate(`/penilaian-pbl/${kode}/${row.kelompok_kecil?.nama_kelompok || ''}/${row.pbl_tipe || ''}?rowIndex=${i}`)}
+                            onClick={() => navigate(`/penilaian-pbl/${kode}/${row.kelompok_kecil?.nama_kelompok || ''}/${row.pbl_tipe || ''}?rowIndex=${i}&jadwal_id=${row.id || ''}`)}
 
                               className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-yellow-500 hover:text-yellow-600 dark:hover:text-yellow-400 transition"
 

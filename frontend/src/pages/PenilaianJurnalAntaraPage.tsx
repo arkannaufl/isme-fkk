@@ -115,7 +115,10 @@ export default function PenilaianJurnalPage() {
         // Set data tutor
         if (data.tutor_data) {
           setNamaTutor(data.tutor_data.nama_tutor || '');
-          setTanggalParaf(data.tutor_data.tanggal_paraf || '');
+          // Format tanggal dari ISO (2025-10-31T00:00:00.000000Z) ke yyyy-MM-dd untuk input type="date"
+          const tanggalParafRaw = data.tutor_data.tanggal_paraf || '';
+          const tanggalParafFormatted = tanggalParafRaw ? tanggalParafRaw.split('T')[0] : '';
+          setTanggalParaf(tanggalParafFormatted);
           setSignatureParaf(data.tutor_data.signature_paraf || null);
         }
         
@@ -131,7 +134,6 @@ export default function PenilaianJurnalPage() {
         }
       })
       .catch((err: any) => {
-        console.error('Error fetching data:', err);
         if (err.response?.status === 403) {
           setError('Anda tidak memiliki akses untuk menilai jadwal ini. Hanya dosen yang ditugaskan dan telah mengkonfirmasi ketersediaan yang dapat mengakses halaman ini.');
         } else if (err.response?.status === 404) {
@@ -240,8 +242,6 @@ export default function PenilaianJurnalPage() {
       await api.post(`/penilaian-jurnal-antara/${kode_blok}/${kelompok}/${jurnal_id}`, payload);
       setSuccess('Absensi dan penilaian berhasil disimpan!');
     } catch (error: any) {
-      console.error('Error saving penilaian:', error);
-      console.error('Error details:', handleApiError(error, 'Menyimpan penilaian'));
       setError(handleApiError(error, 'Menyimpan penilaian'));
     } finally {
       setSaving(false);
@@ -264,8 +264,6 @@ export default function PenilaianJurnalPage() {
       await api.post(`/penilaian-jurnal-antara/${kode_blok}/${kelompok}/${jurnal_id}/absensi`, payload);
       return true;
     } catch (error: any) {
-      console.error('Error saving absensi:', error);
-      console.error('Error details:', handleApiError(error, 'Menyimpan absensi'));
       setError(handleApiError(error, 'Menyimpan absensi'));
       return false;
     }

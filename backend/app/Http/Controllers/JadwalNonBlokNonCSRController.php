@@ -35,7 +35,6 @@ class JadwalNonBlokNonCSRController extends Controller
                 'data' => $jadwal
             ]);
         } catch (\Exception $e) {
-            Log::error('Error fetching jadwal Non Blok Non CSR: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Gagal mengambil data jadwal',
                 'error' => $e->getMessage()
@@ -47,8 +46,6 @@ class JadwalNonBlokNonCSRController extends Controller
     {
         try {
             $semesterType = $request->query('semester_type', 'reguler');
-
-            Log::info("Fetching jadwal Non Blok Non CSR for dosen: {$dosenId}, semester_type: {$semesterType}");
 
             $query = JadwalNonBlokNonCSR::with([
                 'mataKuliah:kode,nama,semester',
@@ -90,8 +87,6 @@ class JadwalNonBlokNonCSRController extends Controller
             $jadwalData = $query->orderBy('tanggal', 'asc')
                 ->orderBy('jam_mulai', 'asc')
                 ->get();
-
-            Log::info("Found " . $jadwalData->count() . " jadwal Non Blok Non CSR records");
 
             $formattedData = $jadwalData->map(function ($jadwal) use ($semesterType) {
                 // Handle empty or invalid time format
@@ -171,7 +166,6 @@ class JadwalNonBlokNonCSRController extends Controller
                 'count' => $formattedData->count()
             ]);
         } catch (\Exception $e) {
-            Log::error('Error fetching jadwal Non Blok Non CSR for dosen: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Gagal mengambil data jadwal Non Blok Non CSR',
                 'error' => $e->getMessage()
@@ -186,13 +180,6 @@ class JadwalNonBlokNonCSRController extends Controller
                 'status' => 'required|in:bisa,tidak_bisa',
                 'alasan' => 'nullable|string|max:500',
                 'dosen_id' => 'required|exists:users,id'
-            ]);
-
-            // Log untuk debugging
-            Log::info('Konfirmasi Jadwal Non Blok Non CSR', [
-                'jadwal_id' => $id,
-                'dosen_id' => $request->dosen_id,
-                'status' => $request->status
             ]);
 
             // Cek apakah jadwal ada
@@ -233,7 +220,6 @@ class JadwalNonBlokNonCSRController extends Controller
                 'data' => $jadwal
             ]);
         } catch (\Exception $e) {
-            Log::error('Error confirming jadwal Non Blok Non CSR: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Gagal menyimpan konfirmasi jadwal',
                 'error' => $e->getMessage()
@@ -271,10 +257,8 @@ class JadwalNonBlokNonCSRController extends Controller
                     ]
                 ]);
             }
-
-            Log::info("Replacement notification sent for jadwal Non Blok Non CSR ID: {$jadwal->id}");
         } catch (\Exception $e) {
-            Log::error('Error sending replacement notification: ' . $e->getMessage());
+            // Silently fail
         }
     }
 
@@ -356,7 +340,6 @@ class JadwalNonBlokNonCSRController extends Controller
                 'data' => $jadwal
             ], 201);
         } catch (\Exception $e) {
-            Log::error('Error creating jadwal Non Blok Non CSR: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Gagal menambahkan jadwal Non Blok Non CSR',
                 'error' => $e->getMessage()
@@ -422,10 +405,8 @@ class JadwalNonBlokNonCSRController extends Controller
                     ]
                 ]);
             }
-
-            Log::info("Notifications sent for new jadwal Non Blok Non CSR ID: {$jadwal->id}");
         } catch (\Exception $e) {
-            Log::error('Error sending jadwal notifications: ' . $e->getMessage());
+            // Silently fail
         }
     }
 
@@ -440,7 +421,6 @@ class JadwalNonBlokNonCSRController extends Controller
 
             return response()->json($jadwal);
         } catch (\Exception $e) {
-            Log::error('Error fetching jadwal Non Blok Non CSR: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Gagal mengambil data jadwal',
                 'error' => $e->getMessage()
@@ -492,7 +472,6 @@ class JadwalNonBlokNonCSRController extends Controller
                 'data' => $jadwal
             ]);
         } catch (\Exception $e) {
-            Log::error('Error updating jadwal Non Blok Non CSR: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Gagal memperbarui jadwal Non Blok Non CSR',
                 'error' => $e->getMessage()
@@ -513,7 +492,6 @@ class JadwalNonBlokNonCSRController extends Controller
                 'message' => 'Jadwal Non Blok Non CSR berhasil dihapus'
             ]);
         } catch (\Exception $e) {
-            Log::error('Error deleting jadwal Non Blok Non CSR: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Gagal menghapus jadwal Non Blok Non CSR',
                 'error' => $e->getMessage()
@@ -607,10 +585,8 @@ class JadwalNonBlokNonCSRController extends Controller
                     ]
                 ]);
             }
-
-            \Log::info("Reschedule notification sent for Non Blok Non CSR jadwal ID: {$jadwal->id}");
         } catch (\Exception $e) {
-            \Log::error("Error sending reschedule notification for Non Blok Non CSR jadwal ID: {$jadwal->id}: " . $e->getMessage());
+            // Silently fail
         }
     }
 
@@ -638,9 +614,6 @@ class JadwalNonBlokNonCSRController extends Controller
                     'message' => 'Mata kuliah tidak ditemukan'
                 ], 404);
             }
-
-            // Debug: Log mata kuliah info
-            \Log::info("Import Excel - Mata Kuliah: {$kode}, Semester: {$mataKuliah->semester}");
 
             $importedCount = 0;
             $errors = [];
@@ -688,8 +661,6 @@ class JadwalNonBlokNonCSRController extends Controller
 
                         // Cek apakah semester kelompok besar sesuai dengan semester mata kuliah
                         if ($semesterKelompokBesar != $mataKuliah->semester) {
-                            // Debug: Log detail validasi
-                            \Log::info("Import Excel - Validasi Kelompok Besar: Row " . ($index + 1) . ", Kelompok Besar Semester: {$semesterKelompokBesar}, Mata Kuliah Semester: {$mataKuliah->semester}");
                             throw new \Exception("Kelompok besar semester {$semesterKelompokBesar} tidak sesuai dengan semester mata kuliah ({$mataKuliah->semester}) (Baris " . ($index + 1) . ")");
                         }
                     }
@@ -754,7 +725,6 @@ class JadwalNonBlokNonCSRController extends Controller
             ]);
         } catch (\Exception $e) {
             \DB::rollBack();
-            Log::error('Error importing jadwal Non Blok Non CSR: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Terjadi kesalahan saat mengimport data: ' . $e->getMessage()
@@ -997,9 +967,6 @@ class JadwalNonBlokNonCSRController extends Controller
                 ->orderBy('jam_mulai', 'asc')
                 ->get();
 
-            \Log::info("Non Blok Non CSR - Mahasiswa ID: {$mahasiswaId}, Semester: {$mahasiswa->semester}");
-            \Log::info("Non Blok Non CSR - Found {$jadwal->count()} jadwal for semester: {$mahasiswa->semester}");
-
             $mappedJadwal = $jadwal->map(function ($item) {
                 // Determine jenis_baris
                 $jenisBaris = $item->agenda ? 'agenda' : 'materi';
@@ -1047,7 +1014,6 @@ class JadwalNonBlokNonCSRController extends Controller
 
             return response()->json(['message' => 'Data jadwal berhasil diambil', 'data' => $mappedJadwal]);
         } catch (\Exception $e) {
-            Log::error('Error fetching jadwal Non Blok Non CSR for mahasiswa: ' . $e->getMessage());
             return response()->json(['message' => 'Terjadi kesalahan', 'error' => $e->getMessage(), 'data' => []], 500);
         }
     }
@@ -1064,8 +1030,6 @@ class JadwalNonBlokNonCSRController extends Controller
             $mahasiswaList = \App\Models\User::where('role', 'mahasiswa')
                 ->where('semester', $semester)
                 ->get();
-
-            \Log::info("Non Blok Non CSR - Found {$mahasiswaList->count()} mahasiswa in semester: {$semester}");
 
             // Hapus notifikasi lama untuk mahasiswa saja (bukan dosen)
             \App\Models\Notification::where('title', 'Jadwal Non Blok Non CSR Baru')
@@ -1105,10 +1069,8 @@ class JadwalNonBlokNonCSRController extends Controller
                     ]
                 ]);
             }
-
-            \Log::info("Non Blok Non CSR notifications sent to " . count($mahasiswaList) . " mahasiswa for jadwal ID: {$jadwal->id}");
         } catch (\Exception $e) {
-            \Log::error("Error sending Non Blok Non CSR notifications to mahasiswa: " . $e->getMessage());
+            // Silently fail
         }
     }
 }
