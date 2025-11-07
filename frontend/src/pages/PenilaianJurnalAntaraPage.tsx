@@ -43,6 +43,19 @@ export default function PenilaianJurnalPage() {
   const [penilaianSubmitted, setPenilaianSubmitted] = useState(false);
   const [canEdit, setCanEdit] = useState(true);
 
+  // State untuk track perubahan yang belum disimpan
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
+  const initialDataRef = useRef<{
+    penilaian: PenilaianJurnal;
+    absensi: AbsensiJurnal;
+    tanggalParaf: string;
+    signatureParaf: string | null;
+    namaTutor: string;
+    judulJurnal: string;
+  } | null>(null);
+  const hasPushedStateRef = useRef<boolean>(false);
+  const isHandlingPopStateRef = useRef<boolean>(false);
+
   // Check user access before loading data
   useEffect(() => {
     const user = getUser();
@@ -88,8 +101,8 @@ export default function PenilaianJurnalPage() {
         }
         
         // Set data penilaian yang sudah ada
+        const pen: PenilaianJurnal = {};
         if (data.penilaian) {
-          const pen: PenilaianJurnal = {};
           Object.keys(data.penilaian).forEach(nim => {
             const nilai = data.penilaian[nim];
             pen[nim] = {
@@ -97,27 +110,28 @@ export default function PenilaianJurnalPage() {
               laporan: nilai.nilai_laporan || 0,
             };
           });
-          setPenilaian(pen);
         }
+        setPenilaian(pen);
         
         // Set data absensi yang sudah ada
+        const abs: AbsensiJurnal = {};
         if (data.absensi) {
-          const abs: AbsensiJurnal = {};
           Object.keys(data.absensi).forEach(nim => {
             const absen = data.absensi[nim];
             abs[nim] = {
               hadir: absen.hadir || false,
             };
           });
-          setAbsensi(abs);
         }
+        setAbsensi(abs);
         
         // Set data tutor
+        let tanggalParafFormatted = "";
         if (data.tutor_data) {
           setNamaTutor(data.tutor_data.nama_tutor || '');
           // Format tanggal dari ISO (2025-10-31T00:00:00.000000Z) ke yyyy-MM-dd untuk input type="date"
           const tanggalParafRaw = data.tutor_data.tanggal_paraf || '';
-          const tanggalParafFormatted = tanggalParafRaw ? tanggalParafRaw.split('T')[0] : '';
+          tanggalParafFormatted = tanggalParafRaw ? tanggalParafRaw.split('T')[0] : '';
           setTanggalParaf(tanggalParafFormatted);
           setSignatureParaf(data.tutor_data.signature_paraf || null);
         }
@@ -132,6 +146,17 @@ export default function PenilaianJurnalPage() {
           const isAdmin = user.role === 'super_admin' || user.role === 'tim_akademik';
           setCanEdit(isAdmin || !(data.penilaian_submitted || false));
         }
+
+        // Simpan data awal sebagai referensi untuk deteksi perubahan
+        initialDataRef.current = {
+          penilaian: pen,
+          absensi: abs,
+          tanggalParaf: tanggalParafFormatted,
+          signatureParaf: data.tutor_data?.signature_paraf || null,
+          namaTutor: data.tutor_data?.nama_tutor || "",
+          judulJurnal: data.jurnal_reading?.topik || "",
+        };
+        setHasUnsavedChanges(false);
       })
       .catch((err: any) => {
         if (err.response?.status === 403) {
@@ -146,6 +171,95 @@ export default function PenilaianJurnalPage() {
         setLoading(false);
       });
   }, [kode_blok, kelompok, jurnal_id]);
+
+  // Deteksi perubahan yang belum disimpan
+  useEffect(() => {
+    if (!initialDataRef.current || loading || saving || !canEdit) {
+      return;
+    }
+
+    const initial = initialDataRef.current;
+    
+    // Bandingkan penilaian
+    const penilaianChanged = JSON.stringify(penilaian) !== JSON.stringify(initial.penilaian);
+    
+    // Bandingkan absensi
+    const absensiChanged = JSON.stringify(absensi) !== JSON.stringify(initial.absensi);
+    
+    // Bandingkan tanggal paraf, signature, nama tutor, dan judul jurnal
+    const otherChanged = 
+      tanggalParaf !== initial.tanggalParaf ||
+      signatureParaf !== initial.signatureParaf ||
+      namaTutor !== initial.namaTutor ||
+      judulJurnal !== initial.judulJurnal;
+    
+    const hasChanges = penilaianChanged || absensiChanged || otherChanged;
+    setHasUnsavedChanges(hasChanges);
+  }, [penilaian, absensi, tanggalParaf, signatureParaf, namaTutor, judulJurnal, loading, saving, canEdit]);
+
+  // beforeunload event untuk close tab/browser
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges && canEdit) {
+        e.preventDefault();
+        e.returnValue = "Anda memiliki perubahan yang belum disimpan. Apakah Anda yakin ingin meninggalkan halaman ini?";
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges, canEdit]);
+
+  // Handle browser back button dengan popstate event
+  useEffect(() => {
+    if (!hasUnsavedChanges || !canEdit) {
+      // Reset flag jika tidak ada perubahan
+      hasPushedStateRef.current = false;
+      return;
+    }
+
+    // Push state baru ke history hanya sekali saat pertama kali ada perubahan
+    if (!hasPushedStateRef.current) {
+      window.history.pushState({ hasUnsavedChanges: true }, "");
+      hasPushedStateRef.current = true;
+    }
+
+    const handlePopState = (e: PopStateEvent) => {
+      // Prevent multiple alerts
+      if (isHandlingPopStateRef.current) {
+        return;
+      }
+
+      // Cek lagi apakah masih ada perubahan (karena state bisa berubah)
+      if (hasUnsavedChanges && canEdit) {
+        isHandlingPopStateRef.current = true;
+        const confirmed = window.confirm(
+          "Anda memiliki perubahan yang belum disimpan. Apakah Anda yakin ingin meninggalkan halaman ini? Perubahan yang belum disimpan akan hilang."
+        );
+        if (!confirmed) {
+          // Push state lagi untuk mencegah navigasi
+          window.history.pushState({ hasUnsavedChanges: true }, "");
+          isHandlingPopStateRef.current = false;
+        } else {
+          // User confirm, reset flag dan navigate ke halaman sebelumnya
+          hasPushedStateRef.current = false;
+          setHasUnsavedChanges(false);
+          // Navigate ke halaman sebelumnya setelah user confirm (skip pushed state)
+          // Gunakan setTimeout untuk memastikan state sudah diupdate
+          setTimeout(() => {
+            isHandlingPopStateRef.current = false;
+            window.history.go(-1);
+          }, 100);
+        }
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [hasUnsavedChanges, canEdit]);
 
   // Fungsi untuk handle upload file gambar tanda tangan
   const handleUploadSignature = (
@@ -241,6 +355,21 @@ export default function PenilaianJurnalPage() {
       
       await api.post(`/penilaian-jurnal-antara/${kode_blok}/${kelompok}/${jurnal_id}`, payload);
       setSuccess('Absensi dan penilaian berhasil disimpan!');
+      
+      // Update initial data ref setelah save berhasil
+      if (initialDataRef.current) {
+        initialDataRef.current = {
+          penilaian: { ...penilaian },
+          absensi: { ...absensi },
+          tanggalParaf: tanggalParaf,
+          signatureParaf: signatureParaf,
+          namaTutor: namaTutor,
+          judulJurnal: judulJurnal,
+        };
+      }
+      setHasUnsavedChanges(false);
+      // Reset flag setelah save berhasil
+      hasPushedStateRef.current = false;
     } catch (error: any) {
       setError(handleApiError(error, 'Menyimpan penilaian'));
     } finally {
@@ -504,6 +633,16 @@ export default function PenilaianJurnalPage() {
       <div className="pb-2 flex justify-between items-center">
         <button
           onClick={() => {
+            if (hasUnsavedChanges && canEdit) {
+              const confirmed = window.confirm(
+                "Anda memiliki perubahan yang belum disimpan. Apakah Anda yakin ingin meninggalkan halaman ini? Perubahan yang belum disimpan akan hilang."
+              );
+              if (!confirmed) {
+                return;
+              }
+              // Reset flag jika user confirm
+              hasPushedStateRef.current = false;
+            }
             const user = getUser();
             if (user?.role === 'dosen') {
               navigate('/dashboard-dosen');
@@ -875,7 +1014,7 @@ export default function PenilaianJurnalPage() {
         <div className="mt-6 flex gap-4">
           <button 
             onClick={handleSaveAll} 
-            disabled={saving || loading || !canEdit} 
+            disabled={saving || loading || !canEdit || (!hasUnsavedChanges && initialDataRef.current !== null)} 
             className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium shadow-theme-xs hover:bg-blue-600 transition dark:bg-blue-600 dark:hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? 'Menyimpan...' : !canEdit ? 'Penilaian Sudah Disubmit' : 'Simpan Absensi & Penilaian'}

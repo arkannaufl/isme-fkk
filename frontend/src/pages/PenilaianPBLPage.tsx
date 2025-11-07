@@ -1,9 +1,9 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { ChevronLeftIcon } from "../icons";
 import api, { handleApiError, getUser } from "../utils/api";
 import SignaturePad from "react-signature-canvas";
-import React, { useRef } from "react";
+import React from "react";
 import { AnimatePresence } from "framer-motion";
 import { motion } from "framer-motion";
 import ExcelJS from "exceljs";
@@ -74,6 +74,18 @@ export default function PenilaianPBLPage() {
   const [userRole, setUserRole] = useState<string>("");
   const [penilaianSubmitted, setPenilaianSubmitted] = useState<boolean>(false);
   const [canEdit, setCanEdit] = useState<boolean>(true);
+
+  // State untuk track perubahan yang belum disimpan
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
+  const initialDataRef = useRef<{
+    penilaian: Penilaian;
+    absensi: AbsensiPBL;
+    tanggalParaf: string;
+    signatureParaf: string | null;
+    namaTutor: string;
+  } | null>(null);
+  const hasPushedStateRef = useRef<boolean>(false);
+  const isHandlingPopStateRef = useRef<boolean>(false);
 
   const [isDark, setIsDark] = useState(
     document.documentElement.classList.contains("dark")
@@ -186,8 +198,9 @@ export default function PenilaianPBLPage() {
             petaKonsep: row.peta_konsep !== null && row.peta_konsep !== undefined ? row.peta_konsep : 0,
           };
           // Format tanggal dari ISO (2025-10-31T00:00:00.000000Z) ke yyyy-MM-dd untuk input type="date"
+          let tanggalParafFormatted = "";
           if (row.tanggal_paraf) {
-            const tanggalParafFormatted = row.tanggal_paraf.split('T')[0];
+            tanggalParafFormatted = row.tanggal_paraf.split('T')[0];
             setTanggalParaf(tanggalParafFormatted);
           }
           if (row.signature_paraf) setSignatureParaf(row.signature_paraf);
@@ -253,6 +266,24 @@ export default function PenilaianPBLPage() {
           });
         }
         setAbsensi(abs);
+        
+        // Simpan data awal sebagai referensi untuk deteksi perubahan
+        // Ambil tanggal paraf dari data pertama yang memiliki tanggal_paraf
+        const firstRowWithTanggal = data.find((r: any) => r.tanggal_paraf);
+        const initialTanggalParaf = firstRowWithTanggal?.tanggal_paraf 
+          ? firstRowWithTanggal.tanggal_paraf.split('T')[0] 
+          : "";
+        const initialSignatureParaf = firstRowWithTanggal?.signature_paraf || null;
+        const initialNamaTutor = firstRowWithTanggal?.nama_tutor || "";
+        
+        initialDataRef.current = {
+          penilaian: pen,
+          absensi: abs,
+          tanggalParaf: initialTanggalParaf,
+          signatureParaf: initialSignatureParaf,
+          namaTutor: initialNamaTutor,
+        };
+        setHasUnsavedChanges(false);
       })
       .catch((error: any) => {
         if (error.response?.status === 403) {
@@ -277,6 +308,94 @@ export default function PenilaianPBLPage() {
       .get(`/mata-kuliah/${kode_blok}/pbls`)
       .then((res) => setModulPBLList(res.data || []));
   }, [kode_blok]);
+
+  // Deteksi perubahan yang belum disimpan
+  useEffect(() => {
+    if (!initialDataRef.current || loading || saving || !canEdit) {
+      return;
+    }
+
+    const initial = initialDataRef.current;
+    
+    // Bandingkan penilaian
+    const penilaianChanged = JSON.stringify(penilaian) !== JSON.stringify(initial.penilaian);
+    
+    // Bandingkan absensi
+    const absensiChanged = JSON.stringify(absensi) !== JSON.stringify(initial.absensi);
+    
+    // Bandingkan tanggal paraf, signature, dan nama tutor
+    const otherChanged = 
+      tanggalParaf !== initial.tanggalParaf ||
+      signatureParaf !== initial.signatureParaf ||
+      namaTutor !== initial.namaTutor;
+    
+    const hasChanges = penilaianChanged || absensiChanged || otherChanged;
+    setHasUnsavedChanges(hasChanges);
+  }, [penilaian, absensi, tanggalParaf, signatureParaf, namaTutor, loading, saving, canEdit]);
+
+  // beforeunload event untuk close tab/browser
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges && canEdit) {
+        e.preventDefault();
+        e.returnValue = "Anda memiliki perubahan yang belum disimpan. Apakah Anda yakin ingin meninggalkan halaman ini?";
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges, canEdit]);
+
+  // Handle browser back button dengan popstate event
+  useEffect(() => {
+    if (!hasUnsavedChanges || !canEdit) {
+      // Reset flag jika tidak ada perubahan
+      hasPushedStateRef.current = false;
+      return;
+    }
+
+    // Push state baru ke history hanya sekali saat pertama kali ada perubahan
+    if (!hasPushedStateRef.current) {
+      window.history.pushState({ hasUnsavedChanges: true }, "");
+      hasPushedStateRef.current = true;
+    }
+
+    const handlePopState = (e: PopStateEvent) => {
+      // Prevent multiple alerts
+      if (isHandlingPopStateRef.current) {
+        return;
+      }
+
+      // Cek lagi apakah masih ada perubahan (karena state bisa berubah)
+      if (hasUnsavedChanges && canEdit) {
+        isHandlingPopStateRef.current = true;
+        const confirmed = window.confirm(
+          "Anda memiliki perubahan yang belum disimpan. Apakah Anda yakin ingin meninggalkan halaman ini? Perubahan yang belum disimpan akan hilang."
+        );
+        if (!confirmed) {
+          // Push state lagi untuk mencegah navigasi
+          window.history.pushState({ hasUnsavedChanges: true }, "");
+          isHandlingPopStateRef.current = false;
+        } else {
+          // User confirm, reset flag dan navigate ke halaman sebelumnya
+          hasPushedStateRef.current = false;
+          setHasUnsavedChanges(false);
+          // Navigate ke halaman sebelumnya setelah user confirm (skip pushed state)
+          // Gunakan setTimeout untuk memastikan state sudah diupdate
+          setTimeout(() => {
+            isHandlingPopStateRef.current = false;
+            window.history.go(-1);
+          }, 100);
+        }
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [hasUnsavedChanges, canEdit]);
 
   // Fungsi simpan ke backend
   const handleSaveAll = async () => {
@@ -338,6 +457,20 @@ export default function PenilaianPBLPage() {
       setSuccess(
         `Absensi dan penilaian ${isPBL2 ? "PBL 2" : "PBL 1"} berhasil disimpan!`
       );
+      
+      // Update initial data ref setelah save berhasil
+      if (initialDataRef.current) {
+        initialDataRef.current = {
+          penilaian: { ...penilaian },
+          absensi: { ...absensi },
+          tanggalParaf: tanggalParaf,
+          signatureParaf: signatureParaf,
+          namaTutor: namaTutor,
+        };
+      }
+      setHasUnsavedChanges(false);
+      // Reset flag setelah save berhasil
+      hasPushedStateRef.current = false;
     } catch (error: any) {
       setError(handleApiError(error, "Menyimpan penilaian"));
     } finally {
@@ -864,6 +997,16 @@ export default function PenilaianPBLPage() {
         <div className="pb-2 flex justify-between items-center">
           <button
             onClick={() => {
+              if (hasUnsavedChanges && canEdit) {
+                const confirmed = window.confirm(
+                  "Anda memiliki perubahan yang belum disimpan. Apakah Anda yakin ingin meninggalkan halaman ini? Perubahan yang belum disimpan akan hilang."
+                );
+                if (!confirmed) {
+                  return;
+                }
+                // Reset flag jika user confirm
+                hasPushedStateRef.current = false;
+              }
               const user = getUser();
               if (user?.role === "dosen") {
                 navigate("/dashboard-dosen");
@@ -1416,7 +1559,7 @@ export default function PenilaianPBLPage() {
           <div className="mt-6 flex gap-4">
             <button
               onClick={handleSaveAll}
-              disabled={saving || loading || !canEdit}
+              disabled={saving || loading || !canEdit || (!hasUnsavedChanges && initialDataRef.current !== null)}
               className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium shadow-theme-xs hover:bg-blue-600 transition dark:bg-blue-600 dark:hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving
