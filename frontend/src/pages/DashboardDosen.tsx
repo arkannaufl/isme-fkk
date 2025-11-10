@@ -331,7 +331,10 @@ const SkeletonTodaySchedule = () => (
     </div>
     <div className="space-y-3">
       {[1, 2, 3].map((i) => (
-        <div key={i} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 animate-pulse">
+        <div
+          key={i}
+          className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 animate-pulse"
+        >
           <div className="flex items-start space-x-4">
             <div className="w-11 h-11 bg-gray-200 dark:bg-gray-600 rounded-lg animate-pulse"></div>
             <div className="flex-1 space-y-2">
@@ -375,18 +378,20 @@ export default function DashboardDosen() {
       }
     } else if (notification.data?.jadwal_type) {
       // Handle jadwal notifications - scroll to Jadwal & Konfirmasi section
-      const jadwalSection = document.getElementById('jadwal-konfirmasi-section');
+      const jadwalSection = document.getElementById(
+        "jadwal-konfirmasi-section"
+      );
       if (jadwalSection) {
-        jadwalSection.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'start' 
+        jadwalSection.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
         });
-        
+
         // Optional: Add a subtle highlight effect
-        jadwalSection.style.transition = 'all 0.3s ease';
-        jadwalSection.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
+        jadwalSection.style.transition = "all 0.3s ease";
+        jadwalSection.style.backgroundColor = "rgba(59, 130, 246, 0.1)";
         setTimeout(() => {
-          jadwalSection.style.backgroundColor = '';
+          jadwalSection.style.backgroundColor = "";
         }, 2000);
       }
     }
@@ -480,6 +485,17 @@ export default function DashboardDosen() {
   const [newEmail, setNewEmail] = useState("");
   const [updatingEmail, setUpdatingEmail] = useState(false);
 
+  // WhatsApp contact states
+  const [showWhatsAppWarning, setShowWhatsAppWarning] = useState(false);
+  const [whatsAppData, setWhatsAppData] = useState({
+    name: "",
+    whatsapp_phone: "",
+    whatsapp_email: "",
+    whatsapp_address: "",
+    whatsapp_birth_day: "",
+  });
+  const [updatingWhatsApp, setUpdatingWhatsApp] = useState(false);
+
   // Success/Error modal states
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
@@ -504,16 +520,80 @@ export default function DashboardDosen() {
         if (response.data.success) {
           const { is_email_valid, needs_email_update, email, email_verified } =
             response.data.data;
-          setEmailStatus({
+          const newEmailStatus = {
             isEmailValid: is_email_valid,
             needsEmailUpdate: needs_email_update || !email_verified,
             email: email || "",
-          });
+          };
+          setEmailStatus(newEmailStatus);
           setShowEmailWarning(needs_email_update || !email_verified);
           setNewEmail(email || "");
+
+          // Check WhatsApp contact status setelah email status ter-load
+          // Check WhatsApp contact status
+          const checkWhatsAppStatus = () => {
+            const userData = getUser();
+            if (!userData) return;
+
+            // Hanya phone dan name yang required (sesuai API Wablas)
+            // name sudah pasti ada di user, jadi hanya cek phone
+            const needsWhatsApp =
+              !userData.whatsapp_phone ||
+              !userData.whatsapp_phone.match(/^62\d+$/);
+
+            setShowWhatsAppWarning(needsWhatsApp);
+            // Update WhatsApp data dengan email dari emailStatus jika ada, dan pre-fill nomor dari telp jika ada
+            const prefillPhone =
+              userData.whatsapp_phone ||
+              (userData.telp
+                ? userData.telp.startsWith("62")
+                  ? userData.telp
+                  : userData.telp.replace(/^0/, "62")
+                : "");
+
+            // Pastikan email untuk Wablas selalu ambil dari email verification yang sudah ada (jika sudah verified)
+            // atau dari email user jika belum verified
+            const wablasEmail =
+              newEmailStatus.email || // Prioritas 1: Email verification yang sudah verified
+              userData.whatsapp_email || // Prioritas 2: WhatsApp email yang sudah ada
+              userData.email || // Prioritas 3: Email user
+              "";
+
+            setWhatsAppData({
+              name: userData.name || "", // Pre-fill dari data yang ada
+              whatsapp_phone: prefillPhone,
+              whatsapp_email: wablasEmail,
+              whatsapp_address: userData.whatsapp_address || "",
+              whatsapp_birth_day: userData.whatsapp_birth_day || "",
+            });
+          };
+
+          checkWhatsAppStatus();
         }
       } catch (error) {
         console.error("Error checking email status:", error);
+        // Jika error, tetap check WhatsApp status
+        const userData = getUser();
+        if (userData) {
+          const needsWhatsApp =
+            !userData.whatsapp_phone ||
+            !userData.whatsapp_phone.match(/^62\d+$/);
+          setShowWhatsAppWarning(needsWhatsApp);
+          const prefillPhone =
+            userData.whatsapp_phone ||
+            (userData.telp
+              ? userData.telp.startsWith("62")
+                ? userData.telp
+                : userData.telp.replace(/^0/, "62")
+              : "");
+          setWhatsAppData({
+            name: userData.name || "",
+            whatsapp_phone: prefillPhone,
+            whatsapp_email: userData.whatsapp_email || userData.email || "",
+            whatsapp_address: userData.whatsapp_address || "",
+            whatsapp_birth_day: userData.whatsapp_birth_day || "",
+          });
+        }
       }
     };
 
@@ -550,6 +630,38 @@ export default function DashboardDosen() {
       };
 
       checkEmailStatus();
+
+      // Refresh WhatsApp status
+      const userData = getUser();
+      if (userData) {
+        // Hanya phone yang required (sesuai API Wablas)
+        const needsWhatsApp =
+          !userData.whatsapp_phone || !userData.whatsapp_phone.match(/^62\d+$/);
+        setShowWhatsAppWarning(needsWhatsApp);
+        // Update WhatsApp data dengan email dari emailStatus jika ada, dan pre-fill nomor dari data sebelumnya
+        const prefillPhone =
+          userData.whatsapp_phone ||
+          (userData.telp
+            ? userData.telp.startsWith("62")
+              ? userData.telp
+              : userData.telp.replace(/^0/, "62")
+            : "");
+
+        // Pastikan email untuk Wablas selalu ambil dari email verification yang sudah ada (jika sudah verified)
+        const wablasEmail =
+          emailStatus?.email || // Prioritas 1: Email verification yang sudah verified
+          userData.whatsapp_email || // Prioritas 2: WhatsApp email yang sudah ada
+          userData.email || // Prioritas 3: Email user
+          "";
+
+        setWhatsAppData({
+          name: userData.name || "", // Pre-fill dari data yang ada
+          whatsapp_phone: prefillPhone,
+          whatsapp_email: wablasEmail,
+          whatsapp_address: userData.whatsapp_address || "",
+          whatsapp_birth_day: userData.whatsapp_birth_day || "",
+        });
+      }
     };
 
     window.addEventListener("user-updated", handleUserUpdated);
@@ -910,6 +1022,7 @@ export default function DashboardDosen() {
             : null
         );
         setShowEmailWarning(false);
+        localStorage.setItem("last_success_action", "email_verify");
         setShowSuccessModal(true);
 
         // Update localStorage dengan data user terbaru
@@ -931,6 +1044,164 @@ export default function DashboardDosen() {
       setShowErrorModal(true);
     } finally {
       setUpdatingEmail(false);
+    }
+  };
+
+  // Handle gabungan: Email Verification + WhatsApp Contact (ADD contact pertama kali)
+  const handleSaveEmailAndWhatsApp = async () => {
+    const userData = getUser();
+    if (!userData) return;
+
+    // Validasi email jika diperlukan
+    if (showEmailWarning && !newEmail.trim()) {
+      setErrorMessage("Email verification wajib diisi.");
+      setShowErrorModal(true);
+      return;
+    }
+
+    // Validasi Name (required)
+    if (!whatsAppData.name || !whatsAppData.name.trim()) {
+      setErrorMessage("Nama wajib diisi.");
+      setShowErrorModal(true);
+      return;
+    }
+
+    // Validasi WhatsApp phone (required)
+    if (
+      !whatsAppData.whatsapp_phone ||
+      !whatsAppData.whatsapp_phone.match(/^62\d+$/)
+    ) {
+      setErrorMessage(
+        "Nomor WhatsApp wajib diisi dan harus dimulai dengan 62 (contoh: 6281234567890)."
+      );
+      setShowErrorModal(true);
+      return;
+    }
+
+    try {
+      setUpdatingEmail(true);
+      setUpdatingWhatsApp(true);
+
+      // Step 1: Update email verification jika diperlukan
+      let finalEmail = emailStatus?.email || userData.email;
+      if (showEmailWarning && newEmail.trim()) {
+        const emailResponse = await api.put(
+          `/users/${userData.id}/verify-email`,
+          {
+            email: newEmail.trim(),
+          }
+        );
+
+        if (emailResponse.data.success) {
+          finalEmail = newEmail.trim();
+          setEmailStatus((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  isEmailValid: true,
+                  needsEmailUpdate: false,
+                  email: finalEmail,
+                }
+              : null
+          );
+          setShowEmailWarning(false);
+        }
+      }
+
+      // Step 2: Update profile dengan WhatsApp data (akan trigger addContact di backend)
+      // Pastikan whatsapp_email SELALU sama dengan finalEmail (Email Verification)
+      // Jika email sudah verified, gunakan email dari emailStatus
+      // Jika email belum verified, gunakan finalEmail dari step 1
+      const wablasEmail = showEmailWarning
+        ? finalEmail
+        : emailStatus?.email || finalEmail;
+
+      const response = await api.put("/profile", {
+        name: whatsAppData.name || userData.name, // Required untuk Wablas, ambil dari form
+        username: userData.username,
+        email: finalEmail, // Email Verification
+        whatsapp_phone: whatsAppData.whatsapp_phone, // Required
+        whatsapp_email: wablasEmail, // SELALU sama dengan Email Verification (tidak boleh berbeda)
+        whatsapp_address: whatsAppData.whatsapp_address || null, // Optional
+        whatsapp_birth_day: whatsAppData.whatsapp_birth_day || null, // Optional
+      });
+
+      if (response.data) {
+        const updatedUser = response.data.user;
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+
+        // Update state
+        setShowEmailWarning(false);
+        setShowWhatsAppWarning(false);
+
+        // Show success modal
+        if (response.data.wablas_synced) {
+          localStorage.setItem("last_success_action", "whatsapp_sync");
+          setShowSuccessModal(true);
+        } else {
+          setErrorMessage(
+            "Data berhasil disimpan, namun sinkronisasi ke Wablas gagal. Silakan coba lagi nanti."
+          );
+          setShowErrorModal(true);
+        }
+
+        // Dispatch event untuk refresh data
+        window.dispatchEvent(new Event("user-updated"));
+      }
+    } catch (error: any) {
+      console.error("Error saving email and WhatsApp:", error);
+
+      // Parse error message lebih spesifik
+      let errorMsg = "Terjadi kesalahan saat menyimpan data.";
+
+      if (error.response?.data?.errors) {
+        // Jika ada validation errors dari Laravel
+        const errors = error.response.data.errors;
+        const errorMessages: string[] = [];
+
+        if (errors.whatsapp_phone) {
+          const phoneError = Array.isArray(errors.whatsapp_phone)
+            ? errors.whatsapp_phone[0]
+            : errors.whatsapp_phone;
+          if (phoneError.includes("already") || phoneError.includes("sudah")) {
+            errorMessages.push(
+              "Nomor WhatsApp ini sudah digunakan oleh user lain."
+            );
+          } else {
+            errorMessages.push(`Nomor WhatsApp: ${phoneError}`);
+          }
+        }
+        if (errors.email) {
+          errorMessages.push(
+            `Email: ${
+              Array.isArray(errors.email) ? errors.email[0] : errors.email
+            }`
+          );
+        }
+        if (errors.name) {
+          errorMessages.push(
+            `Nama: ${Array.isArray(errors.name) ? errors.name[0] : errors.name}`
+          );
+        }
+
+        if (errorMessages.length > 0) {
+          errorMsg = errorMessages.join(" | ");
+        } else {
+          errorMsg =
+            error.response?.data?.message ||
+            "Validasi gagal. Silakan periksa kembali data yang diisi.";
+        }
+      } else if (error.response?.data?.message) {
+        errorMsg = error.response.data.message;
+      } else if (error.message) {
+        errorMsg = error.message;
+      }
+
+      setErrorMessage(errorMsg);
+      setShowErrorModal(true);
+    } finally {
+      setUpdatingEmail(false);
+      setUpdatingWhatsApp(false);
     }
   };
 
@@ -1562,57 +1833,6 @@ export default function DashboardDosen() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="grid grid-cols-12 gap-4 md:gap-6 p-4 md:p-6">
-        {/* Email Verification Warning */}
-        {showEmailWarning && emailStatus && (
-          <div className="col-span-12 mb-4">
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-xl p-4"
-            >
-              <div className="flex items-start space-x-3">
-                <div className="flex-shrink-0">
-                  <FontAwesomeIcon
-                    icon={faExclamationTriangle}
-                    className="w-5 h-5 text-orange-500"
-                  />
-                </div>
-                <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-orange-800 dark:text-orange-200">
-                    Email Belum Dikonfirmasi
-                  </h3>
-                  <p className="mt-1 text-sm text-orange-700 dark:text-orange-300">
-                    Email Anda belum valid atau belum diisi. Silakan update
-                    email untuk menerima notifikasi pengingat.
-                  </p>
-                  <div className="mt-3 flex flex-col sm:flex-row gap-2">
-                    <input
-                      type="email"
-                      value={newEmail}
-                      onChange={(e) => setNewEmail(e.target.value)}
-                      placeholder="Masukkan email yang valid"
-                      className="flex-1 px-3 py-2 text-sm border border-orange-300 dark:border-orange-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                    />
-                    <button
-                      onClick={handleVerifyEmail}
-                      disabled={updatingEmail || !newEmail.trim()}
-                      className="px-4 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
-                    >
-                      {updatingEmail ? "Mengaktifkan..." : "Aktif"}
-                    </button>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShowEmailWarning(false)}
-                  className="flex-shrink-0 text-orange-400 hover:text-orange-600 dark:hover:text-orange-300"
-                >
-                  <FontAwesomeIcon icon={faTimes} className="w-4 h-4" />
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-
         {/* Page Header */}
         <div className="col-span-12 mb-6">
           <motion.div
@@ -1698,6 +1918,203 @@ export default function DashboardDosen() {
           </motion.div>
         </div>
 
+        {/* Form Gabungan Email Verification + WhatsApp Contact (dibawah header) */}
+        {(showEmailWarning || showWhatsAppWarning) && (
+          <div className="col-span-12 mb-4">
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl p-4"
+            >
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0">
+                  <FontAwesomeIcon
+                    icon={faExclamationTriangle}
+                    className="w-5 h-5 text-blue-500"
+                  />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-2">
+                    Lengkapi Data untuk Notifikasi
+                  </h3>
+                  <p className="mt-1 text-sm text-blue-700 dark:text-blue-300 mb-4">
+                    Silakan lengkapi email dan data WhatsApp untuk menerima
+                    notifikasi jadwal melalui email dan WhatsApp. Form ini wajib
+                    diisi.
+                  </p>
+
+                  {/* Form Gabungan */}
+                  <div className="space-y-3">
+                    {/* Name (Required, paling atas) */}
+                    <div>
+                      <label className="block text-xs font-medium text-blue-800 dark:text-blue-200 mb-1">
+                        Nama <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={whatsAppData.name}
+                        onChange={(e) =>
+                          setWhatsAppData({
+                            ...whatsAppData,
+                            name: e.target.value,
+                          })
+                        }
+                        placeholder="Masukkan nama lengkap"
+                        className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      />
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        Nama akan digunakan untuk kontak Wablas
+                      </p>
+                    </div>
+
+                    {/* WhatsApp Phone (Required, di bawah name) */}
+                    <div>
+                      <label className="block text-xs font-medium text-blue-800 dark:text-blue-200 mb-1">
+                        Nomor WhatsApp <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="tel"
+                        value={whatsAppData.whatsapp_phone}
+                        onChange={(e) =>
+                          setWhatsAppData({
+                            ...whatsAppData,
+                            whatsapp_phone: e.target.value,
+                          })
+                        }
+                        placeholder="6281234567890"
+                        className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      />
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        Format: 6281234567890 (tanpa +, mulai dengan 62)
+                      </p>
+                    </div>
+
+                    {/* Email Verification - Hanya tampil jika email belum verified */}
+                    {showEmailWarning && (
+                      <div>
+                        <label className="block text-xs font-medium text-blue-800 dark:text-blue-200 mb-1">
+                          Email (Verification){" "}
+                          <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="email"
+                          value={newEmail || emailStatus?.email || ""}
+                          onChange={(e) => {
+                            const emailValue = e.target.value;
+                            setNewEmail(emailValue);
+                            // Realtime sync ke Email untuk Wablas
+                            setWhatsAppData({
+                              ...whatsAppData,
+                              whatsapp_email: emailValue,
+                            });
+                          }}
+                          placeholder="Masukkan email yang valid"
+                          className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          required
+                        />
+                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                          Email ini akan digunakan untuk verifikasi dan
+                          notifikasi. Email untuk Wablas akan otomatis mengikuti
+                          email ini.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Email untuk Wablas (SELALU read-only, SELALU sync dengan Email Verification) */}
+                    <div>
+                      <label className="block text-xs font-medium text-blue-800 dark:text-blue-200 mb-1">
+                        Email untuk Wablas
+                      </label>
+                      <input
+                        type="email"
+                        value={
+                          // SELALU sync dengan Email Verification
+                          // Jika showEmailWarning, ambil dari newEmail (realtime saat user mengetik)
+                          // Jika tidak showEmailWarning, ambil dari emailStatus (email yang sudah verified)
+                          showEmailWarning
+                            ? newEmail || emailStatus?.email || "" // Ikut ketikan realtime dari Email Verification
+                            : emailStatus?.email || "" // Ambil dari email verified yang sudah ada
+                        }
+                        readOnly={true} // SELALU read-only, tidak bisa diedit manual
+                        placeholder="Otomatis sama dengan Email Verification"
+                        className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 cursor-not-allowed placeholder-gray-500 dark:placeholder-gray-400"
+                      />
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        {showEmailWarning
+                          ? "Otomatis sync dengan Email Verification di atas (tidak bisa diedit)"
+                          : "Menggunakan email verification yang sudah terverifikasi (tidak bisa diedit)"}
+                      </p>
+                    </div>
+
+                    {/* Address */}
+                    <div>
+                      <label className="block text-xs font-medium text-blue-800 dark:text-blue-200 mb-1">
+                        Alamat
+                      </label>
+                      <textarea
+                        value={whatsAppData.whatsapp_address}
+                        onChange={(e) =>
+                          setWhatsAppData({
+                            ...whatsAppData,
+                            whatsapp_address: e.target.value,
+                          })
+                        }
+                        rows={2}
+                        placeholder="Masukkan alamat lengkap"
+                        className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                      />
+                    </div>
+
+                    {/* Birth Day */}
+                    <div>
+                      <label className="block text-xs font-medium text-blue-800 dark:text-blue-200 mb-1">
+                        Tanggal Lahir
+                      </label>
+                      <input
+                        type="date"
+                        value={whatsAppData.whatsapp_birth_day}
+                        onChange={(e) =>
+                          setWhatsAppData({
+                            ...whatsAppData,
+                            whatsapp_birth_day: e.target.value,
+                          })
+                        }
+                        max={new Date().toISOString().split("T")[0]}
+                        className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        Format: dd-mm-yyyy (contoh: 15-01-1990)
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        onClick={handleSaveEmailAndWhatsApp}
+                        disabled={
+                          updatingEmail ||
+                          updatingWhatsApp ||
+                          (showEmailWarning && !newEmail.trim()) ||
+                          !whatsAppData.name ||
+                          !whatsAppData.whatsapp_phone ||
+                          !whatsAppData.whatsapp_phone.match(/^62\d+$/) ||
+                          (!showEmailWarning && !emailStatus?.email) // Jika email sudah verified, pastikan ada emailStatus
+                        }
+                        className="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                      >
+                        {updatingEmail || updatingWhatsApp
+                          ? "Menyimpan..."
+                          : "Simpan & Sync ke Wablas"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
         {/* Today's Schedule Section moved below Notifications */}
 
         {/* Notifications Section */}
@@ -1739,8 +2156,8 @@ export default function DashboardDosen() {
                         ? "bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600"
                         : "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700"
                     } ${
-                      notification.data?.jadwal_type 
-                        ? "hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-600" 
+                      notification.data?.jadwal_type
+                        ? "hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:border-blue-300 dark:hover:border-blue-600"
                         : ""
                     }`}
                   >
@@ -1785,7 +2202,10 @@ export default function DashboardDosen() {
                         {notification.data?.jadwal_type && (
                           <div className="flex items-center gap-2 mb-2">
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
-                              <FontAwesomeIcon icon={faCalendar} className="w-3 h-3 mr-1" />
+                              <FontAwesomeIcon
+                                icon={faCalendar}
+                                className="w-3 h-3 mr-1"
+                              />
                               Klik untuk lihat jadwal
                             </span>
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-900/20 dark:text-gray-300">
@@ -1872,11 +2292,11 @@ export default function DashboardDosen() {
                     Jadwal Hari Ini
                   </h2>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {currentTime.toLocaleDateString('id-ID', {
-                      weekday: 'long',
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric'
+                    {currentTime.toLocaleDateString("id-ID", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
                     })}
                   </p>
                 </div>
@@ -1896,24 +2316,38 @@ export default function DashboardDosen() {
                     <div className="flex items-start justify-between">
                       <div className="flex items-start space-x-4 flex-1">
                         <div className="flex-shrink-0">
-                          <div className={`w-11 h-11 rounded-lg flex items-center justify-center shadow-sm ${
-                            schedule.type === 'kuliah_besar' ? 'bg-gradient-to-br from-blue-500 to-blue-600' :
-                            schedule.type === 'pbl' ? 'bg-gradient-to-br from-emerald-500 to-emerald-600' :
-                            schedule.type === 'praktikum' ? 'bg-gradient-to-br from-violet-500 to-violet-600' :
-                            schedule.type === 'jurnal' ? 'bg-gradient-to-br from-indigo-500 to-indigo-600' :
-                            schedule.type === 'csr' ? 'bg-gradient-to-br from-amber-500 to-amber-600' :
-                            schedule.type === 'non_blok_non_csr' ? 'bg-gradient-to-br from-rose-500 to-rose-600' :
-                            'bg-gradient-to-br from-gray-500 to-gray-600'
-                          }`}>
+                          <div
+                            className={`w-11 h-11 rounded-lg flex items-center justify-center shadow-sm ${
+                              schedule.type === "kuliah_besar"
+                                ? "bg-gradient-to-br from-blue-500 to-blue-600"
+                                : schedule.type === "pbl"
+                                ? "bg-gradient-to-br from-emerald-500 to-emerald-600"
+                                : schedule.type === "praktikum"
+                                ? "bg-gradient-to-br from-violet-500 to-violet-600"
+                                : schedule.type === "jurnal"
+                                ? "bg-gradient-to-br from-indigo-500 to-indigo-600"
+                                : schedule.type === "csr"
+                                ? "bg-gradient-to-br from-amber-500 to-amber-600"
+                                : schedule.type === "non_blok_non_csr"
+                                ? "bg-gradient-to-br from-rose-500 to-rose-600"
+                                : "bg-gradient-to-br from-gray-500 to-gray-600"
+                            }`}
+                          >
                             <FontAwesomeIcon
                               icon={
-                                schedule.type === 'kuliah_besar' ? faGraduationCap :
-                                schedule.type === 'pbl' ? faBookOpen :
-                                schedule.type === 'praktikum' ? faFlask :
-                                schedule.type === 'jurnal' ? faNewspaper :
-                                schedule.type === 'csr' ? faUsers :
-                                schedule.type === 'non_blok_non_csr' ? faCalendar :
-                                faCalendar
+                                schedule.type === "kuliah_besar"
+                                  ? faGraduationCap
+                                  : schedule.type === "pbl"
+                                  ? faBookOpen
+                                  : schedule.type === "praktikum"
+                                  ? faFlask
+                                  : schedule.type === "jurnal"
+                                  ? faNewspaper
+                                  : schedule.type === "csr"
+                                  ? faUsers
+                                  : schedule.type === "non_blok_non_csr"
+                                  ? faCalendar
+                                  : faCalendar
                               }
                               className="text-white text-sm"
                             />
@@ -1924,42 +2358,77 @@ export default function DashboardDosen() {
                             <h3 className="text-base font-semibold text-gray-900 dark:text-white truncate">
                               {schedule.mata_kuliah}
                             </h3>
-                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
-                              schedule.type === 'kuliah_besar' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200' :
-                              schedule.type === 'pbl' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200' :
-                              schedule.type === 'praktikum' ? 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-200' :
-                              schedule.type === 'jurnal' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200' :
-                              schedule.type === 'csr' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200' :
-                              schedule.type === 'non_blok_non_csr' ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-200' :
-                              'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-200'
-                            }`}>
-                              {schedule.type === 'kuliah_besar' ? 'Kuliah Besar' :
-                               schedule.type === 'pbl' ? 'PBL' :
-                               schedule.type === 'praktikum' ? 'Praktikum' :
-                               schedule.type === 'jurnal' ? 'Jurnal Reading' :
-                               schedule.type === 'csr' ? 'CSR' :
-                               schedule.type === 'non_blok_non_csr' ? 'Non Blok' :
-                               schedule.type}
+                            <span
+                              className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
+                                schedule.type === "kuliah_besar"
+                                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200"
+                                  : schedule.type === "pbl"
+                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"
+                                  : schedule.type === "praktikum"
+                                  ? "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-200"
+                                  : schedule.type === "jurnal"
+                                  ? "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200"
+                                  : schedule.type === "csr"
+                                  ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200"
+                                  : schedule.type === "non_blok_non_csr"
+                                  ? "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-200"
+                                  : "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-200"
+                              }`}
+                            >
+                              {schedule.type === "kuliah_besar"
+                                ? "Kuliah Besar"
+                                : schedule.type === "pbl"
+                                ? "PBL"
+                                : schedule.type === "praktikum"
+                                ? "Praktikum"
+                                : schedule.type === "jurnal"
+                                ? "Jurnal Reading"
+                                : schedule.type === "csr"
+                                ? "CSR"
+                                : schedule.type === "non_blok_non_csr"
+                                ? "Non Blok"
+                                : schedule.type}
                             </span>
-                            {getStatusBadge(schedule.status_konfirmasi, schedule.status_reschedule)}
+                            {getStatusBadge(
+                              schedule.status_konfirmasi,
+                              schedule.status_reschedule
+                            )}
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-400">
                             <div className="flex items-center gap-2">
-                              <FontAwesomeIcon icon={faClock} className="w-3.5 h-3.5 text-gray-400" />
-                              <span className="font-medium">{schedule.waktu.replace('.', ':')}</span>
+                              <FontAwesomeIcon
+                                icon={faClock}
+                                className="w-3.5 h-3.5 text-gray-400"
+                              />
+                              <span className="font-medium">
+                                {schedule.waktu.replace(".", ":")}
+                              </span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <FontAwesomeIcon icon={faGraduationCap} className="w-3.5 h-3.5 text-gray-400" />
+                              <FontAwesomeIcon
+                                icon={faGraduationCap}
+                                className="w-3.5 h-3.5 text-gray-400"
+                              />
                               <span className="truncate">{schedule.dosen}</span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <FontAwesomeIcon icon={faBookOpen} className="w-3.5 h-3.5 text-gray-400" />
-                              <span className="truncate">{schedule.ruangan}</span>
+                              <FontAwesomeIcon
+                                icon={faBookOpen}
+                                className="w-3.5 h-3.5 text-gray-400"
+                              />
+                              <span className="truncate">
+                                {schedule.ruangan}
+                              </span>
                             </div>
                             {schedule.topik && (
                               <div className="flex items-center gap-2">
-                                <FontAwesomeIcon icon={faFileAlt} className="w-3.5 h-3.5 text-gray-400" />
-                                <span className="truncate">{schedule.topik}</span>
+                                <FontAwesomeIcon
+                                  icon={faFileAlt}
+                                  className="w-3.5 h-3.5 text-gray-400"
+                                />
+                                <span className="truncate">
+                                  {schedule.topik}
+                                </span>
                               </div>
                             )}
                           </div>
@@ -1968,10 +2437,10 @@ export default function DashboardDosen() {
                       <div className="flex-shrink-0 ml-4">
                         <div className="text-right">
                           <div className="text-lg font-semibold text-gray-900 dark:text-white">
-                            {schedule.waktu.split(' - ')[0].replace('.', ':')}
+                            {schedule.waktu.split(" - ")[0].replace(".", ":")}
                           </div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">
-                            {schedule.waktu.split(' - ')[1].replace('.', ':')}
+                            {schedule.waktu.split(" - ")[1].replace(".", ":")}
                           </div>
                         </div>
                       </div>
@@ -3271,7 +3740,10 @@ export default function DashboardDosen() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
-              onClick={() => setShowSuccessModal(false)}
+              onClick={() => {
+                localStorage.removeItem("last_success_action");
+                setShowSuccessModal(false);
+              }}
             />
 
             {/* Modal Content */}
@@ -3284,7 +3756,10 @@ export default function DashboardDosen() {
             >
               {/* Close Button */}
               <button
-                onClick={() => setShowSuccessModal(false)}
+                onClick={() => {
+                  localStorage.removeItem("last_success_action");
+                  setShowSuccessModal(false);
+                }}
                 className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
               >
                 <svg
@@ -3311,14 +3786,22 @@ export default function DashboardDosen() {
                   />
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                  Email Berhasil Diaktifkan!
+                  {localStorage.getItem("last_success_action") ===
+                  "whatsapp_sync"
+                    ? "Data WhatsApp Berhasil Disinkronkan!"
+                    : "Email Berhasil Diaktifkan!"}
                 </h3>
                 <p className="text-gray-600 dark:text-gray-400 mb-6">
-                  Email Anda telah berhasil diaktifkan. Anda akan menerima
-                  notifikasi pengingat jadwal.
+                  {localStorage.getItem("last_success_action") ===
+                  "whatsapp_sync"
+                    ? "Data WhatsApp Anda telah berhasil disinkronkan ke Wablas. Anda akan menerima notifikasi jadwal melalui WhatsApp dan melalui Email."
+                    : "Email Anda telah berhasil diaktifkan. Anda akan menerima notifikasi pengingat jadwal melalui Email."}
                 </p>
                 <button
-                  onClick={() => setShowSuccessModal(false)}
+                  onClick={() => {
+                    localStorage.removeItem("last_success_action");
+                    setShowSuccessModal(false);
+                  }}
                   className="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-4 rounded-xl transition-colors"
                 >
                   OK
@@ -3379,7 +3862,7 @@ export default function DashboardDosen() {
                   />
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                  Gagal Mengaktifkan Email
+                  Gagal Menyimpan Data
                 </h3>
                 <p className="text-gray-600 dark:text-gray-400 mb-6">
                   {errorMessage}

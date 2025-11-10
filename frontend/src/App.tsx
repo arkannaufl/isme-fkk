@@ -56,6 +56,7 @@ import ForumDetail from "./pages/ForumDetail";
 import ForumCategory from "./pages/ForumCategory";
 import Bookmarks from "./pages/Bookmarks";
 import SupportCenter from "./pages/SupportCenter";
+import WhatsAppTest from "./pages/WhatsAppTest";
 
 function AppContent() {
   const { isSessionExpired, setSessionExpired } = useSession();
@@ -291,6 +292,14 @@ function AppContent() {
               <Route path="/profile" element={<Profile />} />
               <Route path="/bookmarks" element={<Bookmarks />} />
               <Route path="/support-center" element={<SupportCenter />} />
+              <Route
+                path="/whatsapp-test"
+                element={
+                  <RequireDosenRole allowedRoles={["super_admin"]}>
+                    <WhatsAppTest />
+                  </RequireDosenRole>
+                }
+              />
 
               {/* Peta Routes - Available for super_admin, dosen, tim_akademik, and mahasiswa */}
               <Route path="/peta-akademik" element={

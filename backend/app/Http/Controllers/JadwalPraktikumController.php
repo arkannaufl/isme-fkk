@@ -6,6 +6,7 @@ use App\Models\JadwalPraktikum;
 use App\Models\MataKuliah;
 use App\Models\Ruangan;
 use App\Models\User;
+use App\Traits\SendsWhatsAppNotification;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +14,7 @@ use Illuminate\Support\Facades\Log;
 
 class JadwalPraktikumController extends Controller
 {
+    use SendsWhatsAppNotification;
     // List semua jadwal praktikum untuk satu mata kuliah blok
     public function index($kode)
     {
@@ -781,6 +783,26 @@ class JadwalPraktikumController extends Controller
 
 
             \Log::info("Notifikasi jadwal praktikum berhasil dikirim ke dosen {$dosen->name} (ID: {$dosenId})");
+
+            // Kirim WhatsApp notification
+            $whatsappMessage = $this->formatScheduleMessage('praktikum', [
+                'mata_kuliah_nama' => $mataKuliah->nama,
+                'tanggal' => $jadwal->tanggal,
+                'jam_mulai' => $jadwal->jam_mulai,
+                'jam_selesai' => $jadwal->jam_selesai,
+                'ruangan' => $ruangan->nama,
+                'kelas_praktikum' => $jadwal->kelas_praktikum,
+                'topik' => $jadwal->topik,
+                'materi' => $jadwal->materi,
+            ]);
+
+            $this->sendWhatsAppNotification($dosen, $whatsappMessage, [
+                'jadwal_id' => $jadwal->id,
+                'jadwal_type' => 'praktikum',
+                'mata_kuliah_kode' => $mataKuliah->kode,
+                'mata_kuliah_nama' => $mataKuliah->nama,
+            ]);
+
         } catch (\Exception $e) {
             \Log::error("Gagal mengirim notifikasi jadwal praktikum ke dosen {$dosenId}: " . $e->getMessage());
         }

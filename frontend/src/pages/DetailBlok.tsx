@@ -354,6 +354,39 @@ export default function DetailBlok() {
 
   const [allRuanganList, setAllRuanganList] = useState<RuanganType[]>([]);
 
+  // Helper function untuk mendapatkan nama dosen pengganti
+  const getDosenPenggantiName = (row: any): string => {
+    // Cek apakah ada dosen_ids dan dosen_id
+    if (!row.dosen_ids || !row.dosen_id) return '-';
+    
+    try {
+      // Parse dosen_ids jika string
+      const dosenIds = Array.isArray(row.dosen_ids) 
+        ? row.dosen_ids 
+        : (typeof row.dosen_ids === 'string' ? JSON.parse(row.dosen_ids || '[]') : []);
+      
+      // Jika dosen_ids memiliki lebih dari 1 elemen, berarti ada penggantian
+      if (dosenIds.length > 1) {
+        // Dosen pengganti adalah dosen yang ada di dosen_id (dosen saat ini)
+        // Jika dosen_id berbeda dari elemen pertama di dosen_ids, berarti ada penggantian
+        const originalDosenId = dosenIds[0];
+        const currentDosenId = Number(row.dosen_id);
+        
+        // Jika dosen_id saat ini berbeda dari dosen asli (elemen pertama), berarti ada penggantian
+        if (currentDosenId !== Number(originalDosenId)) {
+          // Ada penggantian, tampilkan nama dosen pengganti (dosen saat ini)
+          const dosenPengganti = allDosenList.find(d => d.id === currentDosenId);
+          return dosenPengganti?.name || '-';
+        }
+      }
+    } catch (error) {
+      // Jika error parsing, return '-'
+      console.error('Error parsing dosen_ids:', error);
+    }
+    
+    return '-';
+  };
+
   const [jadwalPBL, setJadwalPBL] = useState<JadwalPBLType[]>([]);
 
   const [isSaving, setIsSaving] = useState(false);
@@ -10407,7 +10440,7 @@ export default function DetailBlok() {
 
                     <tr>
 
-                      <td colSpan={10} className="text-center py-6 text-gray-400">Tidak ada data Kuliah Besar</td>
+                      <td colSpan={11} className="text-center py-6 text-gray-400">Tidak ada data Kuliah Besar</td>
 
                   </tr>
 
@@ -10457,6 +10490,10 @@ export default function DetailBlok() {
                         <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.materi}</td>
 
                           <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{dosen?.name || `Dosen ${row.dosen_id}`}</td>
+
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                          {getDosenPenggantiName(row)}
+                        </td>
 
                         <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
 
@@ -10864,6 +10901,8 @@ export default function DetailBlok() {
 
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pengampu</th>
 
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Dosen Pengganti</th>
+
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Topik</th>
 
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Lokasi</th>
@@ -10880,7 +10919,7 @@ export default function DetailBlok() {
 
                   <tr>
 
-                    <td colSpan={11} className="text-center py-6 text-gray-400">Tidak ada data Praktikum</td>
+                    <td colSpan={12} className="text-center py-6 text-gray-400">Tidak ada data Praktikum</td>
 
                   </tr>
 
@@ -10936,6 +10975,10 @@ export default function DetailBlok() {
 
                       {row.dosen?.map((d: any) => d.name).join(', ') || 'Memuat...'}
 
+                    </td>
+
+                    <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                      {getDosenPenggantiName(row)}
                     </td>
 
                     <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.topik || row.materi}</td>
@@ -17680,6 +17723,8 @@ export default function DetailBlok() {
 
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pengampu</th>
 
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Dosen Pengganti</th>
+
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
 
                   <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Aksi</th>
@@ -17774,7 +17819,7 @@ export default function DetailBlok() {
 
                   <tr>
 
-                    <td colSpan={11} className="text-center py-6 text-gray-400">Tidak ada data PBL</td>
+                    <td colSpan={12} className="text-center py-6 text-gray-400">Tidak ada data PBL</td>
 
                   </tr>
 
@@ -17840,6 +17885,10 @@ export default function DetailBlok() {
 
                         {row.dosen_names || allDosenList.find(d => d.id === Number(row.dosen_id))?.name || (loadingDosenRuangan ? 'Memuat...' : `Dosen ${row.dosen_id}`)}
 
+                      </td>
+
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {getDosenPenggantiName(row)}
                       </td>
 
                         <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
@@ -18206,6 +18255,8 @@ export default function DetailBlok() {
 
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pengampu</th>
 
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Dosen Pengganti</th>
+
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">File Jurnal</th>
 
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
@@ -18302,7 +18353,7 @@ export default function DetailBlok() {
 
                   <tr>
 
-                    <td colSpan={11} className="text-center py-6 text-gray-400">Tidak ada data Jurnal Reading</td>
+                    <td colSpan={12} className="text-center py-6 text-gray-400">Tidak ada data Jurnal Reading</td>
 
                   </tr>
 
@@ -18348,6 +18399,10 @@ export default function DetailBlok() {
 
                         {row.dosen_names || allDosenList.find(d => d.id === Number(row.dosen_id))?.name || (loadingDosenRuangan ? 'Memuat...' : `Dosen ${row.dosen_id}`)}
 
+                      </td>
+
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {getDosenPenggantiName(row)}
                       </td>
 
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
