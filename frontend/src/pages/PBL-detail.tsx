@@ -2423,7 +2423,7 @@ export default function PBL() {
         { bg: "FFF2E2D9", text: "FF000000" }, // Kolom 4 - Light brown/orange
       ];
 
-      const colWidth = 45;
+      const colWidth = 55;
       let currentRow = 1;
       let currentColumn = 1;
       const columnSpacing = 0;
@@ -2746,7 +2746,7 @@ export default function PBL() {
       if (standbyDosen.length > 0) {
         const standbyHeaderRowIndex = currentRow;
         const standbyStartCol = 1;
-        const standbyEndCol = Math.max(maxColumnUsed, 2);
+        const standbyEndCol = Math.max(maxColumnUsed, 3);
 
         const standbyHeaderRow = worksheet.getRow(standbyHeaderRowIndex);
         standbyHeaderRow.getCell(standbyStartCol).value = "Standby Tutor";
@@ -2763,13 +2763,13 @@ export default function PBL() {
         // Tambahkan 1 baris kosong di bawah header sebagai jarak
         worksheet.getRow(standbyHeaderRowIndex + 1);
 
-        const standbyPerKolom = Math.ceil(standbyDosen.length / 2);
+        const standbyPerKolom = Math.ceil(standbyDosen.length / 3);
         const standbyDataStartRow = standbyHeaderRowIndex + 2;
 
         for (let rowIdx = 0; rowIdx < standbyPerKolom; rowIdx++) {
           const standbyRow = worksheet.getRow(standbyDataStartRow + rowIdx);
 
-          for (let colIdx = 0; colIdx < 2; colIdx++) {
+          for (let colIdx = 0; colIdx < 3; colIdx++) {
             const dosenIdx = rowIdx + colIdx * standbyPerKolom;
             const dosen = standbyDosen[dosenIdx];
 
@@ -2811,8 +2811,8 @@ export default function PBL() {
         };
         // Lebarkan kolom agar judul benar-benar center dan tidak terpotong
         infoSheet.columns = [
-          { header: "", key: "label", width: 40 },
-          { header: "", key: "value", width: 80 },
+          { header: "", key: "label", width: 50 },
+          { header: "", key: "value", width: 90 },
         ];
 
         // Judul (merge numeric untuk menghindari anomali)
@@ -3202,31 +3202,31 @@ export default function PBL() {
       <div className="mb-8">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <button
-              onClick={() => navigate("/pbl", { replace: true })}
-              className="flex items-center gap-2 text-brand-500 hover:text-brand-600 transition-all duration-300 ease-out hover:scale-105 transform mb-4"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-              Kembali
-            </button>
-            <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90 mb-2">
-              Problem Based Learning (PBL)
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Pengelolaan modul PBL dan penugasan dosen berdasarkan keahlian
-            </p>
+        <button
+          onClick={() => navigate("/pbl", { replace: true })}
+          className="flex items-center gap-2 text-brand-500 hover:text-brand-600 transition-all duration-300 ease-out hover:scale-105 transform mb-4"
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
+          Kembali
+        </button>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90 mb-2">
+          Problem Based Learning (PBL)
+        </h1>
+        <p className="text-gray-600 dark:text-gray-400">
+          Pengelolaan modul PBL dan penugasan dosen berdasarkan keahlian
+        </p>
           </div>
         </div>
         <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
