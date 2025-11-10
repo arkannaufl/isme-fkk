@@ -720,7 +720,6 @@ const AdminNotifications: React.FC = () => {
       );
       setPendingDosenList(response.data.pending_dosen || []);
       setPendingDosenTotal(response.data.total || 0);
-      console.log("Pending dosen loaded:", response.data.pending_dosen || []);
     } catch (error: any) {
       console.error("Error loading pending dosen:", error);
       setPendingDosenList([]);
@@ -2055,7 +2054,6 @@ const AdminNotifications: React.FC = () => {
             {userTypeFilter === "dosen" && (
               <button
                 onClick={async () => {
-                  console.log("Loading pending dosen before opening modal...");
                   await loadPendingDosen(
                     pendingDosenPage,
                     pendingDosenPageSize,

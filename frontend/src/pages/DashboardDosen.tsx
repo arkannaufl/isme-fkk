@@ -807,59 +807,6 @@ export default function DashboardDosen() {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  // DISABLED: Auto refresh to prevent infinite loops
-  // Auto refresh when notifications change (when superadmin asks dosen to teach again or reschedule status changes)
-  // useEffect(() => {
-  //   if (notifications.length > 0) {
-  //     // Check if there's a new notification about asking dosen to teach again
-  //     const hasReassignmentNotification = notifications.some(
-  //       (notif) =>
-  //         notif.title.includes("Konfirmasi Ulang Ketersediaan") ||
-  //         notif.message.includes("mengkonfirmasi ulang ketersediaan mengajar")
-  //     );
-
-  //     // Check if there's a reschedule rejection notification
-  //     const hasRescheduleRejectionNotification = notifications.some(
-  //       (notif) =>
-  //         notif.title.includes("Reschedule Ditolak") ||
-  //         notif.message.includes("reschedule ditolak") ||
-  //         notif.data?.notification_type === "reschedule_rejected"
-  //     );
-
-  //     // Check if there's a reschedule approval notification
-  //     const hasRescheduleApprovalNotification = notifications.some(
-  //       (notif) =>
-  //         notif.title.includes("Reschedule Disetujui") ||
-  //         notif.message.includes("reschedule disetujui") ||
-  //         notif.data?.notification_type === "reschedule_approved"
-  //     );
-
-  //     // Only refresh if there's a relevant notification AND it's not already read
-  //     const hasRelevantUnreadNotification = notifications.some(
-  //       (notif) =>
-  //         !notif.is_read &&
-  //         (notif.title.includes("Konfirmasi Ulang Ketersediaan") ||
-  //           notif.message.includes(
-  //             "mengkonfirmasi ulang ketersediaan mengajar"
-  //           ) ||
-  //           notif.title.includes("Reschedule Ditolak") ||
-  //           notif.message.includes("reschedule ditolak") ||
-  //           notif.title.includes("Reschedule Disetujui") ||
-  //           notif.message.includes("reschedule disetujui") ||
-  //           notif.data?.notification_type === "reschedule_rejected" ||
-  //           notif.data?.notification_type === "reschedule_approved")
-  //     );
-
-  //     if (hasRelevantUnreadNotification) {
-  //       // Refresh dashboard data to get updated status
-  //       console.log(
-  //         "🔄 Relevant unread notification detected, refreshing dashboard data..."
-  //       );
-  //       fetchDashboardData();
-  //     }
-  //   }
-  // }, [notifications, fetchDashboardData]);
-
   const openKonfirmasiModal = (jadwal: any) => {
     setSelectedJadwal(jadwal);
     setShowKonfirmasiModal(true);

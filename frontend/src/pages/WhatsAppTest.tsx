@@ -70,15 +70,9 @@ export default function WhatsAppTest() {
           savedDateObj.getFullYear() === today.getFullYear()
         ) {
           const parsed = JSON.parse(saved);
-          console.log(
-            "[useState] Loaded from localStorage (today):",
-            parsed.length,
-            "items"
-          );
           return parsed;
         } else {
           // Data is from a different day, clear it
-          console.log("[useState] Data from different day, clearing localStorage");
           localStorage.removeItem("whatsapp_realtime_reports");
           localStorage.removeItem("whatsapp_realtime_reports_date");
         }
@@ -152,9 +146,6 @@ export default function WhatsAppTest() {
         params: { limit: 1000 }, // Load banyak contact
       });
 
-      console.log("[loadContacts] Full response:", response);
-      console.log("[loadContacts] Response data:", response.data);
-      console.log("[loadContacts] Response data.data:", response.data?.data);
 
       if (response.data && response.data.data) {
         const wablasData = response.data.data;
@@ -171,40 +162,21 @@ export default function WhatsAppTest() {
         // Cek apakah ada field "message" yang berisi array contacts
         if (wablasData.message && Array.isArray(wablasData.message)) {
           contactsData = wablasData.message;
-          console.log(
-            "[loadContacts] Found contacts in message array:",
-            contactsData.length
-          );
         }
         // Fallback: cek jika data langsung array
         else if (Array.isArray(wablasData)) {
           contactsData = wablasData;
-          console.log(
-            "[loadContacts] Found contacts as direct array:",
-            contactsData.length
-          );
         }
         // Fallback: cek nested data
         else if (wablasData.data && Array.isArray(wablasData.data)) {
           contactsData = wablasData.data;
-          console.log(
-            "[loadContacts] Found contacts in data.data:",
-            contactsData.length
-          );
         }
         // Fallback: cek contacts field
         else if (wablasData.contacts && Array.isArray(wablasData.contacts)) {
           contactsData = wablasData.contacts;
-          console.log(
-            "[loadContacts] Found contacts in contacts field:",
-            contactsData.length
-          );
         }
-
-        console.log("[loadContacts] Final contacts:", contactsData);
         setContacts(contactsData);
       } else {
-        console.warn("[loadContacts] No data in response:", response.data);
         setContacts([]);
       }
     } catch (err: any) {
@@ -223,28 +195,12 @@ export default function WhatsAppTest() {
       // Jangan clear error saat reload, biarkan user tahu jika ada masalah sebelumnya
       // setError(null); // Removed - keep previous error message if exists
 
-      console.log("[loadReportRealtime] Starting API call...");
-
       const response = await api.get("/whatsapp/report-realtime", {
         params: { limit: 20 },
       });
 
-      console.log("[loadReportRealtime] Full response:", response);
-      console.log("[loadReportRealtime] Response data:", response.data);
-      console.log(
-        "[loadReportRealtime] Response data.data:",
-        response.data?.data
-      );
-      console.log(
-        "[loadReportRealtime] Rate limited:",
-        response.data?.rate_limited
-      );
-
       // Handle rate limit - jangan reset data jika rate limited
       if (response.data?.rate_limited) {
-        console.warn(
-          "[loadReportRealtime] Rate limited - keeping existing data"
-        );
         // Cek apakah ada data di localStorage jika state kosong
         setReportRealtime((prev) => {
           if (prev.length === 0) {
@@ -253,11 +209,6 @@ export default function WhatsAppTest() {
               const saved = localStorage.getItem("whatsapp_realtime_reports");
               if (saved) {
                 const parsed = JSON.parse(saved);
-                console.log(
-                  "[loadReportRealtime] Loaded from localStorage (rate limited):",
-                  parsed.length,
-                  "items"
-                );
                 if (parsed.length > 0) {
                   return parsed; // Return data dari localStorage
                 }
@@ -286,16 +237,6 @@ export default function WhatsAppTest() {
         // Array data sebenarnya ada di field "data", bukan "message"
         const responseData = response.data.data;
 
-        console.log("[loadReportRealtime] ResponseData:", responseData);
-        console.log(
-          "[loadReportRealtime] ResponseData.data:",
-          responseData.data
-        );
-        console.log(
-          "[loadReportRealtime] ResponseData.message:",
-          responseData.message
-        );
-
         // Handle berbagai format response
         let realtimeData = [];
         if (
@@ -305,7 +246,6 @@ export default function WhatsAppTest() {
         ) {
           // Format: { status: true, data: [...] }
           realtimeData = responseData.data;
-          console.log("[loadReportRealtime] Using responseData.data (array)");
         } else if (
           Array.isArray(responseData.message) &&
           responseData.message.length > 0 &&
@@ -313,32 +253,16 @@ export default function WhatsAppTest() {
         ) {
           // Format: { status: true, message: [...] } - tapi hanya jika message adalah array of objects
           realtimeData = responseData.message;
-          console.log(
-            "[loadReportRealtime] Using responseData.message (array)"
-          );
         } else if (Array.isArray(responseData) && responseData.length > 0) {
           // Format: langsung array
           realtimeData = responseData;
-          console.log(
-            "[loadReportRealtime] Using responseData directly (array)"
-          );
         } else if (
           responseData.messages &&
           Array.isArray(responseData.messages) &&
           responseData.messages.length > 0
         ) {
           realtimeData = responseData.messages;
-          console.log(
-            "[loadReportRealtime] Using responseData.messages (array)"
-          );
         }
-
-        console.log(
-          "[loadReportRealtime] Final parsed data:",
-          realtimeData.length,
-          "items"
-        );
-        console.log("[loadReportRealtime] Setting state with:", realtimeData);
 
         // Clear error jika berhasil dan ada data
         if (realtimeData.length > 0) {
@@ -399,25 +323,10 @@ export default function WhatsAppTest() {
             "whatsapp_realtime_reports_date",
             today.toISOString()
           );
-          console.log(
-            "[loadReportRealtime] Saved to localStorage:",
-            filteredData.length,
-            "items for",
-            dayName,
-            dateStr
-          );
         } catch (err) {
-          console.error(
-            "[loadReportRealtime] Error saving to localStorage:",
-            err
-          );
+          // Error saving to localStorage - silent fail
         }
-        console.log("[loadReportRealtime] State updated successfully");
       } else {
-        console.warn(
-          "[loadReportRealtime] No data in response:",
-          response.data
-        );
         // Jangan reset data jika tidak ada data baru, keep existing
         // Hanya reset jika memang belum ada data sama sekali
         setReportRealtime((prev) => {
@@ -427,11 +336,6 @@ export default function WhatsAppTest() {
               const saved = localStorage.getItem("whatsapp_realtime_reports");
               if (saved) {
                 const parsed = JSON.parse(saved);
-                console.log(
-                  "[loadReportRealtime] Loaded from localStorage (no new data):",
-                  parsed.length,
-                  "items"
-                );
                 if (parsed.length > 0) {
                   return parsed; // Return data dari localStorage
                 }
@@ -467,11 +371,6 @@ export default function WhatsAppTest() {
             const saved = localStorage.getItem("whatsapp_realtime_reports");
             if (saved) {
               const parsed = JSON.parse(saved);
-              console.log(
-                "[loadReportRealtime] Loaded from localStorage (error):",
-                parsed.length,
-                "items"
-              );
               if (parsed.length > 0) {
                 setError(
                   `Gagal refresh data: ${errorMsg}. Menampilkan data dari cache.`
@@ -493,15 +392,11 @@ export default function WhatsAppTest() {
           setError(
             `Gagal refresh data: ${errorMsg}. Menampilkan data sebelumnya.`
           );
-          console.warn(
-            "[loadReportRealtime] Keeping existing data due to error"
-          );
           return prev; // Keep existing data
         }
       });
     } finally {
       setLoadingRealtime(false);
-      console.log("[loadReportRealtime] Finished loading");
     }
   };
 
@@ -567,8 +462,6 @@ export default function WhatsAppTest() {
   };
 
   useEffect(() => {
-    console.log("[useEffect] Component mounted or reloaded");
-
     // Check if we need to reset data (new day)
     const checkAndResetForNewDay = () => {
       const savedDate = localStorage.getItem("whatsapp_realtime_reports_date");
@@ -581,7 +474,6 @@ export default function WhatsAppTest() {
           savedDateObj.getMonth() !== today.getMonth() ||
           savedDateObj.getFullYear() !== today.getFullYear()
         ) {
-          console.log("[useEffect] New day detected, clearing old data");
           localStorage.removeItem("whatsapp_realtime_reports");
           localStorage.removeItem("whatsapp_realtime_reports_date");
           setReportRealtime([]);
@@ -606,7 +498,6 @@ export default function WhatsAppTest() {
     loadContacts();
 
     // Load realtime reports saat component mount
-    console.log("[useEffect] Calling loadReportRealtime...");
     loadReportRealtime();
 
     // Load settings jika super admin
@@ -626,15 +517,9 @@ export default function WhatsAppTest() {
         const timeSinceLastRefresh = now - prevTime;
         // Hanya refresh jika sudah lebih dari 60 detik (rate limit biasanya 1 request per menit)
         if (timeSinceLastRefresh >= 60000) {
-          console.log("[useEffect] Auto-refreshing realtime reports...");
           loadReportRealtime();
           return now; // Update last refresh time
         } else {
-          console.log(
-            `[useEffect] Skipping auto-refresh (rate limit protection). Time since last refresh: ${Math.round(
-              timeSinceLastRefresh / 1000
-            )}s`
-          );
           return prevTime; // Keep previous time
         }
       });
@@ -678,9 +563,6 @@ export default function WhatsAppTest() {
       // Refresh realtime reports setelah berhasil mengirim pesan
       // Tunggu 3 detik dulu untuk memastikan pesan sudah terdaftar di Wablas
       setTimeout(() => {
-        console.log(
-          "[testSendMessage] Refreshing realtime reports after send..."
-        );
         setLastRefreshTime(Date.now());
         loadReportRealtime();
       }, 3000);
