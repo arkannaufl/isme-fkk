@@ -782,8 +782,6 @@ class JadwalNonBlokNonCSRController extends Controller
             DB::rollBack();
             Log::error('Error importing jadwal Non Blok Non CSR: ' . $e->getMessage());
 
-            \DB::rollBack();
-
             return response()->json([
                 'success' => false,
                 'message' => 'Terjadi kesalahan saat mengimport data: ' . $e->getMessage()

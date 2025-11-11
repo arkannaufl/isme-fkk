@@ -794,8 +794,6 @@ class JadwalPraktikumController extends Controller
 
             Log::info("Notifikasi jadwal praktikum berhasil dikirim ke dosen {$dosen->name} (ID: {$dosenId})");
 
-            \Log::info("Notifikasi jadwal praktikum berhasil dikirim ke dosen {$dosen->name} (ID: {$dosenId})");
-
             // Kirim WhatsApp notification
             $whatsappMessage = $this->formatScheduleMessage('praktikum', [
                 'mata_kuliah_nama' => $mataKuliah->nama,

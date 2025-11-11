@@ -1,7 +1,5 @@
 
-import { useState, useEffect, useRef } from "react";
-
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 import { useNavigate } from "react-router";
 import api, { handleApiError } from "../../utils/api";

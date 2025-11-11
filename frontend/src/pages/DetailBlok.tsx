@@ -10518,18 +10518,11 @@ export default function DetailBlok() {
                                 <span className="hidden sm:inline">Absensi</span>
                               </button>
                             )}
-                            <button onClick={() => handleEditJadwalKuliahBesar(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition" title="Edit Jadwal">
-
-
-                              <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 text-blue-500" />
-
-                          <button onClick={() => {
+                            <button onClick={() => {
                             // Cari index berdasarkan ID untuk memastikan data yang benar
                             const correctIndex = jadwalKuliahBesar.findIndex(j => j.id === row.id);
-                            handleEditJadwalKuliahBesar(correctIndex >= 0 ? correctIndex : actualIndex);
-                          }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
-
-
+                            handleEditJadwalKuliahBesar(correctIndex >= 0 ? correctIndex : actualIndex);                        }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
+                              <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 text-blue-500" />
                               <span className="hidden sm:inline">Edit</span>
 
                             </button>
