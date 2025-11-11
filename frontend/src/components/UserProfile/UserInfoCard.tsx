@@ -1,10 +1,16 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+
+import { useState, useEffect, useRef, useCallback } from "react";
+
 import { useNavigate } from "react-router";
 import api, { handleApiError } from "../../utils/api";
 import { AnimatePresence, motion } from "framer-motion";
 import { EyeIcon, EyeCloseIcon } from "../../icons";
+
+import SignaturePad from "react-signature-canvas";
+
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCheckCircle } from "@fortawesome/free-solid-svg-icons";
+
 
 export default function UserInfoCard() {
   const navigate = useNavigate();
@@ -30,11 +36,16 @@ export default function UserInfoCard() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const [signatureImage, setSignatureImage] = useState<string | null>(null);
+  const sigPadRef = useRef<SignaturePad>(null);
+
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [phoneError, setPhoneError] = useState("");
   const [emailError, setEmailError] = useState("");
   const [checkingPhone, setCheckingPhone] = useState(false);
   const [checkingEmail, setCheckingEmail] = useState(false);
+
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -93,6 +104,7 @@ export default function UserInfoCard() {
           whatsapp_address: userData.whatsapp_address || "",
           whatsapp_birth_day: formattedBirthDay, // Format untuk input type="date"
         });
+        setSignatureImage(userData.signature_image || null);
       } catch (error) {
         // Fallback ke localStorage jika API gagal
         console.error("Error loading user data:", error);
@@ -145,6 +157,7 @@ export default function UserInfoCard() {
           whatsapp_address: userData.whatsapp_address || "",
           whatsapp_birth_day: formattedBirthDay, // Format untuk input type="date"
         });
+        setSignatureImage(userData.signature_image || null);
       }
     };
 
@@ -316,10 +329,34 @@ export default function UserInfoCard() {
       whatsapp_address: user.whatsapp_address || "",
       whatsapp_birth_day: formattedBirthDay, // Format untuk input type="date"
     });
+    setSignatureImage(user.signature_image || null);
     setIsModalOpen(true);
     setError("");
     setPhoneError("");
     setEmailError("");
+  };
+
+  const handleUploadSignature = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function (event) {
+      const base64 = event.target?.result as string;
+      setSignatureImage(base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleClearSignature = () => {
+    sigPadRef.current?.clear();
+    setSignatureImage(null);
+  };
+
+  const handleSaveSignature = () => {
+    if (sigPadRef.current && !sigPadRef.current.isEmpty()) {
+      const data = sigPadRef.current.getCanvas().toDataURL("image/png");
+      setSignatureImage(data);
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -396,6 +433,14 @@ export default function UserInfoCard() {
         payload.password = form.new_password;
         payload.confirm_password = form.confirm_password;
       }
+
+      // Tambahkan signature_image (khusus untuk dosen)
+      // Kirim null jika dihapus, atau base64 jika ada
+      if (user.role === "dosen") {
+        payload.signature_image = signatureImage || null;
+      }
+
+
 
       const response = await api.put("/profile", payload);
       const updatedUser = response.data.user;
@@ -905,6 +950,70 @@ export default function UserInfoCard() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Tanda Tangan (Khusus Dosen) */}
+                  {user.role === "dosen" && (
+                    <div className="mb-3 sm:mb-4">
+                      <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">
+                        Tanda Tangan Digital
+                      </label>
+                      <div className="space-y-2">
+                        {signatureImage ? (
+                          <div className="relative w-full h-32 bg-white dark:bg-gray-900 border rounded mb-2 flex items-center justify-center dark:border-gray-600">
+                            <img
+                              src={signatureImage}
+                              alt="Tanda Tangan"
+                              className="max-w-full max-h-full object-contain"
+                            />
+                          </div>
+                        ) : (
+                          <div className="relative w-full h-32 bg-white dark:bg-gray-900 border rounded mb-2 flex flex-col justify-end dark:border-gray-600">
+                            <SignaturePad
+                              ref={sigPadRef}
+                              penColor={user.role === "dosen" ? "#000" : "black"}
+                              canvasProps={{
+                                width: 400,
+                                height: 128,
+                                className:
+                                  "absolute top-0 left-0 w-full h-full bg-white dark:bg-gray-900 rounded",
+                              }}
+                            />
+                            <div className="border-b-2 border-dotted w-full absolute bottom-2 left-0 dark:border-gray-600" />
+                          </div>
+                        )}
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={handleClearSignature}
+                            className="text-xs px-3 py-1.5 border rounded bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100 dark:border-gray-600"
+                          >
+                            Clear
+                          </button>
+                          {!signatureImage && (
+                            <button
+                              type="button"
+                              onClick={handleSaveSignature}
+                              className="text-xs px-3 py-1.5 border rounded bg-blue-100 hover:bg-blue-200 dark:bg-blue-700 dark:hover:bg-blue-600 dark:text-gray-100 dark:border-gray-600"
+                            >
+                              Simpan TTD
+                            </button>
+                          )}
+                          <label className="text-xs px-3 py-1.5 border rounded bg-green-100 hover:bg-green-200 dark:bg-green-700 dark:hover:bg-green-600 dark:text-gray-100 dark:border-gray-600 cursor-pointer">
+                            Upload TTD
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleUploadSignature}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Tanda tangan ini akan muncul di PDF laporan absensi kuliah besar
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 {error && (
                   <div className="text-sm text-red-500 bg-red-100 rounded p-2 mt-6">

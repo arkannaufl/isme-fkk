@@ -30,6 +30,7 @@ class JadwalKuliahBesar extends Model
         'alasan_konfirmasi',
         'status_reschedule',
         'reschedule_reason',
+        'qr_enabled',
         'created_by',
         // SIAKAD fields
         'siakad_kurikulum',
@@ -43,6 +44,7 @@ class JadwalKuliahBesar extends Model
 
     protected $casts = [
         'dosen_ids' => 'array',
+        'qr_enabled' => 'boolean',
     ];
 
     // Relasi

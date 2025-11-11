@@ -320,6 +320,12 @@ const getNavItems = (userRole?: string): NavItem[] => {
       roles: ["mahasiswa"],
     },
     {
+      icon: <ListIcon />,
+      name: "Absen QR",
+      path: "/mahasiswa/absensi-kuliah-besar",
+      roles: ["mahasiswa"],
+    },
+    {
       icon: <ServiceCenterIcon />,
       name: "Service Center",
       path: "/support-center",

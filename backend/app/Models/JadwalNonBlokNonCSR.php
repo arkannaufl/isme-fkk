@@ -32,6 +32,7 @@ class JadwalNonBlokNonCSR extends Model
         'alasan_konfirmasi',
         'status_reschedule',
         'reschedule_reason',
+        'qr_enabled',
         'created_by',
     ];
 
@@ -41,6 +42,7 @@ class JadwalNonBlokNonCSR extends Model
         'jam_selesai' => 'string',
         'use_ruangan' => 'boolean',
         'dosen_ids' => 'array',
+        'qr_enabled' => 'boolean',
     ];
 
     public function mataKuliah()

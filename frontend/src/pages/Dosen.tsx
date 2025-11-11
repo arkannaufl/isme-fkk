@@ -9,6 +9,8 @@ import {
   faChevronUp,
   faBookOpen,
   faInfoCircle,
+  faEye,
+  faImage,
 } from "@fortawesome/free-solid-svg-icons";
 import { AnimatePresence, motion } from "framer-motion";
 import api, { handleApiError } from "../utils/api";
@@ -34,6 +36,7 @@ type UserDosen = {
   kompetensi?: string[] | string;
   peran_kurikulum?: string[] | string;
   keahlian?: string[] | string;
+  signature_image?: string | null;
   // Tambahan untuk fitur peran utama
   peran_utama?: "koordinator" | "tim_blok" | "dosen_mengajar" | "standby";
   matkul_ketua_nama?: string;
@@ -96,6 +99,9 @@ export default function Dosen() {
     null
   );
   const [editMode, setEditMode] = useState(false);
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [selectedSignature, setSelectedSignature] = useState<string | null>(null);
+  const [selectedDosenName, setSelectedDosenName] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -1160,6 +1166,13 @@ export default function Dosen() {
 
         // Hapus field peran_dalam_kurikulum jika ada (field sudah tidak digunakan)
         delete newRow.peran_dalam_kurikulum;
+        
+        // Hapus field signature_image jika ada (field tidak diproses via import Excel)
+        // Signature image hanya bisa diupload manual oleh dosen melalui halaman Profile
+        delete newRow.signature_image;
+        delete newRow.signature_image_ttd;
+        delete newRow.ttd;
+        delete newRow.tanda_tangan;
 
         // Cek apakah ada kolom gabungan NID/NIDN/NUPTK
         const headers = Object.keys(row);
@@ -1316,6 +1329,7 @@ export default function Dosen() {
 
         // Construct the object with exact column names as expected by the backend's Excel import
         // Note: role is not a column in the Excel template, so don't include it here for Excel export.
+        // NOTE: signature_image tidak dikirim ke backend - field ini hanya bisa diupload manual oleh dosen melalui halaman Profile
         return {
           nid: row.nid,
           nidn: row.nidn,
@@ -1327,6 +1341,7 @@ export default function Dosen() {
           password: row.password,
           kompetensi: kompetensiArray.join(", "), // Convert back to string for Excel export
           keahlian: keahlianArray.join(", "),
+          // signature_image tidak disertakan - hanya bisa diupload manual oleh dosen
         };
       });
 
@@ -1506,6 +1521,10 @@ export default function Dosen() {
     const hasSeparateNidn = headers.includes("nidn");
 
     let requiredHeaders: string[];
+
+    // NOTE: signature_image tidak termasuk dalam requiredHeaders
+    // Signature image hanya bisa diupload manual oleh dosen melalui halaman Profile
+    // Jika ada kolom signature_image di Excel, akan diabaikan (tidak diproses)
 
     if (hasCombinedId || hasSpecificCombinedId || hasCombinedData) {
       // Jika ada kolom gabungan atau data gabungan, tidak perlu kolom nid dan nidn terpisah
@@ -3517,6 +3536,9 @@ export default function Dosen() {
                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400">
                   No. Telepon
                 </th>
+                <th className="px-3 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 w-32">
+                  Tanda Tangan
+                </th>
                 <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400">
                   Kompetensi
                 </th>
@@ -3559,6 +3581,10 @@ export default function Dosen() {
                     {/* Telp */}
                     <td className="px-6 py-4">
                       <div className="h-4 w-20 rounded bg-gray-200 dark:bg-gray-700" />
+                    </td>
+                    {/* Tanda Tangan */}
+                    <td className="px-3 py-4">
+                      <div className="h-6 w-12 rounded bg-gray-200 dark:bg-gray-700 mx-auto" />
                     </td>
                     {/* Kompetensi */}
                     <td className="px-6 py-4">
@@ -3655,6 +3681,27 @@ export default function Dosen() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-gray-700 dark:text-gray-300 align-middle min-w-[120px]">
                       {d.telp || "-"}
+                    </td>
+                    {/* Kolom Tanda Tangan */}
+                    <td className="px-3 py-4 text-center align-middle w-32">
+                      {d.signature_image ? (
+                        <button
+                          onClick={() => {
+                            setSelectedSignature(d.signature_image);
+                            setSelectedDosenName(d.name || "-");
+                            setShowSignatureModal(true);
+                          }}
+                          className="inline-flex items-center justify-center px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 border border-blue-200 dark:border-blue-700 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition whitespace-nowrap"
+                          title="Klik untuk melihat tanda tangan"
+                        >
+                          <FontAwesomeIcon icon={faEye} className="w-3 h-3 mr-1" />
+                          TTD
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                          -
+                        </span>
+                      )}
                     </td>
                     {/* Kolom Kompetensi */}
                     <td className="px-6 py-4 whitespace-pre-line text-gray-700 dark:text-gray-300 align-middle min-w-[200px]">
@@ -5434,6 +5481,87 @@ export default function Dosen() {
                     disabled={isDeleting}
                   >
                     {isDeleting ? "Menghapus..." : "Hapus"}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* Modal View Tanda Tangan */}
+      <AnimatePresence>
+        {showSignatureModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <div
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => {
+                setShowSignatureModal(false);
+                setSelectedSignature(null);
+                setSelectedDosenName("");
+              }}
+            ></div>
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-2xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => {
+                  setShowSignatureModal(false);
+                  setSelectedSignature(null);
+                  setSelectedDosenName("");
+                }}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+              <div>
+                <div className="flex items-center justify-between pb-6">
+                  <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                    Tanda Tangan Digital
+                  </h2>
+                </div>
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                    Dosen: <span className="font-semibold text-gray-800 dark:text-white">{selectedDosenName}</span>
+                  </p>
+                </div>
+                <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-800 rounded-lg p-8 border border-gray-200 dark:border-gray-700 min-h-[300px]">
+                  {selectedSignature ? (
+                    <img
+                      src={selectedSignature}
+                      alt="Tanda Tangan Digital"
+                      className="max-w-full max-h-96 object-contain bg-white dark:bg-gray-900 p-4 rounded"
+                    />
+                  ) : (
+                    <div className="text-center text-gray-400 dark:text-gray-500">
+                      <FontAwesomeIcon icon={faImage} className="w-16 h-16 mb-4 opacity-50" />
+                      <p>Tanda tangan tidak ditemukan</p>
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-end gap-2 pt-6">
+                  <button
+                    onClick={() => {
+                      setShowSignatureModal(false);
+                      setSelectedSignature(null);
+                      setSelectedDosenName("");
+                    }}
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                  >
+                    Tutup
                   </button>
                 </div>
               </div>

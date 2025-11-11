@@ -21,11 +21,11 @@ class KelompokBesarAntara extends Model
 
     public function mahasiswa()
     {
-        return User::whereIn('id', $this->mahasiswa_ids ?? []);
+        return \App\Models\User::whereIn('id', $this->mahasiswa_ids ?? []);
     }
 
     public function getMahasiswaAttribute()
     {
-        return User::whereIn('id', $this->mahasiswa_ids ?? [])->get();
+        return \App\Models\User::whereIn('id', $this->mahasiswa_ids ?? [])->get();
     }
 }

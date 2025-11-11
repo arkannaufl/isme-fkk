@@ -6,11 +6,18 @@ use App\Models\JadwalPraktikum;
 use App\Models\MataKuliah;
 use App\Models\Ruangan;
 use App\Models\User;
+
+use App\Models\AbsensiPraktikum;
+
 use App\Traits\SendsWhatsAppNotification;
+
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class JadwalPraktikumController extends Controller
 {
@@ -18,7 +25,9 @@ class JadwalPraktikumController extends Controller
     // List semua jadwal praktikum untuk satu mata kuliah blok
     public function index($kode)
     {
-        $jadwal = JadwalPraktikum::with(['mataKuliah', 'ruangan', 'dosen'])
+        $jadwal = JadwalPraktikum::with(['mataKuliah', 'ruangan', 'dosen' => function ($query) {
+            $query->select('users.id', 'users.name', 'users.nid', 'users.nidn', 'users.nuptk', 'users.signature_image');
+        }])
             ->where('mata_kuliah_kode', $kode)
             ->orderBy('tanggal')
             ->orderBy('jam_mulai')
@@ -49,7 +58,7 @@ class JadwalPraktikumController extends Controller
             'siakad_dosen_pengganti' => 'nullable|string',
         ]);
         $data['mata_kuliah_kode'] = $kode;
-        $data['created_by'] = $request->input('created_by', auth()->id());
+        $data['created_by'] = $request->input('created_by', Auth::id());
 
         // Validasi kapasitas ruangan
         $kapasitasMessage = $this->validateRuanganCapacity($data);
@@ -120,7 +129,7 @@ class JadwalPraktikumController extends Controller
             'siakad_dosen_pengganti' => 'nullable|string',
         ]);
         $data['mata_kuliah_kode'] = $kode;
-        $data['created_by'] = $request->input('created_by', auth()->id());
+        $data['created_by'] = $request->input('created_by', Auth::id());
 
         // Validasi kapasitas ruangan
         $kapasitasMessage = $this->validateRuanganCapacity($data);
@@ -516,7 +525,7 @@ class JadwalPraktikumController extends Controller
         $totalYangDiperlukan = $jumlahMahasiswa + $jumlahDosen;
 
         // Debug: Log untuk troubleshooting
-        \Log::info('Praktikum Capacity Check:', [
+        Log::info('Praktikum Capacity Check:', [
             'kelas_praktikum' => $data['kelas_praktikum'],
             'semester' => $semester,
             'jumlah_mahasiswa' => $jumlahMahasiswa,
@@ -611,7 +620,7 @@ class JadwalPraktikumController extends Controller
     private function sendNotificationToMahasiswa($jadwal)
     {
         try {
-            \Log::info("Praktikum sendNotificationToMahasiswa - Starting for jadwal ID: {$jadwal->id}, kelas_praktikum: {$jadwal->kelas_praktikum}");
+            Log::info("Praktikum sendNotificationToMahasiswa - Starting for jadwal ID: {$jadwal->id}, kelas_praktikum: {$jadwal->kelas_praktikum}");
 
             // Get kelas based on kelas_praktikum name
             $kelas = \App\Models\Kelas::where('nama_kelas', $jadwal->kelas_praktikum)
@@ -619,22 +628,22 @@ class JadwalPraktikumController extends Controller
                 ->first();
 
             if (!$kelas) {
-                \Log::warning("Praktikum sendNotificationToMahasiswa - Kelas '{$jadwal->kelas_praktikum}' not found for semester {$jadwal->mataKuliah->semester}");
+                Log::warning("Praktikum sendNotificationToMahasiswa - Kelas '{$jadwal->kelas_praktikum}' not found for semester {$jadwal->mataKuliah->semester}");
                 return;
             }
 
-            \Log::info("Praktikum sendNotificationToMahasiswa - Kelas found: ID {$kelas->id}, semester {$kelas->semester}");
+            Log::info("Praktikum sendNotificationToMahasiswa - Kelas found: ID {$kelas->id}, semester {$kelas->semester}");
 
             // Get kelompok kecil IDs that belong to this kelas
-            $kelompokIds = \DB::table('kelas_kelompok')
+            $kelompokIds = DB::table('kelas_kelompok')
                 ->where('kelas_id', $kelas->id)
                 ->pluck('nama_kelompok')
                 ->toArray();
 
-            \Log::info("Praktikum sendNotificationToMahasiswa - Kelompok IDs: " . json_encode($kelompokIds));
+            Log::info("Praktikum sendNotificationToMahasiswa - Kelompok IDs: " . json_encode($kelompokIds));
 
             if (empty($kelompokIds)) {
-                \Log::warning("Praktikum sendNotificationToMahasiswa - No kelompok found for kelas ID {$kelas->id}");
+                Log::warning("Praktikum sendNotificationToMahasiswa - No kelompok found for kelas ID {$kelas->id}");
                 return;
             }
 
@@ -648,7 +657,7 @@ class JadwalPraktikumController extends Controller
                 ->whereIn('id', $mahasiswaIds)
                 ->get();
 
-            \Log::info("Praktikum sendNotificationToMahasiswa - Found " . count($mahasiswaList) . " mahasiswa in kelas '{$jadwal->kelas_praktikum}'");
+            Log::info("Praktikum sendNotificationToMahasiswa - Found " . count($mahasiswaList) . " mahasiswa in kelas '{$jadwal->kelas_praktikum}'");
 
             // Send notification to each mahasiswa
             foreach ($mahasiswaList as $mahasiswa) {
@@ -679,9 +688,9 @@ class JadwalPraktikumController extends Controller
                 ]);
             }
 
-            \Log::info("Praktikum notifications sent to " . count($mahasiswaList) . " mahasiswa for jadwal ID: {$jadwal->id} in kelas '{$jadwal->kelas_praktikum}'");
+            Log::info("Praktikum notifications sent to " . count($mahasiswaList) . " mahasiswa for jadwal ID: {$jadwal->id} in kelas '{$jadwal->kelas_praktikum}'");
         } catch (\Exception $e) {
-            \Log::error("Error sending Praktikum notifications to mahasiswa: " . $e->getMessage());
+            Log::error("Error sending Praktikum notifications to mahasiswa: " . $e->getMessage());
         }
     }
 
@@ -743,7 +752,7 @@ class JadwalPraktikumController extends Controller
         try {
             $dosen = \App\Models\User::find($dosenId);
             if (!$dosen) {
-                \Log::warning("Dosen dengan ID {$dosenId} tidak ditemukan untuk notifikasi jadwal praktikum");
+                Log::warning("Dosen dengan ID {$dosenId} tidak ditemukan untuk notifikasi jadwal praktikum");
                 return;
             }
 
@@ -774,15 +783,16 @@ class JadwalPraktikumController extends Controller
                     'dosen_id' => $dosen->id,
                     'dosen_name' => $dosen->name,
                     'dosen_role' => $dosen->role,
-                    'created_by' => auth()->user()->name ?? 'Admin',
-                    'created_by_role' => auth()->user()->role ?? 'admin',
-                    'sender_name' => auth()->user()->name ?? 'Admin',
-                    'sender_role' => auth()->user()->role ?? 'admin'
+                    'created_by' => Auth::user()->name ?? 'Admin',
+                    'created_by_role' => Auth::user()->role ?? 'admin',
+                    'sender_name' => Auth::user()->name ?? 'Admin',
+                    'sender_role' => Auth::user()->role ?? 'admin'
                 ]
             ]);
 
 
-            \Log::info("Notifikasi jadwal praktikum berhasil dikirim ke dosen {$dosen->name} (ID: {$dosenId})");
+
+            Log::info("Notifikasi jadwal praktikum berhasil dikirim ke dosen {$dosen->name} (ID: {$dosenId})");
 
             // Kirim WhatsApp notification
             $whatsappMessage = $this->formatScheduleMessage('praktikum', [
@@ -803,8 +813,9 @@ class JadwalPraktikumController extends Controller
                 'mata_kuliah_nama' => $mataKuliah->nama,
             ]);
 
+
         } catch (\Exception $e) {
-            \Log::error("Gagal mengirim notifikasi jadwal praktikum ke dosen {$dosenId}: " . $e->getMessage());
+            Log::error("Gagal mengirim notifikasi jadwal praktikum ke dosen {$dosenId}: " . $e->getMessage());
         }
     }
 
@@ -830,11 +841,10 @@ class JadwalPraktikumController extends Controller
                         $q->where('semester', '!=', 'Antara');
                     });
                 } elseif ($semesterType === 'antara') {
-                    // Semester antara tidak memiliki praktikum, return empty result
-                    return response()->json([
-                        'data' => [],
-                        'message' => 'Semester antara tidak memiliki praktikum'
-                    ]);
+                    // Filter untuk praktikum semester antara
+                    $query->whereHas('mataKuliah', function ($q) {
+                        $q->where('semester', '=', 'Antara');
+                    });
                 }
             }
 
@@ -887,7 +897,7 @@ class JadwalPraktikumController extends Controller
                 'message' => 'Jadwal praktikum berhasil diambil'
             ]);
         } catch (\Exception $e) {
-            \Log::error("Error getting jadwal praktikum for dosen {$dosenId}: " . $e->getMessage());
+            Log::error("Error getting jadwal praktikum for dosen {$dosenId}: " . $e->getMessage());
             return response()->json([
                 'message' => 'Gagal mengambil jadwal praktikum',
                 'error' => $e->getMessage()
@@ -1085,7 +1095,7 @@ class JadwalPraktikumController extends Controller
                 'message' => 'Berhasil mengimport ' . count($importedData) . ' jadwal praktikum'
             ]);
         } catch (\Exception $e) {
-            \Log::error('Error importing praktikum data: ' . $e->getMessage());
+            Log::error('Error importing praktikum data: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Terjadi kesalahan saat mengimport data: ' . $e->getMessage()
             ], 500);
@@ -1148,9 +1158,9 @@ class JadwalPraktikumController extends Controller
                 ]);
             }
 
-            \Log::info("Reschedule notification sent for Praktikum jadwal ID: {$jadwal->id}");
+            Log::info("Reschedule notification sent for Praktikum jadwal ID: {$jadwal->id}");
         } catch (\Exception $e) {
-            \Log::error("Error sending reschedule notification for Praktikum jadwal ID: {$jadwal->id}: " . $e->getMessage());
+            Log::error("Error sending reschedule notification for Praktikum jadwal ID: {$jadwal->id}: " . $e->getMessage());
         }
     }
 
@@ -1188,9 +1198,394 @@ class JadwalPraktikumController extends Controller
                 ]);
             }
 
-            \Log::info("Notifikasi replacement berhasil dikirim ke super admin untuk jadwal praktikum ID: {$jadwal->id}");
+            Log::info("Notifikasi replacement berhasil dikirim ke super admin untuk jadwal praktikum ID: {$jadwal->id}");
         } catch (\Exception $e) {
-            \Log::error("Gagal mengirim notifikasi replacement untuk jadwal praktikum ID {$jadwal->id}: " . $e->getMessage());
+            Log::error("Gagal mengirim notifikasi replacement untuk jadwal praktikum ID {$jadwal->id}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Toggle QR code enabled/disabled untuk jadwal praktikum
+     */
+    public function toggleQr($kode, $jadwalId)
+    {
+        try {
+            $jadwal = JadwalPraktikum::where('id', $jadwalId)
+                ->where('mata_kuliah_kode', $kode)
+                ->first();
+
+            if (!$jadwal) {
+                return response()->json(['message' => 'Jadwal tidak ditemukan'], 404);
+            }
+
+            // Cek apakah user adalah dosen yang mengajar di jadwal ini
+            $userId = Auth::id();
+            $isDosenJadwal = $jadwal->dosen()->where('users.id', $userId)->exists();
+
+            // Hanya dosen yang mengajar atau super_admin/tim_akademik yang bisa toggle
+            $user = Auth::user();
+            if (!$isDosenJadwal && !in_array($user->role, ['super_admin', 'tim_akademik'])) {
+                return response()->json(['message' => 'Anda tidak memiliki akses untuk mengubah status QR code'], 403);
+            }
+
+            // Toggle qr_enabled
+            $jadwal->qr_enabled = !$jadwal->qr_enabled;
+            $jadwal->save();
+
+            Log::info('QR code toggled for Praktikum', [
+                'jadwal_id' => $jadwalId,
+                'qr_enabled' => $jadwal->qr_enabled,
+                'user_id' => $userId
+            ]);
+
+            return response()->json([
+                'message' => $jadwal->qr_enabled ? 'QR code diaktifkan' : 'QR code dinonaktifkan',
+                'qr_enabled' => $jadwal->qr_enabled
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error toggling QR for Praktikum: " . $e->getMessage());
+            return response()->json(['message' => 'Gagal mengubah status QR code: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Generate QR token untuk absensi (expired setiap 20 detik)
+     */
+    public function generateQrToken($kode, $jadwalId)
+    {
+        try {
+            $jadwal = JadwalPraktikum::where('id', $jadwalId)
+                ->where('mata_kuliah_kode', $kode)
+                ->first();
+
+            if (!$jadwal) {
+                return response()->json(['message' => 'Jadwal tidak ditemukan'], 404);
+            }
+
+            // Validasi: Hanya bisa generate token jika QR enabled
+            if (!$jadwal->qr_enabled) {
+                return response()->json([
+                    'message' => 'QR code belum diaktifkan',
+                    'qr_enabled' => false
+                ], 403);
+            }
+
+            // Cek apakah user adalah dosen yang mengajar di jadwal ini
+            $userId = Auth::id();
+            $isDosenJadwal = $jadwal->dosen()->where('users.id', $userId)->exists();
+
+            // Hanya dosen yang mengajar atau super_admin/tim_akademik yang bisa generate token
+            $user = Auth::user();
+            if (!$isDosenJadwal && !in_array($user->role, ['super_admin', 'tim_akademik'])) {
+                return response()->json(['message' => 'Anda tidak memiliki akses untuk generate QR token'], 403);
+            }
+
+            // Generate random token
+            $token = Str::random(32);
+            $cacheKey = "qr_token_praktikum_{$kode}_{$jadwalId}";
+
+            // Simpan token di cache dengan expiry 20 detik
+            Cache::put($cacheKey, $token, now()->addSeconds(20));
+
+            // Calculate expires timestamp (unix timestamp in milliseconds untuk frontend)
+            $expiresAt = now()->addSeconds(20);
+            $expiresAtTimestamp = $expiresAt->timestamp * 1000; // Convert to milliseconds
+
+            Log::info('QR token generated for Praktikum', [
+                'kode' => $kode,
+                'jadwal_id' => $jadwalId,
+                'token' => substr($token, 0, 8) . '...', // Log hanya sebagian untuk security
+                'expires_at' => $expiresAt->toDateTimeString(),
+                'expires_at_timestamp' => $expiresAtTimestamp
+            ]);
+
+            return response()->json([
+                'token' => $token,
+                'expires_in' => 20, // detik
+                'expires_at' => $expiresAt->toDateTimeString(), // Untuk display
+                'expires_at_timestamp' => $expiresAtTimestamp // Unix timestamp in milliseconds (untuk frontend)
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error generating QR token for Praktikum: " . $e->getMessage());
+            return response()->json(['message' => 'Gagal generate QR token: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get mahasiswa untuk jadwal praktikum berdasarkan kelas praktikum
+     */
+    public function getMahasiswa($kode, $jadwalId)
+    {
+        try {
+            $jadwal = JadwalPraktikum::where('mata_kuliah_kode', $kode)
+                ->where('id', $jadwalId)
+                ->first();
+
+            if (!$jadwal) {
+                return response()->json(['message' => 'Jadwal tidak ditemukan'], 404);
+            }
+
+            // Get kelas based on kelas_praktikum name
+            $kelas = \App\Models\Kelas::where('nama_kelas', $jadwal->kelas_praktikum)
+                ->where('semester', $jadwal->mataKuliah->semester)
+                ->first();
+
+            if (!$kelas) {
+                return response()->json([
+                    'message' => 'Kelas praktikum tidak ditemukan',
+                    'mahasiswa' => []
+                ], 404);
+            }
+
+            // Get kelompok kecil IDs that belong to this kelas
+            $kelompokIds = DB::table('kelas_kelompok')
+                ->where('kelas_id', $kelas->id)
+                ->pluck('nama_kelompok')
+                ->toArray();
+
+            if (empty($kelompokIds)) {
+                return response()->json([
+                    'message' => 'Tidak ada kelompok kecil untuk kelas ini',
+                    'mahasiswa' => []
+                ]);
+            }
+
+            // Get mahasiswa in the specific kelompok kecil
+            $mahasiswaIds = \App\Models\KelompokKecil::whereIn('nama_kelompok', $kelompokIds)
+                ->where('semester', $jadwal->mataKuliah->semester)
+                ->pluck('mahasiswa_id')
+                ->toArray();
+
+            $mahasiswaList = User::where('role', 'mahasiswa')
+                ->whereIn('id', $mahasiswaIds)
+                ->get()
+                ->map(function ($user) {
+                    return [
+                        'id' => $user->id,
+                        'nim' => $user->nim,
+                        'nama' => $user->name
+                    ];
+                });
+
+            return response()->json([
+                'mahasiswa' => $mahasiswaList
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error getting mahasiswa for Praktikum: " . $e->getMessage());
+            return response()->json(['message' => 'Gagal mengambil data mahasiswa'], 500);
+        }
+    }
+
+    /**
+     * Get absensi untuk jadwal praktikum tertentu
+     */
+    public function getAbsensi($kode, $jadwalId)
+    {
+        try {
+            $jadwal = JadwalPraktikum::where('mata_kuliah_kode', $kode)
+                ->where('id', $jadwalId)
+                ->first();
+
+            if (!$jadwal) {
+                return response()->json(['message' => 'Jadwal tidak ditemukan'], 404);
+            }
+
+            // Get semua absensi untuk jadwal ini
+            $absensiRecords = AbsensiPraktikum::where('jadwal_praktikum_id', $jadwalId)
+                ->get();
+
+            $absensi = $absensiRecords
+                ->keyBy('mahasiswa_nim')
+                ->map(function ($item) {
+                    return [
+                        'hadir' => $item->hadir,
+                        'catatan' => $item->catatan
+                    ];
+                })
+                ->toArray();
+
+            return response()->json([
+                'absensi' => $absensi
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error getting absensi for Praktikum: " . $e->getMessage());
+            return response()->json(['message' => 'Gagal mengambil data absensi'], 500);
+        }
+    }
+
+    /**
+     * Save absensi untuk jadwal praktikum tertentu
+     */
+    public function saveAbsensi(Request $request, $kode, $jadwalId)
+    {
+        try {
+            $jadwal = JadwalPraktikum::where('mata_kuliah_kode', $kode)
+                ->where('id', $jadwalId)
+                ->first();
+
+            if (!$jadwal) {
+                return response()->json(['message' => 'Jadwal tidak ditemukan'], 404);
+            }
+
+            // VALIDASI: Pastikan QR code sudah diaktifkan oleh dosen (hanya untuk mahasiswa)
+            // Dosen bisa input manual tanpa perlu QR code aktif
+            $user = Auth::user();
+            $isDosen = $user && in_array($user->role, ['dosen', 'super_admin', 'tim_akademik']);
+
+            if (!$isDosen && !$jadwal->qr_enabled) {
+                Log::warning('Absensi ditolak: QR code belum diaktifkan', [
+                    'jadwal_id' => $jadwalId,
+                    'qr_enabled' => $jadwal->qr_enabled,
+                    'user_role' => $user->role ?? 'unknown'
+                ]);
+                return response()->json([
+                    'message' => 'QR code belum diaktifkan oleh dosen. Silakan tunggu hingga dosen mengaktifkan QR code untuk absensi ini.',
+                    'qr_enabled' => false
+                ], 403);
+            }
+
+            // VALIDASI: Cek token QR code untuk mahasiswa (jika submit via QR)
+            if (!$isDosen && $jadwal->qr_enabled) {
+                $token = $request->input('qr_token');
+                $cacheKey = "qr_token_praktikum_{$kode}_{$jadwalId}";
+
+                if (!$token) {
+                    Log::warning('Absensi ditolak: QR token tidak ditemukan', [
+                        'jadwal_id' => $jadwalId,
+                        'user_nim' => $user->nim ?? 'unknown'
+                    ]);
+                    return response()->json([
+                        'message' => 'Token QR code tidak valid atau sudah expired. Silakan scan QR code yang baru.',
+                        'code' => 'QR_TOKEN_INVALID'
+                    ], 403);
+                }
+
+                $validToken = Cache::get($cacheKey);
+
+                if (!$validToken || $validToken !== $token) {
+                    Log::warning('Absensi ditolak: QR token tidak valid atau expired', [
+                        'jadwal_id' => $jadwalId,
+                        'user_nim' => $user->nim ?? 'unknown',
+                        'token_provided' => substr($token, 0, 8) . '...'
+                    ]);
+                    return response()->json([
+                        'message' => 'Token QR code tidak valid atau sudah expired. Silakan scan QR code yang baru.',
+                        'code' => 'QR_TOKEN_EXPIRED'
+                    ], 403);
+                }
+
+                // Token valid, hapus dari cache untuk mencegah penggunaan ulang
+                Cache::forget($cacheKey);
+
+                Log::info('QR token validated successfully for Praktikum', [
+                    'jadwal_id' => $jadwalId,
+                    'user_nim' => $user->nim ?? 'unknown'
+                ]);
+            }
+
+            $request->validate([
+                'absensi' => 'required|array',
+                'absensi.*.mahasiswa_nim' => 'required|string',
+                'absensi.*.hadir' => 'required|boolean',
+                'absensi.*.catatan' => 'nullable|string'
+            ]);
+
+            $absensiData = $request->input('absensi', []);
+
+            // Get mahasiswa yang terdaftar di kelas praktikum jadwal ini
+            $mahasiswaTerdaftar = [];
+
+            // Get kelas based on kelas_praktikum name
+            $kelas = \App\Models\Kelas::where('nama_kelas', $jadwal->kelas_praktikum)
+                ->where('semester', $jadwal->mataKuliah->semester)
+                ->first();
+
+            if ($kelas) {
+                // Get kelompok kecil IDs that belong to this kelas
+                $kelompokIds = DB::table('kelas_kelompok')
+                    ->where('kelas_id', $kelas->id)
+                    ->pluck('nama_kelompok')
+                    ->toArray();
+
+                if (!empty($kelompokIds)) {
+                    // Get mahasiswa in the specific kelompok kecil
+                    $mahasiswaIds = \App\Models\KelompokKecil::whereIn('nama_kelompok', $kelompokIds)
+                        ->where('semester', $jadwal->mataKuliah->semester)
+                        ->pluck('mahasiswa_id')
+                        ->toArray();
+
+                    $mahasiswaList = User::where('role', 'mahasiswa')
+                        ->whereIn('id', $mahasiswaIds)
+                        ->get();
+                    $mahasiswaTerdaftar = $mahasiswaList->pluck('nim')->toArray();
+                }
+            }
+
+            // Validasi NIM yang di-submit harus terdaftar di jadwal ini
+            // Normalisasi NIM untuk perbandingan yang lebih robust
+            $invalidNims = [];
+            foreach ($absensiData as $absen) {
+                $submittedNim = trim((string)($absen['mahasiswa_nim'] ?? ''));
+
+                // Cek dengan perbandingan yang case-insensitive dan trimmed
+                $isValid = false;
+                foreach ($mahasiswaTerdaftar as $registeredNim) {
+                    if (strtolower($registeredNim) === strtolower($submittedNim)) {
+                        $isValid = true;
+                        break;
+                    }
+                }
+
+                if (!$isValid && !empty($submittedNim)) {
+                    $invalidNims[] = $submittedNim;
+                }
+            }
+
+            if (!empty($invalidNims)) {
+                Log::warning('Absensi ditolak: mahasiswa tidak terdaftar', [
+                    'invalid_nims' => $invalidNims,
+                    'mahasiswa_terdaftar' => $mahasiswaTerdaftar
+                ]);
+
+                return response()->json([
+                    'message' => 'Beberapa mahasiswa tidak terdaftar di jadwal ini: ' . implode(', ', $invalidNims),
+                    'invalid_nims' => $invalidNims
+                ], 422);
+            }
+
+            // Upsert absensi (update jika ada, insert jika belum ada)
+            foreach ($absensiData as $absen) {
+                AbsensiPraktikum::updateOrCreate(
+                    [
+                        'jadwal_praktikum_id' => $jadwalId,
+                        'mahasiswa_nim' => $absen['mahasiswa_nim']
+                    ],
+                    [
+                        'hadir' => $absen['hadir'] ?? false,
+                        'catatan' => $absen['catatan'] ?? ''
+                    ]
+                );
+            }
+
+            // Get kembali semua absensi untuk response
+            $absensi = AbsensiPraktikum::where('jadwal_praktikum_id', $jadwalId)
+                ->get()
+                ->keyBy('mahasiswa_nim')
+                ->map(function ($item) {
+                    return [
+                        'hadir' => $item->hadir,
+                        'catatan' => $item->catatan
+                    ];
+                })
+                ->toArray();
+
+            return response()->json([
+                'message' => 'Absensi berhasil disimpan',
+                'absensi' => $absensi
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error saving absensi for Praktikum: " . $e->getMessage());
+            return response()->json(['message' => 'Gagal menyimpan absensi: ' . $e->getMessage()], 500);
         }
     }
 }
