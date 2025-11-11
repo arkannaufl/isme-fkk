@@ -1025,6 +1025,20 @@ export default function DashboardDosen() {
       return;
     }
 
+    // Validasi Alamat (required)
+    if (!whatsAppData.whatsapp_address || !whatsAppData.whatsapp_address.trim()) {
+      setErrorMessage("Alamat wajib diisi.");
+      setShowErrorModal(true);
+      return;
+    }
+
+    // Validasi Tanggal Lahir (required)
+    if (!whatsAppData.whatsapp_birth_day || !whatsAppData.whatsapp_birth_day.trim()) {
+      setErrorMessage("Tanggal Lahir wajib diisi.");
+      setShowErrorModal(true);
+      return;
+    }
+
     try {
       setUpdatingEmail(true);
       setUpdatingWhatsApp(true);
@@ -1069,8 +1083,8 @@ export default function DashboardDosen() {
         email: finalEmail, // Email Verification
         whatsapp_phone: whatsAppData.whatsapp_phone, // Required
         whatsapp_email: wablasEmail, // SELALU sama dengan Email Verification (tidak boleh berbeda)
-        whatsapp_address: whatsAppData.whatsapp_address || null, // Optional
-        whatsapp_birth_day: whatsAppData.whatsapp_birth_day || null, // Optional
+        whatsapp_address: whatsAppData.whatsapp_address, // Required
+        whatsapp_birth_day: whatsAppData.whatsapp_birth_day, // Required
       });
 
       if (response.data) {
@@ -2110,7 +2124,7 @@ export default function DashboardDosen() {
                     {/* Address */}
                     <div>
                       <label className="block text-xs font-medium text-blue-800 dark:text-blue-200 mb-1">
-                        Alamat
+                        Alamat <span className="text-red-500">*</span>
                       </label>
                       <textarea
                         value={whatsAppData.whatsapp_address}
@@ -2123,13 +2137,14 @@ export default function DashboardDosen() {
                         rows={2}
                         placeholder="Masukkan alamat lengkap"
                         className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                        required
                       />
                     </div>
 
                     {/* Birth Day */}
                     <div>
                       <label className="block text-xs font-medium text-blue-800 dark:text-blue-200 mb-1">
-                        Tanggal Lahir
+                        Tanggal Lahir <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="date"
@@ -2142,6 +2157,7 @@ export default function DashboardDosen() {
                         }
                         max={new Date().toISOString().split("T")[0]}
                         className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
                       />
                       <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                         Format: dd-mm-yyyy (contoh: 15-01-1990)
@@ -2158,6 +2174,10 @@ export default function DashboardDosen() {
                           !whatsAppData.name ||
                           !whatsAppData.whatsapp_phone ||
                           !whatsAppData.whatsapp_phone.match(/^62\d+$/) ||
+                          !whatsAppData.whatsapp_address ||
+                          !whatsAppData.whatsapp_address.trim() ||
+                          !whatsAppData.whatsapp_birth_day ||
+                          !whatsAppData.whatsapp_birth_day.trim() ||
                           (!showEmailWarning && !emailStatus?.email) // Jika email sudah verified, pastikan ada emailStatus
                         }
                         className="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"

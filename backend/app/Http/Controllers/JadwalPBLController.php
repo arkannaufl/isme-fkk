@@ -896,16 +896,16 @@ class JadwalPBLController extends Controller
                     \Illuminate\Support\Facades\Log::info("Adding dosen {$dosenId} to dosen_ids for jadwal {$jadwal->id}");
                 }
             } elseif ($status === 'tidak_bisa') {
-                // Remove dosen from dosen_ids
-                $currentDosenIds = array_filter($currentDosenIds, function ($id) use ($dosenId) {
-                    return $id != $dosenId;
-                });
-                $currentDosenIds = array_values($currentDosenIds); // Re-index array
-                \Illuminate\Support\Facades\Log::info("Removing dosen {$dosenId} from dosen_ids for jadwal {$jadwal->id}");
+                // PENTING: Jangan hapus dosen dari dosen_ids saat status "tidak_bisa"
+                // dosen_ids tetap menyimpan history (dosen pengampu awal di index 0, dosen pengganti di index selanjutnya)
+                // Hanya update status_konfirmasi, jangan ubah dosen_ids
+                \Illuminate\Support\Facades\Log::info("Dosen {$dosenId} status changed to tidak_bisa for jadwal {$jadwal->id}, but keeping in dosen_ids for history");
             }
 
-            // Update jadwal with new dosen_ids
-            $jadwal->update(['dosen_ids' => $currentDosenIds]);
+            // Update jadwal with new dosen_ids (hanya jika ada perubahan untuk status 'bisa')
+            if ($status === 'bisa') {
+                $jadwal->update(['dosen_ids' => $currentDosenIds]);
+            }
 
             \Illuminate\Support\Facades\Log::info("Updated dosen_ids for jadwal {$jadwal->id}: " . json_encode($currentDosenIds));
         } catch (\Exception $e) {

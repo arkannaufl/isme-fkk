@@ -986,28 +986,28 @@ class NotificationController extends Controller
                     $oldDosenId = $jadwal->dosen_id;
                     $jadwal->resetPenilaianSubmitted();
 
-                    // Create a separate record for the old dosen with "tidak_bisa" status
-                    $oldDosenJadwal = $jadwal->replicate();
-                    $oldDosenJadwal->dosen_id = $oldDosenId;
-                    $oldDosenJadwal->status_konfirmasi = 'tidak_bisa';
-                    // Biarkan alasan_konfirmasi tetap alasan asli (Sakit, Acara Keluarga, dll)
-                    $oldDosenJadwal->status_reschedule = null;
-                    $oldDosenJadwal->reschedule_reason = null;
-                    $oldDosenJadwal->penilaian_submitted = false;
-                    $oldDosenJadwal->penilaian_submitted_at = null;
-                    $oldDosenJadwal->penilaian_submitted_by = null;
-                    $oldDosenJadwal->save();
-
-                    // Update dosen_ids to include old dosen for history
+                    // Update dosen_ids to include old dosen for history (TIDAK membuat row baru)
                     $currentDosenIds = $jadwal->dosen_ids ? (is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true)) : [];
-                    if (!in_array($oldDosenId, $currentDosenIds)) {
-                        $currentDosenIds[] = $oldDosenId;
+                    
+                    // Pastikan oldDosenId ada di dosen_ids[0] (sebagai dosen pengampu awal)
+                    if (empty($currentDosenIds)) {
+                        // Jika dosen_ids kosong, set oldDosenId sebagai elemen pertama
+                        $currentDosenIds = [$oldDosenId];
+                    } else {
+                        // Pastikan oldDosenId ada di dosen_ids
+                        if (!in_array($oldDosenId, $currentDosenIds)) {
+                            // Jika oldDosenId belum ada, tambahkan di awal (sebagai dosen pengampu awal)
+                            array_unshift($currentDosenIds, $oldDosenId);
+                        }
                     }
+                    
+                    // Tambahkan newDosenId jika belum ada
                     if (!in_array($newDosenId, $currentDosenIds)) {
                         $currentDosenIds[] = $newDosenId;
                     }
 
                     // Reset status to 'belum_konfirmasi' when replacing dosen
+                    // Update dosen_id menjadi newDosenId, tapi dosen_ids tetap menyimpan history
                     $jadwal->update([
                         'dosen_id' => $newDosenId,
                         'dosen_ids' => $currentDosenIds,
@@ -1029,22 +1029,22 @@ class NotificationController extends Controller
                 if ($jadwal) {
                     $oldDosenId = $jadwal->dosen_id;
 
-                    // Create a separate record for the old dosen with "tidak_bisa" status
-                    $oldDosenJadwal = (array) $jadwal;
-                    unset($oldDosenJadwal['id']);
-                    $oldDosenJadwal['dosen_id'] = $oldDosenId;
-                    $oldDosenJadwal['status_konfirmasi'] = 'tidak_bisa';
-                    // Biarkan alasan_konfirmasi tetap alasan asli (Sakit, Acara Keluarga, dll)
-                    $oldDosenJadwal['status_reschedule'] = null;
-                    $oldDosenJadwal['reschedule_reason'] = null;
-                    $oldDosenJadwal['created_at'] = now();
-                    $oldDosenJadwal['updated_at'] = now();
-                    \DB::table('jadwal_kuliah_besar')->insert($oldDosenJadwal);
-
+                    // Update dosen_ids to include old dosen for history (TIDAK membuat row baru)
                     $currentDosenIds = $jadwal->dosen_ids ? (is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true)) : [];
-                    if (!in_array($oldDosenId, $currentDosenIds)) {
-                        $currentDosenIds[] = $oldDosenId;
+                    
+                    // Pastikan oldDosenId ada di dosen_ids[0] (sebagai dosen pengampu awal)
+                    if (empty($currentDosenIds)) {
+                        // Jika dosen_ids kosong, set oldDosenId sebagai elemen pertama
+                        $currentDosenIds = [$oldDosenId];
+                    } else {
+                        // Pastikan oldDosenId ada di dosen_ids
+                        if (!in_array($oldDosenId, $currentDosenIds)) {
+                            // Jika oldDosenId belum ada, tambahkan di awal (sebagai dosen pengampu awal)
+                            array_unshift($currentDosenIds, $oldDosenId);
+                        }
                     }
+                    
+                    // Tambahkan newDosenId jika belum ada
                     if (!in_array($newDosenId, $currentDosenIds)) {
                         $currentDosenIds[] = $newDosenId;
                     }
@@ -1114,69 +1114,35 @@ class NotificationController extends Controller
                 }
                 break;
             case 'jurnal':
+            case 'jurnal_reading':
                 // Update Jurnal Reading schedule and reset penilaian submitted
                 $jadwal = \App\Models\JadwalJurnalReading::find($jadwalId);
                 if ($jadwal) {
                     $oldDosenId = $jadwal->dosen_id;
                     $jadwal->resetPenilaianSubmitted();
 
-                    // Create a separate record for the old dosen with "tidak_bisa" status
-                    $oldDosenJadwal = $jadwal->replicate();
-                    $oldDosenJadwal->dosen_id = $oldDosenId;
-                    $oldDosenJadwal->status_konfirmasi = 'tidak_bisa';
-                    $oldDosenJadwal->alasan_konfirmasi = 'Diganti dosen lain';
-                    $oldDosenJadwal->status_reschedule = null;
-                    $oldDosenJadwal->reschedule_reason = null;
-                    $oldDosenJadwal->penilaian_submitted = false;
-                    $oldDosenJadwal->penilaian_submitted_at = null;
-                    $oldDosenJadwal->penilaian_submitted_by = null;
-                    $oldDosenJadwal->save();
-
-                    // Update dosen_ids to include old dosen for history
+                    // Update dosen_ids to include old dosen for history (TIDAK membuat row baru)
                     $currentDosenIds = $jadwal->dosen_ids ? (is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true)) : [];
-                    if (!in_array($oldDosenId, $currentDosenIds)) {
-                        $currentDosenIds[] = $oldDosenId;
+                    
+                    // Pastikan oldDosenId ada di dosen_ids[0] (sebagai dosen pengampu awal)
+                    if (empty($currentDosenIds)) {
+                        // Jika dosen_ids kosong, set oldDosenId sebagai elemen pertama
+                        $currentDosenIds = [$oldDosenId];
+                    } else {
+                        // Pastikan oldDosenId ada di dosen_ids
+                        if (!in_array($oldDosenId, $currentDosenIds)) {
+                            // Jika oldDosenId belum ada, tambahkan di awal (sebagai dosen pengampu awal)
+                            array_unshift($currentDosenIds, $oldDosenId);
+                        }
                     }
+                    
+                    // Tambahkan newDosenId jika belum ada
                     if (!in_array($newDosenId, $currentDosenIds)) {
                         $currentDosenIds[] = $newDosenId;
                     }
 
                     // Reset status to 'belum_konfirmasi' when replacing dosen
-                    $jadwal->update([
-                        'dosen_id' => $newDosenId,
-                        'dosen_ids' => $currentDosenIds,
-                        'status_konfirmasi' => 'belum_konfirmasi',
-                        'status_reschedule' => null,
-                        'alasan_konfirmasi' => null,
-                        'reschedule_reason' => null
-                    ]);
-                }
-                break;
-            case 'jurnal_reading':
-                // Update Jurnal Reading schedule and reset status
-                $jadwal = \App\Models\JadwalJurnalReading::find($jadwalId);
-                if ($jadwal) {
-                    $oldDosenId = $jadwal->dosen_id;
-
-                    // Create a separate record for the old dosen with "tidak_bisa" status
-                    $oldDosenJadwal = $jadwal->replicate();
-                    $oldDosenJadwal->dosen_id = $oldDosenId;
-                    $oldDosenJadwal->status_konfirmasi = 'tidak_bisa';
-                    $oldDosenJadwal->alasan_konfirmasi = 'Diganti dosen lain';
-                    $oldDosenJadwal->status_reschedule = null;
-                    $oldDosenJadwal->reschedule_reason = null;
-                    $oldDosenJadwal->save();
-
-                    // Update dosen_ids to include old dosen for history
-                    $currentDosenIds = $jadwal->dosen_ids ? (is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true)) : [];
-                    if (!in_array($oldDosenId, $currentDosenIds)) {
-                        $currentDosenIds[] = $oldDosenId;
-                    }
-                    if (!in_array($newDosenId, $currentDosenIds)) {
-                        $currentDosenIds[] = $newDosenId;
-                    }
-
-                    // Reset status to 'belum_konfirmasi' when replacing dosen
+                    // Update dosen_id menjadi newDosenId, tapi dosen_ids tetap menyimpan history
                     $jadwal->update([
                         'dosen_id' => $newDosenId,
                         'dosen_ids' => $currentDosenIds,
@@ -1193,21 +1159,29 @@ class NotificationController extends Controller
                 if ($jadwal) {
                     $oldDosenId = $jadwal->dosen_id;
 
-                    // Create a separate record for the old dosen with "tidak_bisa" status
-                    $oldDosenJadwal = (array) $jadwal;
-                    unset($oldDosenJadwal['id']);
-                    $oldDosenJadwal['dosen_id'] = $oldDosenId;
-                    $oldDosenJadwal['status_konfirmasi'] = 'tidak_bisa';
-                    $oldDosenJadwal['alasan_konfirmasi'] = 'Diganti dosen lain';
-                    $oldDosenJadwal['status_reschedule'] = null;
-                    $oldDosenJadwal['reschedule_reason'] = null;
-                    $oldDosenJadwal['created_at'] = now();
-                    $oldDosenJadwal['updated_at'] = now();
-                    \DB::table('jadwal_csr')->insert($oldDosenJadwal);
+                    // Update dosen_ids to include old dosen for history (TIDAK membuat row baru)
+                    $currentDosenIds = $jadwal->dosen_ids ? (is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true)) : [];
+                    
+                    // Pastikan oldDosenId ada di dosen_ids[0] (sebagai dosen pengampu awal)
+                    if (empty($currentDosenIds)) {
+                        // Jika dosen_ids kosong, set oldDosenId sebagai elemen pertama
+                        $currentDosenIds = [$oldDosenId];
+                    } else {
+                        // Pastikan oldDosenId ada di dosen_ids
+                        if (!in_array($oldDosenId, $currentDosenIds)) {
+                            // Jika oldDosenId belum ada, tambahkan di awal (sebagai dosen pengampu awal)
+                            array_unshift($currentDosenIds, $oldDosenId);
+                        }
+                    }
+                    
+                    // Tambahkan newDosenId jika belum ada
+                    if (!in_array($newDosenId, $currentDosenIds)) {
+                        $currentDosenIds[] = $newDosenId;
+                    }
 
-                    // CSR tidak memiliki dosen_ids, langsung update dosen_id
                     \DB::table('jadwal_csr')->where('id', $jadwalId)->update([
                         'dosen_id' => $newDosenId,
+                        'dosen_ids' => json_encode($currentDosenIds),
                         'status_konfirmasi' => 'belum_konfirmasi',
                         'status_reschedule' => null,
                         'alasan_konfirmasi' => null,
@@ -1221,22 +1195,22 @@ class NotificationController extends Controller
                 if ($jadwal) {
                     $oldDosenId = $jadwal->dosen_id;
 
-                    // Create a separate record for the old dosen with "tidak_bisa" status
-                    $oldDosenJadwal = (array) $jadwal;
-                    unset($oldDosenJadwal['id']);
-                    $oldDosenJadwal['dosen_id'] = $oldDosenId;
-                    $oldDosenJadwal['status_konfirmasi'] = 'tidak_bisa';
-                    $oldDosenJadwal['alasan_konfirmasi'] = 'Diganti dosen lain';
-                    $oldDosenJadwal['status_reschedule'] = null;
-                    $oldDosenJadwal['reschedule_reason'] = null;
-                    $oldDosenJadwal['created_at'] = now();
-                    $oldDosenJadwal['updated_at'] = now();
-                    \DB::table('jadwal_non_blok_non_csr')->insert($oldDosenJadwal);
-
+                    // Update dosen_ids to include old dosen for history (TIDAK membuat row baru)
                     $currentDosenIds = $jadwal->dosen_ids ? (is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true)) : [];
-                    if (!in_array($oldDosenId, $currentDosenIds)) {
-                        $currentDosenIds[] = $oldDosenId;
+                    
+                    // Pastikan oldDosenId ada di dosen_ids[0] (sebagai dosen pengampu awal)
+                    if (empty($currentDosenIds)) {
+                        // Jika dosen_ids kosong, set oldDosenId sebagai elemen pertama
+                        $currentDosenIds = [$oldDosenId];
+                    } else {
+                        // Pastikan oldDosenId ada di dosen_ids
+                        if (!in_array($oldDosenId, $currentDosenIds)) {
+                            // Jika oldDosenId belum ada, tambahkan di awal (sebagai dosen pengampu awal)
+                            array_unshift($currentDosenIds, $oldDosenId);
+                        }
                     }
+                    
+                    // Tambahkan newDosenId jika belum ada
                     if (!in_array($newDosenId, $currentDosenIds)) {
                         $currentDosenIds[] = $newDosenId;
                     }
@@ -3279,5 +3253,261 @@ class NotificationController extends Controller
         $content .= "Sistem ISME FKK";
 
         return $content;
+    }
+
+    /**
+     * Send notification to dosen after admin changes their confirmation status
+     */
+    public function sendStatusChangeNotification(Request $request)
+    {
+        // Check if user is admin or tim akademik
+        if (!Auth::user() || !in_array(Auth::user()->role, ['admin', 'super_admin', 'tim_akademik'])) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $request->validate([
+            'jadwal_id' => 'required|integer',
+            'jadwal_type' => 'required|string|in:pbl,kuliah_besar,praktikum,jurnal_reading,csr,non_blok_non_csr',
+            'dosen_id' => 'required|integer|exists:users,id',
+            'status' => 'required|string|in:bisa,tidak_bisa',
+        ]);
+
+        try {
+            $jadwalId = $request->jadwal_id;
+            $jadwalType = $request->jadwal_type;
+            $dosenId = $request->dosen_id;
+            $status = $request->status;
+            $adminName = Auth::user()->name ?? 'Admin';
+            $adminRole = Auth::user()->role ?? 'admin';
+
+            // Load dosen
+            $dosen = User::find($dosenId);
+            if (!$dosen) {
+                return response()->json(['message' => 'Dosen tidak ditemukan'], 404);
+            }
+
+            // Load jadwal based on type
+            $jadwal = $this->loadJadwalByType($jadwalType, $jadwalId);
+            if (!$jadwal) {
+                return response()->json(['message' => 'Jadwal tidak ditemukan'], 404);
+            }
+
+            // Get jadwal type display name
+            $jadwalTypeDisplay = $this->getJadwalTypeDisplayName($jadwalType);
+
+            // Send notification to website
+            $this->sendWebsiteNotification($dosen, $jadwal, $jadwalType, $jadwalTypeDisplay, $status, $adminName);
+
+            // Send email notification
+            $this->sendEmailStatusChangeNotification($dosen, $jadwal, $jadwalType, $jadwalTypeDisplay, $status, $adminName, $adminRole);
+
+            // Send WhatsApp notification
+            $this->sendWhatsAppStatusChangeNotification($dosen, $jadwal, $jadwalType, $jadwalTypeDisplay, $status, $adminName);
+
+            return response()->json([
+                'message' => 'Notifikasi berhasil dikirim',
+                'dosen_id' => $dosenId,
+                'status' => $status
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error sending status change notification: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Gagal mengirim notifikasi',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Load jadwal by type and id
+     */
+    private function loadJadwalByType($jadwalType, $jadwalId)
+    {
+        switch ($jadwalType) {
+            case 'pbl':
+                return \App\Models\JadwalPBL::with(['modulPBL.mataKuliah', 'ruangan', 'dosen'])->find($jadwalId);
+            case 'kuliah_besar':
+                return \App\Models\JadwalKuliahBesar::with(['mataKuliah', 'ruangan', 'dosen'])->find($jadwalId);
+            case 'praktikum':
+                return \App\Models\JadwalPraktikum::with(['mataKuliah', 'ruangan'])->find($jadwalId);
+            case 'jurnal_reading':
+                return \App\Models\JadwalJurnalReading::with(['mataKuliah', 'ruangan', 'dosen'])->find($jadwalId);
+            case 'csr':
+                return \App\Models\JadwalCSR::with(['kategori', 'ruangan', 'dosen'])->find($jadwalId);
+            case 'non_blok_non_csr':
+                return \App\Models\JadwalNonBlokNonCSR::with(['mataKuliah', 'ruangan', 'dosen'])->find($jadwalId);
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * Get jadwal type display name
+     */
+    private function getJadwalTypeDisplayName($jadwalType)
+    {
+        $displayNames = [
+            'pbl' => 'PBL',
+            'kuliah_besar' => 'Kuliah Besar',
+            'praktikum' => 'Praktikum',
+            'jurnal_reading' => 'Jurnal Reading',
+            'csr' => 'CSR',
+            'non_blok_non_csr' => 'Non Blok Non CSR'
+        ];
+        return $displayNames[$jadwalType] ?? $jadwalType;
+    }
+
+    /**
+     * Send website notification
+     */
+    private function sendWebsiteNotification($dosen, $jadwal, $jadwalType, $jadwalTypeDisplay, $status, $adminName)
+    {
+        $statusText = $status === 'bisa' ? 'Bisa Mengajar' : 'Tidak Bisa Mengajar';
+        $type = $status === 'bisa' ? 'success' : 'warning';
+
+        // Get mata kuliah name
+        $mataKuliahNama = $jadwal->mataKuliah->nama ?? $jadwal->kategori->nama ?? $jadwal->modulPBL->mataKuliah->nama ?? 'N/A';
+
+        Notification::create([
+            'user_id' => $dosen->id,
+            'title' => "Status Konfirmasi Diubah - {$statusText}",
+            'message' => "Status konfirmasi jadwal {$jadwalTypeDisplay} Anda telah diubah menjadi '{$statusText}' oleh {$adminName} (Tim Akademik/Admin).",
+            'type' => $type,
+            'is_read' => false,
+            'data' => [
+                'jadwal_id' => $jadwal->id,
+                'jadwal_type' => $jadwalType,
+                'mata_kuliah' => $mataKuliahNama,
+                'tanggal' => $jadwal->tanggal,
+                'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . ' - ' . str_replace(':', '.', $jadwal->jam_selesai),
+                'ruangan' => $jadwal->ruangan->nama ?? 'TBD',
+                'status_konfirmasi' => $status,
+                'changed_by' => $adminName,
+                'changed_by_role' => 'admin'
+            ]
+        ]);
+    }
+
+    /**
+     * Send email notification for status change
+     */
+    private function sendEmailStatusChangeNotification($dosen, $jadwal, $jadwalType, $jadwalTypeDisplay, $status, $adminName, $adminRole)
+    {
+        try {
+            if (!$dosen->email || !filter_var($dosen->email, FILTER_VALIDATE_EMAIL)) {
+                Log::info("Skipping email notification for dosen {$dosen->id}: invalid email");
+                return;
+            }
+
+            $statusText = $status === 'bisa' ? 'Bisa Mengajar' : 'Tidak Bisa Mengajar';
+            $subject = "Status Konfirmasi Diubah - {$statusText}";
+
+            // Send email using HTML template
+            Mail::send('emails.status-change-notification', [
+                'dosen' => $dosen,
+                'jadwal' => $jadwal,
+                'jadwalType' => $jadwalTypeDisplay,
+                'status' => $status,
+                'statusText' => $statusText,
+                'adminName' => $adminName,
+                'adminRole' => $adminRole
+            ], function ($message) use ($dosen, $subject) {
+                $message->to($dosen->email, $dosen->name)
+                    ->subject($subject)
+                    ->from(env('MAIL_FROM_ADDRESS'), 'Notifikasi Dari ISME (Integrated System Medical Education Fakultas Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta)');
+            });
+
+            Log::info("Email status change notification sent to {$dosen->name} ({$dosen->email})");
+        } catch (\Exception $e) {
+            Log::error("Failed to send email status change notification to {$dosen->name}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Send WhatsApp notification for status change
+     */
+    private function sendWhatsAppStatusChangeNotification($dosen, $jadwal, $jadwalType, $jadwalTypeDisplay, $status, $adminName)
+    {
+        try {
+            if (!$this->wablasService->isEnabled()) {
+                Log::info("WhatsApp service is disabled, skipping notification");
+                return;
+            }
+
+            if (!$dosen->whatsapp_phone || empty(trim($dosen->whatsapp_phone))) {
+                Log::info("Skipping WhatsApp notification for dosen {$dosen->id}: no WhatsApp phone");
+                return;
+            }
+
+            $whatsappMessage = $this->buildWhatsAppStatusChangeMessage($dosen, $jadwal, $jadwalType, $jadwalTypeDisplay, $status, $adminName);
+
+            $result = $this->wablasService->sendMessage($dosen->whatsapp_phone, $whatsappMessage);
+
+            if ($result && $result['success']) {
+                Log::info("WhatsApp status change notification sent to {$dosen->name} ({$dosen->whatsapp_phone})");
+            } else {
+                Log::warning("Failed to send WhatsApp status change notification", [
+                    'dosen_id' => $dosen->id,
+                    'result' => $result
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error("Failed to send WhatsApp status change notification to {$dosen->name}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Build WhatsApp message for status change
+     */
+    private function buildWhatsAppStatusChangeMessage($dosen, $jadwal, $jadwalType, $jadwalTypeDisplay, $status, $adminName)
+    {
+        $greeting = "Halo {$dosen->name},";
+        
+        $statusText = $status === 'bisa' ? 'Bisa Mengajar' : 'Tidak Bisa Mengajar';
+        $intro = "Status konfirmasi jadwal {$jadwalTypeDisplay} Anda telah diubah menjadi '{$statusText}' oleh {$adminName} (Tim Akademik/Admin).";
+
+        // Build detail jadwal
+        $details = "📋 *Detail Jadwal {$jadwalTypeDisplay}*\n\n";
+        
+        // Handle different jadwal types (CSR uses kategori, others use mataKuliah)
+        $mataKuliahNama = $jadwal->mataKuliah->nama ?? $jadwal->kategori->nama ?? $jadwal->modulPBL->mataKuliah->nama ?? 'N/A';
+        $details .= "• *Jadwal:* {$mataKuliahNama}\n";
+        $details .= "• *Tanggal:* " . date('d/m/Y', strtotime($jadwal->tanggal)) . "\n";
+        $details .= "• *Waktu:* " . str_replace(':', '.', $jadwal->jam_mulai) . " - " . str_replace(':', '.', $jadwal->jam_selesai) . "\n";
+        
+        // Semester & Blok
+        if (isset($jadwal->mataKuliah) && $jadwal->mataKuliah) {
+            $details .= "• *Semester & Blok:* Semester {$jadwal->mataKuliah->semester}";
+            if ($jadwal->mataKuliah->blok) {
+                $details .= " - Blok {$jadwal->mataKuliah->blok}";
+            }
+            $details .= "\n";
+        } elseif (isset($jadwal->kategori) && $jadwal->kategori) {
+            $details .= "• *Semester & Blok:* Semester {$jadwal->kategori->semester}";
+            if ($jadwal->kategori->blok) {
+                $details .= " - Blok {$jadwal->kategori->blok}";
+            }
+            $details .= "\n";
+        } elseif (isset($jadwal->modulPBL) && $jadwal->modulPBL && $jadwal->modulPBL->mataKuliah) {
+            $details .= "• *Semester & Blok:* Semester {$jadwal->modulPBL->mataKuliah->semester}";
+            if ($jadwal->modulPBL->mataKuliah->blok) {
+                $details .= " - Blok {$jadwal->modulPBL->mataKuliah->blok}";
+            }
+            $details .= "\n";
+        }
+        
+        $details .= "• *Ruangan:* " . ($jadwal->ruangan->nama ?? 'TBD') . "\n";
+        $details .= "\n• *Status:* {$statusText}\n";
+        
+        // Action text
+        $action = "Silakan login ke sistem untuk melihat detail jadwal:\nhttps://isme.fkkumj.ac.id/";
+        
+        // Footer
+        $footer = "\n\nTerima kasih.\nSistem ISME FKK\nFakultas Kedokteran dan Kesehatan\nUniversitas Muhammadiyah Jakarta";
+        
+        // Combine all parts
+        $message = "{$greeting}\n\n{$intro}\n\n{$details}\n{$action}{$footer}";
+        
+        return $message;
     }
 }

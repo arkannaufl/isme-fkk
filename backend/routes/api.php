@@ -221,6 +221,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Reminder notification routes
     Route::middleware(['auth:sanctum', 'role:super_admin,tim_akademik'])->post('/notifications/send-reminder', [App\Http\Controllers\NotificationController::class, 'sendReminderNotifications']);
     Route::middleware(['auth:sanctum', 'role:super_admin,tim_akademik'])->get('/notifications/pending-dosen', [App\Http\Controllers\NotificationController::class, 'getPendingDosen']);
+    Route::middleware(['auth:sanctum', 'role:super_admin,tim_akademik'])->post('/notifications/send-status-change', [App\Http\Controllers\NotificationController::class, 'sendStatusChangeNotification']);
 });
 
 Route::middleware('auth:sanctum')->get('/kelompok-besar', [KelompokBesarController::class, 'index']);
