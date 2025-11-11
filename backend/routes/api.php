@@ -350,6 +350,7 @@ Route::middleware('auth:sanctum')->prefix('kuliah-besar')->group(function () {
     Route::post('/import/{kode}', [JadwalKuliahBesarController::class, 'importExcel']);
 
     // Routes untuk absensi kuliah besar
+    Route::get('/{kode}/jadwal/{jadwalId}/mahasiswa', [JadwalKuliahBesarController::class, 'getMahasiswa']);
     Route::get('/{kode}/jadwal/{jadwalId}/absensi', [JadwalKuliahBesarController::class, 'getAbsensi']);
     Route::post('/{kode}/jadwal/{jadwalId}/absensi', [JadwalKuliahBesarController::class, 'saveAbsensi']);
     Route::put('/{kode}/jadwal/{jadwalId}/toggle-qr', [JadwalKuliahBesarController::class, 'toggleQr']);

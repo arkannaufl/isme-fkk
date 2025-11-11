@@ -409,88 +409,26 @@ export default function AbsensiKuliahBesarPage() {
       setJadwalDetail(foundJadwal);
       setQrEnabled(foundJadwal.qr_enabled || false);
       
-      // Cek kelompok_besar_antara_id dulu (prioritas untuk semester antara)
-      if (foundJadwal?.kelompok_besar_antara_id) {
-        try {
-          const kelompokResponse = await api.get(`/kelompok-besar-antara/${foundJadwal.kelompok_besar_antara_id}`);
-          
-          const mahasiswaIds = kelompokResponse.data?.mahasiswa_ids || [];
-          
-          if (mahasiswaIds.length > 0) {
-            // Fetch detail mahasiswa secara parallel
-            const mahasiswaDetails = await Promise.all(
-              mahasiswaIds.map(async (id: number) => {
-                try {
-                  const res = await api.get(`/users/${id}`);
-                  return res.data;
-                } catch (err) {
-                  console.error(`Error fetching user ${id}:`, err);
-                  return null;
-                }
-              })
-            );
-            
-            // Filter out null dan map ke format yang dibutuhkan
-            const mahasiswa = mahasiswaDetails
-              .filter((user: any) => user && user.id)
-              .map((user: any) => ({
-                id: user.id,
-                nim: user.nim || 'N/A',
-                nama: user.name || user.nama || 'N/A'
-              }))
-              .filter((m: any) => m.id && m.nim && m.nim !== 'N/A'); // Filter out null/undefined/invalid
-              
-            setMahasiswaList(mahasiswa);
-          } else {
-            setMahasiswaList([]);
-          }
-        } catch (err: any) {
-          console.error('Error fetching kelompok_besar_antara:', err);
-          const errorMessage = err?.response?.data?.message || err?.message || 'Unknown error';
-          setError(`Gagal memuat data mahasiswa dari kelompok besar antara: ${errorMessage}`);
+      // Gunakan endpoint baru untuk mendapatkan mahasiswa
+      try {
+        const mahasiswaResponse = await api.get(`/kuliah-besar/${kode}/jadwal/${jadwalId}/mahasiswa`);
+        
+        if (mahasiswaResponse.data?.mahasiswa && Array.isArray(mahasiswaResponse.data.mahasiswa)) {
+          const mahasiswa = mahasiswaResponse.data.mahasiswa
+            .filter((m: any) => m && m.id && m.nim && m.nim !== 'N/A')
+            .map((m: any) => ({
+              id: m.id,
+              nim: m.nim,
+              nama: m.nama
+            }));
+          setMahasiswaList(mahasiswa);
+        } else {
           setMahasiswaList([]);
         }
-      } else if (foundJadwal?.kelompok_besar_id) {
-        try {
-          let semester = null;
-          
-          // Cek apakah ada relasi kelompokBesar yang sudah di-load
-          if (foundJadwal.kelompok_besar && foundJadwal.kelompok_besar.semester) {
-            semester = foundJadwal.kelompok_besar.semester;
-          } else if (foundJadwal.mata_kuliah && foundJadwal.mata_kuliah.semester) {
-            // Fallback: ambil semester dari mata kuliah
-            semester = foundJadwal.mata_kuliah.semester;
-          } else {
-            // Jika kelompok_besar_id adalah ID database, perlu query untuk ambil semester
-            // Tapi karena struktur data, kelompok_besar_id di jadwal biasanya menyimpan semester langsung
-            // Coba langsung gunakan sebagai semester dulu
-            semester = foundJadwal.kelompok_besar_id;
-          }
-          
-          // Query mahasiswa berdasarkan semester
-          if (semester) {
-            const mahasiswaResponse = await api.get(`/kelompok-besar?semester=${semester}`);
-            
-            if (mahasiswaResponse.data && Array.isArray(mahasiswaResponse.data) && mahasiswaResponse.data.length > 0) {
-        const mahasiswa = mahasiswaResponse.data.map((kb: any) => ({
-          id: kb.mahasiswa?.id || kb.mahasiswa_id,
-          nim: kb.mahasiswa?.nim || 'N/A',
-          nama: kb.mahasiswa?.name || kb.mahasiswa?.nama || 'N/A'
-              })).filter((m: any) => m.id && m.nim && m.nim !== 'N/A'); // Filter out null/undefined
-        setMahasiswaList(mahasiswa);
-            } else {
-              setMahasiswaList([]);
-            }
-          } else {
-            setError('Tidak dapat menentukan semester dari kelompok besar. Silakan cek data jadwal.');
-            setMahasiswaList([]);
-          }
-        } catch (err) {
-          console.error('Error fetching kelompok_besar:', err);
-          setError('Gagal memuat data mahasiswa dari kelompok besar. Pastikan data kelompok besar sudah diatur.');
-        }
-      } else {
-        setError('Jadwal ini belum memiliki kelompok besar yang ditetapkan. Silakan hubungi tim akademik.');
+      } catch (err: any) {
+        console.error('Error fetching mahasiswa:', err);
+        const errorMessage = err?.response?.data?.message || err?.message || 'Unknown error';
+        setError(`Gagal memuat data mahasiswa: ${errorMessage}`);
         setMahasiswaList([]);
       }
 
