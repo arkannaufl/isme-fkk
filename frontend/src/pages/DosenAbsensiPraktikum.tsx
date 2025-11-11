@@ -925,7 +925,7 @@ export default function DosenAbsensiPraktikumPage() {
         text: string,
         x: number,
         y: number,
-        options?: { align?: string }
+        options?: { align?: "center" | "left" | "right" | "justify" }
       ) => {
         if (y > maxPageHeight) {
           addNewPage();
@@ -1404,7 +1404,7 @@ export default function DosenAbsensiPraktikumPage() {
       const watermarkDataUrl = createWatermark();
 
       // Footer halaman dan Watermark
-      const totalPages = doc.internal.getNumberOfPages();
+      const totalPages = (doc as any).internal.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
         
