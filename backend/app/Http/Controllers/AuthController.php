@@ -49,7 +49,7 @@ class AuthController extends Controller
                     'attempted_login' => $request->login
                 ])
                 ->log("Failed login attempt for: {$request->login}");
-                
+
             return response()->json([
                 'message' => 'Username/NIP/NID/NIM atau password salah.',
             ], 401);
@@ -91,7 +91,7 @@ class AuthController extends Controller
     public function logout(Request $request)
     {
         $user = $request->user();
-        
+
         // Log manual aksi logout
         activity()
             ->causedBy($user)
@@ -101,12 +101,12 @@ class AuthController extends Controller
                 'user_agent' => $request->userAgent()
             ])
             ->log("User {$user->name} berhasil logout");
-        
+
         // Set status logout dan hapus token
         $user->is_logged_in = 0;
         $user->current_token = null;
         $user->save();
-        
+
         // Hapus semua token user (termasuk yang mungkin ada di perangkat lain)
         $user->tokens()->delete();
 
@@ -119,7 +119,7 @@ class AuthController extends Controller
     {
         // Ambil token dari header Authorization
         $token = $request->bearerToken();
-        
+
         if (!$token) {
             return response()->json([
                 'message' => 'Token tidak ditemukan.',
@@ -128,7 +128,7 @@ class AuthController extends Controller
 
         // Cari user berdasarkan token menggunakan Sanctum
         $tokenModel = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
-        
+
         if (!$tokenModel) {
             return response()->json([
                 'message' => 'Token tidak valid.',
@@ -153,7 +153,7 @@ class AuthController extends Controller
         try {
             // Ambil token dari body request
             $token = $request->input('token');
-            
+
             if (!$token) {
                 return response()->json([
                     'message' => 'Token tidak ditemukan.',
@@ -162,7 +162,7 @@ class AuthController extends Controller
 
             // Cari user berdasarkan token menggunakan Sanctum
             $tokenModel = PersonalAccessToken::findToken($token);
-            
+
             if (!$tokenModel) {
                 return response()->json([
                     'message' => 'Token tidak valid.',
@@ -181,9 +181,6 @@ class AuthController extends Controller
                 'message' => 'Force logout berhasil. Silakan login kembali.',
             ]);
         } catch (\Exception $e) {
-            // Log error untuk debugging
-            \Log::error('Force logout error: ' . $e->getMessage());
-            
             return response()->json([
                 'message' => 'Force logout berhasil. Silakan login kembali.',
             ]);
@@ -195,7 +192,7 @@ class AuthController extends Controller
         try {
             // Ambil user ID dari body request
             $userId = $request->input('user_id');
-            
+
             if (!$userId) {
                 return response()->json([
                     'message' => 'User ID tidak ditemukan.',
@@ -204,7 +201,7 @@ class AuthController extends Controller
 
             // Cari user berdasarkan ID
             $user = User::find($userId);
-            
+
             if (!$user) {
                 return response()->json([
                     'message' => 'User tidak ditemukan.',
@@ -221,9 +218,6 @@ class AuthController extends Controller
                 'message' => 'Force logout berhasil. Silakan login kembali.',
             ]);
         } catch (\Exception $e) {
-            // Log error untuk debugging
-            \Log::error('Force logout by user error: ' . $e->getMessage());
-            
             return response()->json([
                 'message' => 'Force logout berhasil. Silakan login kembali.',
             ]);
@@ -235,7 +229,7 @@ class AuthController extends Controller
         try {
             // Ambil username dari body request
             $username = $request->input('username');
-            
+
             if (!$username) {
                 return response()->json([
                     'message' => 'Username tidak ditemukan.',
@@ -248,7 +242,7 @@ class AuthController extends Controller
                        ->orWhere('nid', $username)
                        ->orWhere('nim', $username)
                        ->first();
-            
+
             if (!$user) {
                 return response()->json([
                     'message' => 'User tidak ditemukan.',
@@ -265,9 +259,6 @@ class AuthController extends Controller
                 'message' => 'Force logout berhasil. Silakan login kembali.',
             ]);
         } catch (\Exception $e) {
-            // Log error untuk debugging
-            \Log::error('Force logout by username error: ' . $e->getMessage());
-            
             return response()->json([
                 'message' => 'Force logout berhasil. Silakan login kembali.',
             ]);
@@ -292,7 +283,7 @@ class AuthController extends Controller
         // Optional: email, address, birth_day
         $isDosen = $user->role === 'dosen';
         $whatsappRules = [];
-        
+
         if ($isDosen) {
             $whatsappRules = [
                 'whatsapp_phone' => [
@@ -331,6 +322,9 @@ class AuthController extends Controller
             'current_password' => 'nullable|string',
             'password' => 'nullable|string|min:6',
             'confirm_password' => 'nullable|string|same:password',
+
+            'signature_image' => 'nullable|string', // Base64 string dari gambar tanda tangan
+
         ], $whatsappRules), [
             'whatsapp_phone.required' => 'Nomor WhatsApp wajib diisi untuk dosen.',
             'whatsapp_phone.regex' => 'Nomor WhatsApp harus dimulai dengan 62 (contoh: 6281234567890).',
@@ -364,6 +358,12 @@ class AuthController extends Controller
             $user->ket = $validated['ket'];
         }
 
+        // Update tanda tangan jika ada
+        if (array_key_exists('signature_image', $validated)) {
+            $user->signature_image = $validated['signature_image'];
+        }
+
+
         // Update WhatsApp fields
         if (array_key_exists('whatsapp_phone', $validated)) {
             $user->whatsapp_phone = $validated['whatsapp_phone'];
@@ -390,6 +390,7 @@ class AuthController extends Controller
         }
 
         // Simpan data ke database dulu (meskipun sync gagal, data tetap tersimpan)
+
         $user->save();
 
         // Sync ke Wablas untuk dosen (hanya butuh phone dan name sesuai API Wablas)
@@ -397,7 +398,7 @@ class AuthController extends Controller
         if ($isDosen && $user->whatsapp_phone && $user->name) {
             try {
                 $syncResult = $this->syncToWablas($user);
-                
+
                 if ($syncResult['success']) {
                     $user->wablas_sync_status = 'synced';
                     $user->wablas_synced_at = now();
@@ -497,39 +498,39 @@ class AuthController extends Controller
         $user = $request->user();
         $phone = $request->query('phone');
         $email = $request->query('email');
-        
+
         $result = [
             'phone_available' => true,
             'email_available' => true,
             'phone_message' => null,
             'email_message' => null,
         ];
-        
+
         // Check phone (whatsapp_phone)
         if ($phone) {
             $existingPhone = User::where('whatsapp_phone', $phone)
                 ->where('id', '!=', $user->id)
                 ->first();
-            
+
             if ($existingPhone) {
                 $result['phone_available'] = false;
                 $result['phone_message'] = 'Nomor WhatsApp ini sudah digunakan oleh user lain.';
             }
         }
-        
+
         // Check email
         if ($email) {
             $existingEmail = User::where('email', $email)
                 ->where('id', '!=', $user->id)
                 ->where('role', $user->role)
                 ->first();
-            
+
             if ($existingEmail) {
                 $result['email_available'] = false;
                 $result['email_message'] = 'Email ini sudah digunakan oleh user lain.';
             }
         }
-        
+
         return response()->json($result);
     }
 

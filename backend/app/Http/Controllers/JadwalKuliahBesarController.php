@@ -7,8 +7,16 @@ use App\Models\MataKuliah;
 use App\Models\User;
 use App\Models\Ruangan;
 use App\Models\Notification;
+use App\Models\AbsensiKuliahBesar;
+use App\Models\KelompokBesar;
+use App\Models\KelompokBesarAntara;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 
 class JadwalKuliahBesarController extends Controller
 {
@@ -53,7 +61,7 @@ class JadwalKuliahBesarController extends Controller
 
         $data = $request->validate($validationRules);
         $data['mata_kuliah_kode'] = $kode;
-        $data['created_by'] = $request->input('created_by', auth()->id());
+        $data['created_by'] = $request->input('created_by', Auth::id());
 
         // Untuk semester antara, set materi dan dosen_id ke null
         if ($isSemesterAntara) {
@@ -140,7 +148,7 @@ class JadwalKuliahBesarController extends Controller
 
         $data = $request->validate($validationRules);
         $data['mata_kuliah_kode'] = $kode;
-        $data['created_by'] = $request->input('created_by', auth()->id());
+        $data['created_by'] = $request->input('created_by', Auth::id());
 
         // Untuk semester antara, set materi dan dosen_id ke null
         if ($isSemesterAntara) {
@@ -224,7 +232,7 @@ class JadwalKuliahBesarController extends Controller
         }
 
         // Debug: Log untuk melihat data
-        \Log::info('Materi query params:', [
+        Log::info('Materi query params:', [
             'blok' => $blok,
             'semester' => $semester,
             'dosen_count' => $dosen->count(),
@@ -250,7 +258,7 @@ class JadwalKuliahBesarController extends Controller
             ->whereJsonContains('keahlian', $keahlian)
             ->get(['id', 'name', 'keahlian']);
 
-        \Log::info('All dosen with keahlian:', [
+        Log::info('All dosen with keahlian:', [
             'keahlian' => $keahlian,
             'count' => $allDosenWithKeahlian->count(),
             'data' => $allDosenWithKeahlian->toArray()
@@ -264,7 +272,7 @@ class JadwalKuliahBesarController extends Controller
         })->where('role', 'dosen')
             ->get(['id', 'name', 'keahlian']);
 
-        \Log::info('All dosen with peran:', [
+        Log::info('All dosen with peran:', [
             'blok' => $blok,
             'semester' => $semester,
             'count' => $allDosenWithPeran->count(),
@@ -280,7 +288,7 @@ class JadwalKuliahBesarController extends Controller
             ->whereJsonContains('keahlian', $keahlian)
             ->get(['id', 'name', 'keahlian']);
 
-        \Log::info('Dosen with keahlian AND peran:', [
+        Log::info('Dosen with keahlian AND peran:', [
             'keahlian' => $keahlian,
             'blok' => $blok,
             'semester' => $semester,
@@ -301,7 +309,7 @@ class JadwalKuliahBesarController extends Controller
             ->get(['id', 'name', 'keahlian']);
 
         // Debug: Log untuk melihat data final
-        \Log::info('Final pengampu query result:', [
+        Log::info('Final pengampu query result:', [
             'keahlian' => $keahlian,
             'blok' => $blok,
             'semester' => $semester,
@@ -546,11 +554,17 @@ class JadwalKuliahBesarController extends Controller
                 }
             })
             ->where(function ($q) use ($data, $isSemesterAntara) {
-                if ($isSemesterAntara && isset($data['dosen_ids'])) {
-                    // Untuk semester antara, cek multiple dosen
+                if ($isSemesterAntara && isset($data['dosen_ids']) && is_array($data['dosen_ids'])) {
+                    // Untuk semester antara, cek multiple dosen menggunakan JSON_CONTAINS
                     $q->where(function ($subQ) use ($data) {
-                        $subQ->whereJsonOverlaps('dosen_ids', $data['dosen_ids'])
-                            ->orWhere('dosen_id', '!=', null); // Juga cek single dosen
+                        // Cek apakah ada dosen_id dari array yang overlap dengan jadwal yang ada
+                        foreach ($data['dosen_ids'] as $dosenId) {
+                            $subQ->orWhere(function ($dosenQ) use ($dosenId) {
+                                // Cek apakah dosen_id ada di kolom dosen_ids (JSON array) atau kolom dosen_id (single)
+                                $dosenQ->whereJsonContains('dosen_ids', $dosenId)
+                                      ->orWhere('dosen_id', $dosenId);
+                            });
+                        }
                     });
                 } else {
                     // Untuk semester biasa, cek single dosen
@@ -843,7 +857,14 @@ class JadwalKuliahBesarController extends Controller
                     ->where('jam_selesai', '>', $data['jam_mulai']);
             })
             ->whereHas('kelompokKecilAntara', function ($q) use ($mahasiswaIds) {
-                $q->whereJsonOverlaps('mahasiswa_ids', $mahasiswaIds);
+                // Cek apakah ada mahasiswa_id dari array yang overlap dengan mahasiswa_ids di database
+                if (is_array($mahasiswaIds) && !empty($mahasiswaIds)) {
+                    $q->where(function ($subQ) use ($mahasiswaIds) {
+                        foreach ($mahasiswaIds as $mahasiswaId) {
+                            $subQ->orWhereJsonContains('mahasiswa_ids', $mahasiswaId);
+                        }
+                    });
+                }
             })
             ->exists();
 
@@ -854,7 +875,14 @@ class JadwalKuliahBesarController extends Controller
                     ->where('jam_selesai', '>', $data['jam_mulai']);
             })
             ->whereHas('kelompokKecilAntara', function ($q) use ($mahasiswaIds) {
-                $q->whereJsonOverlaps('mahasiswa_ids', $mahasiswaIds);
+                // Cek apakah ada mahasiswa_id dari array yang overlap dengan mahasiswa_ids di database
+                if (is_array($mahasiswaIds) && !empty($mahasiswaIds)) {
+                    $q->where(function ($subQ) use ($mahasiswaIds) {
+                        foreach ($mahasiswaIds as $mahasiswaId) {
+                            $subQ->orWhereJsonContains('mahasiswa_ids', $mahasiswaId);
+                        }
+                    });
+                }
             })
             ->exists();
 
@@ -1253,10 +1281,17 @@ class JadwalKuliahBesarController extends Controller
                     ->where('jam_selesai', '>', $data['jam_mulai']);
             })
             ->whereExists(function ($query) use ($mahasiswaIds) {
-                $query->select(\DB::raw(1))
+                $query->select(DB::raw(1))
                     ->from('kelompok_kecil_antara')
-                    ->whereRaw('kelompok_kecil_antara.id = jadwal_pbl.kelompok_kecil_id')
-                    ->whereJsonOverlaps('kelompok_kecil_antara.mahasiswa_ids', $mahasiswaIds);
+                    ->whereRaw('kelompok_kecil_antara.id = jadwal_pbl.kelompok_kecil_id');
+                // Cek apakah ada mahasiswa_id yang overlap menggunakan JSON_CONTAINS
+                if (is_array($mahasiswaIds) && !empty($mahasiswaIds)) {
+                    $query->where(function ($subQ) use ($mahasiswaIds) {
+                        foreach ($mahasiswaIds as $mahasiswaId) {
+                            $subQ->orWhereRaw('JSON_CONTAINS(kelompok_kecil_antara.mahasiswa_ids, ?)', [json_encode($mahasiswaId)]);
+                        }
+                    });
+                }
             })
             ->first();
 
@@ -1277,10 +1312,17 @@ class JadwalKuliahBesarController extends Controller
                     ->where('jam_selesai', '>', $data['jam_mulai']);
             })
             ->whereExists(function ($query) use ($mahasiswaIds) {
-                $query->select(\DB::raw(1))
+                $query->select(DB::raw(1))
                     ->from('kelompok_kecil_antara')
-                    ->whereRaw('kelompok_kecil_antara.id = jadwal_jurnal_reading.kelompok_kecil_id')
-                    ->whereJsonOverlaps('kelompok_kecil_antara.mahasiswa_ids', $mahasiswaIds);
+                    ->whereRaw('kelompok_kecil_antara.id = jadwal_jurnal_reading.kelompok_kecil_id');
+                // Cek apakah ada mahasiswa_id yang overlap menggunakan JSON_CONTAINS
+                if (is_array($mahasiswaIds) && !empty($mahasiswaIds)) {
+                    $query->where(function ($subQ) use ($mahasiswaIds) {
+                        foreach ($mahasiswaIds as $mahasiswaId) {
+                            $subQ->orWhereRaw('JSON_CONTAINS(kelompok_kecil_antara.mahasiswa_ids, ?)', [json_encode($mahasiswaId)]);
+                        }
+                    });
+                }
             })
             ->first();
 
@@ -1501,7 +1543,7 @@ class JadwalKuliahBesarController extends Controller
                 'waktu_konfirmasi' => now()
             ]);
         } catch (\Exception $e) {
-            \Log::error("Gagal menyimpan riwayat konfirmasi kuliah besar: " . $e->getMessage());
+            Log::error("Gagal menyimpan riwayat konfirmasi kuliah besar: " . $e->getMessage());
         }
     }
 
@@ -1511,80 +1553,179 @@ class JadwalKuliahBesarController extends Controller
     public function getJadwalForDosen($dosenId, Request $request)
     {
         try {
+            // Pastikan dosenId adalah integer
+            $dosenId = (int) $dosenId;
             $semesterType = $request->query('semester_type');
 
+            Log::info("getJadwalForDosen called", [
+                'dosen_id' => $dosenId,
+                'dosen_id_type' => gettype($dosenId),
+                'semester_type' => $semesterType,
+                'request_params' => $request->all()
+            ]);
+
+            // Build query dengan whereIn untuk filter semester (lebih reliable daripada whereHas dengan select)
             $query = JadwalKuliahBesar::with([
                 'mataKuliah:kode,nama,semester',
                 'ruangan:id,nama,gedung',
                 'kelompokBesar:id,semester',
                 'kelompokBesarAntara:id,nama_kelompok'
             ])
-                ->select([
-                    'id',
-                    'mata_kuliah_kode',
-                    'materi',
-                    'topik',
-                    'dosen_id',
-                    'dosen_ids',
-                    'ruangan_id',
-                    'kelompok_besar_id',
-                    'kelompok_besar_antara_id',
-                    'tanggal',
-                    'jam_mulai',
-                    'jam_selesai',
-                    'jumlah_sesi',
-                    'status_konfirmasi',
-                    'alasan_konfirmasi',
-                    'status_reschedule',
-                    'reschedule_reason',
-                    'created_at'
-                ])
-                ->where('dosen_id', $dosenId);
+                ->where(function ($q) use ($dosenId) {
+                    // Ambil jadwal dimana dosen_id adalah dosen yang sedang login (untuk semester reguler)
+                    $q->where('dosen_id', $dosenId)
+                      // Atau ambil jadwal dimana dosen_id ada di dosen_ids (untuk semester antara)
+                      ->orWhere(function ($subQ) use ($dosenId) {
+                          // Gunakan JSON_CONTAINS dengan integer untuk kompatibilitas MySQL
+                          $subQ->whereNotNull('dosen_ids')
+                               ->whereRaw('JSON_CONTAINS(dosen_ids, ?)', [json_encode($dosenId)]);
+                      });
+                });
 
-            // Filter berdasarkan semester type jika ada
+            // Filter berdasarkan semester type jika ada - gunakan whereIn dengan subquery
             if ($semesterType && $semesterType !== 'all') {
                 if ($semesterType === 'reguler') {
-                    $query->whereHas('mataKuliah', function ($q) {
-                        $q->where('semester', '!=', 'Antara');
+                    $query->whereIn('mata_kuliah_kode', function ($subQuery) {
+                        $subQuery->select('kode')
+                                 ->from('mata_kuliah')
+                                 ->where('semester', '!=', 'Antara');
                     });
                 } elseif ($semesterType === 'antara') {
-                    $query->whereHas('mataKuliah', function ($q) {
-                        $q->where('semester', 'Antara');
+                    $query->whereIn('mata_kuliah_kode', function ($subQuery) {
+                        $subQuery->select('kode')
+                                 ->from('mata_kuliah')
+                                 ->where('semester', '=', 'Antara');
                     });
                 }
             }
+
+            // Log SQL query untuk debugging
+            $sql = $query->toSql();
+            $bindings = $query->getBindings();
+            Log::info("getJadwalForDosen SQL query", [
+                'sql' => $sql,
+                'bindings' => $bindings,
+            ]);
 
             $jadwal = $query->orderBy('tanggal')
                 ->orderBy('jam_mulai')
                 ->get();
 
-            // Tambahkan data dosen dan semester_type untuk setiap jadwal
-            $jadwal->each(function ($item) use ($dosenId) {
-                if ($item->dosen_id) {
-                    $item->dosen = \App\Models\User::find($item->dosen_id);
-                } elseif ($item->dosen_ids && in_array($dosenId, $item->dosen_ids)) {
-                    $item->dosen = \App\Models\User::find($dosenId);
+            Log::info("getJadwalForDosen raw result", [
+                'count' => $jadwal->count(),
+                'ids' => $jadwal->pluck('id')->toArray(),
+            ]);
+
+            // Mapping data untuk response
+            $mappedJadwal = $jadwal->map(function ($item) use ($dosenId) {
+                // Cek apakah dosen_id ada di dosen_ids (untuk semester antara)
+                $dosenIds = [];
+                if ($item->dosen_ids) {
+                    $dosenIds = is_array($item->dosen_ids) ? $item->dosen_ids : json_decode($item->dosen_ids, true);
+                    if (!is_array($dosenIds)) {
+                        $dosenIds = [];
+                    }
+                }
+                $isDosenInArray = !empty($dosenIds) && in_array($dosenId, $dosenIds);
+
+                // Tentukan dosen yang akan ditampilkan
+                $dosen = null;
+                if ($item->dosen_id == $dosenId) {
+                    // Untuk semester reguler, gunakan dosen_id
+                    $dosenModel = \App\Models\User::find($item->dosen_id);
+                    if ($dosenModel) {
+                        $dosen = [
+                            'id' => $dosenModel->id,
+                            'name' => $dosenModel->name,
+                        ];
+                    }
+                } elseif ($isDosenInArray) {
+                    // Untuk semester antara, gunakan dosen_ids (array JSON)
+                    // Tampilkan dosen yang sedang login untuk dashboard
+                    $dosenModel = \App\Models\User::find($dosenId);
+                    if ($dosenModel) {
+                        $dosen = [
+                            'id' => $dosenModel->id,
+                            'name' => $dosenModel->name,
+                        ];
+                    }
+                } else {
+                    // Fallback: jika tidak ada di kedua kondisi, tetap coba ambil dari dosen_id jika ada
+                    if ($item->dosen_id) {
+                        $dosenModel = \App\Models\User::find($item->dosen_id);
+                        if ($dosenModel) {
+                            $dosen = [
+                                'id' => $dosenModel->id,
+                                'name' => $dosenModel->name,
+                            ];
+                        }
+                    }
                 }
 
-                // Tambahkan semester_type berdasarkan mata kuliah
-                $item->semester_type = $item->mataKuliah && $item->mataKuliah->semester === 'Antara' ? 'antara' : 'reguler';
+                // Tentukan semester_type berdasarkan mata kuliah
+                $semesterType = $item->mataKuliah && $item->mataKuliah->semester === 'Antara' ? 'antara' : 'reguler';
 
-                // Tambahkan data kelompok_besar
+                // Tentukan kelompok_besar
+                $kelompokBesar = null;
                 if ($item->kelompokBesar) {
-                    $item->kelompok_besar = [
+                    $kelompokBesar = [
                         'id' => $item->kelompokBesar->id,
                         'semester' => $item->kelompokBesar->semester,
                         'nama_kelompok' => 'Kelompok Besar Semester ' . $item->kelompokBesar->semester,
                     ];
+                } elseif ($item->kelompokBesarAntara) {
+                    $kelompokBesar = [
+                        'id' => $item->kelompokBesarAntara->id,
+                        'nama_kelompok' => $item->kelompokBesarAntara->nama_kelompok,
+                    ];
                 }
+
+                // Format tanggal
+                $tanggal = $item->tanggal ? date('d/m/Y', strtotime($item->tanggal)) : $item->tanggal;
+
+                return [
+                    'id' => $item->id,
+                    'tanggal' => $tanggal,
+                    'jam_mulai' => $item->jam_mulai,
+                    'jam_selesai' => $item->jam_selesai,
+                    'materi' => $item->materi,
+                    'topik' => $item->topik,
+                    'status_konfirmasi' => $item->status_konfirmasi ?? 'belum_konfirmasi',
+                    'alasan_konfirmasi' => $item->alasan_konfirmasi,
+                    'status_reschedule' => $item->status_reschedule,
+                    'reschedule_reason' => $item->reschedule_reason,
+                    'mata_kuliah_kode' => $item->mata_kuliah_kode,
+                    'mata_kuliah_nama' => $item->mataKuliah ? $item->mataKuliah->nama : null,
+                    'dosen_id' => $item->dosen_id,
+                    'dosen_ids' => $dosenIds,
+                    'dosen' => $dosen,
+                    'ruangan' => $item->ruangan ? [
+                        'id' => $item->ruangan->id,
+                        'nama' => $item->ruangan->nama,
+                    ] : null,
+                    'jumlah_sesi' => $item->jumlah_sesi ?? 1,
+                    'semester_type' => $semesterType,
+                    'kelompok_besar' => $kelompokBesar,
+                    'created_at' => $item->created_at,
+                ];
             });
 
+            $responseData = $mappedJadwal->values()->all();
+
+            Log::info("getJadwalForDosen result", [
+                'dosen_id' => $dosenId,
+                'semester_type' => $semesterType,
+                'total_jadwal' => count($responseData),
+                'jadwal_ids' => array_column($responseData, 'id'),
+                'sample_jadwal' => !empty($responseData) ? $responseData[0] : null
+            ]);
+
             return response()->json([
-                'data' => $jadwal,
+                'data' => $responseData,
                 'message' => 'Jadwal kuliah besar berhasil diambil'
             ]);
         } catch (\Exception $e) {
-            \Log::error("Error getting jadwal kuliah besar for dosen {$dosenId}: " . $e->getMessage());
+            Log::error("Error getting jadwal kuliah besar for dosen {$dosenId}: " . $e->getMessage());
             return response()->json([
                 'message' => 'Gagal mengambil jadwal kuliah besar',
                 'error' => $e->getMessage()
@@ -1609,7 +1750,7 @@ class JadwalKuliahBesarController extends Controller
             $mahasiswaSemester = $mahasiswa->semester;
 
             // Debug logging
-            \Log::info("Kuliah Besar getJadwalForMahasiswa - Mahasiswa ID: {$mahasiswaId}, Semester: {$mahasiswaSemester}");
+            Log::info("Kuliah Besar getJadwalForMahasiswa - Mahasiswa ID: {$mahasiswaId}, Semester: {$mahasiswaSemester}");
 
             // Get jadwal Kuliah Besar based on mahasiswa's semester
             // Cari semua jadwal Kuliah Besar yang memiliki semester yang sama dengan mahasiswa
@@ -1627,7 +1768,7 @@ class JadwalKuliahBesarController extends Controller
                 ->get();
 
             // Debug logging
-            \Log::info("Kuliah Besar getJadwalForMahasiswa - Found {$jadwal->count()} jadwal Kuliah Besar for semester: {$mahasiswaSemester}");
+            Log::info("Kuliah Besar getJadwalForMahasiswa - Found {$jadwal->count()} jadwal Kuliah Besar for semester: {$mahasiswaSemester}");
 
             $mappedJadwal = $jadwal->map(function ($item) {
                 return [
@@ -1666,7 +1807,7 @@ class JadwalKuliahBesarController extends Controller
                 'data' => $mappedJadwal
             ]);
         } catch (\Exception $e) {
-            \Log::error('Error fetching jadwal Kuliah Besar for mahasiswa: ' . $e->getMessage());
+            Log::error('Error fetching jadwal Kuliah Besar for mahasiswa: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Terjadi kesalahan saat mengambil data jadwal Kuliah Besar',
                 'error' => $e->getMessage(),
@@ -1683,7 +1824,7 @@ class JadwalKuliahBesarController extends Controller
         try {
             $dosen = \App\Models\User::find($dosenId);
             if (!$dosen) {
-                \Log::warning("Dosen dengan ID {$dosenId} tidak ditemukan untuk notifikasi jadwal kuliah besar");
+                Log::warning("Dosen dengan ID {$dosenId} tidak ditemukan untuk notifikasi jadwal kuliah besar");
                 return;
             }
 
@@ -1713,17 +1854,17 @@ class JadwalKuliahBesarController extends Controller
                     'dosen_id' => $dosen->id,
                     'dosen_name' => $dosen->name,
                     'dosen_role' => $dosen->role,
-                    'created_by' => auth()->user()->name ?? 'Admin',
-                    'created_by_role' => auth()->user()->role ?? 'admin',
-                    'sender_name' => auth()->user()->name ?? 'Admin',
-                    'sender_role' => auth()->user()->role ?? 'admin'
+                    'created_by' => Auth::user()->name ?? 'Admin',
+                    'created_by_role' => Auth::user()->role ?? 'admin',
+                    'sender_name' => Auth::user()->name ?? 'Admin',
+                    'sender_role' => Auth::user()->role ?? 'admin'
                 ]
             ]);
 
 
-            \Log::info("Notifikasi jadwal kuliah besar berhasil dikirim ke dosen {$dosen->name} (ID: {$dosenId})");
+            Log::info("Notifikasi jadwal kuliah besar berhasil dikirim ke dosen {$dosen->name} (ID: {$dosenId})");
         } catch (\Exception $e) {
-            \Log::error("Gagal mengirim notifikasi jadwal kuliah besar ke dosen {$dosenId}: " . $e->getMessage());
+            Log::error("Gagal mengirim notifikasi jadwal kuliah besar ke dosen {$dosenId}: " . $e->getMessage());
         }
     }
 
@@ -1733,7 +1874,7 @@ class JadwalKuliahBesarController extends Controller
     private function sendNotificationToMahasiswa($jadwal)
     {
         try {
-            \Log::info("Kuliah Besar sendNotificationToMahasiswa - Starting for jadwal ID: {$jadwal->id}, kelompok_besar_id: {$jadwal->kelompok_besar_id}");
+            Log::info("Kuliah Besar sendNotificationToMahasiswa - Starting for jadwal ID: {$jadwal->id}, kelompok_besar_id: {$jadwal->kelompok_besar_id}");
 
             // Get mahasiswa in the specific semester that was assigned
             $mahasiswaList = [];
@@ -1741,25 +1882,25 @@ class JadwalKuliahBesarController extends Controller
             if ($jadwal->kelompok_besar_id) {
                 // Get the kelompok besar info to determine semester
                 $kelompokBesar = \App\Models\KelompokBesar::find($jadwal->kelompok_besar_id);
-                \Log::info("Kuliah Besar sendNotificationToMahasiswa - KelompokBesar found: " . ($kelompokBesar ? "Yes, semester: {$kelompokBesar->semester}" : "No"));
+                Log::info("Kuliah Besar sendNotificationToMahasiswa - KelompokBesar found: " . ($kelompokBesar ? "Yes, semester: {$kelompokBesar->semester}" : "No"));
 
                 if ($kelompokBesar) {
                     // Get ALL mahasiswa in the same semester (Kuliah Besar = semua mahasiswa semester tersebut)
                     $mahasiswaList = \App\Models\User::where('role', 'mahasiswa')
                         ->where('semester', $kelompokBesar->semester)
                         ->get();
-                    \Log::info("Kuliah Besar sendNotificationToMahasiswa - Found " . count($mahasiswaList) . " mahasiswa in semester {$kelompokBesar->semester}");
+                    Log::info("Kuliah Besar sendNotificationToMahasiswa - Found " . count($mahasiswaList) . " mahasiswa in semester {$kelompokBesar->semester}");
                 }
             } else {
                 // Fallback: jika tidak ada kelompok_besar_id, cari berdasarkan semester mata kuliah
                 $mahasiswaList = \App\Models\User::where('role', 'mahasiswa')
                     ->where('semester', $jadwal->mataKuliah->semester)
                     ->get();
-                \Log::info("Kuliah Besar sendNotificationToMahasiswa - Fallback: Found " . count($mahasiswaList) . " mahasiswa in semester {$jadwal->mataKuliah->semester}");
+                Log::info("Kuliah Besar sendNotificationToMahasiswa - Fallback: Found " . count($mahasiswaList) . " mahasiswa in semester {$jadwal->mataKuliah->semester}");
             }
 
             // Debug logging
-            \Log::info("Kuliah Besar sendNotificationToMahasiswa - Final mahasiswaList count: " . count($mahasiswaList));
+            Log::info("Kuliah Besar sendNotificationToMahasiswa - Final mahasiswaList count: " . count($mahasiswaList));
 
             // Send notification to each mahasiswa in the assigned group
             foreach ($mahasiswaList as $mahasiswa) {
@@ -1789,9 +1930,9 @@ class JadwalKuliahBesarController extends Controller
                 ]);
             }
 
-            \Log::info("Kuliah Besar notifications sent to " . count($mahasiswaList) . " mahasiswa for jadwal ID: {$jadwal->id}");
+            Log::info("Kuliah Besar notifications sent to " . count($mahasiswaList) . " mahasiswa for jadwal ID: {$jadwal->id}");
         } catch (\Exception $e) {
-            \Log::error("Error sending Kuliah Besar notifications to mahasiswa: " . $e->getMessage());
+            Log::error("Error sending Kuliah Besar notifications to mahasiswa: " . $e->getMessage());
         }
     }
 
@@ -1837,13 +1978,13 @@ class JadwalKuliahBesarController extends Controller
         $this->saveRiwayatKonfirmasi($jadwal, $request->status, $request->alasan, $request->dosen_id);
 
         // Kirim notifikasi ke super admin berdasarkan status
-        \Log::info("Konfirmasi jadwal kuliah besar ID: {$jadwal->id}, Status: {$request->status}, Dosen: {$dosen->name}");
+        Log::info("Konfirmasi jadwal kuliah besar ID: {$jadwal->id}, Status: {$request->status}, Dosen: {$dosen->name}");
 
         if ($request->status === 'tidak_bisa') {
-            \Log::info("Mengirim notifikasi replacement untuk jadwal ID: {$jadwal->id}");
+            Log::info("Mengirim notifikasi replacement untuk jadwal ID: {$jadwal->id}");
             $this->sendReplacementNotification($jadwal, $request->alasan, $dosen);
         } elseif ($request->status === 'bisa') {
-            \Log::info("Mengirim notifikasi konfirmasi bisa untuk jadwal ID: {$jadwal->id}");
+            Log::info("Mengirim notifikasi konfirmasi bisa untuk jadwal ID: {$jadwal->id}");
             $this->sendConfirmationNotification($jadwal, 'bisa', $dosen);
         }
 
@@ -1869,7 +2010,7 @@ class JadwalKuliahBesarController extends Controller
                 'message' => 'Riwayat konfirmasi berhasil diambil'
             ]);
         } catch (\Exception $e) {
-            \Log::error("Error getting riwayat dosen {$dosenId}: " . $e->getMessage());
+            Log::error("Error getting riwayat dosen {$dosenId}: " . $e->getMessage());
             return response()->json([
                 'message' => 'Gagal mengambil riwayat konfirmasi',
                 'error' => $e->getMessage()
@@ -1883,16 +2024,16 @@ class JadwalKuliahBesarController extends Controller
     private function sendConfirmationNotification($jadwal, $status, $dosen)
     {
         try {
-            \Log::info("Memulai pengiriman notifikasi konfirmasi untuk jadwal ID: {$jadwal->id}, Status: {$status}");
+            Log::info("Memulai pengiriman notifikasi konfirmasi untuk jadwal ID: {$jadwal->id}, Status: {$status}");
 
             $superAdmins = \App\Models\User::where('role', 'super_admin')->get();
-            \Log::info("Ditemukan {$superAdmins->count()} super admin");
+            Log::info("Ditemukan {$superAdmins->count()} super admin");
 
             $statusText = $status === 'bisa' ? 'Bisa Mengajar' : 'Tidak Bisa Mengajar';
             $type = $status === 'bisa' ? 'success' : 'warning';
 
             foreach ($superAdmins as $admin) {
-                \Log::info("Mengirim notifikasi ke admin ID: {$admin->id}, Nama: {$admin->name}");
+                Log::info("Mengirim notifikasi ke admin ID: {$admin->id}, Nama: {$admin->name}");
                 \App\Models\Notification::create([
                     'user_id' => $dosen->id,
                     'title' => "Konfirmasi Jadwal - {$statusText}",
@@ -1919,9 +2060,9 @@ class JadwalKuliahBesarController extends Controller
                 ]);
             }
 
-            \Log::info("Notifikasi konfirmasi {$status} berhasil dikirim ke super admin untuk jadwal kuliah besar ID: {$jadwal->id}");
+            Log::info("Notifikasi konfirmasi {$status} berhasil dikirim ke super admin untuk jadwal kuliah besar ID: {$jadwal->id}");
         } catch (\Exception $e) {
-            \Log::error("Gagal mengirim notifikasi konfirmasi: " . $e->getMessage());
+            Log::error("Gagal mengirim notifikasi konfirmasi: " . $e->getMessage());
         }
     }
 
@@ -1966,9 +2107,9 @@ class JadwalKuliahBesarController extends Controller
                 ]);
             }
 
-            \Log::info("Notifikasi replacement berhasil dikirim ke super admin untuk jadwal kuliah besar ID: {$jadwal->id}");
+            Log::info("Notifikasi replacement berhasil dikirim ke super admin untuk jadwal kuliah besar ID: {$jadwal->id}");
         } catch (\Exception $e) {
-            \Log::error("Gagal mengirim notifikasi replacement untuk jadwal kuliah besar ID {$jadwal->id}: " . $e->getMessage());
+            Log::error("Gagal mengirim notifikasi replacement untuk jadwal kuliah besar ID {$jadwal->id}: " . $e->getMessage());
         }
     }
 
@@ -2098,10 +2239,10 @@ class JadwalKuliahBesarController extends Controller
                             // Case insensitive comparison untuk keahlian
                             $materiLower = strtolower($data['materi']);
                             $keahlianDosenLower = array_map('strtolower', $keahlianDosen);
-                            
+
                             // Skip validasi jika dosen adalah dosen standby
                             $isDosenStandby = in_array('standby', $keahlianDosenLower);
-                            
+
                             if (!$isDosenStandby && !in_array($materiLower, $keahlianDosenLower)) {
                                 $errors[] = "Baris " . ($index + 1) . ": Materi \"" . $data['materi'] . "\" tidak sesuai dengan keahlian dosen \"" . $dosen->name . "\". Keahlian dosen: " . implode(', ', $keahlianDosen);
                                 continue;
@@ -2138,7 +2279,7 @@ class JadwalKuliahBesarController extends Controller
             }
 
             // Jika tidak ada error, import semua data menggunakan database transaction
-            \DB::beginTransaction();
+            DB::beginTransaction();
             try {
                 $importedData = [];
                 foreach ($excelData as $index => $data) {
@@ -2203,7 +2344,7 @@ class JadwalKuliahBesarController extends Controller
                         ->log('Jadwal kuliah besar diimport dari Excel');
                 }
 
-                \DB::commit();
+                DB::commit();
 
                 // Jika tidak ada error, return status 200
                 return response()->json([
@@ -2213,7 +2354,7 @@ class JadwalKuliahBesarController extends Controller
                     'message' => "Berhasil mengimport " . count($importedData) . " dari " . count($excelData) . " jadwal"
                 ]);
             } catch (\Exception $e) {
-                \DB::rollback();
+                DB::rollback();
                 return response()->json([
                     'success' => 0,
                     'total' => count($excelData),
@@ -2222,7 +2363,7 @@ class JadwalKuliahBesarController extends Controller
                 ], 422);
             }
         } catch (\Exception $e) {
-            \Log::error('Error importing jadwal kuliah besar: ' . $e->getMessage());
+            Log::error('Error importing jadwal kuliah besar: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Gagal mengimport data: ' . $e->getMessage()
             ], 500);
@@ -2297,9 +2438,459 @@ class JadwalKuliahBesarController extends Controller
                 ]);
             }
 
-            \Log::info("Reschedule notification sent for Kuliah Besar jadwal ID: {$jadwal->id}");
+            Log::info("Reschedule notification sent for Kuliah Besar jadwal ID: {$jadwal->id}");
         } catch (\Exception $e) {
-            \Log::error("Error sending reschedule notification for Kuliah Besar jadwal ID: {$jadwal->id}: " . $e->getMessage());
+            Log::error("Error sending reschedule notification for Kuliah Besar jadwal ID: {$jadwal->id}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Get mahasiswa untuk jadwal kuliah besar berdasarkan kelompok besar
+     */
+    public function getMahasiswa($kode, $jadwalId)
+    {
+        try {
+            $jadwal = JadwalKuliahBesar::with(['mataKuliah', 'kelompokBesarAntara'])
+                ->where('mata_kuliah_kode', $kode)
+                ->where('id', $jadwalId)
+                ->first();
+
+            if (!$jadwal) {
+                return response()->json(['message' => 'Jadwal tidak ditemukan'], 404);
+            }
+
+            $mahasiswaList = [];
+
+            // Cek apakah ini semester antara (menggunakan kelompok_besar_antara_id)
+            if ($jadwal->kelompok_besar_antara_id) {
+                $kelompokAntara = KelompokBesarAntara::find($jadwal->kelompok_besar_antara_id);
+
+                if ($kelompokAntara && $kelompokAntara->mahasiswa_ids) {
+                    $mahasiswaIds = is_array($kelompokAntara->mahasiswa_ids)
+                        ? $kelompokAntara->mahasiswa_ids
+                        : json_decode($kelompokAntara->mahasiswa_ids, true);
+
+                    if (is_array($mahasiswaIds) && !empty($mahasiswaIds)) {
+                        $mahasiswaList = User::where('role', 'mahasiswa')
+                            ->whereIn('id', $mahasiswaIds)
+                            ->get()
+                            ->map(function ($user) {
+                                return [
+                                    'id' => $user->id,
+                                    'nim' => $user->nim,
+                                    'nama' => $user->name
+                                ];
+                            });
+                    }
+                }
+            } else {
+                // Semester reguler - ambil dari kelompok besar berdasarkan semester
+                // Pastikan bukan semester Antara
+                $isSemesterAntara = $jadwal->mataKuliah && $jadwal->mataKuliah->semester === 'Antara';
+
+                if (!$isSemesterAntara) {
+                    $semester = null;
+
+                    // Ambil semester dari kelompok_besar_id (menyimpan semester langsung)
+                    if ($jadwal->kelompok_besar_id) {
+                        $semester = $jadwal->kelompok_besar_id;
+                    } elseif ($jadwal->mataKuliah && $jadwal->mataKuliah->semester) {
+                        // Fallback: ambil dari mata kuliah
+                        $semester = $jadwal->mataKuliah->semester;
+                    }
+
+                    if ($semester && $semester !== 'Antara') {
+                        // Get mahasiswa dari kelompok besar berdasarkan semester
+                        $kelompokBesar = KelompokBesar::where('semester', $semester)->get();
+
+                        if ($kelompokBesar->isNotEmpty()) {
+                            $mahasiswaIds = $kelompokBesar->pluck('mahasiswa_id')->toArray();
+
+                            $mahasiswaList = User::where('role', 'mahasiswa')
+                                ->whereIn('id', $mahasiswaIds)
+                                ->get()
+                                ->map(function ($user) {
+                                    return [
+                                        'id' => $user->id,
+                                        'nim' => $user->nim,
+                                        'nama' => $user->name
+                                    ];
+                                });
+                        }
+                    }
+                }
+            }
+
+            return response()->json([
+                'mahasiswa' => $mahasiswaList
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error getting mahasiswa for Kuliah Besar: " . $e->getMessage());
+            return response()->json(['message' => 'Gagal mengambil data mahasiswa: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get absensi untuk jadwal kuliah besar tertentu
+     */
+    public function getAbsensi($kode, $jadwalId)
+    {
+        try {
+            $jadwal = JadwalKuliahBesar::where('mata_kuliah_kode', $kode)
+                ->where('id', $jadwalId)
+                ->first();
+
+            if (!$jadwal) {
+                return response()->json(['message' => 'Jadwal tidak ditemukan'], 404);
+            }
+
+            // Get semua absensi untuk jadwal ini
+            $absensiRecords = AbsensiKuliahBesar::where('jadwal_kuliah_besar_id', $jadwalId)
+                ->get();
+
+            $absensi = $absensiRecords
+                ->keyBy('mahasiswa_nim')
+                ->map(function ($item) {
+                    return [
+                        'hadir' => $item->hadir,
+                        'catatan' => $item->catatan
+                    ];
+                })
+                ->toArray();
+
+            return response()->json([
+                'absensi' => $absensi,
+                'qr_enabled' => $jadwal->qr_enabled ?? false
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error getting absensi for Kuliah Besar: " . $e->getMessage());
+            return response()->json(['message' => 'Gagal mengambil data absensi: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Save absensi untuk jadwal kuliah besar tertentu
+     */
+    public function saveAbsensi(Request $request, $kode, $jadwalId)
+    {
+        try {
+            $jadwal = JadwalKuliahBesar::where('mata_kuliah_kode', $kode)
+                ->where('id', $jadwalId)
+                ->first();
+
+            if (!$jadwal) {
+                return response()->json(['message' => 'Jadwal tidak ditemukan'], 404);
+            }
+
+            // VALIDASI: Pastikan QR code sudah diaktifkan oleh dosen (hanya untuk mahasiswa)
+            // Dosen bisa input manual tanpa perlu QR code aktif
+            $user = Auth::user();
+            $isDosen = $user && in_array($user->role, ['dosen', 'super_admin', 'tim_akademik']);
+
+            if (!$isDosen && !$jadwal->qr_enabled) {
+                Log::warning('Absensi ditolak: QR code belum diaktifkan', [
+                    'jadwal_id' => $jadwalId,
+                    'qr_enabled' => $jadwal->qr_enabled,
+                    'user_role' => $user->role ?? 'unknown'
+                ]);
+                return response()->json([
+                    'message' => 'QR code belum diaktifkan oleh dosen. Silakan tunggu hingga dosen mengaktifkan QR code untuk absensi ini.',
+                    'qr_enabled' => false
+                ], 403);
+            }
+
+            // VALIDASI: Cek token QR code untuk mahasiswa (jika submit via QR)
+            if (!$isDosen && $jadwal->qr_enabled) {
+                $token = $request->input('qr_token');
+                $cacheKey = "qr_token_kuliah_besar_{$kode}_{$jadwalId}";
+
+                if (!$token) {
+                    Log::warning('Absensi ditolak: QR token tidak ditemukan', [
+                        'jadwal_id' => $jadwalId,
+                        'user_nim' => $user->nim ?? 'unknown'
+                    ]);
+                    return response()->json([
+                        'message' => 'Token QR code tidak valid atau sudah expired. Silakan scan QR code yang baru.',
+                        'code' => 'QR_TOKEN_INVALID'
+                    ], 403);
+                }
+
+                $validToken = Cache::get($cacheKey);
+
+                if (!$validToken || $validToken !== $token) {
+                    Log::warning('Absensi ditolak: QR token tidak valid atau expired', [
+                        'jadwal_id' => $jadwalId,
+                        'user_nim' => $user->nim ?? 'unknown',
+                        'token_provided' => substr($token, 0, 8) . '...'
+                    ]);
+                    return response()->json([
+                        'message' => 'Token QR code tidak valid atau sudah expired. Silakan scan QR code yang baru.',
+                        'code' => 'QR_TOKEN_EXPIRED'
+                    ], 403);
+                }
+
+                // Token valid, hapus dari cache untuk mencegah penggunaan ulang
+                Cache::forget($cacheKey);
+
+                Log::info('QR token validated successfully for Kuliah Besar', [
+                    'jadwal_id' => $jadwalId,
+                    'user_nim' => $user->nim ?? 'unknown'
+                ]);
+            }
+
+            $request->validate([
+                'absensi' => 'required|array',
+                'absensi.*.mahasiswa_nim' => 'required|string',
+                'absensi.*.hadir' => 'required|boolean',
+                'absensi.*.catatan' => 'nullable|string'
+            ]);
+
+            $absensiData = $request->input('absensi', []);
+
+            // Get mahasiswa yang terdaftar di jadwal kuliah besar ini
+            $mahasiswaTerdaftar = [];
+            $mahasiswaList = [];
+
+            // Cek apakah ini semester antara
+            if ($jadwal->kelompok_besar_antara_id) {
+                $kelompokAntara = KelompokBesarAntara::find($jadwal->kelompok_besar_antara_id);
+
+                if ($kelompokAntara && $kelompokAntara->mahasiswa_ids) {
+                    $mahasiswaIds = is_array($kelompokAntara->mahasiswa_ids)
+                        ? $kelompokAntara->mahasiswa_ids
+                        : json_decode($kelompokAntara->mahasiswa_ids, true);
+
+                    if (is_array($mahasiswaIds) && !empty($mahasiswaIds)) {
+                        $mahasiswaList = User::where('role', 'mahasiswa')
+                            ->whereIn('id', $mahasiswaIds)
+                            ->get();
+                        $mahasiswaTerdaftar = $mahasiswaList->pluck('nim')->toArray();
+                    }
+                }
+            } else {
+                // Semester reguler - ambil dari kelompok besar berdasarkan semester
+                // Pastikan bukan semester Antara
+                $isSemesterAntara = $jadwal->mataKuliah && $jadwal->mataKuliah->semester === 'Antara';
+
+                if (!$isSemesterAntara) {
+                    $semester = $jadwal->kelompok_besar_id ?? ($jadwal->mataKuliah->semester ?? null);
+
+                    if ($semester && $semester !== 'Antara') {
+                        $kelompokBesar = KelompokBesar::where('semester', $semester)->get();
+
+                        if ($kelompokBesar->isNotEmpty()) {
+                            $mahasiswaIds = $kelompokBesar->pluck('mahasiswa_id')->toArray();
+
+                            $mahasiswaList = User::where('role', 'mahasiswa')
+                                ->whereIn('id', $mahasiswaIds)
+                                ->get();
+                            $mahasiswaTerdaftar = $mahasiswaList->pluck('nim')->toArray();
+                        }
+                    }
+                }
+            }
+
+            // Validasi NIM yang di-submit harus terdaftar di jadwal ini
+            $invalidNims = [];
+            foreach ($absensiData as $absen) {
+                $submittedNim = trim((string)($absen['mahasiswa_nim'] ?? ''));
+
+                // Cek dengan perbandingan yang case-insensitive dan trimmed
+                $isValid = false;
+                foreach ($mahasiswaTerdaftar as $registeredNim) {
+                    if (strtolower($registeredNim) === strtolower($submittedNim)) {
+                        $isValid = true;
+                        break;
+                    }
+                }
+
+                if (!$isValid && !empty($submittedNim)) {
+                    $invalidNims[] = $submittedNim;
+                }
+            }
+
+            if (!empty($invalidNims)) {
+                Log::warning('Absensi ditolak: mahasiswa tidak terdaftar', [
+                    'invalid_nims' => $invalidNims,
+                    'mahasiswa_terdaftar' => $mahasiswaTerdaftar
+                ]);
+
+                return response()->json([
+                    'message' => 'Beberapa mahasiswa tidak terdaftar di jadwal ini: ' . implode(', ', $invalidNims),
+                    'invalid_nims' => $invalidNims
+                ], 422);
+            }
+
+            // Upsert absensi (update jika ada, insert jika belum ada)
+            foreach ($absensiData as $absen) {
+                AbsensiKuliahBesar::updateOrCreate(
+                    [
+                        'jadwal_kuliah_besar_id' => $jadwalId,
+                        'mahasiswa_nim' => $absen['mahasiswa_nim']
+                    ],
+                    [
+                        'hadir' => $absen['hadir'] ?? false,
+                        'catatan' => $absen['catatan'] ?? ''
+                    ]
+                );
+            }
+
+            // Get kembali semua absensi untuk response
+            $absensi = AbsensiKuliahBesar::where('jadwal_kuliah_besar_id', $jadwalId)
+                ->get()
+                ->keyBy('mahasiswa_nim')
+                ->map(function ($item) {
+                    return [
+                        'hadir' => $item->hadir,
+                        'catatan' => $item->catatan
+                    ];
+                })
+                ->toArray();
+
+            return response()->json([
+                'message' => 'Absensi berhasil disimpan',
+                'absensi' => $absensi
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error saving absensi for Kuliah Besar: " . $e->getMessage());
+            return response()->json(['message' => 'Gagal menyimpan absensi: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Toggle QR code enabled/disabled untuk jadwal kuliah besar
+     */
+    public function toggleQr($kode, $jadwalId)
+    {
+        try {
+            $jadwal = JadwalKuliahBesar::where('id', $jadwalId)
+                ->where('mata_kuliah_kode', $kode)
+                ->first();
+
+            if (!$jadwal) {
+                return response()->json(['message' => 'Jadwal tidak ditemukan'], 404);
+            }
+
+            // Cek apakah user adalah dosen yang mengajar di jadwal ini
+            $userId = Auth::id();
+            $user = Auth::user();
+
+            // Validasi akses dosen
+            $isDosenJadwal = false;
+
+            // Cek untuk semester reguler (dosen_id)
+            if ($jadwal->dosen_id == $userId) {
+                $isDosenJadwal = true;
+            }
+
+            // Cek untuk semester antara (dosen_ids)
+            if (!$isDosenJadwal && $jadwal->dosen_ids) {
+                $dosenIds = is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true);
+                if (is_array($dosenIds) && in_array($userId, $dosenIds)) {
+                    $isDosenJadwal = true;
+                }
+            }
+
+            // Hanya dosen yang mengajar atau super_admin/tim_akademik yang bisa toggle
+            if (!$isDosenJadwal && !in_array($user->role, ['super_admin', 'tim_akademik'])) {
+                return response()->json(['message' => 'Anda tidak memiliki akses untuk mengubah status QR code'], 403);
+            }
+
+            // Toggle qr_enabled
+            $jadwal->qr_enabled = !$jadwal->qr_enabled;
+            $jadwal->save();
+
+            Log::info('QR code toggled for Kuliah Besar', [
+                'jadwal_id' => $jadwalId,
+                'qr_enabled' => $jadwal->qr_enabled,
+                'user_id' => $userId
+            ]);
+
+            return response()->json([
+                'message' => $jadwal->qr_enabled ? 'QR code diaktifkan' : 'QR code dinonaktifkan',
+                'qr_enabled' => $jadwal->qr_enabled
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error toggling QR for Kuliah Besar: " . $e->getMessage());
+            return response()->json(['message' => 'Gagal mengubah status QR code: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Generate QR token untuk absensi (expired setiap 20 detik)
+     */
+    public function generateQrToken($kode, $jadwalId)
+    {
+        try {
+            $jadwal = JadwalKuliahBesar::where('id', $jadwalId)
+                ->where('mata_kuliah_kode', $kode)
+                ->first();
+
+            if (!$jadwal) {
+                return response()->json(['message' => 'Jadwal tidak ditemukan'], 404);
+            }
+
+            // Validasi: Hanya bisa generate token jika QR enabled
+            if (!$jadwal->qr_enabled) {
+                return response()->json([
+                    'message' => 'QR code belum diaktifkan',
+                    'qr_enabled' => false
+                ], 403);
+            }
+
+            // Cek apakah user adalah dosen yang mengajar di jadwal ini
+            $userId = Auth::id();
+            $user = Auth::user();
+
+            // Validasi akses dosen
+            $isDosenJadwal = false;
+
+            // Cek untuk semester reguler (dosen_id)
+            if ($jadwal->dosen_id == $userId) {
+                $isDosenJadwal = true;
+            }
+
+            // Cek untuk semester antara (dosen_ids)
+            if (!$isDosenJadwal && $jadwal->dosen_ids) {
+                $dosenIds = is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true);
+                if (is_array($dosenIds) && in_array($userId, $dosenIds)) {
+                    $isDosenJadwal = true;
+                }
+            }
+
+            // Hanya dosen yang mengajar atau super_admin/tim_akademik yang bisa generate token
+            if (!$isDosenJadwal && !in_array($user->role, ['super_admin', 'tim_akademik'])) {
+                return response()->json(['message' => 'Anda tidak memiliki akses untuk generate QR token'], 403);
+            }
+
+            // Generate random token
+            $token = Str::random(32);
+            $cacheKey = "qr_token_kuliah_besar_{$kode}_{$jadwalId}";
+
+            // Simpan token di cache dengan expiry 20 detik
+            Cache::put($cacheKey, $token, now()->addSeconds(20));
+
+            // Calculate expires timestamp (unix timestamp in milliseconds untuk frontend)
+            $expiresAt = now()->addSeconds(20);
+            $expiresAtTimestamp = $expiresAt->timestamp * 1000; // Convert to milliseconds
+
+            Log::info('QR token generated for Kuliah Besar', [
+                'kode' => $kode,
+                'jadwal_id' => $jadwalId,
+                'token' => substr($token, 0, 8) . '...', // Log hanya sebagian untuk security
+                'expires_at' => $expiresAt->toDateTimeString(),
+                'expires_at_timestamp' => $expiresAtTimestamp
+            ]);
+
+            return response()->json([
+                'token' => $token,
+                'expires_in' => 20, // detik
+                'expires_at' => $expiresAt->toDateTimeString(), // Untuk display
+                'expires_at_timestamp' => $expiresAtTimestamp // Unix timestamp in milliseconds (untuk frontend)
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error generating QR token for Kuliah Besar: " . $e->getMessage());
+            return response()->json(['message' => 'Gagal generate QR token: ' . $e->getMessage()], 500);
         }
     }
 }

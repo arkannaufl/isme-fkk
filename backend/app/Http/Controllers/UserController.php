@@ -116,7 +116,7 @@ class UserController extends Controller
             'nip' => 'nullable|unique:users,nip',
             'nid' => 'nullable|unique:users,nid',
             'nidn' => 'nullable',
-            'nuptk' => 'nullable',                           
+            'nuptk' => 'nullable',
             'nim' => 'nullable|unique:users,nim|min:8|max:15',
             'telp' => 'nullable',
             'ket' => 'nullable',
@@ -520,7 +520,9 @@ class UserController extends Controller
                             'status_konfirmasi' => $item->status_konfirmasi ?? 'belum_konfirmasi',
                             'alasan_konfirmasi' => $item->alasan_konfirmasi ?? null,
                             'status_reschedule' => $item->status_reschedule ?? null,
-                            'reschedule_reason' => $item->reschedule_reason ?? null
+                            'reschedule_reason' => $item->reschedule_reason ?? null,
+                            'semester_type' => $item->semester_type ?? ($item->mata_kuliah && $item->mata_kuliah->semester === 'Antara' ? 'antara' : 'reguler'),
+                            'mata_kuliah' => $item->mata_kuliah ?? null
                         ];
                     });
                     $jadwalMengajar = $jadwalMengajar->concat($jadwalPraktikum);
@@ -685,7 +687,11 @@ class UserController extends Controller
                             'status_konfirmasi' => $isArray ? ($item['status_konfirmasi'] ?? 'belum_konfirmasi') : ($item->status_konfirmasi ?? 'belum_konfirmasi'),
                             'alasan_konfirmasi' => $isArray ? ($item['alasan_konfirmasi'] ?? null) : ($item->alasan_konfirmasi ?? null),
                             'status_reschedule' => $isArray ? ($item['status_reschedule'] ?? null) : ($item->status_reschedule ?? null),
-                            'reschedule_reason' => $isArray ? ($item['reschedule_reason'] ?? null) : ($item->reschedule_reason ?? null)
+                            'reschedule_reason' => $isArray ? ($item['reschedule_reason'] ?? null) : ($item->reschedule_reason ?? null),
+                            'semester_type' => $isArray ?
+                                (isset($item['kelompok_besar_antara']) && !empty($item['kelompok_besar_antara']) ? 'antara' : 'reguler') :
+                                (isset($item->kelompok_besar_antara) && !empty($item->kelompok_besar_antara) ? 'antara' : 'reguler'),
+                            'mata_kuliah' => $isArray ? ($item['mata_kuliah'] ?? null) : ($item->mata_kuliah ?? null)
                         ];
                     });
                     $jadwalMengajar = $jadwalMengajar->concat($jadwalNonBlok);

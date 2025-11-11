@@ -27,6 +27,7 @@ class User extends Authenticatable
         'email_verified',
         'password',
         'avatar',
+        'signature_image',
         'nip',
         'nid',
         'nidn',

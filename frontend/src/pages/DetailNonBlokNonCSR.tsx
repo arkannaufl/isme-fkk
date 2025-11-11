@@ -5,7 +5,7 @@ import { ChevronLeftIcon } from '../icons';
 import { AnimatePresence, motion } from 'framer-motion';
 import Select from 'react-select';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPenToSquare, faTrash, faFileExcel, faDownload, faUpload, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
+import { faPenToSquare, faTrash, faFileExcel, faDownload, faUpload, faExclamationTriangle, faCheckCircle } from '@fortawesome/free-solid-svg-icons';
 import { getRuanganOptions } from '../utils/ruanganHelper';
 import * as XLSX from 'xlsx';
 
@@ -57,6 +57,7 @@ interface JadwalNonBlokNonCSR {
   ruangan_id: number | null;
   kelompok_besar_id?: number | null;
   use_ruangan?: boolean;
+  status_konfirmasi?: string;
   dosen?: {
     id: number;
     name: string;
@@ -1513,6 +1514,29 @@ export default function DetailNonBlokNonCSR() {
                         {row.jenis_baris === 'agenda' && !row.use_ruangan ? '-' : (row.ruangan?.nama || '')}
                       </td>
                     <td className="px-4 py-4 text-center whitespace-nowrap">
+
+                      <div className="flex items-center justify-center gap-1 flex-wrap">
+                        {/* Tombol Absensi - hanya untuk jenis_baris === 'materi' dan status_konfirmasi === 'bisa' */}
+                        {row.jenis_baris === 'materi' && row.status_konfirmasi === 'bisa' && (
+                          <button 
+                            onClick={() => navigate(`/absensi-non-blok-non-csr/${kode}/${row.id}`)} 
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-500 hover:text-green-700 dark:hover:text-green-300 transition mr-1" 
+                            title="Buka Absensi"
+                          >
+                            <FontAwesomeIcon icon={faCheckCircle} className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
+                            <span className="hidden sm:inline">Absensi</span>
+                          </button>
+                        )}
+                        <button onClick={() => handleEditJadwal(idx)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-1" title="Edit Jadwal">
+                          <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
+                          <span className="hidden sm:inline">Edit</span>
+                        </button>
+                        <button onClick={() => { setSelectedDeleteIndex(idx); setShowDeleteModal(true); }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition" title="Hapus Jadwal">
+                          <FontAwesomeIcon icon={faTrash} className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
+                          <span className="hidden sm:inline">Hapus</span>
+                        </button>
+                      </div>
+
                       <button onClick={() => {
                         // Cari index berdasarkan ID untuk memastikan data yang benar
                         // Karena data di-sort sebelum di-paginate, kita perlu mencari dari array asli
@@ -1526,6 +1550,7 @@ export default function DetailNonBlokNonCSR() {
                         <FontAwesomeIcon icon={faTrash} className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
                         <span className="hidden sm:inline">Hapus</span>
                       </button>
+
                     </td>
                   </tr>
                   ))

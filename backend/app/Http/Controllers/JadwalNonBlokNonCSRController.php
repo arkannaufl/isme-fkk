@@ -6,8 +6,13 @@ use App\Models\JadwalNonBlokNonCSR;
 use App\Models\User;
 use App\Models\Notification;
 use App\Models\KelompokBesar;
+use App\Models\AbsensiNonBlokNonCSR;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Carbon\Carbon;
 
 class JadwalNonBlokNonCSRController extends Controller
@@ -17,7 +22,7 @@ class JadwalNonBlokNonCSRController extends Controller
         try {
             $jadwal = JadwalNonBlokNonCSR::with([
                 'mataKuliah:kode,nama,semester,tanggal_mulai,tanggal_akhir',
-                'dosen:id,name',
+                'dosen:id,name,nid,nidn,nuptk,signature_image',
                 'ruangan:id,nama,gedung',
                 'kelompokBesar:id,semester',
                 'kelompokBesarAntara:id,nama_kelompok'
@@ -49,7 +54,7 @@ class JadwalNonBlokNonCSRController extends Controller
 
             $query = JadwalNonBlokNonCSR::with([
                 'mataKuliah:kode,nama,semester',
-                'dosen:id,name',
+                'dosen:id,name,nid,nidn,nuptk,signature_image',
                 'ruangan:id,nama,gedung',
                 'kelompokBesar:id,semester',
                 'kelompokBesarAntara:id,nama_kelompok'
@@ -76,7 +81,11 @@ class JadwalNonBlokNonCSRController extends Controller
                     'reschedule_reason',
                     'created_at'
                 ])
-                ->where('dosen_id', $dosenId);
+                ->where(function ($q) use ($dosenId) {
+                    // Cek single dosen_id atau dosen_ids (array) yang mengandung dosenId
+                    $q->where('dosen_id', $dosenId)
+                      ->orWhereNotNull('dosen_ids');
+                });
 
             if ($semesterType === 'reguler') {
                 $query->whereNull('kelompok_besar_antara_id');
@@ -87,6 +96,23 @@ class JadwalNonBlokNonCSRController extends Controller
             $jadwalData = $query->orderBy('tanggal', 'asc')
                 ->orderBy('jam_mulai', 'asc')
                 ->get();
+
+
+            // Filter jadwal yang benar-benar memiliki dosenId (untuk dosen_ids array)
+            $jadwalData = $jadwalData->filter(function ($item) use ($dosenId) {
+                // Jika single dosen_id, langsung return true jika match
+                if ($item->dosen_id == $dosenId) {
+                    return true;
+                }
+                // Jika dosen_ids (array), cek apakah dosenId ada di dalam array
+                if (!empty($item->dosen_ids) && is_array($item->dosen_ids) && in_array($dosenId, $item->dosen_ids)) {
+                    return true;
+                }
+                return false;
+            });
+
+            Log::info("Found " . $jadwalData->count() . " jadwal Non Blok Non CSR records");
+
 
             $formattedData = $jadwalData->map(function ($jadwal) use ($semesterType) {
                 // Handle empty or invalid time format
@@ -283,7 +309,7 @@ class JadwalNonBlokNonCSRController extends Controller
 
             $jadwal = JadwalNonBlokNonCSR::create([
                 'mata_kuliah_kode' => $kode,
-                'created_by' => $request->input('created_by', auth()->id()),
+                'created_by' => $request->input('created_by', Auth::id()),
                 'tanggal' => $request->tanggal,
                 'jam_mulai' => $request->jam_mulai,
                 'jam_selesai' => $request->jam_selesai,
@@ -413,11 +439,24 @@ class JadwalNonBlokNonCSRController extends Controller
     public function index($kode)
     {
         try {
-            $jadwal = JadwalNonBlokNonCSR::with(['mataKuliah', 'dosen', 'ruangan', 'kelompokBesar'])
+            $jadwal = JadwalNonBlokNonCSR::with(['mataKuliah', 'dosen:id,name,nid,nidn,nuptk,signature_image', 'ruangan', 'kelompokBesar', 'kelompokBesarAntara'])
                 ->where('mata_kuliah_kode', $kode)
                 ->orderBy('tanggal')
                 ->orderBy('jam_mulai')
                 ->get();
+
+            // Untuk jadwal dengan dosen_ids (array), tambahkan data dosen pertama
+            $jadwal->each(function ($item) {
+                if ($item->dosen_ids && is_array($item->dosen_ids) && count($item->dosen_ids) > 0 && !$item->dosen) {
+                    // Fetch dosen pertama dari dosen_ids
+                    $dosen = User::where('id', $item->dosen_ids[0])
+                        ->select('id', 'name', 'nid', 'nidn', 'nuptk', 'signature_image')
+                        ->first();
+                    if ($dosen) {
+                        $item->dosen = $dosen;
+                    }
+                }
+            });
 
             return response()->json($jadwal);
         } catch (\Exception $e) {
@@ -585,8 +624,15 @@ class JadwalNonBlokNonCSRController extends Controller
                     ]
                 ]);
             }
+
+
+            Log::info("Reschedule notification sent for Non Blok Non CSR jadwal ID: {$jadwal->id}");
+        } catch (\Exception $e) {
+            Log::error("Error sending reschedule notification for Non Blok Non CSR jadwal ID: {$jadwal->id}: " . $e->getMessage());
+
         } catch (\Exception $e) {
             // Silently fail
+
         }
     }
 
@@ -615,10 +661,13 @@ class JadwalNonBlokNonCSRController extends Controller
                 ], 404);
             }
 
+            // Debug: Log mata kuliah info
+            Log::info("Import Excel - Mata Kuliah: {$kode}, Semester: {$mataKuliah->semester}");
+
             $importedCount = 0;
             $errors = [];
 
-            \DB::beginTransaction();
+            DB::beginTransaction();
 
             foreach ($request->data as $index => $row) {
                 try {
@@ -661,6 +710,11 @@ class JadwalNonBlokNonCSRController extends Controller
 
                         // Cek apakah semester kelompok besar sesuai dengan semester mata kuliah
                         if ($semesterKelompokBesar != $mataKuliah->semester) {
+
+                            // Debug: Log detail validasi
+                            Log::info("Import Excel - Validasi Kelompok Besar: Row " . ($index + 1) . ", Kelompok Besar Semester: {$semesterKelompokBesar}, Mata Kuliah Semester: {$mataKuliah->semester}");
+
+
                             throw new \Exception("Kelompok besar semester {$semesterKelompokBesar} tidak sesuai dengan semester mata kuliah ({$mataKuliah->semester}) (Baris " . ($index + 1) . ")");
                         }
                     }
@@ -705,14 +759,14 @@ class JadwalNonBlokNonCSRController extends Controller
             }
 
             if (!empty($errors)) {
-                \DB::rollBack();
+                DB::rollBack();
                 return response()->json([
                     'success' => false,
                     'message' => 'Terjadi kesalahan saat mengimport data: ' . implode(', ', $errors)
                 ], 422);
             }
 
-            \DB::commit();
+            DB::commit();
 
             // Log activity
             activity()
@@ -724,7 +778,10 @@ class JadwalNonBlokNonCSRController extends Controller
                 'imported_count' => $importedCount
             ]);
         } catch (\Exception $e) {
-            \DB::rollBack();
+
+            DB::rollBack();
+            Log::error('Error importing jadwal Non Blok Non CSR: ' . $e->getMessage());
+
             return response()->json([
                 'success' => false,
                 'message' => 'Terjadi kesalahan saat mengimport data: ' . $e->getMessage()
@@ -811,7 +868,7 @@ class JadwalNonBlokNonCSRController extends Controller
             })
             ->where(function ($q) use ($data) {
                 $q->where('ruangan_id', $data['ruangan_id']);
-                
+
                 // Cek bentrok dosen jika ada
                 if (isset($data['dosen_id']) && $data['dosen_id']) {
                     $q->orWhere('dosen_id', $data['dosen_id']);
@@ -925,7 +982,7 @@ class JadwalNonBlokNonCSRController extends Controller
                 $q->where('jam_mulai', '<', $data['jam_selesai'])
                     ->where('jam_selesai', '>', $data['jam_mulai']);
             });
-        
+
         if ($ignoreId) {
             $bentrok->where('id', '!=', $ignoreId);
         }
@@ -966,6 +1023,11 @@ class JadwalNonBlokNonCSRController extends Controller
                 ->orderBy('tanggal', 'asc')
                 ->orderBy('jam_mulai', 'asc')
                 ->get();
+
+
+            Log::info("Non Blok Non CSR - Mahasiswa ID: {$mahasiswaId}, Semester: {$mahasiswa->semester}");
+            Log::info("Non Blok Non CSR - Found {$jadwal->count()} jadwal for semester: {$mahasiswa->semester}");
+
 
             $mappedJadwal = $jadwal->map(function ($item) {
                 // Determine jenis_baris
@@ -1031,6 +1093,9 @@ class JadwalNonBlokNonCSRController extends Controller
                 ->where('semester', $semester)
                 ->get();
 
+
+            Log::info("Non Blok Non CSR - Found {$mahasiswaList->count()} mahasiswa in semester: {$semester}");
+
             // Hapus notifikasi lama untuk mahasiswa saja (bukan dosen)
             \App\Models\Notification::where('title', 'Jadwal Non Blok Non CSR Baru')
                 ->where('data->jadwal_id', $jadwal->id)
@@ -1069,8 +1134,349 @@ class JadwalNonBlokNonCSRController extends Controller
                     ]
                 ]);
             }
+
+            Log::info("Non Blok Non CSR notifications sent to " . count($mahasiswaList) . " mahasiswa for jadwal ID: {$jadwal->id}");
+        } catch (\Exception $e) {
+            Log::error("Error sending Non Blok Non CSR notifications to mahasiswa: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Toggle QR code enabled/disabled untuk jadwal non-blok non-CSR
+     */
+    public function toggleQr($kode, $jadwalId)
+    {
+        try {
+            $jadwal = JadwalNonBlokNonCSR::where('id', $jadwalId)
+                ->where('mata_kuliah_kode', $kode)
+                ->first();
+
+            if (!$jadwal) {
+                return response()->json(['message' => 'Jadwal tidak ditemukan'], 404);
+            }
+
+            // Cek apakah user adalah dosen yang mengajar di jadwal ini
+            $userId = Auth::id();
+            $isDosenJadwal = false;
+
+            if ($jadwal->dosen_id && $jadwal->dosen_id == $userId) {
+                $isDosenJadwal = true;
+            } elseif ($jadwal->dosen_ids && is_array($jadwal->dosen_ids) && in_array($userId, $jadwal->dosen_ids)) {
+                $isDosenJadwal = true;
+            }
+
+            // Hanya dosen yang mengajar atau super_admin/tim_akademik yang bisa toggle
+            $user = Auth::user();
+            if (!$isDosenJadwal && !in_array($user->role, ['super_admin', 'tim_akademik'])) {
+                return response()->json(['message' => 'Anda tidak memiliki akses untuk mengubah status QR code'], 403);
+            }
+
+            // Toggle qr_enabled
+            $jadwal->qr_enabled = !$jadwal->qr_enabled;
+            $jadwal->save();
+
+            Log::info('QR code toggled for Non Blok Non CSR', [
+                'jadwal_id' => $jadwalId,
+                'qr_enabled' => $jadwal->qr_enabled,
+                'user_id' => $userId
+            ]);
+
+            return response()->json([
+                'message' => $jadwal->qr_enabled ? 'QR code diaktifkan' : 'QR code dinonaktifkan',
+                'qr_enabled' => $jadwal->qr_enabled
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error toggling QR for Non Blok Non CSR: " . $e->getMessage());
+            return response()->json(['message' => 'Gagal mengubah status QR code: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Generate QR token untuk absensi (expired setiap 20 detik)
+     */
+    public function generateQrToken($kode, $jadwalId)
+    {
+        try {
+            $jadwal = JadwalNonBlokNonCSR::where('id', $jadwalId)
+                ->where('mata_kuliah_kode', $kode)
+                ->first();
+
+            if (!$jadwal) {
+                return response()->json(['message' => 'Jadwal tidak ditemukan'], 404);
+            }
+
+            // Validasi: Hanya bisa generate token jika QR enabled
+            if (!$jadwal->qr_enabled) {
+                return response()->json([
+                    'message' => 'QR code belum diaktifkan',
+                    'qr_enabled' => false
+                ], 403);
+            }
+
+            // Cek apakah user adalah dosen yang mengajar di jadwal ini
+            $userId = Auth::id();
+            $isDosenJadwal = false;
+
+            if ($jadwal->dosen_id && $jadwal->dosen_id == $userId) {
+                $isDosenJadwal = true;
+            } elseif ($jadwal->dosen_ids && is_array($jadwal->dosen_ids) && in_array($userId, $jadwal->dosen_ids)) {
+                $isDosenJadwal = true;
+            }
+
+            // Hanya dosen yang mengajar atau super_admin/tim_akademik yang bisa generate token
+            $user = Auth::user();
+            if (!$isDosenJadwal && !in_array($user->role, ['super_admin', 'tim_akademik'])) {
+                return response()->json(['message' => 'Anda tidak memiliki akses untuk generate QR token'], 403);
+            }
+
+            // Generate random token
+            $token = Str::random(32);
+            $cacheKey = "qr_token_non_blok_non_csr_{$kode}_{$jadwalId}";
+
+            // Simpan token di cache dengan expiry 20 detik
+            Cache::put($cacheKey, $token, now()->addSeconds(20));
+
+            // Calculate expires timestamp (unix timestamp in milliseconds untuk frontend)
+            $expiresAt = now()->addSeconds(20);
+            $expiresAtTimestamp = $expiresAt->timestamp * 1000; // Convert to milliseconds
+
+            Log::info('QR token generated for Non Blok Non CSR', [
+                'kode' => $kode,
+                'jadwal_id' => $jadwalId,
+                'token' => substr($token, 0, 8) . '...', // Log hanya sebagian untuk security
+                'expires_at' => $expiresAt->toDateTimeString(),
+                'expires_at_timestamp' => $expiresAtTimestamp
+            ]);
+
+            return response()->json([
+                'token' => $token,
+                'expires_in' => 20, // detik
+                'expires_at' => $expiresAt->toDateTimeString(), // Untuk display
+                'expires_at_timestamp' => $expiresAtTimestamp // Unix timestamp in milliseconds (untuk frontend)
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error generating QR token for Non Blok Non CSR: " . $e->getMessage());
+            return response()->json(['message' => 'Gagal generate QR token: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Get absensi untuk jadwal non-blok non-CSR tertentu
+     */
+    public function getAbsensi($kode, $jadwalId)
+    {
+        try {
+            $jadwal = JadwalNonBlokNonCSR::where('mata_kuliah_kode', $kode)
+                ->where('id', $jadwalId)
+                ->first();
+
+            if (!$jadwal) {
+                return response()->json(['message' => 'Jadwal tidak ditemukan'], 404);
+            }
+
+            // Get semua absensi untuk jadwal ini
+            $absensiRecords = AbsensiNonBlokNonCSR::where('jadwal_non_blok_non_csr_id', $jadwalId)
+                ->get();
+
+            $absensi = $absensiRecords
+                ->keyBy('mahasiswa_nim')
+                ->map(function ($item) {
+                    return [
+                        'hadir' => $item->hadir,
+                        'catatan' => $item->catatan
+                    ];
+                })
+                ->toArray();
+
+            return response()->json([
+                'absensi' => $absensi
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error getting absensi for Non Blok Non CSR: " . $e->getMessage());
+            return response()->json(['message' => 'Gagal mengambil data absensi'], 500);
+        }
+    }
+
+    /**
+     * Save absensi untuk jadwal non-blok non-CSR tertentu
+     */
+    public function saveAbsensi(Request $request, $kode, $jadwalId)
+    {
+        try {
+            $jadwal = JadwalNonBlokNonCSR::where('mata_kuliah_kode', $kode)
+                ->where('id', $jadwalId)
+                ->first();
+
+            if (!$jadwal) {
+                return response()->json(['message' => 'Jadwal tidak ditemukan'], 404);
+            }
+
+            // VALIDASI: Pastikan QR code sudah diaktifkan oleh dosen (hanya untuk mahasiswa)
+            // Dosen bisa input manual tanpa perlu QR code aktif
+            $user = Auth::user();
+            $isDosen = $user && in_array($user->role, ['dosen', 'super_admin', 'tim_akademik']);
+
+            if (!$isDosen && !$jadwal->qr_enabled) {
+                Log::warning('Absensi ditolak: QR code belum diaktifkan', [
+                    'jadwal_id' => $jadwalId,
+                    'qr_enabled' => $jadwal->qr_enabled,
+                    'user_role' => $user->role ?? 'unknown'
+                ]);
+                return response()->json([
+                    'message' => 'QR code belum diaktifkan oleh dosen. Silakan tunggu hingga dosen mengaktifkan QR code untuk absensi ini.',
+                    'qr_enabled' => false
+                ], 403);
+            }
+
+            // VALIDASI: Cek token QR code untuk mahasiswa (jika submit via QR)
+            if (!$isDosen && $jadwal->qr_enabled) {
+                $token = $request->input('qr_token');
+                $cacheKey = "qr_token_non_blok_non_csr_{$kode}_{$jadwalId}";
+
+                if (!$token) {
+                    Log::warning('Absensi ditolak: QR token tidak ditemukan', [
+                        'jadwal_id' => $jadwalId,
+                        'user_nim' => $user->nim ?? 'unknown'
+                    ]);
+                    return response()->json([
+                        'message' => 'Token QR code tidak valid atau sudah expired. Silakan scan QR code yang baru.',
+                        'code' => 'QR_TOKEN_INVALID'
+                    ], 403);
+                }
+
+                $validToken = Cache::get($cacheKey);
+
+                if (!$validToken || $validToken !== $token) {
+                    Log::warning('Absensi ditolak: QR token tidak valid atau expired', [
+                        'jadwal_id' => $jadwalId,
+                        'user_nim' => $user->nim ?? 'unknown',
+                        'token_provided' => substr($token, 0, 8) . '...'
+                    ]);
+                    return response()->json([
+                        'message' => 'Token QR code tidak valid atau sudah expired. Silakan scan QR code yang baru.',
+                        'code' => 'QR_TOKEN_EXPIRED'
+                    ], 403);
+                }
+
+                // Token valid, hapus dari cache untuk mencegah penggunaan ulang
+                Cache::forget($cacheKey);
+
+                Log::info('QR token validated successfully for Non Blok Non CSR', [
+                    'jadwal_id' => $jadwalId,
+                    'user_nim' => $user->nim ?? 'unknown'
+                ]);
+            }
+
+            $request->validate([
+                'absensi' => 'required|array',
+                'absensi.*.mahasiswa_nim' => 'required|string',
+                'absensi.*.hadir' => 'required|boolean',
+                'absensi.*.catatan' => 'nullable|string'
+            ]);
+
+            $absensiData = $request->input('absensi', []);
+
+            // Get mahasiswa yang terdaftar di kelompok besar jadwal ini
+            $mahasiswaTerdaftar = [];
+
+            // Cek kelompok_besar_antara_id dulu (prioritas untuk semester antara)
+            if ($jadwal->kelompok_besar_antara_id) {
+                try {
+                    $kelompokResponse = \App\Models\KelompokBesarAntara::find($jadwal->kelompok_besar_antara_id);
+                    if ($kelompokResponse && $kelompokResponse->mahasiswa_ids) {
+                        $mahasiswaIds = $kelompokResponse->mahasiswa_ids;
+                        $mahasiswaList = User::whereIn('id', $mahasiswaIds)
+                            ->where('role', 'mahasiswa')
+                            ->get();
+                        $mahasiswaTerdaftar = $mahasiswaList->pluck('nim')->toArray();
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Error fetching kelompok_besar_antara: ' . $e->getMessage());
+                }
+            } elseif ($jadwal->kelompok_besar_id) {
+                // Get mahasiswa berdasarkan semester
+                try {
+                    $semester = $jadwal->kelompok_besar_id; // kelompok_besar_id menyimpan semester
+                    $kelompokBesar = KelompokBesar::where('semester', $semester)->get();
+                    $mahasiswaTerdaftar = $kelompokBesar->pluck('mahasiswa.nim')
+                        ->filter()
+                        ->unique()
+                        ->values()
+                        ->toArray();
+                } catch (\Exception $e) {
+                    Log::error('Error fetching kelompok_besar: ' . $e->getMessage());
+                }
+            }
+
+            // Validasi NIM yang di-submit harus terdaftar di jadwal ini
+            // Normalisasi NIM untuk perbandingan yang lebih robust
+            $invalidNims = [];
+            foreach ($absensiData as $absen) {
+                $submittedNim = trim((string)($absen['mahasiswa_nim'] ?? ''));
+
+                // Cek dengan perbandingan yang case-insensitive dan trimmed
+                $isValid = false;
+                foreach ($mahasiswaTerdaftar as $registeredNim) {
+                    if (strtolower($registeredNim) === strtolower($submittedNim)) {
+                        $isValid = true;
+                        break;
+                    }
+                }
+
+                if (!$isValid && !empty($submittedNim)) {
+                    $invalidNims[] = $submittedNim;
+                }
+            }
+
+            if (!empty($invalidNims)) {
+                Log::warning('Absensi ditolak: mahasiswa tidak terdaftar', [
+                    'invalid_nims' => $invalidNims,
+                    'mahasiswa_terdaftar' => $mahasiswaTerdaftar
+                ]);
+
+                return response()->json([
+                    'message' => 'Beberapa mahasiswa tidak terdaftar di jadwal ini: ' . implode(', ', $invalidNims),
+                    'invalid_nims' => $invalidNims
+                ], 422);
+            }
+
+            // Upsert absensi (update jika ada, insert jika belum ada)
+            foreach ($absensiData as $absen) {
+                AbsensiNonBlokNonCSR::updateOrCreate(
+                    [
+                        'jadwal_non_blok_non_csr_id' => $jadwalId,
+                        'mahasiswa_nim' => $absen['mahasiswa_nim']
+                    ],
+                    [
+                        'hadir' => $absen['hadir'] ?? false,
+                        'catatan' => $absen['catatan'] ?? ''
+                    ]
+                );
+            }
+
+            // Get kembali semua absensi untuk response
+            $absensi = AbsensiNonBlokNonCSR::where('jadwal_non_blok_non_csr_id', $jadwalId)
+                ->get()
+                ->keyBy('mahasiswa_nim')
+                ->map(function ($item) {
+                    return [
+                        'hadir' => $item->hadir,
+                        'catatan' => $item->catatan
+                    ];
+                })
+                ->toArray();
+
+            return response()->json([
+                'message' => 'Absensi berhasil disimpan',
+                'absensi' => $absensi
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error saving absensi for Non Blok Non CSR: " . $e->getMessage());
+            return response()->json(['message' => 'Gagal menyimpan absensi: ' . $e->getMessage()], 500);
+
         } catch (\Exception $e) {
             // Silently fail
+
         }
     }
 }

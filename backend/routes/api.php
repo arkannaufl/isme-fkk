@@ -348,12 +348,20 @@ Route::middleware('auth:sanctum')->prefix('kuliah-besar')->group(function () {
     Route::get('/kelompok-besar', [JadwalKuliahBesarController::class, 'kelompokBesar']);
     Route::get('/kelompok-besar-antara', [JadwalKuliahBesarController::class, 'kelompokBesarAntara']);
     Route::post('/import/{kode}', [JadwalKuliahBesarController::class, 'importExcel']);
+
+    // Routes untuk absensi kuliah besar
+    Route::get('/{kode}/jadwal/{jadwalId}/mahasiswa', [JadwalKuliahBesarController::class, 'getMahasiswa']);
+    Route::get('/{kode}/jadwal/{jadwalId}/absensi', [JadwalKuliahBesarController::class, 'getAbsensi']);
+    Route::post('/{kode}/jadwal/{jadwalId}/absensi', [JadwalKuliahBesarController::class, 'saveAbsensi']);
+    Route::put('/{kode}/jadwal/{jadwalId}/toggle-qr', [JadwalKuliahBesarController::class, 'toggleQr']);
+    Route::get('/{kode}/jadwal/{jadwalId}/qr-token', [JadwalKuliahBesarController::class, 'generateQrToken']);
 });
 
 // Routes untuk Kelompok Besar Antara (Global untuk semester Antara)
 Route::middleware('auth:sanctum')->prefix('kelompok-besar-antara')->group(function () {
     Route::get('/mahasiswa', [KelompokBesarAntaraController::class, 'getMahasiswa']);
     Route::get('/', [KelompokBesarAntaraController::class, 'index']);
+    Route::get('/{id}', [KelompokBesarAntaraController::class, 'show']);
     Route::post('/', [KelompokBesarAntaraController::class, 'store']);
     Route::put('/{id}', [KelompokBesarAntaraController::class, 'update']);
     Route::delete('/{id}', [KelompokBesarAntaraController::class, 'destroy']);
@@ -391,6 +399,11 @@ Route::middleware('auth:sanctum')->prefix('praktikum')->group(function () {
     Route::get('/kelas/{semester}', [App\Http\Controllers\JadwalPraktikumController::class, 'getKelasPraktikum']);
     Route::get('/materi/{blok}/{semester}', [App\Http\Controllers\JadwalPraktikumController::class, 'getMateri']);
     Route::get('/pengampu/{keahlian}/{blok}/{semester}', [App\Http\Controllers\JadwalPraktikumController::class, 'getPengampu']);
+    Route::get('/{kode}/jadwal/{jadwalId}/mahasiswa', [App\Http\Controllers\JadwalPraktikumController::class, 'getMahasiswa']);
+    Route::get('/{kode}/jadwal/{jadwalId}/absensi', [App\Http\Controllers\JadwalPraktikumController::class, 'getAbsensi']);
+    Route::post('/{kode}/jadwal/{jadwalId}/absensi', [App\Http\Controllers\JadwalPraktikumController::class, 'saveAbsensi']);
+    Route::put('/{kode}/jadwal/{jadwalId}/toggle-qr', [App\Http\Controllers\JadwalPraktikumController::class, 'toggleQr']);
+    Route::get('/{kode}/jadwal/{jadwalId}/qr-token', [App\Http\Controllers\JadwalPraktikumController::class, 'generateQrToken']);
 });
 
 Route::middleware('auth:sanctum')->prefix('jurnal-reading')->group(function () {
@@ -449,6 +462,12 @@ Route::middleware('auth:sanctum')->prefix('non-blok-non-csr')->group(function ()
     Route::put('/jadwal/{kode}/{id}', [JadwalNonBlokNonCSRController::class, 'update']);
     Route::delete('/jadwal/{kode}/{id}', [JadwalNonBlokNonCSRController::class, 'destroy']);
     Route::get('/kelompok-besar', [JadwalNonBlokNonCSRController::class, 'kelompokBesar']);
+
+    // Routes untuk absensi non-blok non-CSR
+    Route::get('/{kode}/jadwal/{jadwalId}/absensi', [JadwalNonBlokNonCSRController::class, 'getAbsensi']);
+    Route::post('/{kode}/jadwal/{jadwalId}/absensi', [JadwalNonBlokNonCSRController::class, 'saveAbsensi']);
+    Route::put('/{kode}/jadwal/{jadwalId}/toggle-qr', [JadwalNonBlokNonCSRController::class, 'toggleQr']);
+    Route::get('/{kode}/jadwal/{jadwalId}/qr-token', [JadwalNonBlokNonCSRController::class, 'generateQrToken']);
 });
 
 // Jadwal Harian routes

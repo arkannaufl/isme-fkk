@@ -255,6 +255,8 @@ class DosenImport implements ToCollection, WithHeadingRow
 
             // Simpan data jika semua validasi berhasil
             // Convert "-" to null for NID, NIDN, and NUPTK fields
+            // NOTE: signature_image tidak diproses via import Excel
+            // Signature image hanya bisa diupload manual oleh dosen melalui halaman Profile
             $userData = [
                 'nid' => ($rowArray['nid'] === '-' || $rowArray['nid'] === '') ? null : $rowArray['nid'],
                 'nidn' => ($rowArray['nidn'] === '-' || $rowArray['nidn'] === '') ? null : $rowArray['nidn'],
@@ -266,6 +268,7 @@ class DosenImport implements ToCollection, WithHeadingRow
                 'password' => Hash::make($rowArray['password']),
                 'role' => 'dosen',
                 'keahlian' => is_array($rowArray['keahlian']) ? $rowArray['keahlian'] : explode(',', $rowArray['keahlian']),
+                // signature_image tidak diset di sini - akan tetap null dan hanya bisa diisi manual oleh dosen
             ];
 
             // Add kompetensi only if not standby

@@ -56,7 +56,24 @@ import ForumDetail from "./pages/ForumDetail";
 import ForumCategory from "./pages/ForumCategory";
 import Bookmarks from "./pages/Bookmarks";
 import SupportCenter from "./pages/SupportCenter";
+
+import AbSenQRMahasiswa from "./pages/AbSenQRMahasiswa";
+import DetailAbSenMahasiswa from "./pages/DetailAbSenMahasiswa";
+import DetailAbSenMahasiswaNonBlokNonCSR from "./pages/DetailAbSenMahasiswaNonBlokNonCSR";
+import DetailAbSenMahasiswaNonBlokNonCSRAntara from "./pages/DetailAbSenMahasiswaNonBlokNonCSRAntara";
+import DetailAbSenMahasiswaPraktikum from "./pages/DetailAbSenMahasiswaPraktikum";
+import DetailAbSenMahasiswaPraktikumAntara from "./pages/DetailAbSenMahasiswaPraktikumAntara";
+import DetailAbSenMahasiswaKuliahBesarAntara from "./pages/DetailAbSenMahasiswaKuliahBesarAntara";
+import KuliahBesarDetail from "./pages/KuliahBesarDetail";
+import DosenAbsensiKuliahBesar from "./pages/DosenAbsensiKuliahBesar";
+import DosenAbsensiKuliahBesarAntara from "./pages/DosenAbsensiKuliahBesarAntara";
+import DosenAbsensiNonBlokNonCSR from "./pages/DosenAbsensiNonBlokNonCSR";
+import DosenAbsensiNonBlokNonCSRAntara from "./pages/DosenAbsensiNonBlokNonCSRAntara";
+import DosenAbsensiPraktikum from "./pages/DosenAbsensiPraktikum";
+import DosenAbsensiPraktikumAntara from "./pages/DosenAbsensiPraktikumAntara";
+
 import WhatsAppTest from "./pages/WhatsAppTest";
+
 
 function AppContent() {
   const { isSessionExpired, setSessionExpired } = useSession();
@@ -157,6 +174,54 @@ function AppContent() {
                 }
               />
               <Route
+                path="/mahasiswa/absensi-kuliah-besar"
+                element={
+                  <RequireDosenRole allowedRoles={["mahasiswa"]}>
+                    <AbSenQRMahasiswa />
+                  </RequireDosenRole>
+                }
+              />
+              <Route
+                path="/mahasiswa/absensi-kuliah-besar/:kode/:jadwalId"
+                element={
+                  <RequireDosenRole allowedRoles={["mahasiswa"]}>
+                    <DetailAbSenMahasiswa />
+                  </RequireDosenRole>
+                }
+              />
+              <Route
+                path="/mahasiswa/absensi-non-blok-non-csr/:kode/:jadwalId"
+                element={
+                  <RequireDosenRole allowedRoles={["mahasiswa"]}>
+                    <DetailAbSenMahasiswaNonBlokNonCSR />
+                  </RequireDosenRole>
+                }
+              />
+              <Route
+                path="/mahasiswa/absensi-praktikum/:kode/:jadwalId"
+                element={
+                  <RequireDosenRole allowedRoles={["mahasiswa"]}>
+                    <DetailAbSenMahasiswaPraktikum />
+                  </RequireDosenRole>
+                }
+              />
+              <Route
+                path="/mahasiswa/absensi-praktikum-antara/:kode/:jadwalId"
+                element={
+                  <RequireDosenRole allowedRoles={["mahasiswa"]}>
+                    <DetailAbSenMahasiswaPraktikumAntara />
+                  </RequireDosenRole>
+                }
+              />
+              <Route
+                path="/mahasiswa/absensi-kuliah-besar-antara/:kode/:jadwalId"
+                element={
+                  <RequireDosenRole allowedRoles={["mahasiswa"]}>
+                    <DetailAbSenMahasiswaKuliahBesarAntara />
+                  </RequireDosenRole>
+                }
+              />
+              <Route
                 path="/absensi-csr/:kode/:jadwalId"
                 element={
                   <RequireDosenRole
@@ -177,6 +242,62 @@ function AppContent() {
                 element={
                   <RequireDosenRole allowedRoles={["dosen"]}>
                     <DosenRiwayat />
+                  </RequireDosenRole>
+                }
+              />
+              <Route
+                path="/kuliah-besar/:kode/:jadwalId"
+                element={
+                  <RequireDosenRole allowedRoles={["dosen", "super_admin", "tim_akademik"]}>
+                    <KuliahBesarDetail />
+                  </RequireDosenRole>
+                }
+              />
+              <Route
+                path="/absensi-kuliah-besar/:kode/:jadwalId"
+                element={
+                  <RequireDosenRole allowedRoles={["dosen", "super_admin", "tim_akademik"]}>
+                    <DosenAbsensiKuliahBesar />
+                  </RequireDosenRole>
+                }
+              />
+              <Route
+                path="/absensi-kuliah-besar-antara/:kode/:jadwalId"
+                element={
+                  <RequireDosenRole allowedRoles={["dosen", "super_admin", "tim_akademik"]}>
+                    <DosenAbsensiKuliahBesarAntara />
+                  </RequireDosenRole>
+                }
+              />
+              <Route
+                path="/absensi-non-blok-non-csr/:kode/:jadwalId"
+                element={
+                  <RequireDosenRole allowedRoles={["dosen", "super_admin", "tim_akademik"]}>
+                    <DosenAbsensiNonBlokNonCSR />
+                  </RequireDosenRole>
+                }
+              />
+              <Route
+                path="/absensi-non-blok-non-csr-antara/:kode/:jadwalId"
+                element={
+                  <RequireDosenRole allowedRoles={["dosen", "super_admin", "tim_akademik"]}>
+                    <DosenAbsensiNonBlokNonCSRAntara />
+                  </RequireDosenRole>
+                }
+              />
+              <Route
+                path="/absensi-praktikum/:kode/:jadwalId"
+                element={
+                  <RequireDosenRole allowedRoles={["dosen", "super_admin", "tim_akademik"]}>
+                    <DosenAbsensiPraktikum />
+                  </RequireDosenRole>
+                }
+              />
+              <Route
+                path="/absensi-praktikum-antara/:kode/:jadwalId"
+                element={
+                  <RequireDosenRole allowedRoles={["dosen", "super_admin", "tim_akademik"]}>
+                    <DosenAbsensiPraktikumAntara />
                   </RequireDosenRole>
                 }
               />
