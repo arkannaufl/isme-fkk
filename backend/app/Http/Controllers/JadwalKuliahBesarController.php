@@ -549,11 +549,17 @@ class JadwalKuliahBesarController extends Controller
                 }
             })
             ->where(function ($q) use ($data, $isSemesterAntara) {
-                if ($isSemesterAntara && isset($data['dosen_ids'])) {
-                    // Untuk semester antara, cek multiple dosen
+                if ($isSemesterAntara && isset($data['dosen_ids']) && is_array($data['dosen_ids'])) {
+                    // Untuk semester antara, cek multiple dosen menggunakan JSON_CONTAINS
                     $q->where(function ($subQ) use ($data) {
-                        $subQ->whereJsonOverlaps('dosen_ids', $data['dosen_ids'])
-                            ->orWhere('dosen_id', '!=', null); // Juga cek single dosen
+                        // Cek apakah ada dosen_id dari array yang overlap dengan jadwal yang ada
+                        foreach ($data['dosen_ids'] as $dosenId) {
+                            $subQ->orWhere(function ($dosenQ) use ($dosenId) {
+                                // Cek apakah dosen_id ada di kolom dosen_ids (JSON array) atau kolom dosen_id (single)
+                                $dosenQ->whereJsonContains('dosen_ids', $dosenId)
+                                      ->orWhere('dosen_id', $dosenId);
+                            });
+                        }
                     });
                 } else {
                     // Untuk semester biasa, cek single dosen
@@ -846,7 +852,14 @@ class JadwalKuliahBesarController extends Controller
                     ->where('jam_selesai', '>', $data['jam_mulai']);
             })
             ->whereHas('kelompokKecilAntara', function ($q) use ($mahasiswaIds) {
-                $q->whereJsonOverlaps('mahasiswa_ids', $mahasiswaIds);
+                // Cek apakah ada mahasiswa_id dari array yang overlap dengan mahasiswa_ids di database
+                if (is_array($mahasiswaIds) && !empty($mahasiswaIds)) {
+                    $q->where(function ($subQ) use ($mahasiswaIds) {
+                        foreach ($mahasiswaIds as $mahasiswaId) {
+                            $subQ->orWhereJsonContains('mahasiswa_ids', $mahasiswaId);
+                        }
+                    });
+                }
             })
             ->exists();
 
@@ -857,7 +870,14 @@ class JadwalKuliahBesarController extends Controller
                     ->where('jam_selesai', '>', $data['jam_mulai']);
             })
             ->whereHas('kelompokKecilAntara', function ($q) use ($mahasiswaIds) {
-                $q->whereJsonOverlaps('mahasiswa_ids', $mahasiswaIds);
+                // Cek apakah ada mahasiswa_id dari array yang overlap dengan mahasiswa_ids di database
+                if (is_array($mahasiswaIds) && !empty($mahasiswaIds)) {
+                    $q->where(function ($subQ) use ($mahasiswaIds) {
+                        foreach ($mahasiswaIds as $mahasiswaId) {
+                            $subQ->orWhereJsonContains('mahasiswa_ids', $mahasiswaId);
+                        }
+                    });
+                }
             })
             ->exists();
 
@@ -1258,8 +1278,15 @@ class JadwalKuliahBesarController extends Controller
             ->whereExists(function ($query) use ($mahasiswaIds) {
                 $query->select(DB::raw(1))
                     ->from('kelompok_kecil_antara')
-                    ->whereRaw('kelompok_kecil_antara.id = jadwal_pbl.kelompok_kecil_id')
-                    ->whereJsonOverlaps('kelompok_kecil_antara.mahasiswa_ids', $mahasiswaIds);
+                    ->whereRaw('kelompok_kecil_antara.id = jadwal_pbl.kelompok_kecil_id');
+                // Cek apakah ada mahasiswa_id yang overlap menggunakan JSON_CONTAINS
+                if (is_array($mahasiswaIds) && !empty($mahasiswaIds)) {
+                    $query->where(function ($subQ) use ($mahasiswaIds) {
+                        foreach ($mahasiswaIds as $mahasiswaId) {
+                            $subQ->orWhereRaw('JSON_CONTAINS(kelompok_kecil_antara.mahasiswa_ids, ?)', [json_encode($mahasiswaId)]);
+                        }
+                    });
+                }
             })
             ->first();
 
@@ -1282,8 +1309,15 @@ class JadwalKuliahBesarController extends Controller
             ->whereExists(function ($query) use ($mahasiswaIds) {
                 $query->select(DB::raw(1))
                     ->from('kelompok_kecil_antara')
-                    ->whereRaw('kelompok_kecil_antara.id = jadwal_jurnal_reading.kelompok_kecil_id')
-                    ->whereJsonOverlaps('kelompok_kecil_antara.mahasiswa_ids', $mahasiswaIds);
+                    ->whereRaw('kelompok_kecil_antara.id = jadwal_jurnal_reading.kelompok_kecil_id');
+                // Cek apakah ada mahasiswa_id yang overlap menggunakan JSON_CONTAINS
+                if (is_array($mahasiswaIds) && !empty($mahasiswaIds)) {
+                    $query->where(function ($subQ) use ($mahasiswaIds) {
+                        foreach ($mahasiswaIds as $mahasiswaId) {
+                            $subQ->orWhereRaw('JSON_CONTAINS(kelompok_kecil_antara.mahasiswa_ids, ?)', [json_encode($mahasiswaId)]);
+                        }
+                    });
+                }
             })
             ->first();
 
