@@ -57,6 +57,24 @@ class PenilaianPBLController extends Controller
             return response()->json(['error' => 'Jadwal tidak ditemukan'], 404);
         }
 
+        // Load relasi dosen untuk mendapatkan nama dosen pengampu
+        $jadwal->load('dosen');
+        
+        // Ambil nama dosen pengampu
+        $nama_dosen_pengampu = null;
+        if ($jadwal->dosen) {
+            $nama_dosen_pengampu = $jadwal->dosen->name ?? $jadwal->dosen->nama ?? null;
+        } elseif ($jadwal->dosen_ids) {
+            // Jika menggunakan dosen_ids, ambil dosen pertama
+            $dosenIds = is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true);
+            if (is_array($dosenIds) && !empty($dosenIds)) {
+                $dosen = \App\Models\User::find($dosenIds[0]);
+                if ($dosen) {
+                    $nama_dosen_pengampu = $dosen->name ?? $dosen->nama ?? null;
+                }
+            }
+        }
+
         // Normalisasi parameter untuk query
         $kelompokNormalized = trim($kelompok);
         $pertemuanNormalized = trim($pertemuan);
@@ -108,6 +126,7 @@ class PenilaianPBLController extends Controller
             'nama_modul' => $nama_modul,
             'is_pbl_2' => $isPBL2,
             'penilaian_submitted' => $jadwal->penilaian_submitted ?? false,
+            'nama_dosen_pengampu' => $nama_dosen_pengampu,
         ]);
     }
 
@@ -339,6 +358,24 @@ class PenilaianPBLController extends Controller
             return response()->json(['error' => 'Jadwal tidak ditemukan'], 404);
         }
 
+        // Load relasi dosen untuk mendapatkan nama dosen pengampu
+        $jadwal->load('dosen');
+        
+        // Ambil nama dosen pengampu
+        $nama_dosen_pengampu = null;
+        if ($jadwal->dosen) {
+            $nama_dosen_pengampu = $jadwal->dosen->name ?? $jadwal->dosen->nama ?? null;
+        } elseif ($jadwal->dosen_ids) {
+            // Jika menggunakan dosen_ids, ambil dosen pertama
+            $dosenIds = is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true);
+            if (is_array($dosenIds) && !empty($dosenIds)) {
+                $dosen = \App\Models\User::find($dosenIds[0]);
+                if ($dosen) {
+                    $nama_dosen_pengampu = $dosen->name ?? $dosen->nama ?? null;
+                }
+            }
+        }
+
         // Validasi akses sudah dilakukan di validateDosenAccessAntara di atas
 
         // Normalisasi parameter untuk query
@@ -391,6 +428,7 @@ class PenilaianPBLController extends Controller
             'nama_modul' => $nama_modul,
             'is_pbl_2' => $isPBL2,
             'penilaian_submitted' => $jadwal->penilaian_submitted ?? false,
+            'nama_dosen_pengampu' => $nama_dosen_pengampu,
         ]);
     }
 

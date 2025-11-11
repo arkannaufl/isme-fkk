@@ -2744,9 +2744,13 @@ export default function PBL() {
       });
 
       if (standbyDosen.length > 0) {
+        // Hitung jumlah semester yang ada untuk menentukan jumlah kolom
+        const jumlahSemester = sortedFilteredSemesters.length;
+        const standbyColCount = Math.max(jumlahSemester, 1); // Minimal 1 kolom
+
         const standbyHeaderRowIndex = currentRow;
         const standbyStartCol = 1;
-        const standbyEndCol = Math.max(maxColumnUsed, 3);
+        const standbyEndCol = Math.max(maxColumnUsed, standbyColCount);
 
         const standbyHeaderRow = worksheet.getRow(standbyHeaderRowIndex);
         standbyHeaderRow.getCell(standbyStartCol).value = "Standby Tutor";
@@ -2763,13 +2767,13 @@ export default function PBL() {
         // Tambahkan 1 baris kosong di bawah header sebagai jarak
         worksheet.getRow(standbyHeaderRowIndex + 1);
 
-        const standbyPerKolom = Math.ceil(standbyDosen.length / 3);
+        const standbyPerKolom = Math.ceil(standbyDosen.length / standbyColCount);
         const standbyDataStartRow = standbyHeaderRowIndex + 2;
 
         for (let rowIdx = 0; rowIdx < standbyPerKolom; rowIdx++) {
           const standbyRow = worksheet.getRow(standbyDataStartRow + rowIdx);
 
-          for (let colIdx = 0; colIdx < 3; colIdx++) {
+          for (let colIdx = 0; colIdx < standbyColCount; colIdx++) {
             const dosenIdx = rowIdx + colIdx * standbyPerKolom;
             const dosen = standbyDosen[dosenIdx];
 

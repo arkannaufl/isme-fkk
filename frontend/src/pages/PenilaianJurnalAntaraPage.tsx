@@ -128,12 +128,25 @@ export default function PenilaianJurnalPage() {
         // Set data tutor
         let tanggalParafFormatted = "";
         if (data.tutor_data) {
-          setNamaTutor(data.tutor_data.nama_tutor || '');
           // Format tanggal dari ISO (2025-10-31T00:00:00.000000Z) ke yyyy-MM-dd untuk input type="date"
           const tanggalParafRaw = data.tutor_data.tanggal_paraf || '';
           tanggalParafFormatted = tanggalParafRaw ? tanggalParafRaw.split('T')[0] : '';
           setTanggalParaf(tanggalParafFormatted);
           setSignatureParaf(data.tutor_data.signature_paraf || null);
+        }
+        
+        // Set default tanggal ke tanggal sekarang jika belum ada tanggal_paraf
+        if (!tanggalParafFormatted) {
+          const today = new Date();
+          const todayFormatted = today.toISOString().split('T')[0];
+          setTanggalParaf(todayFormatted);
+          tanggalParafFormatted = todayFormatted;
+        }
+        
+        // Set nama tutor dari dosen pengampu (selalu ambil dari backend, bukan dari database)
+        const namaDosenPengampu = data.nama_dosen_pengampu;
+        if (namaDosenPengampu) {
+          setNamaTutor(namaDosenPengampu);
         }
         
         // Cek status penilaian_submitted dari backend
@@ -148,12 +161,14 @@ export default function PenilaianJurnalPage() {
         }
 
         // Simpan data awal sebagai referensi untuk deteksi perubahan
+        const initialTanggalParaf = tanggalParafFormatted || (new Date().toISOString().split('T')[0]);
+        const initialNamaTutor = data.nama_dosen_pengampu || "";
         initialDataRef.current = {
           penilaian: pen,
           absensi: abs,
-          tanggalParaf: tanggalParafFormatted,
+          tanggalParaf: initialTanggalParaf,
           signatureParaf: data.tutor_data?.signature_paraf || null,
-          namaTutor: data.tutor_data?.nama_tutor || "",
+          namaTutor: initialNamaTutor,
           judulJurnal: data.jurnal_reading?.topik || "",
         };
         setHasUnsavedChanges(false);
@@ -940,19 +955,10 @@ export default function PenilaianJurnalPage() {
               <input
                 type="text"
                 value={namaTutor}
-                onChange={(e) => setNamaTutor(e.target.value)}
-                placeholder="Masukkan nama tutor"
-                className="w-full h-full px-3 py-2 text-center bg-transparent border-none outline-none dark:text-gray-100 placeholder-gray-400"
+                readOnly
+                placeholder="Nama dosen pengampu"
+                className="w-full h-full px-3 py-2 text-center bg-gray-50 dark:bg-gray-800 border-none outline-none dark:text-gray-100 placeholder-gray-400 cursor-not-allowed"
               />
-            </div>
-            <div className="flex gap-2 mb-2">
-              <button
-                type="button"
-                onClick={() => setNamaTutor("")}
-                className="text-xs px-2 py-1 border rounded bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100 dark:border-gray-600"
-              >
-                Clear
-              </button>
             </div>
           </div>
           <div className="flex flex-col items-start">

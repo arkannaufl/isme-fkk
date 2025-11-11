@@ -4637,7 +4637,7 @@ export default function DetailBlok() {
         return {
           'Tanggal': row.tanggal ? new Date(row.tanggal).toISOString().split('T')[0] : '',
           'Jam Mulai': row.jam_mulai,
-          'Agenda': row.agenda || '',
+          'Keterangan Agenda': row.agenda || '',
           'Ruangan': row.use_ruangan ? (ruangan?.nama || '') : '',
           'Kelompok Besar': row.kelompok_besar_id || '',
           'Sesi': row.jumlah_sesi
@@ -4645,7 +4645,7 @@ export default function DetailBlok() {
       });
 
       const agendaKhususWs = XLSX.utils.json_to_sheet(agendaKhususData, {
-        header: ['Tanggal', 'Jam Mulai', 'Agenda', 'Ruangan', 'Kelompok Besar', 'Sesi']
+        header: ['Tanggal', 'Jam Mulai', 'Keterangan Agenda', 'Ruangan', 'Kelompok Besar', 'Sesi']
       });
       
       const agendaKhususColWidths = [
@@ -4677,6 +4677,7 @@ export default function DetailBlok() {
         ['• Format tanggal: YYYY-MM-DD'],
         ['• Format jam: HH.MM atau HH:MM'],
         ['• Sesi: 1-6 (1 sesi = 50 menit)'],
+        ['• Keterangan Agenda hanya boleh: "Persamaan Persepsi" atau "Pleno"'],
         ['• Pastikan data ruangan dan kelompok besar valid sebelum import']
       ];
 
@@ -5743,7 +5744,7 @@ export default function DetailBlok() {
         {
           tanggal: contohTanggal1,
           jam_mulai: '07.20',
-          agenda: 'Ujian Tengah Semester',
+          agenda: 'Persamaan Persepsi',
           ruangan: ruanganList[0]?.nama || 'Ruang 1',
           kelompok_besar_id: kelompokBesarTersedia[0]?.id || 1,
           jumlah_sesi: 2
@@ -5751,7 +5752,7 @@ export default function DetailBlok() {
         {
           tanggal: contohTanggal2,
           jam_mulai: '10.40',
-          agenda: 'Seminar Kesehatan Online',
+          agenda: 'Pleno',
           ruangan: '', // Tidak menggunakan ruangan
           kelompok_besar_id: kelompokBesarTersedia[1]?.id || kelompokBesarTersedia[0]?.id || 1,
           jumlah_sesi: 2
@@ -5762,7 +5763,7 @@ export default function DetailBlok() {
       const templateData = rawTemplateData.map(row => ({
         'Tanggal': row.tanggal,
         'Jam Mulai': row.jam_mulai,
-        'Agenda': row.agenda,
+        'Keterangan Agenda': row.agenda,
         'Ruangan': row.ruangan,
         'Kelompok Besar': row.kelompok_besar_id,
         'Jumlah Sesi': row.jumlah_sesi
@@ -5773,7 +5774,7 @@ export default function DetailBlok() {
       
       // Sheet template dengan header yang eksplisit (Title Case dengan spasi)
       const ws = XLSX.utils.json_to_sheet(templateData, {
-        header: ['Tanggal', 'Jam Mulai', 'Agenda', 'Ruangan', 'Kelompok Besar', 'Jumlah Sesi']
+        header: ['Tanggal', 'Jam Mulai', 'Keterangan Agenda', 'Ruangan', 'Kelompok Besar', 'Jumlah Sesi']
       });
       
       // Set column widths
@@ -5832,7 +5833,10 @@ export default function DetailBlok() {
         [''],
         ['📝 VALIDASI AGENDA:'],
         ['• Agenda wajib diisi'],
-        ['• Isi dengan deskripsi agenda yang jelas'],
+        ['• Hanya boleh menggunakan salah satu dari opsi berikut:'],
+        ['  - Persamaan Persepsi'],
+        ['  - Pleno'],
+        ['• Tidak boleh menggunakan nilai lain selain kedua opsi di atas'],
         [''],
         ['🏢 VALIDASI RUANGAN:'],
         ['• Ruangan boleh dikosongkan untuk agenda online/tidak memerlukan ruangan'],
@@ -6347,6 +6351,11 @@ export default function DetailBlok() {
       // Validasi agenda
       if (!row.agenda || row.agenda.trim() === '') {
         cellErrors.push({ row: rowNumber, field: 'agenda', message: `Agenda wajib diisi (Baris ${rowNumber}, Kolom AGENDA)` });
+      } else {
+        const agendaValue = row.agenda.trim();
+        if (agendaValue !== 'Persamaan Persepsi' && agendaValue !== 'Pleno') {
+          cellErrors.push({ row: rowNumber, field: 'agenda', message: `Agenda harus "Persamaan Persepsi" atau "Pleno" (Baris ${rowNumber}, Kolom AGENDA). Nilai yang diinput: "${agendaValue}"` });
+        }
       }
 
       // Validasi ruangan (boleh dikosongkan)
@@ -7256,9 +7265,10 @@ export default function DetailBlok() {
           const isValid = requiredHeaders.every(header => headers.includes(header));
           return isValid;
         } else if (type === 'agenda-khusus') {
-          // Template lama agenda khusus harus memiliki header: Tanggal, Jam Mulai, Agenda, Ruangan, Kelompok Besar, Jumlah Sesi
-          const requiredHeaders = ['Tanggal', 'Jam Mulai', 'Agenda', 'Ruangan', 'Kelompok Besar', 'Jumlah Sesi'];
-          const isValid = requiredHeaders.every(header => headers.includes(header));
+          // Template lama agenda khusus harus memiliki header: Tanggal, Jam Mulai, Agenda/Keterangan Agenda, Ruangan, Kelompok Besar, Jumlah Sesi
+          const requiredHeaders = ['Tanggal', 'Jam Mulai', 'Ruangan', 'Kelompok Besar', 'Jumlah Sesi'];
+          const hasAgendaHeader = headers.includes('Agenda') || headers.includes('Keterangan Agenda');
+          const isValid = requiredHeaders.every(header => headers.includes(header)) && hasAgendaHeader;
           return isValid;
         }
       } else if (expectedFormat === 'SIAKAD') {
@@ -8697,6 +8707,25 @@ export default function DetailBlok() {
         return time;
       };
 
+      // Cari index kolom berdasarkan header (mendukung "Agenda" dan "Keterangan Agenda")
+      const getColumnIndex = (headerName: string): number => {
+        const index = headers.findIndex(h => 
+          h && h.toString().trim().toLowerCase() === headerName.toLowerCase()
+        );
+        return index >= 0 ? index : -1;
+      };
+
+      const tanggalIndex = getColumnIndex('Tanggal');
+      const jamMulaiIndex = getColumnIndex('Jam Mulai');
+      const agendaIndex = getColumnIndex('Keterangan Agenda') >= 0 
+        ? getColumnIndex('Keterangan Agenda') 
+        : getColumnIndex('Agenda'); // Fallback ke "Agenda" untuk backward compatibility
+      const ruanganIndex = getColumnIndex('Ruangan');
+      const kelompokBesarIndex = getColumnIndex('Kelompok Besar');
+      const jumlahSesiIndex = getColumnIndex('Jumlah Sesi') >= 0 
+        ? getColumnIndex('Jumlah Sesi') 
+        : getColumnIndex('Sesi'); // Fallback ke "Sesi" untuk backward compatibility
+
       // Convert data Excel ke format Agenda Khusus
       const convertedData = rows.map((row: any[]) => {
         // Helper function untuk mencari ruangan berdasarkan nama atau kode
@@ -8707,25 +8736,25 @@ export default function DetailBlok() {
           );
         };
 
-        const namaRuangan = row[3]?.toString() || '';
+        const namaRuangan = ruanganIndex >= 0 ? (row[ruanganIndex]?.toString() || '') : '';
         const ruangan = findRuangan(namaRuangan);
 
         // Konversi format jam
-        const jamMulaiRaw = row[1]?.toString() || '';
+        const jamMulaiRaw = jamMulaiIndex >= 0 ? (row[jamMulaiIndex]?.toString() || '') : '';
         const jamMulai = convertTimeFormat(jamMulaiRaw);
 
         // Hitung jam selesai otomatis berdasarkan sistem
-        const jumlahSesi = parseInt(row[5]?.toString() || '1');
+        const jumlahSesi = jumlahSesiIndex >= 0 ? parseInt(row[jumlahSesiIndex]?.toString() || '1') : 1;
         const jamSelesai = hitungJamSelesai(jamMulai, jumlahSesi);
 
         return {
-          tanggal: row[0]?.toString() || '',
+          tanggal: tanggalIndex >= 0 ? (row[tanggalIndex]?.toString() || '') : '',
           jam_mulai: jamMulai,
           jam_selesai: jamSelesai,
-          agenda: row[2]?.toString() || '',
+          agenda: agendaIndex >= 0 ? (row[agendaIndex]?.toString() || '') : '',
           nama_ruangan: namaRuangan,
           ruangan_id: ruangan?.id || null,
-          kelompok_besar_id: parseInt(row[4]?.toString() || '0'),
+          kelompok_besar_id: kelompokBesarIndex >= 0 ? parseInt(row[kelompokBesarIndex]?.toString() || '0') : 0,
           jumlah_sesi: jumlahSesi,
           use_ruangan: !!(namaRuangan && namaRuangan.trim() !== '' && ruangan?.id)
         } as JadwalAgendaKhususType;
@@ -14162,9 +14191,13 @@ export default function DetailBlok() {
 
                       <div>
 
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Agenda</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Keterangan Agenda</label>
 
-                        <input type="text" name="agenda" value={form.agenda} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                        <select name="agenda" value={form.agenda} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                          <option value="">Pilih Keterangan Agenda</option>
+                          <option value="Persamaan Persepsi">Persamaan Persepsi</option>
+                          <option value="Pleno">Pleno</option>
+                        </select>
 
                       </div>
 

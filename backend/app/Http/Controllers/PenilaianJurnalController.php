@@ -71,6 +71,21 @@ class PenilaianJurnalController extends Controller
                 ->where('jurnal_reading_id', $jurnal_id)
                 ->first();
 
+            // Ambil nama dosen pengampu dari jurnal reading
+            $nama_dosen_pengampu = null;
+            if ($jurnalReading->dosen) {
+                $nama_dosen_pengampu = $jurnalReading->dosen->name ?? $jurnalReading->dosen->nama ?? null;
+            } elseif ($jurnalReading->dosen_ids) {
+                // Jika menggunakan dosen_ids, ambil dosen pertama
+                $dosenIds = is_array($jurnalReading->dosen_ids) ? $jurnalReading->dosen_ids : json_decode($jurnalReading->dosen_ids, true);
+                if (is_array($dosenIds) && !empty($dosenIds)) {
+                    $dosen = \App\Models\User::find($dosenIds[0]);
+                    if ($dosen) {
+                        $nama_dosen_pengampu = $dosen->name ?? $dosen->nama ?? null;
+                    }
+                }
+            }
+
             // Ambil data absensi yang sudah ada
             $absensi = AbsensiJurnal::where('jadwal_jurnal_reading_id', $jurnal_id)
                 ->get()
@@ -82,6 +97,7 @@ class PenilaianJurnalController extends Controller
                 'penilaian' => $penilaian,
                 'absensi' => $absensi,
                 'penilaian_submitted' => $jurnalReading->penilaian_submitted ?? false,
+                'nama_dosen_pengampu' => $nama_dosen_pengampu,
                 'tutor_data' => $tutorData ? [
                     'nama_tutor' => $tutorData->nama_tutor,
                     'tanggal_paraf' => $tutorData->tanggal_paraf,
@@ -256,6 +272,21 @@ class PenilaianJurnalController extends Controller
                 ->where('jurnal_reading_id', $jurnal_id)
                 ->first();
 
+            // Ambil nama dosen pengampu dari jurnal reading
+            $nama_dosen_pengampu = null;
+            if ($jurnalReading->dosen) {
+                $nama_dosen_pengampu = $jurnalReading->dosen->name ?? $jurnalReading->dosen->nama ?? null;
+            } elseif ($jurnalReading->dosen_ids) {
+                // Jika menggunakan dosen_ids, ambil dosen pertama
+                $dosenIds = is_array($jurnalReading->dosen_ids) ? $jurnalReading->dosen_ids : json_decode($jurnalReading->dosen_ids, true);
+                if (is_array($dosenIds) && !empty($dosenIds)) {
+                    $dosen = \App\Models\User::find($dosenIds[0]);
+                    if ($dosen) {
+                        $nama_dosen_pengampu = $dosen->name ?? $dosen->nama ?? null;
+                    }
+                }
+            }
+
             // Ambil data absensi yang sudah ada
             $absensi = AbsensiJurnal::where('jadwal_jurnal_reading_id', $jurnal_id)
                 ->get()
@@ -267,6 +298,7 @@ class PenilaianJurnalController extends Controller
                 'penilaian' => $penilaian,
                 'absensi' => $absensi,
                 'penilaian_submitted' => $jurnalReading->penilaian_submitted ?? false,
+                'nama_dosen_pengampu' => $nama_dosen_pengampu,
                 'tutor_data' => $tutorData ? [
                     'nama_tutor' => $tutorData->nama_tutor,
                     'tanggal_paraf' => $tutorData->tanggal_paraf,

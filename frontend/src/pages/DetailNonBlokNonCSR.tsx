@@ -299,7 +299,7 @@ export default function DetailNonBlokNonCSR() {
           '',
           '',
           '',
-          'UTS AIK 1'
+          'Persamaan Persepsi'
         ]
       ];
 
@@ -384,6 +384,13 @@ export default function DetailNonBlokNonCSR() {
         ['• Jenis baris: materi atau agenda'],
         ['• materi: Untuk jadwal materi kuliah (wajib isi Dosen, Materi, Ruangan)'],
         ['• agenda: Untuk agenda khusus (wajib isi Keterangan Agenda, Ruangan opsional)'],
+        [''],
+        ['📋 VALIDASI KETERANGAN AGENDA:'],
+        ['• Keterangan Agenda wajib diisi untuk jenis baris "agenda"'],
+        ['• Hanya boleh menggunakan salah satu dari opsi berikut:'],
+        ['  - Persamaan Persepsi'],
+        ['  - Pleno'],
+        ['• Tidak boleh menggunakan nilai lain selain kedua opsi di atas'],
         [''],
         ['🔢 VALIDASI SESI:'],
         [`• Jumlah sesi: ${MIN_SESSIONS}-${MAX_SESSIONS}`],
@@ -588,6 +595,11 @@ export default function DetailNonBlokNonCSR() {
         // Validasi keterangan agenda
         if (!row.agenda || row.agenda.trim() === '') {
           errors.push({ row: rowNum, field: 'agenda', message: `Keterangan agenda wajib diisi untuk jenis agenda (Baris ${rowNum}, Kolom Keterangan Agenda)` });
+        } else {
+          const agendaValue = row.agenda.trim();
+          if (agendaValue !== 'Persamaan Persepsi' && agendaValue !== 'Pleno') {
+            errors.push({ row: rowNum, field: 'agenda', message: `Keterangan agenda harus "Persamaan Persepsi" atau "Pleno" (Baris ${rowNum}, Kolom Keterangan Agenda). Nilai yang diinput: "${agendaValue}"` });
+          }
         }
 
         // Validasi ruangan (opsional untuk agenda)
@@ -1055,6 +1067,7 @@ export default function DetailNonBlokNonCSR() {
         ['• Format jam: HH.MM atau HH:MM'],
         ['• Sesi: 1-6 (1 sesi = 50 menit)'],
         ['• Jenis: Jadwal Materi atau Agenda Khusus'],
+        ['• Keterangan Agenda hanya boleh: "Persamaan Persepsi" atau "Pleno"'],
         ['• Ruangan dapat dikosongkan jika tidak menggunakan ruangan'],
         ['• Pastikan data dosen, ruangan, dan kelompok besar valid sebelum import']
       ];
@@ -1718,7 +1731,11 @@ export default function DetailNonBlokNonCSR() {
                  <>
                    <div>
                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Keterangan Agenda</label>
-                     <input type="text" name="agenda" value={form.agenda} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" placeholder="Contoh: UTS AIK 1, UAS, Libur, dll" />
+                     <select name="agenda" value={form.agenda} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                       <option value="">Pilih Keterangan Agenda</option>
+                       <option value="Persamaan Persepsi">Persamaan Persepsi</option>
+                       <option value="Pleno">Pleno</option>
+                     </select>
                    </div>
                    <div>
                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kelompok Besar</label>

@@ -202,8 +202,22 @@ export default function PenilaianPBLPage() {
             setTanggalParaf(tanggalParafFormatted);
           }
           if (row.signature_paraf) setSignatureParaf(row.signature_paraf);
-          if (row.nama_tutor) setNamaTutor(row.nama_tutor);
         });
+        
+        // Set default tanggal ke tanggal sekarang jika belum ada tanggal_paraf
+        const firstRowWithTanggal = data.find((r: any) => r.tanggal_paraf);
+        if (!firstRowWithTanggal?.tanggal_paraf) {
+          const today = new Date();
+          const todayFormatted = today.toISOString().split('T')[0];
+          setTanggalParaf(todayFormatted);
+        }
+        
+        // Set nama tutor dari dosen pengampu (selalu ambil dari backend, bukan dari database)
+        const namaDosenPengampu = penilaianRes.data.nama_dosen_pengampu;
+        if (namaDosenPengampu) {
+          setNamaTutor(namaDosenPengampu);
+        }
+        
         // Jika PBL type berubah, reset petaKonsep untuk semua mahasiswa
         // Lakukan SEBELUM setPenilaian agar modifikasi ter-apply
         if (penilaianRes.data.is_pbl_2 && !isPBL2) {
@@ -261,13 +275,12 @@ export default function PenilaianPBLPage() {
         setAbsensi(abs);
 
         // Simpan data awal sebagai referensi untuk deteksi perubahan
-        // Ambil tanggal paraf dari data pertama yang memiliki tanggal_paraf
-        const firstRowWithTanggal = data.find((r: any) => r.tanggal_paraf);
+        // Ambil tanggal paraf dari data pertama yang memiliki tanggal_paraf (gunakan firstRowWithTanggal yang sudah dideklarasikan di atas)
         const initialTanggalParaf = firstRowWithTanggal?.tanggal_paraf 
           ? firstRowWithTanggal.tanggal_paraf.split('T')[0] 
-          : "";
+          : (new Date().toISOString().split('T')[0]); // Default ke tanggal sekarang jika belum ada
         const initialSignatureParaf = firstRowWithTanggal?.signature_paraf || null;
-        const initialNamaTutor = firstRowWithTanggal?.nama_tutor || "";
+        const initialNamaTutor = penilaianRes.data.nama_dosen_pengampu || ""; // Ambil dari backend response
         
         initialDataRef.current = {
           penilaian: pen,
@@ -568,12 +581,6 @@ export default function PenilaianPBLPage() {
     return Math.round(persentaseKriteria);
   };
 
-  const handleClearTutor = () => {
-    setNamaTutor("");
-  };
-  const handleSaveTutor = () => {
-    // Fungsi ini tidak diperlukan lagi karena nama tutor langsung tersimpan di state
-  };
   const handleClearParaf = () => {
     sigPadParaf.current?.clear();
     setSignatureParaf(null);
@@ -1366,29 +1373,10 @@ export default function PenilaianPBLPage() {
               <input
                 type="text"
                 value={namaTutor}
-                onChange={e => setNamaTutor(e.target.value)}
-                placeholder="Masukkan nama tutor"
-                disabled={!canEdit}
-                className={`w-full h-full px-3 py-2 text-center bg-transparent border-none outline-none dark:text-gray-100 placeholder-gray-400 ${
-                  getUser()?.role === 'dosen' && penilaianSubmitted
-                    ? 'cursor-not-allowed'
-                    : ''
-                }`}
+                readOnly
+                placeholder="Nama dosen pengampu"
+                className="w-full h-full px-3 py-2 text-center bg-gray-50 dark:bg-gray-800 border-none outline-none dark:text-gray-100 placeholder-gray-400 cursor-not-allowed"
               />
-            </div>
-            <div className="flex gap-2 mb-2">
-              <button
-                type="button"
-                onClick={() => setNamaTutor("")}
-                disabled={!canEdit}
-                className={`text-xs px-2 py-1 border rounded dark:text-gray-100 dark:border-gray-600 ${
-                  getUser()?.role === 'dosen' && penilaianSubmitted
-                    ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed opacity-50'
-                    : 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600'
-                }`}
-              >
-                Clear
-              </button>
             </div>
           </div>
           <div className="flex flex-col items-start">
