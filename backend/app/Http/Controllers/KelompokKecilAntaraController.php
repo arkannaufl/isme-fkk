@@ -6,6 +6,7 @@ use App\Models\KelompokKecilAntara;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Log;
 
 class KelompokKecilAntaraController extends Controller
 {
@@ -32,35 +33,59 @@ class KelompokKecilAntaraController extends Controller
      */
     public function store(Request $request, $mataKuliahKode = null)
     {
-        $data = $request->validate([
-            'nama_kelompok' => 'required|string|max:255',
-            'mahasiswa_ids' => 'required|array|min:1',
-            'mahasiswa_ids.*' => 'exists:users,id',
-        ]);
+        try {
+            $data = $request->validate([
+                'nama_kelompok' => 'required|string|max:255',
+                'mahasiswa_ids' => 'required|array|min:1',
+                'mahasiswa_ids.*' => 'exists:users,id',
+            ]);
 
-        // Check if mahasiswa already in another kelompok kecil
-        $existingMahasiswa = KelompokKecilAntara::whereJsonOverlaps('mahasiswa_ids', $data['mahasiswa_ids'])
-            ->exists();
+            // Check if mahasiswa already in another kelompok kecil
+            // Gunakan pendekatan yang lebih kompatibel dengan MySQL
+            $existingKelompok = KelompokKecilAntara::all();
+            $conflictingMahasiswa = [];
 
-        if ($existingMahasiswa) {
+            foreach ($existingKelompok as $kelompok) {
+                if (!empty($kelompok->mahasiswa_ids) && is_array($kelompok->mahasiswa_ids)) {
+                    $overlap = array_intersect($data['mahasiswa_ids'], $kelompok->mahasiswa_ids);
+                    if (!empty($overlap)) {
+                        $conflictingMahasiswa = array_merge($conflictingMahasiswa, $overlap);
+                    }
+                }
+            }
+
+            if (!empty($conflictingMahasiswa)) {
+                $conflictingNames = User::whereIn('id', array_unique($conflictingMahasiswa))
+                    ->pluck('name')
+                    ->toArray();
+                return response()->json([
+                    'message' => 'Beberapa mahasiswa sudah terdaftar di kelompok kecil lain: ' . implode(', ', $conflictingNames)
+                ], 422);
+            }
+
+            $kelompokKecil = KelompokKecilAntara::create($data);
+
+            // Log activity
+            activity()
+                ->performedOn($kelompokKecil)
+                ->withProperties([
+                    'nama_kelompok' => $data['nama_kelompok'],
+                    'mahasiswa_count' => count($data['mahasiswa_ids']),
+                    'mata_kuliah_kode' => $mataKuliahKode
+                ])
+                ->log("Kelompok Kecil Antara created: {$data['nama_kelompok']}");
+
+            return response()->json($kelompokKecil, Response::HTTP_CREATED);
+        } catch (\Exception $e) {
+            Log::error('Error creating Kelompok Kecil Antara: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->all()
+            ]);
             return response()->json([
-                'message' => 'Beberapa mahasiswa sudah terdaftar di kelompok kecil lain'
-            ], 422);
+                'message' => 'Gagal membuat kelompok kecil. Silakan coba lagi.',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
         }
-
-        $kelompokKecil = KelompokKecilAntara::create($data);
-
-        // Log activity
-        activity()
-            ->performedOn($kelompokKecil)
-            ->withProperties([
-                'nama_kelompok' => $data['nama_kelompok'],
-                'mahasiswa_count' => count($data['mahasiswa_ids']),
-                'mata_kuliah_kode' => $mataKuliahKode
-            ])
-            ->log("Kelompok Kecil Antara created: {$data['nama_kelompok']}");
-
-        return response()->json($kelompokKecil, Response::HTTP_CREATED);
     }
 
     /**
@@ -68,38 +93,62 @@ class KelompokKecilAntaraController extends Controller
      */
     public function update(Request $request, $mataKuliahKode = null, $id)
     {
-        $kelompokKecil = KelompokKecilAntara::findOrFail($id);
+        try {
+            $kelompokKecil = KelompokKecilAntara::findOrFail($id);
 
-        $data = $request->validate([
-            'nama_kelompok' => 'required|string|max:255',
-            'mahasiswa_ids' => 'required|array|min:1',
-            'mahasiswa_ids.*' => 'exists:users,id',
-        ]);
+            $data = $request->validate([
+                'nama_kelompok' => 'required|string|max:255',
+                'mahasiswa_ids' => 'required|array|min:1',
+                'mahasiswa_ids.*' => 'exists:users,id',
+            ]);
 
-        // Check if mahasiswa already in another kelompok kecil (excluding current)
-        $existingMahasiswa = KelompokKecilAntara::where('id', '!=', $id)
-            ->whereJsonOverlaps('mahasiswa_ids', $data['mahasiswa_ids'])
-            ->exists();
+            // Check if mahasiswa already in another kelompok kecil (excluding current)
+            // Gunakan pendekatan yang lebih kompatibel dengan MySQL
+            $existingKelompok = KelompokKecilAntara::where('id', '!=', $id)->get();
+            $conflictingMahasiswa = [];
 
-        if ($existingMahasiswa) {
+            foreach ($existingKelompok as $kelompok) {
+                if (!empty($kelompok->mahasiswa_ids) && is_array($kelompok->mahasiswa_ids)) {
+                    $overlap = array_intersect($data['mahasiswa_ids'], $kelompok->mahasiswa_ids);
+                    if (!empty($overlap)) {
+                        $conflictingMahasiswa = array_merge($conflictingMahasiswa, $overlap);
+                    }
+                }
+            }
+
+            if (!empty($conflictingMahasiswa)) {
+                $conflictingNames = User::whereIn('id', array_unique($conflictingMahasiswa))
+                    ->pluck('name')
+                    ->toArray();
+                return response()->json([
+                    'message' => 'Beberapa mahasiswa sudah terdaftar di kelompok kecil lain: ' . implode(', ', $conflictingNames)
+                ], 422);
+            }
+
+            $kelompokKecil->update($data);
+
+            // Log activity
+            activity()
+                ->performedOn($kelompokKecil)
+                ->withProperties([
+                    'nama_kelompok' => $data['nama_kelompok'],
+                    'mahasiswa_count' => count($data['mahasiswa_ids']),
+                    'mata_kuliah_kode' => $mataKuliahKode
+                ])
+                ->log("Kelompok Kecil Antara updated: {$data['nama_kelompok']}");
+
+            return response()->json($kelompokKecil);
+        } catch (\Exception $e) {
+            Log::error('Error updating Kelompok Kecil Antara: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->all(),
+                'id' => $id
+            ]);
             return response()->json([
-                'message' => 'Beberapa mahasiswa sudah terdaftar di kelompok kecil lain'
-            ], 422);
+                'message' => 'Gagal mengupdate kelompok kecil. Silakan coba lagi.',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
         }
-
-        $kelompokKecil->update($data);
-
-        // Log activity
-        activity()
-            ->performedOn($kelompokKecil)
-            ->withProperties([
-                'nama_kelompok' => $data['nama_kelompok'],
-                'mahasiswa_count' => count($data['mahasiswa_ids']),
-                'mata_kuliah_kode' => $mataKuliahKode
-            ])
-            ->log("Kelompok Kecil Antara updated: {$data['nama_kelompok']}");
-
-        return response()->json($kelompokKecil);
     }
 
     /**

@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use App\Models\User;
 use App\Models\Notification;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -39,7 +40,7 @@ class AuthController extends Controller
                     'attempted_login' => $request->login
                 ])
                 ->log("Failed login attempt for: {$request->login}");
-                
+
             return response()->json([
                 'message' => 'Username/NIP/NID/NIM atau password salah.',
             ], 401);
@@ -81,7 +82,7 @@ class AuthController extends Controller
     public function logout(Request $request)
     {
         $user = $request->user();
-        
+
         // Log manual aksi logout
         activity()
             ->causedBy($user)
@@ -91,12 +92,12 @@ class AuthController extends Controller
                 'user_agent' => $request->userAgent()
             ])
             ->log("User {$user->name} berhasil logout");
-        
+
         // Set status logout dan hapus token
         $user->is_logged_in = 0;
         $user->current_token = null;
         $user->save();
-        
+
         // Hapus semua token user (termasuk yang mungkin ada di perangkat lain)
         $user->tokens()->delete();
 
@@ -109,7 +110,7 @@ class AuthController extends Controller
     {
         // Ambil token dari header Authorization
         $token = $request->bearerToken();
-        
+
         if (!$token) {
             return response()->json([
                 'message' => 'Token tidak ditemukan.',
@@ -118,7 +119,7 @@ class AuthController extends Controller
 
         // Cari user berdasarkan token menggunakan Sanctum
         $tokenModel = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
-        
+
         if (!$tokenModel) {
             return response()->json([
                 'message' => 'Token tidak valid.',
@@ -143,7 +144,7 @@ class AuthController extends Controller
         try {
             // Ambil token dari body request
             $token = $request->input('token');
-            
+
             if (!$token) {
                 return response()->json([
                     'message' => 'Token tidak ditemukan.',
@@ -152,7 +153,7 @@ class AuthController extends Controller
 
             // Cari user berdasarkan token menggunakan Sanctum
             $tokenModel = PersonalAccessToken::findToken($token);
-            
+
             if (!$tokenModel) {
                 return response()->json([
                     'message' => 'Token tidak valid.',
@@ -171,9 +172,6 @@ class AuthController extends Controller
                 'message' => 'Force logout berhasil. Silakan login kembali.',
             ]);
         } catch (\Exception $e) {
-            // Log error untuk debugging
-            \Log::error('Force logout error: ' . $e->getMessage());
-            
             return response()->json([
                 'message' => 'Force logout berhasil. Silakan login kembali.',
             ]);
@@ -185,7 +183,7 @@ class AuthController extends Controller
         try {
             // Ambil user ID dari body request
             $userId = $request->input('user_id');
-            
+
             if (!$userId) {
                 return response()->json([
                     'message' => 'User ID tidak ditemukan.',
@@ -194,7 +192,7 @@ class AuthController extends Controller
 
             // Cari user berdasarkan ID
             $user = User::find($userId);
-            
+
             if (!$user) {
                 return response()->json([
                     'message' => 'User tidak ditemukan.',
@@ -211,9 +209,6 @@ class AuthController extends Controller
                 'message' => 'Force logout berhasil. Silakan login kembali.',
             ]);
         } catch (\Exception $e) {
-            // Log error untuk debugging
-            \Log::error('Force logout by user error: ' . $e->getMessage());
-            
             return response()->json([
                 'message' => 'Force logout berhasil. Silakan login kembali.',
             ]);
@@ -225,7 +220,7 @@ class AuthController extends Controller
         try {
             // Ambil username dari body request
             $username = $request->input('username');
-            
+
             if (!$username) {
                 return response()->json([
                     'message' => 'Username tidak ditemukan.',
@@ -238,7 +233,7 @@ class AuthController extends Controller
                        ->orWhere('nid', $username)
                        ->orWhere('nim', $username)
                        ->first();
-            
+
             if (!$user) {
                 return response()->json([
                     'message' => 'User tidak ditemukan.',
@@ -255,9 +250,6 @@ class AuthController extends Controller
                 'message' => 'Force logout berhasil. Silakan login kembali.',
             ]);
         } catch (\Exception $e) {
-            // Log error untuk debugging
-            \Log::error('Force logout by username error: ' . $e->getMessage());
-            
             return response()->json([
                 'message' => 'Force logout berhasil. Silakan login kembali.',
             ]);
@@ -285,6 +277,7 @@ class AuthController extends Controller
             'current_password' => 'nullable|string',
             'password' => 'nullable|string|min:6',
             'confirm_password' => 'nullable|string|same:password',
+            'signature_image' => 'nullable|string', // Base64 string dari gambar tanda tangan
         ]);
 
         // Jika ingin ubah password
@@ -302,6 +295,10 @@ class AuthController extends Controller
         }
         if (array_key_exists('ket', $validated)) {
             $user->ket = $validated['ket'];
+        }
+        // Update tanda tangan jika ada
+        if (array_key_exists('signature_image', $validated)) {
+            $user->signature_image = $validated['signature_image'];
         }
         $user->save();
 

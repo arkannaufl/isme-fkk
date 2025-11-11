@@ -11,7 +11,7 @@ import Select from 'react-select';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 
-import { faPenToSquare, faTrash, faFileExcel, faDownload, faUpload, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons';
+import { faPenToSquare, faTrash, faFileExcel, faDownload, faUpload, faExclamationTriangle, faCheckCircle } from '@fortawesome/free-solid-svg-icons';
 
 import { getRuanganOptions } from '../utils/ruanganHelper';
 
@@ -9983,32 +9983,43 @@ export default function DetailBlok() {
 
                           <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{ruangan?.nama || `Ruangan ${row.ruangan_id}`}</td>
 
-                        <td className="px-4 py-4 text-center whitespace-nowrap">
+                        <td className="px-3 py-4 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-0.5 flex-nowrap">
+                            {/* Tombol Absensi - tampilkan jika ada dosen yang terdaftar */}
+                            {(row.dosen_id || dosen) && (
+                              <button
+                                onClick={() => navigate(`/absensi-kuliah-besar/${kode}/${row.id}`)}
+                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-500 hover:text-green-700 dark:hover:text-green-300 transition"
+                                title="Buka Absensi"
+                              >
+                                <FontAwesomeIcon icon={faCheckCircle} className="w-4 h-4 text-green-500" />
+                                <span className="hidden sm:inline">Absensi</span>
+                              </button>
+                            )}
+                            <button onClick={() => handleEditJadwalKuliahBesar(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition" title="Edit Jadwal">
 
-                          <button onClick={() => handleEditJadwalKuliahBesar(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
+                              <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 text-blue-500" />
 
-                            <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
+                              <span className="hidden sm:inline">Edit</span>
 
-                            <span className="hidden sm:inline">Edit</span>
+                            </button>
 
-                          </button>
+                            <button onClick={() => { 
 
-                          <button onClick={() => { 
+                              setSelectedDeleteIndex(i); 
 
-                            setSelectedDeleteIndex(i); 
+                              setSelectedDeleteType('materi');
 
-                            setSelectedDeleteType('materi');
+                              setShowDeleteModal(true); 
 
-                            setShowDeleteModal(true); 
+                            }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition" title="Hapus Jadwal">
 
-                          }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition" title="Hapus Jadwal">
+                              <FontAwesomeIcon icon={faTrash} className="w-4 h-4 text-red-500" />
 
-                            <FontAwesomeIcon icon={faTrash} className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
+                              <span className="hidden sm:inline">Hapus</span>
 
-                            <span className="hidden sm:inline">Hapus</span>
-
-                          </button>
-
+                            </button>
+                          </div>
                         </td>
 
                       </tr>
@@ -10458,23 +10469,27 @@ export default function DetailBlok() {
                     </td>
 
                     <td className="px-4 py-4 text-center whitespace-nowrap">
-
-                      <button onClick={() => handleEditJadwalPraktikum(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
-
-                        <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
-
-                        <span className="hidden sm:inline">Edit</span>
-
-                      </button>
-
-                      <button onClick={() => handleDeleteJadwalPraktikum(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition" title="Hapus Jadwal">
-
-                        <FontAwesomeIcon icon={faTrash} className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
-
-                        <span className="hidden sm:inline">Hapus</span>
-
-                      </button>
-
+                      <div className="flex items-center justify-center gap-1 flex-wrap">
+                        {/* Tombol Absensi - tampilkan jika ada dosen yang terdaftar */}
+                        {row.dosen && row.dosen.length > 0 && (
+                          <button
+                            onClick={() => navigate(`/absensi-praktikum/${kode}/${row.id}`)}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-500 hover:text-green-700 dark:hover:text-green-300 transition mr-1"
+                            title="Buka Absensi"
+                          >
+                            <FontAwesomeIcon icon={faCheckCircle} className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
+                            <span className="hidden sm:inline">Absensi</span>
+                          </button>
+                        )}
+                        <button onClick={() => handleEditJadwalPraktikum(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-1" title="Edit Jadwal">
+                          <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
+                          <span className="hidden sm:inline">Edit</span>
+                        </button>
+                        <button onClick={() => handleDeleteJadwalPraktikum(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition" title="Hapus Jadwal">
+                          <FontAwesomeIcon icon={faTrash} className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
+                          <span className="hidden sm:inline">Hapus</span>
+                        </button>
+                      </div>
                     </td>
 
                   </tr>

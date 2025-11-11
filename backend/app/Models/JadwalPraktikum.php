@@ -24,6 +24,11 @@ class JadwalPraktikum extends Model
         'jam_selesai',
         'jumlah_sesi',
         'created_by',
+        'qr_enabled',
+    ];
+
+    protected $casts = [
+        'qr_enabled' => 'boolean',
     ];
 
     // Relasi

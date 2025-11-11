@@ -1320,6 +1320,118 @@ export default function DashboardDosen() {
                                 >
                                   Absensi
                                 </button>
+                              ) : jadwalType === "kuliah_besar" ? (
+                                <>
+                                  {/* Cek apakah kuliah besar antara berdasarkan semester_type atau semester */}
+                                  {(() => {
+                                    const isAntara = item.semester_type === 'antara' || 
+                                                     (item.mata_kuliah && item.mata_kuliah.semester === 'Antara');
+                                    if (isAntara) {
+                                      return (
+                                        <button
+                                          onClick={() =>
+                                            navigate(
+                                              `/absensi-kuliah-besar-antara/${item.mata_kuliah_kode}/${item.id}`
+                                            )
+                                          }
+                                          className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors mr-1"
+                                          title="Absensi Kuliah Besar Antara"
+                                        >
+                                          Absensi
+                                        </button>
+                                      );
+                                    } else {
+                                      // Untuk kuliah besar reguler, langsung ke halaman absensi
+                                      return (
+                                        <button
+                                          onClick={() =>
+                                            navigate(
+                                              `/absensi-kuliah-besar/${item.mata_kuliah_kode}/${item.id}`
+                                            )
+                                          }
+                                          className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors mr-1"
+                                          title="Absensi Kuliah Besar"
+                                        >
+                                          Absensi
+                                        </button>
+                                      );
+                                    }
+                                  })()}
+                                </>
+                              ) : jadwalType === "non_blok_non_csr" ? (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      // Cek apakah non-blok non-CSR antara berdasarkan semester_type atau semester
+                                      const isAntara = item.semester_type === 'antara' || 
+                                                       (item.mata_kuliah && item.mata_kuliah.semester === 'Antara');
+                                      const routePath = isAntara 
+                                        ? `/absensi-non-blok-non-csr-antara/${item.mata_kuliah_kode}/${item.id}`
+                                        : `/absensi-non-blok-non-csr/${item.mata_kuliah_kode}/${item.id}`;
+                                      navigate(routePath);
+                                    }}
+                                    className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors mr-1"
+                                    title="Absensi Non-Blok Non-CSR"
+                                  >
+                                    Absensi
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      handlePenilaianClick(item, jadwalType)
+                                    }
+                                    className={`px-3 py-1 rounded text-xs transition-colors ${
+                                      item.penilaian_submitted
+                                        ? "bg-gray-500 text-white hover:bg-gray-600"
+                                        : "bg-green-500 text-white hover:bg-green-600"
+                                    }`}
+                                    title={
+                                      item.penilaian_submitted
+                                        ? "Lihat Penilaian"
+                                        : "Penilaian"
+                                    }
+                                  >
+                                    {item.penilaian_submitted
+                                      ? "Lihat Penilaian"
+                                      : "Penilaian"}
+                                  </button>
+                                </>
+                              ) : jadwalType === "praktikum" ? (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      // Cek apakah praktikum antara berdasarkan semester_type atau semester
+                                      const isAntara = item.semester_type === 'antara' || 
+                                                       (item.mata_kuliah && item.mata_kuliah.semester === 'Antara');
+                                      const routePath = isAntara 
+                                        ? `/absensi-praktikum-antara/${item.mata_kuliah_kode}/${item.id}`
+                                        : `/absensi-praktikum/${item.mata_kuliah_kode}/${item.id}`;
+                                      navigate(routePath);
+                                    }}
+                                    className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors mr-1"
+                                    title="Absensi Praktikum"
+                                  >
+                                    Absensi
+                                  </button>
+                                  <button
+                                    onClick={() =>
+                                      handlePenilaianClick(item, jadwalType)
+                                    }
+                                    className={`px-3 py-1 rounded text-xs transition-colors ${
+                                      item.penilaian_submitted
+                                        ? "bg-gray-500 text-white hover:bg-gray-600"
+                                        : "bg-green-500 text-white hover:bg-green-600"
+                                    }`}
+                                    title={
+                                      item.penilaian_submitted
+                                        ? "Lihat Penilaian"
+                                        : "Penilaian"
+                                    }
+                                  >
+                                    {item.penilaian_submitted
+                                      ? "Lihat Penilaian"
+                                      : "Penilaian"}
+                                  </button>
+                                </>
                               ) : (
                                 <button
                                   onClick={() =>

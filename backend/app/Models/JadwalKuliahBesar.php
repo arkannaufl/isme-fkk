@@ -30,11 +30,13 @@ class JadwalKuliahBesar extends Model
         'alasan_konfirmasi',
         'status_reschedule',
         'reschedule_reason',
+        'qr_enabled',
         'created_by',
     ];
 
     protected $casts = [
         'dosen_ids' => 'array',
+        'qr_enabled' => 'boolean',
     ];
 
     // Relasi

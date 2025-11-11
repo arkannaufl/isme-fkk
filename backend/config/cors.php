@@ -6,6 +6,8 @@ return [
 'allowed_origins' => [
     'http://localhost:5173',
     'http://localhost:3000',
+    'http://172.16.16.89:5173', // Old network IP
+    'http://192.168.21.217:5173', // New network IP for mobile access
     'https://isme.fkkumj.ac.id', // Ganti dengan domain production
 ],
 'allowed_methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
