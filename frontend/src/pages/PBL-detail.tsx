@@ -18,10 +18,13 @@ import {
   faEye,
   faChevronUp,
   faChevronDown,
+  faFileExcel,
 } from "@fortawesome/free-solid-svg-icons";
 import { AnimatePresence, motion } from "framer-motion";
 import api from "../utils/api";
 import { useParams, useNavigate } from "react-router-dom";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
 
 type MataKuliah = {
   kode: string;
@@ -2365,6 +2368,545 @@ export default function PBL() {
     }
   };
 
+  // Function untuk export mapping dosen ke Excel sesuai template
+  const exportMappingDosenExcel = async () => {
+    try {
+      if (blokMataKuliahFilteredByBlok.length === 0) {
+        setError("Tidak ada data untuk diekspor");
+        return;
+      }
+
+      // Ambil data tahun ajaran aktif untuk header
+      const tahunAjaranRes = await api.get("/tahun-ajaran/active");
+      const tahunAjaran = tahunAjaranRes.data?.tahun || "2024-2025";
+      const semesterAktif = activeSemesterJenis || "Ganjil";
+
+      // Ambil data jurnal reading untuk info modul
+      let jurnalReadingData: { [kode: string]: any[] } = {};
+      try {
+        const jurnalRes = await api.get("/jurnal-readings/all");
+        const jurnalData = jurnalRes.data || {};
+        Object.entries(jurnalData).forEach(
+          ([kode, item]: [string, any]) => {
+            jurnalReadingData[kode] = item?.jurnal_readings || [];
+          }
+        );
+      } catch (error) {
+        // Jika gagal, lanjutkan tanpa jurnal reading
+      }
+
+      // Buat workbook baru
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Mapping Dosen Blok");
+
+      // Group mata kuliah by semester, kemudian by mata kuliah (bukan by blok)
+      const semesterGroups: { [semester: number]: MataKuliah[] } = {};
+      blokMataKuliahFiltered.forEach((mk) => {
+        const semesterNumber = mapSemesterToNumber(mk.semester);
+        if (semesterNumber === null) return;
+        if (!semesterGroups[semesterNumber]) {
+          semesterGroups[semesterNumber] = [];
+        }
+        semesterGroups[semesterNumber].push(mk);
+      });
+
+      // Urutkan semester
+      const sortedSemesters = Object.keys(semesterGroups)
+        .map(Number)
+        .sort((a, b) => a - b);
+
+      // Warna header untuk setiap kolom (sesuai template)
+      const headerColors = [
+        { bg: "FFE8E8E8", text: "FF000000" }, // Kolom 1 - Light gray/pink
+        { bg: "FFD9E1F2", text: "FF000000" }, // Kolom 2 - Light blue
+        { bg: "FFE2EFDA", text: "FF000000" }, // Kolom 3 - Light green
+        { bg: "FFF2E2D9", text: "FF000000" }, // Kolom 4 - Light brown/orange
+      ];
+
+      const colWidth = 55;
+      let currentRow = 1;
+      let currentColumn = 1;
+      const columnSpacing = 0;
+      let maxColumnUsed = 0;
+      let maxBlockBottomRow = currentRow;
+
+      const sortedFilteredSemesters = sortedSemesters.filter(
+        (semester) => (semesterGroups[semester]?.length || 0) > 0
+      );
+      const totalColumns = sortedFilteredSemesters.reduce((acc, semester) => {
+        return acc + (semesterGroups[semester]?.length || 0);
+      }, 0);
+      if (totalColumns === 0) {
+        setError("Tidak ada data untuk diekspor");
+        return;
+      }
+      const overallBlok = blokMataKuliahFiltered[0]?.blok || "";
+      // Ubah nama sheet utama supaya mencantumkan nomor blok
+      worksheet.name = `Mapping Dosen Blok ${overallBlok}`;
+      // Sedikit perbaikan tampilan umum worksheet
+      worksheet.pageSetup = {
+        fitToPage: true,
+        fitToWidth: 1,
+        fitToHeight: 0,
+        orientation: "landscape",
+        margins: { left: 0.2, right: 0.2, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 },
+      };
+      if (totalColumns > 0) {
+        const mainHeaderRow = worksheet.getRow(currentRow);
+        mainHeaderRow.getCell(1).value = `MAPPING DOSEN BLOK ${overallBlok} SEMESTER ${semesterAktif?.toUpperCase() || ""} T.A. ${tahunAjaran}`;
+        mainHeaderRow.font = { bold: true, size: 16, color: { argb: "FF1F4E79" } };
+        mainHeaderRow.alignment = { horizontal: "center" };
+        worksheet.mergeCells(currentRow, 1, currentRow, totalColumns);
+        mainHeaderRow.height = 28;
+        currentRow += 2;
+      }
+
+      // Ringkasan untuk sheet Info
+      const koordinatorSet = new Set<number>();
+      const timBlokSet = new Set<number>();
+      const dosenMengajarSet = new Set<number>();
+      let totalPblModulExported = 0;
+      const exportedSemesters: number[] = [];
+
+      // Loop untuk setiap semester
+      sortedFilteredSemesters.forEach((semester) => {
+        const mataKuliahList = semesterGroups[semester] || [];
+        const mataKuliahToExport = [...mataKuliahList];
+        const maxCols = mataKuliahToExport.length;
+
+        if (maxCols === 0) return;
+        exportedSemesters.push(semester);
+
+        const startCol = currentColumn;
+        const titleRowIndex = currentRow;
+        const headerRowIndex = currentRow + 2;
+        const subHeaderRowIndex = currentRow + 3;
+        const subHeaderRow2Index = currentRow + 4;
+        const firstDataRowIndex = currentRow + 5;
+
+        // Ambil blok dari mata kuliah pertama (semua dalam blok yang sama)
+        const currentBlok = mataKuliahList[0]?.blok;
+
+        // Header utama untuk semester ini
+        const titleRow = worksheet.getRow(titleRowIndex);
+        titleRow.getCell(startCol).value = `SEMESTER ${semester} (${semesterAktif.toUpperCase()})`;
+        titleRow.font = { bold: true, size: 14 };
+        titleRow.alignment = { horizontal: "center" };
+        worksheet.mergeCells(
+          titleRowIndex,
+          startCol,
+          titleRowIndex,
+          startCol + maxCols - 1
+        );
+        titleRow.height = 25;
+
+        // Kosongkan satu baris (untuk jarak visual)
+        worksheet.getRow(titleRowIndex + 1);
+
+        // Header kolom untuk setiap mata kuliah
+        const headerRow = worksheet.getRow(headerRowIndex);
+        const subHeaderRow = worksheet.getRow(subHeaderRowIndex);
+        const subHeaderRow2 = worksheet.getRow(subHeaderRow2Index);
+        headerRow.height = 20;
+        subHeaderRow.height = 18;
+        subHeaderRow2.height = 18;
+
+        // Data untuk setiap mata kuliah
+        const mataKuliahData: { [kode: string]: Dosen[] } = {};
+
+        mataKuliahToExport.forEach((mk, idx) => {
+          // Hitung jumlah kelompok kecil untuk semester ini
+          const semesterKey = String(semester);
+          const semesterData = kelompokKecilListBySemester[semesterKey] || [];
+          const uniqueKelompok = new Set(
+            semesterData.map((kk: any) => kk.nama_kelompok)
+          );
+          const jumlahKelompok = uniqueKelompok.size;
+
+          // Hitung jumlah modul PBL untuk mata kuliah ini
+          const pbls = pblData[mk.kode] || [];
+          const totalPblModul = pbls.length;
+          totalPblModulExported += totalPblModul;
+
+          // Cek apakah ada Journal Reading
+          const jurnalReadings = jurnalReadingData[mk.kode] || [];
+          const hasJournalReading = jurnalReadings.length > 0;
+
+          // Ambil semua dosen yang di-assign ke mata kuliah ini (unik per dosen)
+          const dosenSet = new Set<number>();
+          const dosenListMk: Dosen[] = [];
+
+          pbls.forEach((pbl) => {
+            if (pbl.id && assignedDosen[pbl.id]) {
+              assignedDosen[pbl.id].forEach((dosen) => {
+                if (!dosenSet.has(dosen.id)) {
+                  dosenSet.add(dosen.id);
+                  // Tentukan role dosen
+                  let role = dosen.pbl_role || "dosen_mengajar";
+
+                  // Cek dari dosen_peran jika pbl_role tidak ada
+                  if (!role || role === "dosen_mengajar") {
+                    const dosenPeran = dosen.dosen_peran?.find(
+                      (peran: any) =>
+                        peran.semester === String(mk.semester) &&
+                        (peran.tipe_peran === "koordinator" ||
+                          peran.tipe_peran === "tim_blok")
+                    );
+                    if (dosenPeran) {
+                      role = dosenPeran.tipe_peran;
+                    }
+                  }
+
+                  dosenListMk.push({
+                    ...dosen,
+                    pbl_role: role,
+                  });
+                  if (role === "koordinator") {
+                    koordinatorSet.add(dosen.id);
+                  } else if (role === "tim_blok") {
+                    timBlokSet.add(dosen.id);
+                  } else {
+                    dosenMengajarSet.add(dosen.id);
+                  }
+                }
+              });
+            }
+          });
+
+          // Urutkan dosen: koordinator/tim_blok dulu, kemudian dosen mengajar
+          dosenListMk.sort((a, b) => {
+            const roleA = a.pbl_role || "dosen_mengajar";
+            const roleB = b.pbl_role || "dosen_mengajar";
+            const priority: { [key: string]: number } = {
+              koordinator: 1,
+              tim_blok: 2,
+              dosen_mengajar: 3,
+            };
+            return (priority[roleA] || 99) - (priority[roleB] || 99);
+          });
+
+          mataKuliahData[mk.kode] = dosenListMk;
+
+          const colorIndex = idx % headerColors.length;
+
+          // Header mata kuliah
+          const headerCell = headerRow.getCell(startCol + idx);
+          headerCell.value = mk.nama.toUpperCase();
+          headerCell.font = { bold: true, size: 12, color: { argb: "FF000000" } };
+          headerCell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: headerColors[colorIndex]?.bg || "FFE8E8E8" },
+          };
+          headerCell.alignment = { horizontal: "center", vertical: "middle" };
+          headerCell.border = {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
+          };
+
+          // Sub-header 1: Jumlah kelompok
+          const subHeaderCell1 = subHeaderRow.getCell(startCol + idx);
+          subHeaderCell1.value = `(${jumlahKelompok} Kel)`;
+          subHeaderCell1.font = { size: 10, color: { argb: "FF444444" } };
+          subHeaderCell1.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: headerColors[colorIndex]?.bg || "FFE8E8E8" },
+          };
+          subHeaderCell1.alignment = { horizontal: "center", vertical: "middle" };
+          subHeaderCell1.border = {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
+          };
+
+          // Sub-header 2: Info modul
+          let modulInfo = `PBL ${totalPblModul} modul`;
+          if (hasJournalReading) {
+            // Format: "PBL X modul, Journal Reading 1-Y"
+            const jurnalCount = jurnalReadings.length;
+            if (jurnalCount === 1) {
+              modulInfo += ", Journal Reading 1";
+            } else if (jurnalCount === 2) {
+              modulInfo += ", Journal Reading 1-2";
+            } else {
+              modulInfo += `, Journal Reading 1-${jurnalCount}`;
+            }
+          }
+
+          const subHeaderCell2 = subHeaderRow2.getCell(startCol + idx);
+          subHeaderCell2.value = modulInfo;
+          subHeaderCell2.font = { size: 10, color: { argb: "FF444444" } };
+          subHeaderCell2.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: headerColors[colorIndex]?.bg || "FFE8E8E8" },
+          };
+          subHeaderCell2.alignment = { horizontal: "center", vertical: "middle" };
+          subHeaderCell2.border = {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
+          };
+
+          // Set lebar kolom
+          worksheet.getColumn(startCol + idx).width = colWidth;
+        });
+
+        // Tambahkan data dosen untuk setiap mata kuliah
+        const maxDosenRows = mataKuliahToExport.reduce((acc, mk) => {
+          return Math.max(acc, mataKuliahData[mk.kode]?.length || 0);
+        }, 0);
+
+        for (let rowIdx = 0; rowIdx < maxDosenRows; rowIdx++) {
+          const dataRow = worksheet.getRow(firstDataRowIndex + rowIdx);
+          dataRow.height = 16;
+
+          mataKuliahToExport.forEach((mk, colIdx) => {
+            const dosenList = mataKuliahData[mk.kode] || [];
+            const dosen = dosenList[rowIdx];
+
+            const cell = dataRow.getCell(startCol + colIdx);
+
+            if (dosen) {
+              // Format nama dosen dengan gelar
+              const namaDosen = dosen.name || "Dosen Tidak Diketahui";
+              cell.value = namaDosen;
+              cell.font = { size: 10 };
+
+              // Tentukan role
+              const role = dosen.pbl_role || "dosen_mengajar";
+
+              // Warna biru untuk koordinator dan tim_blok
+              if (role === "koordinator" || role === "tim_blok") {
+                cell.fill = {
+                  type: "pattern",
+                  pattern: "solid",
+                  fgColor: { argb: "FFD9E1F2" }, // Light blue
+                };
+                // Bold hanya untuk Koordinator
+                if (role === "koordinator") {
+                  cell.font = { bold: true };
+                }
+              } else {
+                // Putih untuk dosen mengajar
+                cell.fill = {
+                  type: "pattern",
+                  pattern: "solid",
+                  fgColor: { argb: "FFFFFFFF" },
+                };
+              }
+
+              cell.border = {
+                top: { style: "thin" },
+                left: { style: "thin" },
+                bottom: { style: "thin" },
+                right: { style: "thin" },
+              };
+              cell.alignment = { vertical: "middle", wrapText: true };
+            } else {
+              // Cell kosong
+              cell.fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: "FFFFFFFF" },
+              };
+              cell.border = {
+                top: { style: "thin" },
+                left: { style: "thin" },
+                bottom: { style: "thin" },
+                right: { style: "thin" },
+              };
+            }
+          });
+        }
+
+        const blockBottomRow =
+          maxDosenRows > 0
+            ? firstDataRowIndex + maxDosenRows - 1
+            : subHeaderRow2Index;
+
+        maxBlockBottomRow = Math.max(maxBlockBottomRow, blockBottomRow);
+        maxColumnUsed = Math.max(maxColumnUsed, startCol + maxCols - 1);
+        currentColumn = startCol + maxCols + columnSpacing;
+      });
+
+      currentRow = maxBlockBottomRow + 3;
+
+      // Tambahkan section Standby Tutor / Instruktur Cirendeu di bagian bawah jika ada
+      const standbyDosen = dosenList.filter((d) => {
+        const keahlian = parseKeahlian(d.keahlian);
+        return keahlian.some((k) => k.toLowerCase().includes("standby"));
+      });
+
+      if (standbyDosen.length > 0) {
+        const standbyHeaderRowIndex = currentRow;
+        const standbyStartCol = 1;
+        const standbyEndCol = Math.max(maxColumnUsed, 3);
+
+        const standbyHeaderRow = worksheet.getRow(standbyHeaderRowIndex);
+        standbyHeaderRow.getCell(standbyStartCol).value = "Standby Tutor";
+        standbyHeaderRow.font = { bold: true, size: 14, color: { argb: "FF1F4E79" } };
+        standbyHeaderRow.alignment = { horizontal: "center" };
+        worksheet.mergeCells(
+          standbyHeaderRowIndex,
+          standbyStartCol,
+          standbyHeaderRowIndex,
+          standbyEndCol
+        );
+        standbyHeaderRow.height = 25;
+
+        // Tambahkan 1 baris kosong di bawah header sebagai jarak
+        worksheet.getRow(standbyHeaderRowIndex + 1);
+
+        const standbyPerKolom = Math.ceil(standbyDosen.length / 3);
+        const standbyDataStartRow = standbyHeaderRowIndex + 2;
+
+        for (let rowIdx = 0; rowIdx < standbyPerKolom; rowIdx++) {
+          const standbyRow = worksheet.getRow(standbyDataStartRow + rowIdx);
+
+          for (let colIdx = 0; colIdx < 3; colIdx++) {
+            const dosenIdx = rowIdx + colIdx * standbyPerKolom;
+            const dosen = standbyDosen[dosenIdx];
+
+            const cell = standbyRow.getCell(standbyStartCol + colIdx);
+            cell.border = {
+              top: { style: "thin" },
+              left: { style: "thin" },
+              bottom: { style: "thin" },
+              right: { style: "thin" },
+            };
+            cell.fill = {
+              type: "pattern",
+              pattern: "solid",
+              fgColor: { argb: "FFFFFFFF" },
+            };
+            cell.alignment = { vertical: "middle", wrapText: true };
+
+            if (dosen) {
+              cell.value = dosen.name || "Dosen Tidak Diketahui";
+            }
+          }
+        }
+
+        currentRow = standbyDataStartRow + standbyPerKolom + 1;
+      }
+
+      // Biarkan header ikut scroll (non-frozen)
+      worksheet.views = [];
+
+      // Tambahkan Sheet 2: Info
+      try {
+        const infoSheet = workbook.addWorksheet("Info");
+        infoSheet.pageSetup = {
+          orientation: "portrait",
+          fitToPage: true,
+          fitToWidth: 1,
+          fitToHeight: 0,
+          margins: { left: 0.3, right: 0.3, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
+        };
+        // Lebarkan kolom agar judul benar-benar center dan tidak terpotong
+        infoSheet.columns = [
+          { header: "", key: "label", width: 50 },
+          { header: "", key: "value", width: 90 },
+        ];
+
+        // Judul (merge numeric untuk menghindari anomali)
+        const infoTitleRowIndex = 1;
+        infoSheet.mergeCells(infoTitleRowIndex, 1, infoTitleRowIndex, 2);
+        const infoTitleCell = infoSheet.getCell(infoTitleRowIndex, 1);
+        infoTitleCell.value = `Informasi Export - Mapping Dosen Blok ${overallBlok}`;
+        infoTitleCell.font = { bold: true, size: 16, color: { argb: "FF1F4E79" } };
+        infoTitleCell.alignment = { horizontal: "center", vertical: "middle" };
+        infoSheet.getRow(infoTitleRowIndex).height = 28;
+        // Baris kosong setelah judul
+        infoSheet.addRow([]);
+
+        const now = new Date();
+        const rows: Array<[string, string]> = [
+          ["Tanggal Export", now.toLocaleString("id-ID")],
+          ["Blok", String(overallBlok)],
+          ["Semester Aktif", String(semesterAktif || "")],
+          ["Tahun Ajaran", String(tahunAjaran)],
+          ["Jumlah Semester Terekspor", String(sortedFilteredSemesters.length)],
+          ["Jumlah Mata Kuliah Terekspor", String(totalColumns)],
+          ["Total Modul PBL Terekspor", String(totalPblModulExported)],
+          ["Total Koordinator (unik)", String(koordinatorSet.size)],
+          ["Total Tim Blok (unik)", String(timBlokSet.size)],
+          ["Total Dosen Mengajar (unik)", String(dosenMengajarSet.size)],
+          ["Total Standby Tutor", String(standbyDosen.length)],
+          ["Daftar Semester", exportedSemesters.sort((a,b)=>a-b).join(", ")],
+          [
+            "Cakupan Data",
+            "File ini hanya memuat semester sesuai filter aktif (Ganjil/Genap) pada saat export. Semester atau mata kuliah yang tidak tampil di halaman, tidak akan diekspor.",
+          ],
+          [
+            "Catatan",
+            "Tata letak per semester disusun horisontal (menyamping). Setiap kolom mewakili satu mata kuliah: baris 1 judul mata kuliah, baris 2 total kelompok, baris 3 ringkasan modul/Journal Reading, lalu diikuti daftar dosen.",
+          ],
+          [
+            "Saran Penggunaan",
+            "Koordinator ditandai latar biru dengan teks tebal. Tim Blok dilatar biru tanpa tebal. Dosen Mengajar berwarna putih. Manfaatkan filter/pencarian Excel bila diperlukan. Mohon verifikasi data sebelum distribusi.",
+          ],
+          [
+            "Kontak",
+            "Support Center Isme - Sistem ISME FKK",
+          ],
+        ];
+
+        rows.forEach(([label, value]) => {
+          const r = infoSheet.addRow([label, value]);
+          r.getCell(1).font = { bold: true };
+          r.getCell(1).alignment = { vertical: "middle" };
+          r.getCell(2).alignment = { vertical: "middle", wrapText: true };
+          // Border tipis agar rapi
+          r.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+            cell.border = {
+              top: { style: "thin", color: { argb: "FFDDDDDD" } },
+              left: { style: "thin", color: { argb: "FFDDDDDD" } },
+              bottom: { style: "thin", color: { argb: "FFDDDDDD" } },
+              right: { style: "thin", color: { argb: "FFDDDDDD" } },
+            };
+            if (colNumber === 1) {
+              cell.fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: "FFF7F7F7" },
+              };
+            }
+          });
+        });
+
+        infoSheet.addRow([]);
+        const footer = infoSheet.addRow(["Dokumen ini dihasilkan otomatis oleh Sistem ISME FKK."]);
+        footer.font = { italic: true, color: { argb: "FF666666" } };
+        infoSheet.mergeCells(`A${footer.number}:B${footer.number}`);
+      } catch {}
+
+      // Generate file
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      // Download file
+      const currentBlok = blokMataKuliahFilteredByBlok[0]?.blok || "";
+      const fileName = `Mapping_Dosen_Blok_${currentBlok}_Semester_${semesterAktif}_TA_${tahunAjaran}.xlsx`;
+      saveAs(blob, fileName);
+
+      setSuccess("Data berhasil diekspor ke Excel");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (error: any) {
+      console.error("Error exporting Excel:", error);
+      setError("Gagal mengekspor data ke Excel: " + (error.message || "Unknown error"));
+      setTimeout(() => setError(null), 5000);
+    }
+  };
+
   // Tampilkan error jika belum generate
   if (generateValidationError) {
     return (
@@ -2658,6 +3200,8 @@ export default function PBL() {
     <div className="w-full mx-auto">
       {/* Header */}
       <div className="mb-8">
+        <div className="flex items-start justify-between gap-4">
+          <div>
         <button
           onClick={() => navigate("/pbl", { replace: true })}
           className="flex items-center gap-2 text-brand-500 hover:text-brand-600 transition-all duration-300 ease-out hover:scale-105 transform mb-4"
@@ -2683,6 +3227,8 @@ export default function PBL() {
         <p className="text-gray-600 dark:text-gray-400">
           Pengelolaan modul PBL dan penugasan dosen berdasarkan keahlian
         </p>
+          </div>
+        </div>
         <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
           <div className="flex items-start gap-3">
             <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center">
@@ -2699,11 +3245,49 @@ export default function PBL() {
                 di-assign ke modul manapun tanpa batasan keahlian atau semester.
               </p>
             </div>
-            <div className="flex gap-2">
+          </div>
+        </div>
+        
+        {/* Section Aksi Utama */}
+        <div className="mt-4 p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex-1">
+              <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                Aksi Utama
+              </h4>
+              <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
+                <div className="flex items-start gap-2">
+                  <FontAwesomeIcon icon={faFileExcel} className="w-4 h-4 text-green-600 dark:text-green-400 mt-0.5" />
+                  <div>
+                    <span className="font-medium text-gray-700 dark:text-gray-300">Export Excel:</span> Ekspor data mapping dosen ke file Excel dengan format terstruktur per semester dan mata kuliah.
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <svg className="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  <div>
+                    <span className="font-medium text-gray-700 dark:text-gray-300">Clear Cache:</span> Reset cache status generate PBL untuk memaksa sistem mengambil data fresh dari database.
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 flex-shrink-0">
+              <button
+                onClick={exportMappingDosenExcel}
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors duration-200 flex items-center gap-2 shadow-theme-xs"
+                title="Export Mapping Dosen ke Excel"
+              >
+                <FontAwesomeIcon icon={faFileExcel} className="w-4 h-4" />
+                Export Excel
+              </button>
               <button
                 onClick={handleClearCache}
-                className="px-3 py-1 text-xs font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors duration-200"
+                className="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors duration-200 flex items-center gap-2"
               >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
                 Clear Cache
               </button>
             </div>

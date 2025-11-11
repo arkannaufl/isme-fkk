@@ -17,6 +17,7 @@ class PBL extends Model
         'mata_kuliah_kode',
         'modul_ke',
         'nama_modul',
+        'tipe_pbl',
     ];
 
     public function mataKuliah()
@@ -36,7 +37,8 @@ class PBL extends Model
 
     public function dosen()
     {
-        return $this->belongsToMany(User::class, 'pbl_mappings', 'pbl_id', 'dosen_id');
+        return $this->belongsToMany(User::class, 'pbl_mappings', 'pbl_id', 'dosen_id')
+            ->withPivot('role');
     }
 
     public function getActivitylogOptions(): LogOptions

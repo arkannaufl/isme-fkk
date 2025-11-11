@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'wablas' => [
+        'base_url' => env('WABLAS_BASE_URL', 'https://tegal.wablas.com/api'),
+        'token' => env('WABLAS_TOKEN'),
+        'secret_key' => env('WABLAS_SECRET_KEY', ''),
+        'enabled' => env('WABLAS_ENABLED', true),
+    ],
+
 ];

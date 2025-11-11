@@ -24,11 +24,20 @@ class JadwalPraktikum extends Model
         'jam_selesai',
         'jumlah_sesi',
         'created_by',
+
         'qr_enabled',
     ];
 
     protected $casts = [
         'qr_enabled' => 'boolean',
+        // SIAKAD fields
+        'siakad_kurikulum',
+        'siakad_kode_mk',
+        'siakad_nama_kelas',
+        'siakad_jenis_pertemuan',
+        'siakad_metode',
+        'siakad_dosen_pengganti',
+
     ];
 
     // Relasi

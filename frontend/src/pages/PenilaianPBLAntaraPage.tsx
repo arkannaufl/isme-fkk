@@ -24,6 +24,7 @@ interface Penilaian {
 interface AbsensiPBL {
   [npm: string]: {
     hadir: boolean;
+    catatan: string;
   };
 }
 
@@ -40,6 +41,13 @@ const KRITERIA = {
 export default function PenilaianPBLPage() {
   const { kode_blok, kelompok, pertemuan } = useParams();
   const navigate = useNavigate();
+  
+  // Ambil jadwal_id dari query parameter - baca langsung dari URL setiap kali diperlukan
+  // Menggunakan useMemo untuk membaca dari URL saat ini
+  const jadwalId = (() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('jadwal_id');
+  })();
 
   const [mahasiswa, setMahasiswa] = useState<{ npm: string; nama: string }[]>(
     []
@@ -69,6 +77,18 @@ export default function PenilaianPBLPage() {
   // Permission and status states
   const [userRole, setUserRole] = useState<string>('');
   const [canEdit, setCanEdit] = useState<boolean>(true);
+
+  // State untuk track perubahan yang belum disimpan
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
+  const initialDataRef = useRef<{
+    penilaian: Penilaian;
+    absensi: AbsensiPBL;
+    tanggalParaf: string;
+    signatureParaf: string | null;
+    namaTutor: string;
+  } | null>(null);
+  const hasPushedStateRef = useRef<boolean>(false);
+  const isHandlingPopStateRef = useRef<boolean>(false);
 
   const [isDark, setIsDark] = useState(document.documentElement.classList.contains('dark'));
   useEffect(() => {
@@ -124,8 +144,6 @@ export default function PenilaianPBLPage() {
         setMahasiswa(mhs);
       })
       .catch((error) => {
-        console.error('Error fetching mahasiswa:', error);
-        console.error('Error details:', handleApiError(error, 'Memuat data mahasiswa'));
         setError(handleApiError(error, 'Memuat data mahasiswa'));
       })
       .finally(() => setLoading(false));
@@ -134,33 +152,75 @@ export default function PenilaianPBLPage() {
   // Fetch penilaian dan absensi dari backend untuk semester Antara
   useEffect(() => {
     if (!kode_blok || !kelompok || !pertemuan) return;
+    // Jangan fetch penilaian jika mahasiswa belum ter-fetch
+    if (mahasiswa.length === 0) return;
+    
     setLoading(true);
     setError(null);
+    // JANGAN reset penilaian state di sini karena akan menyebabkan input field kosong
+    // State akan di-update dengan data baru setelah fetch selesai
+    // Reset status saat fetch baru dimulai
+    setPenilaianSubmitted(false);
     
     // Fetch data penilaian dan absensi secara parallel
+    // Tambahkan jadwal_id sebagai query parameter jika ada
+    const penilaianUrl = `/mata-kuliah/${kode_blok}/kelompok-antara/${kelompok}/pertemuan/${pertemuan}/penilaian-pbl${jadwalId ? `?jadwal_id=${jadwalId}` : ''}`;
+    const absensiUrl = `/mata-kuliah/${kode_blok}/kelompok-antara/${kelompok}/pertemuan/${pertemuan}/absensi-pbl${jadwalId ? `?jadwal_id=${jadwalId}` : ''}`;
+    
     Promise.all([
-      api.get(`/mata-kuliah/${kode_blok}/kelompok-antara/${kelompok}/pertemuan/${pertemuan}/penilaian-pbl`),
-      api.get(`/mata-kuliah/${kode_blok}/kelompok-antara/${kelompok}/pertemuan/${pertemuan}/absensi-pbl`)
+      api.get(penilaianUrl),
+      api.get(absensiUrl)
+        .catch((err) => {
+          // Jika absensi gagal, return empty data
+          return { data: { absensi: [] } };
+        }),
     ])
       .then(([penilaianRes, absensiRes]) => {
         // Mapping ke state penilaian
         const data = penilaianRes.data.penilaian || [];
         const pen: Penilaian = {};
         data.forEach((row: any) => {
-          pen[row.mahasiswa_npm] = {
-            A: row.nilai_a,
-            B: row.nilai_b,
-            C: row.nilai_c,
-            D: row.nilai_d,
-            E: row.nilai_e,
-            F: row.nilai_f,
-            G: row.nilai_g,
-            petaKonsep: row.peta_konsep || 0,
+          // Pastikan mahasiswa_npm adalah string untuk konsistensi
+          const npmKey = String(row.mahasiswa_npm);
+          
+          // Gunakan nilai dari database, hanya set default jika benar-benar null/undefined
+          // Jangan set default 0 jika nilai adalah 0 yang valid dari database
+          pen[npmKey] = {
+            A: row.nilai_a !== null && row.nilai_a !== undefined ? row.nilai_a : 0,
+            B: row.nilai_b !== null && row.nilai_b !== undefined ? row.nilai_b : 0,
+            C: row.nilai_c !== null && row.nilai_c !== undefined ? row.nilai_c : 0,
+            D: row.nilai_d !== null && row.nilai_d !== undefined ? row.nilai_d : 0,
+            E: row.nilai_e !== null && row.nilai_e !== undefined ? row.nilai_e : 0,
+            F: row.nilai_f !== null && row.nilai_f !== undefined ? row.nilai_f : 0,
+            G: row.nilai_g !== null && row.nilai_g !== undefined ? row.nilai_g : 0,
+            petaKonsep: row.peta_konsep !== null && row.peta_konsep !== undefined ? row.peta_konsep : 0,
           };
-          if (row.tanggal_paraf) setTanggalParaf(row.tanggal_paraf);
+          
+          // Format tanggal dari ISO (2025-10-31T00:00:00.000000Z) ke yyyy-MM-dd untuk input type="date"
+          if (row.tanggal_paraf) {
+            const tanggalParafFormatted = row.tanggal_paraf.split('T')[0];
+            setTanggalParaf(tanggalParafFormatted);
+          }
           if (row.signature_paraf) setSignatureParaf(row.signature_paraf);
           if (row.nama_tutor) setNamaTutor(row.nama_tutor);
         });
+        // Jika PBL type berubah, reset petaKonsep untuk semua mahasiswa
+        // Lakukan SEBELUM setPenilaian agar modifikasi ter-apply
+        if (penilaianRes.data.is_pbl_2 && !isPBL2) {
+          // PBL 1 → PBL 2: tambah petaKonsep dengan nilai 0
+          Object.keys(pen).forEach(npm => {
+            if (pen[npm].petaKonsep === undefined) {
+              pen[npm].petaKonsep = 0;
+            }
+          });
+        } else if (!penilaianRes.data.is_pbl_2 && isPBL2) {
+          // PBL 2 → PBL 1: hapus petaKonsep
+          Object.keys(pen).forEach(npm => {
+            delete pen[npm].petaKonsep;
+          });
+        }
+        
+        // Set penilaian state dengan data yang sudah dimodifikasi
         setPenilaian(pen);
         setNamaModul(penilaianRes.data.nama_modul || ''); // Ambil nama modul dari response API
         setIsPBL2(penilaianRes.data.is_pbl_2 || false); // Set status PBL 2 dari backend
@@ -176,38 +236,49 @@ export default function PenilaianPBLPage() {
           setCanEdit(isAdmin || !(penilaianRes.data.penilaian_submitted || false));
         }
         
-        // Jika PBL type berubah, reset petaKonsep untuk semua mahasiswa
-        if (penilaianRes.data.is_pbl_2 && !isPBL2) {
-          // PBL 1 → PBL 2: tambah petaKonsep dengan nilai 0
-          const updatedPenilaian = { ...penilaian };
-          Object.keys(updatedPenilaian).forEach(npm => {
-            if (updatedPenilaian[npm].petaKonsep === undefined) {
-              updatedPenilaian[npm].petaKonsep = 0;
-            }
-          });
-          setPenilaian(updatedPenilaian);
-        } else if (!penilaianRes.data.is_pbl_2 && isPBL2) {
-          // PBL 2 → PBL 1: hapus petaKonsep
-          const updatedPenilaian = { ...penilaian };
-          Object.keys(updatedPenilaian).forEach(npm => {
-            delete updatedPenilaian[npm].petaKonsep;
-          });
-          setPenilaian(updatedPenilaian);
-        }
-        
         // Mapping ke state absensi
         const absensiData = absensiRes.data.absensi || {};
         const abs: AbsensiPBL = {};
-        Object.keys(absensiData).forEach(npm => {
-          const absen = absensiData[npm];
+        
+        // Handle both array and object formats
+        if (Array.isArray(absensiData)) {
+          absensiData.forEach((row: any) => {
+            abs[row.mahasiswa_npm] = {
+              hadir: Boolean(row.hadir), // Convert 1/0 to true/false
+              catatan: row.catatan || "",
+            };
+          });
+        } else if (typeof absensiData === "object" && absensiData !== null) {
+          // Handle object format (keyBy result)
+          Object.keys(absensiData).forEach((npm) => {
+            const row = absensiData[npm];
           abs[npm] = {
-            hadir: absen.hadir || false,
+              hadir: Boolean(row.hadir), // Convert 1/0 to true/false
+              catatan: row.catatan || "",
           };
         });
+        }
         setAbsensi(abs);
+
+        // Simpan data awal sebagai referensi untuk deteksi perubahan
+        // Ambil tanggal paraf dari data pertama yang memiliki tanggal_paraf
+        const firstRowWithTanggal = data.find((r: any) => r.tanggal_paraf);
+        const initialTanggalParaf = firstRowWithTanggal?.tanggal_paraf 
+          ? firstRowWithTanggal.tanggal_paraf.split('T')[0] 
+          : "";
+        const initialSignatureParaf = firstRowWithTanggal?.signature_paraf || null;
+        const initialNamaTutor = firstRowWithTanggal?.nama_tutor || "";
+        
+        initialDataRef.current = {
+          penilaian: pen,
+          absensi: abs,
+          tanggalParaf: initialTanggalParaf,
+          signatureParaf: initialSignatureParaf,
+          namaTutor: initialNamaTutor,
+        };
+        setHasUnsavedChanges(false);
       })
       .catch((error: any) => {
-        console.error('Error fetching data:', error);
         if (error.response?.status === 403) {
           setError('Anda tidak memiliki akses untuk menilai jadwal ini. Hanya dosen yang ditugaskan dan telah mengkonfirmasi ketersediaan yang dapat mengakses halaman ini.');
         } else if (error.response?.status === 404) {
@@ -217,13 +288,101 @@ export default function PenilaianPBLPage() {
         }
       })
       .finally(() => setLoading(false));
-  }, [kode_blok, kelompok, pertemuan]);
+  }, [kode_blok, kelompok, pertemuan, jadwalId, mahasiswa.length]);
 
   // Fetch modul PBL list
   useEffect(() => {
     if (!kode_blok) return;
     api.get(`/mata-kuliah/${kode_blok}/pbls`).then(res => setModulPBLList(res.data || []));
   }, [kode_blok]);
+
+  // Deteksi perubahan yang belum disimpan
+  useEffect(() => {
+    if (!initialDataRef.current || loading || saving || !canEdit) {
+      return;
+    }
+
+    const initial = initialDataRef.current;
+    
+    // Bandingkan penilaian
+    const penilaianChanged = JSON.stringify(penilaian) !== JSON.stringify(initial.penilaian);
+    
+    // Bandingkan absensi
+    const absensiChanged = JSON.stringify(absensi) !== JSON.stringify(initial.absensi);
+    
+    // Bandingkan tanggal paraf, signature, dan nama tutor
+    const otherChanged = 
+      tanggalParaf !== initial.tanggalParaf ||
+      signatureParaf !== initial.signatureParaf ||
+      namaTutor !== initial.namaTutor;
+    
+    const hasChanges = penilaianChanged || absensiChanged || otherChanged;
+    setHasUnsavedChanges(hasChanges);
+  }, [penilaian, absensi, tanggalParaf, signatureParaf, namaTutor, loading, saving, canEdit]);
+
+  // beforeunload event untuk close tab/browser
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges && canEdit) {
+        e.preventDefault();
+        e.returnValue = "Anda memiliki perubahan yang belum disimpan. Apakah Anda yakin ingin meninggalkan halaman ini?";
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges, canEdit]);
+
+  // Handle browser back button dengan popstate event
+  useEffect(() => {
+    if (!hasUnsavedChanges || !canEdit) {
+      // Reset flag jika tidak ada perubahan
+      hasPushedStateRef.current = false;
+      return;
+    }
+
+    // Push state baru ke history hanya sekali saat pertama kali ada perubahan
+    if (!hasPushedStateRef.current) {
+      window.history.pushState({ hasUnsavedChanges: true }, "");
+      hasPushedStateRef.current = true;
+    }
+
+    const handlePopState = (e: PopStateEvent) => {
+      // Prevent multiple alerts
+      if (isHandlingPopStateRef.current) {
+        return;
+      }
+
+      // Cek lagi apakah masih ada perubahan (karena state bisa berubah)
+      if (hasUnsavedChanges && canEdit) {
+        isHandlingPopStateRef.current = true;
+        const confirmed = window.confirm(
+          "Anda memiliki perubahan yang belum disimpan. Apakah Anda yakin ingin meninggalkan halaman ini? Perubahan yang belum disimpan akan hilang."
+        );
+        if (!confirmed) {
+          // Push state lagi untuk mencegah navigasi
+          window.history.pushState({ hasUnsavedChanges: true }, "");
+          isHandlingPopStateRef.current = false;
+        } else {
+          // User confirm, reset flag dan navigate ke halaman sebelumnya
+          hasPushedStateRef.current = false;
+          setHasUnsavedChanges(false);
+          // Navigate ke halaman sebelumnya setelah user confirm (skip pushed state)
+          // Gunakan setTimeout untuk memastikan state sudah diupdate
+          setTimeout(() => {
+            isHandlingPopStateRef.current = false;
+            window.history.go(-1);
+          }, 100);
+        }
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [hasUnsavedChanges, canEdit]);
 
   // Fungsi simpan ke backend
   const handleSaveAll = async () => {
@@ -269,19 +428,38 @@ export default function PenilaianPBLPage() {
         signature_paraf: signatureParaf,
         nama_tutor: namaTutor,
       };
-      await api.post(`/mata-kuliah/${kode_blok}/kelompok-antara/${kelompok}/pertemuan/${pertemuan}/penilaian-pbl`, payload);
+      // Tambahkan jadwal_id sebagai query parameter jika ada
+      const storeUrl = `/mata-kuliah/${kode_blok}/kelompok-antara/${kelompok}/pertemuan/${pertemuan}/penilaian-pbl${jadwalId ? `?jadwal_id=${jadwalId}` : ''}`;
+      await api.post(storeUrl, payload);
       
-      // Set status penilaian submitted untuk dosen
-      const user = getUser();
-      if (user?.role === 'dosen') {
+      // Update penilaian submitted status - untuk semua role, karena backend sudah update status
         setPenilaianSubmitted(true);
+      
+      // Update canEdit berdasarkan role
+      const user = getUser();
+      if (user) {
+        const isAdmin =
+          user.role === "super_admin" || user.role === "tim_akademik";
+        setCanEdit(isAdmin);
       }
       
       setSuccess(`Absensi dan penilaian ${isPBL2 ? 'PBL 2' : 'PBL 1'} berhasil disimpan!`);
       setShowWarningModal(false);
+      
+      // Update initial data ref setelah save berhasil
+      if (initialDataRef.current) {
+        initialDataRef.current = {
+          penilaian: { ...penilaian },
+          absensi: { ...absensi },
+          tanggalParaf: tanggalParaf,
+          signatureParaf: signatureParaf,
+          namaTutor: namaTutor,
+        };
+      }
+      setHasUnsavedChanges(false);
+      // Reset flag setelah save berhasil
+      hasPushedStateRef.current = false;
     } catch (error: any) {
-      console.error('Error saving penilaian:', error);
-      console.error('Error details:', handleApiError(error, 'Menyimpan penilaian'));
       setError(handleApiError(error, 'Menyimpan penilaian'));
     } finally {
       setSaving(false);
@@ -298,13 +476,14 @@ export default function PenilaianPBLPage() {
         absensi: mahasiswa.map(m => ({
           mahasiswa_npm: m.npm,
           hadir: absensi[m.npm]?.hadir || false,
+          catatan: absensi[m.npm]?.catatan || "",
         })),
       };
-      await api.post(`/mata-kuliah/${kode_blok}/kelompok-antara/${kelompok}/pertemuan/${pertemuan}/absensi-pbl`, payload);
+      // Tambahkan jadwal_id sebagai query parameter jika ada
+      const absensiUrl = `/mata-kuliah/${kode_blok}/kelompok-antara/${kelompok}/pertemuan/${pertemuan}/absensi-pbl${jadwalId ? `?jadwal_id=${jadwalId}` : ''}`;
+      await api.post(absensiUrl, payload);
       return true;
     } catch (error: any) {
-      console.error('Error saving absensi:', error);
-      console.error('Error details:', handleApiError(error, 'Menyimpan absensi'));
       setError(handleApiError(error, 'Menyimpan absensi'));
       return false;
     }
@@ -337,6 +516,17 @@ export default function PenilaianPBLPage() {
       ...prev,
       [npm]: {
         hadir: hadir,
+        catatan: prev[npm]?.catatan || "",
+      },
+    }));
+  };
+
+  const handleCatatanChange = (npm: string, catatan: string) => {
+    setAbsensi((prev) => ({
+      ...prev,
+      [npm]: {
+        ...prev[npm],
+        catatan: catatan,
       },
     }));
   };
@@ -589,8 +779,6 @@ export default function PenilaianPBLPage() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (error) {
-      console.error("Error exporting Excel:", error);
-      console.error("Error details:", handleApiError(error, 'Export Excel'));
       alert("Gagal export Excel: " + handleApiError(error, 'Export Excel'));
     }
   };
@@ -743,6 +931,16 @@ export default function PenilaianPBLPage() {
       <div className="pb-2 flex justify-between items-center">
         <button                                                                                                                                             
           onClick={() => {
+            if (hasUnsavedChanges && canEdit) {
+              const confirmed = window.confirm(
+                "Anda memiliki perubahan yang belum disimpan. Apakah Anda yakin ingin meninggalkan halaman ini? Perubahan yang belum disimpan akan hilang."
+              );
+              if (!confirmed) {
+                return;
+              }
+              // Reset flag jika user confirm
+              hasPushedStateRef.current = false;
+            }
             const user = getUser();
             if (user?.role === 'dosen') {
               navigate('/dashboard-dosen');
@@ -821,6 +1019,7 @@ export default function PenilaianPBLPage() {
           LEMBAR PENILAIAN MAHASISWA OLEH TUTOR
         </h1>
         <div className="text-center mb-4">
+          <div className="flex justify-center gap-2 mb-2">
           <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
             isPBL2 
               ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
@@ -828,11 +1027,17 @@ export default function PenilaianPBLPage() {
           }`}>
             {isPBL2 ? 'PBL 2 (Dengan Peta Konsep)' : 'PBL 1 (Tanpa Peta Konsep)'}
           </span>
-          {getUser()?.role === 'dosen' && penilaianSubmitted && (
-            <span className="ml-2 inline-block px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
-              Penilaian Sudah Disubmit - View Only
+            {penilaianSubmitted && (
+              <span className="inline-block px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                Penilaian Sudah Disubmit
+              </span>
+            )}
+            {!canEdit && userRole === "dosen" && (
+              <span className="inline-block px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                View Only Mode
             </span>
           )}
+          </div>
         </div>
         <div className="flex justify-between items-center mb-4 text-sm text-gray-700 dark:text-gray-300">
           <div>
@@ -872,6 +1077,12 @@ export default function PenilaianPBLPage() {
                     <th className="px-4 py-3 text-left">
                       <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-12"></div>
                     </th>
+                    <th className="px-2 py-3 text-center">
+                      <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-16 mx-auto"></div>
+                    </th>
+                    <th className="px-4 py-3 text-center">
+                      <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-20 mx-auto"></div>
+                    </th>
                     {Object.keys(KRITERIA).map((key) => (
                       <th key={key} className="px-2 py-3 text-center">
                         <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-4 mx-auto"></div>
@@ -901,6 +1112,12 @@ export default function PenilaianPBLPage() {
                       </td>
                       <td className="px-4 py-2">
                         <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32"></div>
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-8 mx-auto"></div>
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-20 mx-auto"></div>
                       </td>
                       {Object.keys(KRITERIA).map((key) => (
                         <td key={key} className="px-2 py-2 text-center">
@@ -942,6 +1159,9 @@ export default function PenilaianPBLPage() {
                 </th>
                 <th className="px-2 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   ABSENSI
+                </th>
+                <th className="px-4 py-3 text-center font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  CATATAN
                 </th>
                 {Object.keys(KRITERIA).map((key) => (
                   <th
@@ -1000,6 +1220,22 @@ export default function PenilaianPBLPage() {
                       )}
                     </div>
                   </td>
+                  <td className="px-4 py-2 text-center whitespace-nowrap dark:text-gray-200">
+                    <input
+                      type="text"
+                      value={absensi[m.npm]?.catatan || ""}
+                      onChange={(e) =>
+                        handleCatatanChange(m.npm, e.target.value)
+                      }
+                      disabled={!canEdit}
+                      placeholder="Catatan..."
+                      className={`w-full text-center border rounded-md p-1 text-xs dark:text-gray-100 dark:placeholder-gray-400 ${
+                        canEdit
+                          ? "bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+                          : "bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 cursor-not-allowed"
+                      }`}
+                    />
+                  </td>
                   {Object.keys(KRITERIA).map((key) => (
                     <td
                       key={key}
@@ -1009,9 +1245,12 @@ export default function PenilaianPBLPage() {
                         type="number"
                         min="0"
                         max="5"
-                        value={
-                          penilaian[m.npm]?.[key as keyof typeof KRITERIA] || ""
-                        }
+                          value={
+                            (() => {
+                              const nilai = penilaian[m.npm]?.[key as keyof typeof KRITERIA];
+                              return nilai !== null && nilai !== undefined ? nilai : "";
+                            })()
+                          }
                         onChange={(e) =>
                           handleInputChange(
                             m.npm,
@@ -1046,7 +1285,7 @@ export default function PenilaianPBLPage() {
                         type="number"
                         min="0"
                         max="100"
-                        value={penilaian[m.npm]?.petaKonsep || ""}
+                        value={penilaian[m.npm]?.petaKonsep ?? ""}
                         onChange={(e) =>
                           handleInputChange(m.npm, "petaKonsep", e.target.value)
                         }
@@ -1226,7 +1465,7 @@ export default function PenilaianPBLPage() {
         <div className="mt-6 flex gap-4">
           <button 
             onClick={handleSaveAll} 
-            disabled={saving || loading || !canEdit} 
+            disabled={saving || loading || !canEdit || (!hasUnsavedChanges && initialDataRef.current !== null)} 
             className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium shadow-theme-xs hover:bg-blue-600 transition dark:bg-blue-600 dark:hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? 'Menyimpan...' : !canEdit ? 'Penilaian Sudah Disubmit' : 'Simpan Absensi & Penilaian'}

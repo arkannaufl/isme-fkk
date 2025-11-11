@@ -58,6 +58,13 @@ class User extends Authenticatable
         'veteran_set_by',
         'veteran_semesters',
         'veteran_history',
+        // WhatsApp fields untuk Wablas
+        'whatsapp_phone',
+        'whatsapp_email',
+        'whatsapp_address',
+        'whatsapp_birth_day',
+        'wablas_synced_at',
+        'wablas_sync_status',
     ];
 
     /**
@@ -87,6 +94,9 @@ class User extends Authenticatable
             'veteran_semesters' => 'array',
             'veteran_history' => 'array',
             'veteran_set_at' => 'datetime',
+            // WhatsApp fields casts
+            'whatsapp_birth_day' => 'date',
+            'wablas_synced_at' => 'datetime',
         ];
     }
 

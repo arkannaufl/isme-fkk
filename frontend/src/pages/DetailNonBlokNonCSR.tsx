@@ -866,13 +866,28 @@ export default function DetailNonBlokNonCSR() {
   }
 
   function handleEditJadwal(idx: number) {
+    // Validasi index dan data
+    if (idx < 0 || idx >= jadwalMateri.length) {
+      console.error('Invalid index for jadwalMateri:', idx);
+      return;
+    }
+
     const row = jadwalMateri[idx];
+    
+    // Validasi bahwa row ada dan memiliki ID
+    if (!row || !row.id) {
+      console.error('Invalid row data or missing ID:', row);
+      return;
+    }
+
+    // Cari data berdasarkan ID untuk memastikan data yang benar (jika ada perubahan urutan)
+    const actualRow = jadwalMateri.find(j => j.id === row.id) || row;
     
     // Format tanggal untuk input date (YYYY-MM-DD)
     let formattedTanggal = '';
-    if (row.tanggal) {
+    if (actualRow.tanggal) {
       try {
-        const date = new Date(row.tanggal);
+        const date = new Date(actualRow.tanggal);
         if (!isNaN(date.getTime())) {
           formattedTanggal = date.toISOString().split('T')[0];
         }
@@ -889,18 +904,22 @@ export default function DetailNonBlokNonCSR() {
     
     setForm({
       hariTanggal: formattedTanggal,
-      jamMulai: formatJamUntukDropdown(row.jam_mulai),
-      jumlahKali: row.jumlah_sesi,
-      jamSelesai: formatJamUntukDropdown(row.jam_selesai),
-      pengampu: row.dosen_id || null,
-      materi: row.materi || '',
-      lokasi: row.use_ruangan ? (row.ruangan_id || null) : null,
-      jenisBaris: row.jenis_baris,
-      agenda: row.agenda || '',
-      kelompokBesar: row.kelompok_besar_id || null,
-      useRuangan: row.use_ruangan !== undefined ? row.use_ruangan : true,
+      jamMulai: formatJamUntukDropdown(actualRow.jam_mulai || ''),
+      jumlahKali: actualRow.jumlah_sesi || 2,
+      jamSelesai: formatJamUntukDropdown(actualRow.jam_selesai || ''),
+      pengampu: actualRow.dosen_id || null,
+      materi: actualRow.materi || '',
+      lokasi: actualRow.use_ruangan ? (actualRow.ruangan_id || null) : null,
+      jenisBaris: actualRow.jenis_baris || 'materi',
+      agenda: actualRow.agenda || '',
+      kelompokBesar: actualRow.kelompok_besar_id || null,
+      useRuangan: actualRow.use_ruangan !== undefined ? actualRow.use_ruangan : true,
     });
-    setEditIndex(idx);
+    
+    // Set editIndex berdasarkan ID untuk memastikan konsistensi
+    const actualIndex = jadwalMateri.findIndex(j => j.id === row.id);
+    setEditIndex(actualIndex >= 0 ? actualIndex : idx);
+    
     setShowModal(true);
     setErrorForm('');
     setErrorBackend('');
@@ -1482,6 +1501,7 @@ export default function DetailNonBlokNonCSR() {
                         {row.jenis_baris === 'agenda' && !row.use_ruangan ? '-' : (row.ruangan?.nama || '')}
                       </td>
                     <td className="px-4 py-4 text-center whitespace-nowrap">
+
                       <div className="flex items-center justify-center gap-1 flex-wrap">
                         {/* Tombol Absensi - hanya untuk jenis_baris === 'materi' dan status_konfirmasi === 'bisa' */}
                         {row.jenis_baris === 'materi' && row.status_konfirmasi === 'bisa' && (
@@ -1503,6 +1523,21 @@ export default function DetailNonBlokNonCSR() {
                           <span className="hidden sm:inline">Hapus</span>
                         </button>
                       </div>
+
+                      <button onClick={() => {
+                        // Cari index berdasarkan ID untuk memastikan data yang benar
+                        // Karena data di-sort sebelum di-paginate, kita perlu mencari dari array asli
+                        const correctIndex = jadwalMateri.findIndex(j => j.id === row.id);
+                        handleEditJadwal(correctIndex >= 0 ? correctIndex : idx);
+                      }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
+                        <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
+                        <span className="hidden sm:inline">Edit</span>
+                      </button>
+                      <button onClick={() => { setSelectedDeleteIndex(idx); setShowDeleteModal(true); }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition" title="Hapus Jadwal">
+                        <FontAwesomeIcon icon={faTrash} className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
+                        <span className="hidden sm:inline">Hapus</span>
+                      </button>
+
                     </td>
                   </tr>
                   ))

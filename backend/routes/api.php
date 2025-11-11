@@ -37,6 +37,7 @@ use App\Http\Controllers\JadwalPraktikumController;
 use App\Http\Controllers\JadwalJurnalReadingController;
 use App\Http\Controllers\JadwalHarianController;
 use App\Http\Controllers\ProportionalDistributionController;
+use App\Http\Controllers\WhatsAppController;
 
 
 Route::post('/login', [AuthController::class, 'login']);
@@ -57,7 +58,7 @@ Route::middleware(['auth:sanctum', 'validate.token'])->get('/profile', function 
     ]);
 });
 Route::middleware(['auth:sanctum', 'validate.token'])->put('/profile', [AuthController::class, 'updateProfile']);
-
+Route::middleware(['auth:sanctum', 'validate.token'])->get('/profile/check-availability', [AuthController::class, 'checkAvailability']);
 Route::middleware(['auth:sanctum', 'validate.token'])->post('/profile/avatar', [AuthController::class, 'updateAvatar']);
 
 Route::middleware(['auth:sanctum', 'validate.token'])->get('/users/search', [UserController::class, 'search']);
@@ -124,6 +125,8 @@ Route::middleware('auth:sanctum')->prefix('reporting')->group(function () {
     Route::get('/export', [ReportingController::class, 'export']);
     Route::get('/dosen-csr', [ReportingController::class, 'dosenCsrReport']);
     Route::get('/dosen-pbl', [ReportingController::class, 'dosenPblReport']);
+    Route::get('/jadwal-all', [ReportingController::class, 'jadwalAll']);
+    Route::get('/blok-data-excel', [ReportingController::class, 'getBlokDataForExcel']);
 });
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -315,6 +318,9 @@ Route::middleware('auth:sanctum')->get('/jadwal-non-blok-non-csr/{id}', [App\Htt
 Route::middleware('auth:sanctum')->get('/jadwal-non-blok-non-csr/dosen/{dosenId}', [App\Http\Controllers\JadwalNonBlokNonCSRController::class, 'getJadwalForDosen']);
 Route::middleware('auth:sanctum')->put('/jadwal-non-blok-non-csr/{id}/konfirmasi', [App\Http\Controllers\JadwalNonBlokNonCSRController::class, 'konfirmasiJadwal']);
 Route::middleware('auth:sanctum')->post('/jadwal-non-blok-non-csr/{id}/reschedule', [App\Http\Controllers\JadwalNonBlokNonCSRController::class, 'reschedule']);
+
+// Jadwal Hari Ini untuk dosen
+Route::middleware('auth:sanctum')->get('/dosen/{dosenId}/today-schedule', [App\Http\Controllers\JadwalHarianController::class, 'getTodayScheduleForDosen']);
 
 Route::middleware('auth:sanctum')->prefix('mata-kuliah/{kode}/kelompok/{kelompok}/pertemuan/{pertemuan}')->group(function () {
     Route::get('penilaian-pbl', [App\Http\Controllers\PenilaianPBLController::class, 'index']);
@@ -657,3 +663,23 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/users/{id}/email-status', [UserController::class, 'getEmailStatus']);
     Route::put('/users/{id}/verify-email', [UserController::class, 'verifyEmail']);
 });
+
+// Report routes untuk export Excel
+Route::get('/report/export-excel-non-blok', [App\Http\Controllers\ReportController::class, 'exportExcelNonBlok']);
+
+// WhatsApp routes
+Route::middleware(['auth:sanctum', 'validate.token'])->group(function () {
+    Route::post('/whatsapp/send', [WhatsAppController::class, 'sendMessage']);
+    Route::get('/whatsapp/logs', [WhatsAppController::class, 'getLogs']);
+    Route::post('/whatsapp/test', [WhatsAppController::class, 'testConnection']);
+    Route::get('/whatsapp/test', [WhatsAppController::class, 'testConnection']); // GET juga untuk mudah di-test dari browser
+    Route::get('/whatsapp/device', [WhatsAppController::class, 'checkDevice']); // Cek status device
+    Route::get('/whatsapp/report', [WhatsAppController::class, 'getReport']); // Laporan pesan
+    Route::get('/whatsapp/report-realtime', [WhatsAppController::class, 'getReportRealtime']); // Laporan realtime
+    Route::get('/whatsapp/contacts', [WhatsAppController::class, 'getContacts']); // List contact
+    Route::get('/whatsapp/settings', [WhatsAppController::class, 'getSettings']); // Get settings
+    Route::put('/whatsapp/settings', [WhatsAppController::class, 'updateSettings']); // Update settings
+});
+
+// Webhook untuk Wablas (tidak perlu auth karena dari external service)
+Route::post('/whatsapp/webhook', [WhatsAppController::class, 'webhook']);

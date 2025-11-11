@@ -71,6 +71,14 @@ class JadwalCSRController extends Controller
                 'kelompok_kecil_id' => 'required|exists:kelompok_kecil,id',
                 'kategori_id' => 'required|exists:csrs,id',
                 'topik' => 'required|string',
+                'status_konfirmasi' => 'belum_konfirmasi',
+                // SIAKAD fields
+                'siakad_kurikulum' => 'nullable|string',
+                'siakad_kode_mk' => 'nullable|string',
+                'siakad_nama_kelas' => 'nullable|string',
+                'siakad_jenis_pertemuan' => 'nullable|string',
+                'siakad_metode' => 'nullable|string',
+                'siakad_dosen_pengganti' => 'nullable|string',
             ]);
 
             // Validasi kapasitas ruangan
@@ -102,6 +110,13 @@ class JadwalCSRController extends Controller
                 'kelompok_kecil_id' => $request->kelompok_kecil_id,
                 'kategori_id' => $request->kategori_id,
                 'topik' => $request->topik,
+                // SIAKAD fields
+                'siakad_kurikulum' => $request->siakad_kurikulum,
+                'siakad_kode_mk' => $request->siakad_kode_mk,
+                'siakad_nama_kelas' => $request->siakad_nama_kelas,
+                'siakad_jenis_pertemuan' => $request->siakad_jenis_pertemuan,
+                'siakad_metode' => $request->siakad_metode,
+                'siakad_dosen_pengganti' => $request->siakad_dosen_pengganti,
             ]);
 
 
@@ -186,6 +201,13 @@ class JadwalCSRController extends Controller
                 'kelompok_kecil_id' => 'required|exists:kelompok_kecil,id',
                 'kategori_id' => 'required|exists:csrs,id',
                 'topik' => 'required|string',
+                // SIAKAD fields
+                'siakad_kurikulum' => 'nullable|string',
+                'siakad_kode_mk' => 'nullable|string',
+                'siakad_nama_kelas' => 'nullable|string',
+                'siakad_jenis_pertemuan' => 'nullable|string',
+                'siakad_metode' => 'nullable|string',
+                'siakad_dosen_pengganti' => 'nullable|string',
             ]);
 
             $jadwalCSR = JadwalCSR::where('mata_kuliah_kode', $kode)->findOrFail($id);
@@ -217,6 +239,13 @@ class JadwalCSRController extends Controller
                 'kelompok_kecil_id' => $request->kelompok_kecil_id,
                 'kategori_id' => $request->kategori_id,
                 'topik' => $request->topik,
+                // SIAKAD fields
+                'siakad_kurikulum' => $request->siakad_kurikulum,
+                'siakad_kode_mk' => $request->siakad_kode_mk,
+                'siakad_nama_kelas' => $request->siakad_nama_kelas,
+                'siakad_jenis_pertemuan' => $request->siakad_jenis_pertemuan,
+                'siakad_metode' => $request->siakad_metode,
+                'siakad_dosen_pengganti' => $request->siakad_dosen_pengganti,
             ];
 
             $jadwalCSR->update($updateData);
@@ -1264,6 +1293,13 @@ class JadwalCSRController extends Controller
                 'data.*.kategori_id' => 'required|integer|exists:csrs,id',
                 'data.*.dosen_id' => 'required|integer|exists:users,id',
                 'data.*.ruangan_id' => 'required|integer|exists:ruangan,id',
+                // SIAKAD fields
+                'data.*.siakad_kurikulum' => 'nullable|string',
+                'data.*.siakad_kode_mk' => 'nullable|string',
+                'data.*.siakad_nama_kelas' => 'nullable|string',
+                'data.*.siakad_jenis_pertemuan' => 'nullable|string',
+                'data.*.siakad_metode' => 'nullable|string',
+                'data.*.siakad_dosen_pengganti' => 'nullable|string',
             ]);
 
             $data = $request->input('data');
@@ -1357,6 +1393,13 @@ class JadwalCSRController extends Controller
                         'kategori_id' => $row['kategori_id'],
                         'dosen_id' => $row['dosen_id'],
                         'ruangan_id' => $row['ruangan_id'],
+                        // SIAKAD fields
+                        'siakad_kurikulum' => $row['siakad_kurikulum'] ?? null,
+                        'siakad_kode_mk' => $row['siakad_kode_mk'] ?? null,
+                        'siakad_nama_kelas' => $row['siakad_nama_kelas'] ?? null,
+                        'siakad_jenis_pertemuan' => $row['siakad_jenis_pertemuan'] ?? null,
+                        'siakad_metode' => $row['siakad_metode'] ?? null,
+                        'siakad_dosen_pengganti' => $row['siakad_dosen_pengganti'] ?? null,
                     ]);
 
                     // Kirim notifikasi ke dosen yang di-assign

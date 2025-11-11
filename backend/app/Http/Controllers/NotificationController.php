@@ -5,12 +5,21 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Notification;
 use App\Models\User;
+use App\Models\WhatsAppConversation;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
+use App\Services\WablasService;
 
 class NotificationController extends Controller
 {
+    protected $wablasService;
+
+    public function __construct(WablasService $wablasService)
+    {
+        $this->wablasService = $wablasService;
+    }
     /**
      * Get notifications for a specific user (dosen)
      */
@@ -1485,6 +1494,7 @@ class NotificationController extends Controller
 
         try {
             $reminderCount = 0;
+            $whatsappMessages = []; // Collect WhatsApp messages for bulk sending
             $jadwalTypes = ['pbl', 'kuliah_besar', 'praktikum', 'jurnal_reading', 'csr', 'non_blok_non_csr'];
 
             // Get filter parameters
@@ -1495,21 +1505,68 @@ class NotificationController extends Controller
             foreach ($jadwalTypes as $jadwalType) {
                 // Send unconfirmed reminders
                 if ($reminderType === 'all' || $reminderType === 'unconfirmed') {
-                    $reminderCount += $this->sendReminderForJadwalType($jadwalType, 'unconfirmed', $semester, $blok);
+                    $result = $this->sendReminderForJadwalType($jadwalType, 'unconfirmed', $semester, $blok);
+                    $reminderCount += $result['count'];
+                    $whatsappMessages = array_merge($whatsappMessages, $result['whatsapp_messages']);
                 }
 
                 // Send upcoming reminders
                 if ($reminderType === 'all' || $reminderType === 'upcoming') {
-                    $reminderCount += $this->sendReminderForJadwalType($jadwalType, 'upcoming', $semester, $blok);
+                    $result = $this->sendReminderForJadwalType($jadwalType, 'upcoming', $semester, $blok);
+                    $reminderCount += $result['count'];
+                    $whatsappMessages = array_merge($whatsappMessages, $result['whatsapp_messages']);
                 }
             }
 
+            // Send WhatsApp messages in bulk (batch of 100)
+            $whatsappSent = 0;
+            $whatsappErrors = [];
+            if (!empty($whatsappMessages)) {
+                $batches = array_chunk($whatsappMessages, 100);
+                foreach ($batches as $batchIndex => $batch) {
+                    try {
+                        $result = $this->wablasService->sendBulkMessage($batch);
+                        if ($result && $result['success']) {
+                            $whatsappSent += count($batch);
+                        } else {
+                            // Log error but continue processing
+                            $whatsappErrors[] = "Batch " . ($batchIndex + 1) . ": " . ($result['error'] ?? 'Unknown error');
+                            \Log::warning('WhatsApp bulk send failed for batch', [
+                                'batch_index' => $batchIndex + 1,
+                                'batch_size' => count($batch),
+                                'result' => $result,
+                            ]);
+                        }
+                    } catch (\Exception $e) {
+                        // Log error but continue processing other batches
+                        $whatsappErrors[] = "Batch " . ($batchIndex + 1) . ": " . $e->getMessage();
+                        \Log::error('Error sending WhatsApp batch', [
+                            'batch_index' => $batchIndex + 1,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+            }
+
+            // Return success even if some WhatsApp messages failed (notifications were created)
+            $responseMessage = "Notifikasi pengingat berhasil dikirim ke {$reminderCount} dosen";
+            if ($whatsappSent > 0) {
+                $responseMessage .= " ({$whatsappSent} via WhatsApp)";
+            }
+            if (!empty($whatsappErrors)) {
+                $responseMessage .= ". Beberapa pesan WhatsApp gagal dikirim.";
+            }
+
             return response()->json([
-                'message' => "Notifikasi pengingat berhasil dikirim ke {$reminderCount} dosen",
-                'reminder_count' => $reminderCount
-            ]);
+                'message' => $responseMessage,
+                'reminder_count' => $reminderCount,
+                'whatsapp_sent' => $whatsappSent,
+                'whatsapp_errors' => $whatsappErrors
+            ], 200);
         } catch (\Exception $e) {
-            \Log::error('Error sending reminder notifications: ' . $e->getMessage());
+            \Log::error('Error sending reminder notifications: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
             return response()->json([
                 'message' => 'Gagal mengirim notifikasi pengingat',
                 'error' => $e->getMessage()
@@ -1523,29 +1580,45 @@ class NotificationController extends Controller
     private function sendReminderForJadwalType($jadwalType, $reminderType = 'unconfirmed', $semester = null, $blok = null)
     {
         $reminderCount = 0;
+        $whatsappMessages = [];
 
         switch ($jadwalType) {
             case 'pbl':
-                $reminderCount += $this->sendPBLReminders($reminderType, $semester, $blok);
+                $result = $this->sendPBLReminders($reminderType, $semester, $blok);
+                $reminderCount += $result['count'];
+                $whatsappMessages = array_merge($whatsappMessages, $result['whatsapp_messages']);
                 break;
             case 'kuliah_besar':
-                $reminderCount += $this->sendKuliahBesarReminders($reminderType, $semester, $blok);
+                $result = $this->sendKuliahBesarReminders($reminderType, $semester, $blok);
+                $reminderCount += $result['count'];
+                $whatsappMessages = array_merge($whatsappMessages, $result['whatsapp_messages']);
                 break;
             case 'praktikum':
-                $reminderCount += $this->sendPraktikumReminders($reminderType, $semester, $blok);
+                $result = $this->sendPraktikumReminders($reminderType, $semester, $blok);
+                $reminderCount += $result['count'];
+                $whatsappMessages = array_merge($whatsappMessages, $result['whatsapp_messages']);
                 break;
             case 'jurnal_reading':
-                $reminderCount += $this->sendJurnalReadingReminders($reminderType, $semester, $blok);
+                $result = $this->sendJurnalReadingReminders($reminderType, $semester, $blok);
+                $reminderCount += $result['count'];
+                $whatsappMessages = array_merge($whatsappMessages, $result['whatsapp_messages']);
                 break;
             case 'csr':
-                $reminderCount += $this->sendCSRReminders($reminderType, $semester, $blok);
+                $result = $this->sendCSRReminders($reminderType, $semester, $blok);
+                $reminderCount += $result['count'];
+                $whatsappMessages = array_merge($whatsappMessages, $result['whatsapp_messages']);
                 break;
             case 'non_blok_non_csr':
-                $reminderCount += $this->sendNonBlokNonCSRReminders($reminderType, $semester, $blok);
+                $result = $this->sendNonBlokNonCSRReminders($reminderType, $semester, $blok);
+                $reminderCount += $result['count'];
+                $whatsappMessages = array_merge($whatsappMessages, $result['whatsapp_messages']);
                 break;
         }
 
-        return $reminderCount;
+        return [
+            'count' => $reminderCount,
+            'whatsapp_messages' => $whatsappMessages
+        ];
     }
 
     /**
@@ -1554,6 +1627,7 @@ class NotificationController extends Controller
     private function sendPBLReminders($reminderType = 'unconfirmed', $semester = null, $blok = null)
     {
         $reminderCount = 0;
+        $whatsappMessages = [];
 
         // Get PBL schedules based on reminder type
         $query = \App\Models\JadwalPBL::with(['mataKuliah', 'ruangan', 'dosen']);
@@ -1595,6 +1669,9 @@ class NotificationController extends Controller
                 if ($dosen) {
                     // Check if dosen has valid email
                     $hasValidEmail = !empty($dosen->email) && filter_var($dosen->email, FILTER_VALIDATE_EMAIL);
+                    
+                    // Check if dosen has valid WhatsApp phone (verification)
+                    $hasValidWhatsApp = !empty($dosen->whatsapp_phone) && preg_match('/^62\d+$/', $dosen->whatsapp_phone);
 
                     // Create reminder notification based on type
                     if ($reminderType === 'unconfirmed') {
@@ -1635,12 +1712,27 @@ class NotificationController extends Controller
                         $this->sendEmailReminderConsistent($dosen, 'PBL', $jadwal, $reminderType);
                     }
 
+                    // Prepare WhatsApp message if dosen has valid WhatsApp phone
+                    if ($hasValidWhatsApp) {
+                        // Send text message (both unconfirmed and upcoming use same approach)
+                        $whatsappMessage = $this->buildWhatsAppMessageContent($dosen, 'PBL', $jadwal, $reminderType);
+                        $whatsappMessages[] = [
+                            'phone' => $dosen->whatsapp_phone,
+                            'message' => $whatsappMessage,
+                            'isGroup' => 'false',
+                            'ref_id' => "reminder_pbl_{$jadwal->id}_{$dosen->id}_{$reminderType}"
+                        ];
+                    }
+
                     $reminderCount++;
                 }
             }
         }
 
-        return $reminderCount;
+        return [
+            'count' => $reminderCount,
+            'whatsapp_messages' => $whatsappMessages
+        ];
     }
 
     /**
@@ -1649,6 +1741,7 @@ class NotificationController extends Controller
     private function sendKuliahBesarReminders($reminderType = 'unconfirmed', $semester = null, $blok = null)
     {
         $reminderCount = 0;
+        $whatsappMessages = [];
 
         // Get Kuliah Besar schedules based on reminder type
         $query = \App\Models\JadwalKuliahBesar::with(['mataKuliah', 'ruangan', 'dosen']);
@@ -1690,6 +1783,9 @@ class NotificationController extends Controller
                 if ($dosen) {
                     // Check if dosen has valid email
                     $hasValidEmail = !empty($dosen->email) && filter_var($dosen->email, FILTER_VALIDATE_EMAIL);
+                    
+                    // Check if dosen has valid WhatsApp phone (verification)
+                    $hasValidWhatsApp = !empty($dosen->whatsapp_phone) && preg_match('/^62\d+$/', $dosen->whatsapp_phone);
 
                     // Create reminder notification based on type
                     if ($reminderType === 'unconfirmed') {
@@ -1729,12 +1825,27 @@ class NotificationController extends Controller
                         $this->sendEmailReminderConsistent($dosen, 'Kuliah Besar', $jadwal, $reminderType);
                     }
 
+                    // Prepare WhatsApp message if dosen has valid WhatsApp phone
+                    if ($hasValidWhatsApp) {
+                        // Send text message (both unconfirmed and upcoming use same approach)
+                        $whatsappMessage = $this->buildWhatsAppMessageContent($dosen, 'Kuliah Besar', $jadwal, $reminderType);
+                        $whatsappMessages[] = [
+                            'phone' => $dosen->whatsapp_phone,
+                            'message' => $whatsappMessage,
+                            'isGroup' => 'false',
+                            'ref_id' => "reminder_kuliah_besar_{$jadwal->id}_{$dosen->id}_{$reminderType}"
+                        ];
+                    }
+
                     $reminderCount++;
                 }
             }
         }
 
-        return $reminderCount;
+        return [
+            'count' => $reminderCount,
+            'whatsapp_messages' => $whatsappMessages
+        ];
     }
 
     /**
@@ -1743,6 +1854,7 @@ class NotificationController extends Controller
     private function sendPraktikumReminders($reminderType = 'unconfirmed', $semester = null, $blok = null)
     {
         $reminderCount = 0;
+        $whatsappMessages = [];
 
         // Get Praktikum schedules based on reminder type
         $query = \App\Models\JadwalPraktikum::with(['mataKuliah', 'ruangan', 'dosen']);
@@ -1792,6 +1904,9 @@ class NotificationController extends Controller
             foreach ($dosenList as $dosen) {
                 // Check if dosen has valid email
                 $hasValidEmail = !empty($dosen->email) && filter_var($dosen->email, FILTER_VALIDATE_EMAIL);
+                
+                // Check if dosen has valid WhatsApp phone (verification)
+                $hasValidWhatsApp = !empty($dosen->whatsapp_phone) && preg_match('/^62\d+$/', $dosen->whatsapp_phone);
 
                 // Create reminder notification based on type
                 if ($reminderType === 'unconfirmed') {
@@ -1831,11 +1946,26 @@ class NotificationController extends Controller
                     $this->sendEmailReminderConsistent($dosen, 'Praktikum', $jadwal, $reminderType);
                 }
 
+                // Prepare WhatsApp message if dosen has valid WhatsApp phone
+                if ($hasValidWhatsApp) {
+                    // Send text message (both unconfirmed and upcoming use same approach)
+                    $whatsappMessage = $this->buildWhatsAppMessageContent($dosen, 'Praktikum', $jadwal, $reminderType);
+                    $whatsappMessages[] = [
+                        'phone' => $dosen->whatsapp_phone,
+                        'message' => $whatsappMessage,
+                        'isGroup' => 'false',
+                        'ref_id' => "reminder_praktikum_{$jadwal->id}_{$dosen->id}_{$reminderType}"
+                    ];
+                }
+
                 $reminderCount++;
             }
         }
 
-        return $reminderCount;
+        return [
+            'count' => $reminderCount,
+            'whatsapp_messages' => $whatsappMessages
+        ];
     }
 
     /**
@@ -1844,6 +1974,7 @@ class NotificationController extends Controller
     private function sendJurnalReadingReminders($reminderType = 'unconfirmed', $semester = null, $blok = null)
     {
         $reminderCount = 0;
+        $whatsappMessages = [];
 
         // Get Jurnal Reading schedules based on reminder type
         $query = \App\Models\JadwalJurnalReading::with(['mataKuliah', 'ruangan', 'dosen']);
@@ -1885,6 +2016,9 @@ class NotificationController extends Controller
                 if ($dosen) {
                     // Check if dosen has valid email
                     $hasValidEmail = !empty($dosen->email) && filter_var($dosen->email, FILTER_VALIDATE_EMAIL);
+                    
+                    // Check if dosen has valid WhatsApp phone (verification)
+                    $hasValidWhatsApp = !empty($dosen->whatsapp_phone) && preg_match('/^62\d+$/', $dosen->whatsapp_phone);
 
                     // Create reminder notification based on type
                     if ($reminderType === 'unconfirmed') {
@@ -1924,12 +2058,27 @@ class NotificationController extends Controller
                         $this->sendEmailReminderConsistent($dosen, 'Jurnal Reading', $jadwal, $reminderType);
                     }
 
+                    // Prepare WhatsApp message if dosen has valid WhatsApp phone
+                    if ($hasValidWhatsApp) {
+                        // Send text message (both unconfirmed and upcoming use same approach)
+                        $whatsappMessage = $this->buildWhatsAppMessageContent($dosen, 'Jurnal Reading', $jadwal, $reminderType);
+                        $whatsappMessages[] = [
+                            'phone' => $dosen->whatsapp_phone,
+                            'message' => $whatsappMessage,
+                            'isGroup' => 'false',
+                            'ref_id' => "reminder_jurnal_reading_{$jadwal->id}_{$dosen->id}_{$reminderType}"
+                        ];
+                    }
+
                     $reminderCount++;
                 }
             }
         }
 
-        return $reminderCount;
+        return [
+            'count' => $reminderCount,
+            'whatsapp_messages' => $whatsappMessages
+        ];
     }
 
     /**
@@ -1938,6 +2087,7 @@ class NotificationController extends Controller
     private function sendCSRReminders($reminderType = 'unconfirmed', $semester = null, $blok = null)
     {
         $reminderCount = 0;
+        $whatsappMessages = [];
 
         // Get CSR schedules based on reminder type
         $query = \App\Models\JadwalCSR::with(['kategori', 'ruangan', 'dosen']);
@@ -1979,6 +2129,9 @@ class NotificationController extends Controller
                 if ($dosen) {
                     // Check if dosen has valid email
                     $hasValidEmail = !empty($dosen->email) && filter_var($dosen->email, FILTER_VALIDATE_EMAIL);
+                    
+                    // Check if dosen has valid WhatsApp phone (verification)
+                    $hasValidWhatsApp = !empty($dosen->whatsapp_phone) && preg_match('/^62\d+$/', $dosen->whatsapp_phone);
 
                     // Create reminder notification based on type
                     if ($reminderType === 'unconfirmed') {
@@ -2018,12 +2171,27 @@ class NotificationController extends Controller
                         $this->sendEmailReminderConsistent($dosen, 'CSR', $jadwal, $reminderType);
                     }
 
+                    // Prepare WhatsApp message if dosen has valid WhatsApp phone
+                    if ($hasValidWhatsApp) {
+                        // Send text message (both unconfirmed and upcoming use same approach)
+                        $whatsappMessage = $this->buildWhatsAppMessageContent($dosen, 'CSR', $jadwal, $reminderType);
+                        $whatsappMessages[] = [
+                            'phone' => $dosen->whatsapp_phone,
+                            'message' => $whatsappMessage,
+                            'isGroup' => 'false',
+                            'ref_id' => "reminder_csr_{$jadwal->id}_{$dosen->id}_{$reminderType}"
+                        ];
+                    }
+
                     $reminderCount++;
                 }
             }
         }
 
-        return $reminderCount;
+        return [
+            'count' => $reminderCount,
+            'whatsapp_messages' => $whatsappMessages
+        ];
     }
 
     /**
@@ -2032,6 +2200,7 @@ class NotificationController extends Controller
     private function sendNonBlokNonCSRReminders($reminderType = 'unconfirmed', $semester = null, $blok = null)
     {
         $reminderCount = 0;
+        $whatsappMessages = [];
 
         // Get Non Blok Non CSR schedules based on reminder type
         $query = \App\Models\JadwalNonBlokNonCSR::with(['mataKuliah', 'ruangan', 'dosen']);
@@ -2073,6 +2242,9 @@ class NotificationController extends Controller
                 if ($dosen) {
                     // Check if dosen has valid email
                     $hasValidEmail = !empty($dosen->email) && filter_var($dosen->email, FILTER_VALIDATE_EMAIL);
+                    
+                    // Check if dosen has valid WhatsApp phone (verification)
+                    $hasValidWhatsApp = !empty($dosen->whatsapp_phone) && preg_match('/^62\d+$/', $dosen->whatsapp_phone);
 
                     // Create reminder notification based on type
                     if ($reminderType === 'unconfirmed') {
@@ -2112,12 +2284,27 @@ class NotificationController extends Controller
                         $this->sendEmailReminderConsistent($dosen, 'Non Blok Non CSR', $jadwal, $reminderType);
                     }
 
+                    // Prepare WhatsApp message if dosen has valid WhatsApp phone
+                    if ($hasValidWhatsApp) {
+                        // Send text message (both unconfirmed and upcoming use same approach)
+                        $whatsappMessage = $this->buildWhatsAppMessageContent($dosen, 'Non Blok Non CSR', $jadwal, $reminderType);
+                        $whatsappMessages[] = [
+                            'phone' => $dosen->whatsapp_phone,
+                            'message' => $whatsappMessage,
+                            'isGroup' => 'false',
+                            'ref_id' => "reminder_non_blok_non_csr_{$jadwal->id}_{$dosen->id}_{$reminderType}"
+                        ];
+                    }
+
                     $reminderCount++;
                 }
             }
         }
 
-        return $reminderCount;
+        return [
+            'count' => $reminderCount,
+            'whatsapp_messages' => $whatsappMessages
+        ];
     }
 
     /**
@@ -2242,6 +2429,7 @@ class NotificationController extends Controller
                             'name' => $jadwal->dosen->name,
                             'email' => $jadwal->dosen->email,
                             'email_verified' => $jadwal->dosen->email_verified ?? false,
+                            'whatsapp_phone' => $jadwal->dosen->whatsapp_phone ?? null,
                             'jadwal_type' => 'PBL',
                             'mata_kuliah' => $jadwal->mataKuliah->nama,
                             'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
@@ -2324,6 +2512,7 @@ class NotificationController extends Controller
                             'name' => $dosen->name,
                             'email' => $dosen->email,
                             'email_verified' => $dosen->email_verified ?? false,
+                            'whatsapp_phone' => $dosen->whatsapp_phone ?? null,
                             'jadwal_type' => 'Praktikum',
                             'mata_kuliah' => $jadwal->mataKuliah->nama,
                             'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
@@ -2489,6 +2678,7 @@ class NotificationController extends Controller
                             'name' => $jadwal->dosen->name,
                             'email' => $jadwal->dosen->email,
                             'email_verified' => $jadwal->dosen->email_verified ?? false,
+                            'whatsapp_phone' => $jadwal->dosen->whatsapp_phone ?? null,
                             'jadwal_type' => 'PBL',
                             'mata_kuliah' => $jadwal->mataKuliah->nama,
                             'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
@@ -2590,6 +2780,7 @@ class NotificationController extends Controller
                             'name' => $dosen->name,
                             'email' => $dosen->email,
                             'email_verified' => $dosen->email_verified ?? false,
+                            'whatsapp_phone' => $dosen->whatsapp_phone ?? null,
                             'jadwal_type' => 'Praktikum',
                             'mata_kuliah' => $jadwal->mataKuliah->nama,
                             'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
@@ -2790,6 +2981,202 @@ class NotificationController extends Controller
         } catch (\Exception $e) {
             \Log::error("Failed to send email reminder to {$dosen->name}: " . $e->getMessage());
         }
+    }
+
+    /**
+     * Send schedule list notification via WhatsApp
+     * This sends a list message with "Konfirmasi" and "Reschedule" options
+     * Note: Detail jadwal sudah dikirim di pesan sebelumnya
+     */
+    private function sendScheduleButtonNotification($dosen, $jadwalTypeDisplay, $jadwal, $jadwalTypeCode)
+    {
+        try {
+            if (!$this->wablasService->isEnabled()) {
+                Log::warning('Wablas service tidak aktif, skip pengiriman list notification');
+                return;
+            }
+
+            // Build list message
+            $title = "Konfirmasi Kesediaan Jadwal";
+            $description = "Silakan pilih salah satu opsi untuk konfirmasi kesediaan jadwal mengajar Anda:";
+            $buttonText = "Pilih Opsi";
+            
+            // Build lists
+            $lists = [
+                [
+                    'title' => 'Konfirmasi',
+                    'description' => 'Konfirmasi kesediaan jadwal mengajar',
+                ],
+                [
+                    'title' => 'Reschedule',
+                    'description' => 'Ajukan perubahan jadwal mengajar',
+                ],
+            ];
+
+            $footer = "Sistem ISME FKK - Fakultas Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta";
+
+            // Handle different jadwal types (CSR uses kategori, others use mataKuliah)
+            $mataKuliahNama = $jadwal->mataKuliah->nama ?? $jadwal->kategori->nama ?? 'N/A';
+
+            // Send list message
+            $result = $this->wablasService->sendListMessage(
+                $dosen->whatsapp_phone,
+                $title,
+                $description,
+                $buttonText,
+                $lists,
+                $footer,
+                [
+                    'ref_id' => "list_{$jadwalTypeCode}_{$jadwal->id}_{$dosen->id}"
+                ]
+            );
+
+            if ($result && $result['success']) {
+                // Create conversation record to track list interaction
+                WhatsAppConversation::create([
+                    'user_id' => $dosen->id,
+                    'phone' => $dosen->whatsapp_phone,
+                    'jadwal_id' => $jadwal->id,
+                    'jadwal_type' => $jadwalTypeCode,
+                    'state' => 'waiting_button',
+                    'last_message' => $description,
+                    'metadata' => [
+                        'jadwal_info' => "{$jadwalTypeDisplay}: {$mataKuliahNama} - " . date('d/m/Y', strtotime($jadwal->tanggal)) . " " . str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                        'message_id' => $result['message_id'] ?? null,
+                    ],
+                    'expires_at' => now()->addHours(24), // Conversation expires in 24 hours
+                ]);
+
+                Log::info("List notification sent successfully", [
+                    'dosen_id' => $dosen->id,
+                    'jadwal_id' => $jadwal->id,
+                    'jadwal_type' => $jadwalTypeCode,
+                    'message_id' => $result['message_id'] ?? null,
+                ]);
+            } else {
+                // Fallback: jika list message gagal, kirim text message dengan instruksi
+                Log::warning("List message failed, sending fallback text message", [
+                    'dosen_id' => $dosen->id,
+                    'jadwal_id' => $jadwal->id,
+                    'jadwal_type' => $jadwalTypeCode,
+                    'result' => $result,
+                ]);
+                
+                // Kirim text message sebagai fallback
+                $fallbackMessage = "{$title}\n\n{$description}\n\n";
+                $fallbackMessage .= "Silakan balas dengan:\n";
+                $fallbackMessage .= "• Ketik 'KONFIRMASI' untuk konfirmasi kesediaan\n";
+                $fallbackMessage .= "• Ketik 'RESCHEDULE' untuk ajukan perubahan jadwal\n\n";
+                $fallbackMessage .= $footer;
+                
+                $fallbackResult = $this->wablasService->sendMessage($dosen->whatsapp_phone, $fallbackMessage);
+                
+                if ($fallbackResult && $fallbackResult['success']) {
+                    // Create conversation record untuk text fallback
+                    WhatsAppConversation::create([
+                        'user_id' => $dosen->id,
+                        'phone' => $dosen->whatsapp_phone,
+                        'jadwal_id' => $jadwal->id,
+                        'jadwal_type' => $jadwalTypeCode,
+                        'state' => 'waiting_button',
+                        'last_message' => $fallbackMessage,
+                        'metadata' => [
+                            'jadwal_info' => "{$jadwalTypeDisplay}: {$mataKuliahNama} - " . date('d/m/Y', strtotime($jadwal->tanggal)) . " " . str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                            'message_id' => $fallbackResult['message_id'] ?? null,
+                            'is_fallback' => true,
+                        ],
+                        'expires_at' => now()->addHours(24),
+                    ]);
+                    
+                    Log::info("Fallback text message sent successfully", [
+                        'dosen_id' => $dosen->id,
+                        'jadwal_id' => $jadwal->id,
+                    ]);
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error('Error sending schedule list notification', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'dosen_id' => $dosen->id ?? null,
+                'jadwal_id' => $jadwal->id ?? null,
+                'jadwal_type' => $jadwalTypeCode,
+            ]);
+        }
+    }
+
+    /**
+     * Build WhatsApp message content for reminder (mirip dengan email template)
+     */
+    private function buildWhatsAppMessageContent($dosen, $jadwalType, $jadwal, $reminderType = 'unconfirmed')
+    {
+        $greeting = "Halo {$dosen->name},";
+        
+        if ($reminderType === 'unconfirmed') {
+            $intro = "Ini adalah pengingat untuk konfirmasi kesediaan jadwal mengajar Anda.";
+        } else { // upcoming
+            $intro = "Ini adalah pengingat untuk persiapan mengajar jadwal Anda yang akan datang.";
+        }
+
+        // Build detail jadwal
+        $details = "📋 *Detail Jadwal {$jadwalType}*\n\n";
+        
+        // Handle different jadwal types (CSR uses kategori, others use mataKuliah)
+        $mataKuliahNama = $jadwal->mataKuliah->nama ?? $jadwal->kategori->nama ?? 'N/A';
+        $details .= "• *Jadwal:* {$mataKuliahNama}\n";
+        $details .= "• *Tanggal:* " . date('d/m/Y', strtotime($jadwal->tanggal)) . "\n";
+        $details .= "• *Waktu:* " . str_replace(':', '.', $jadwal->jam_mulai) . " - " . str_replace(':', '.', $jadwal->jam_selesai) . "\n";
+        
+        // Semester & Blok - handle both mataKuliah and kategori
+        if (isset($jadwal->mataKuliah) && $jadwal->mataKuliah) {
+            $details .= "• *Semester & Blok:* Semester {$jadwal->mataKuliah->semester}";
+            if ($jadwal->mataKuliah->blok) {
+                $details .= " - Blok {$jadwal->mataKuliah->blok}";
+            }
+            $details .= "\n";
+        } elseif (isset($jadwal->kategori) && $jadwal->kategori) {
+            $details .= "• *Semester & Blok:* Semester {$jadwal->kategori->semester}";
+            if ($jadwal->kategori->blok) {
+                $details .= " - Blok {$jadwal->kategori->blok}";
+            }
+            $details .= "\n";
+        }
+        
+        $details .= "• *Ruangan:* " . ($jadwal->ruangan->nama ?? 'TBD') . "\n";
+        
+        // Additional fields based on jadwal type
+        if (isset($jadwal->topik) && $jadwal->topik) {
+            $details .= "• *Topik:* {$jadwal->topik}\n";
+        }
+        if (isset($jadwal->materi) && $jadwal->materi) {
+            $details .= "• *Materi:* {$jadwal->materi}\n";
+        }
+        if (isset($jadwal->agenda) && $jadwal->agenda) {
+            $details .= "• *Agenda:* {$jadwal->agenda}\n";
+        }
+        if (isset($jadwal->modul) && $jadwal->modul) {
+            $details .= "• *Modul:* {$jadwal->modul}\n";
+        }
+        if (isset($jadwal->tipe_pbl) && $jadwal->tipe_pbl) {
+            $details .= "• *Tipe PBL:* {$jadwal->tipe_pbl}\n";
+        }
+        
+        $details .= "\n• *Status:* " . ($reminderType === 'unconfirmed' ? 'Belum Konfirmasi' : 'Persiapan Mengajar') . "\n";
+        
+        // Action text
+        if ($reminderType === 'unconfirmed') {
+            $action = "Silakan login ke sistem untuk konfirmasi kesediaan Anda:\nhttps://isme.fkkumj.ac.id/";
+        } else {
+            $action = "Silakan persiapkan diri untuk mengajar sesuai jadwal di atas.\n\nAkses sistem: https://isme.fkkumj.ac.id/";
+        }
+        
+        // Footer
+        $footer = "\n\nTerima kasih.\nSistem ISME FKK\nFakultas Kedokteran dan Kesehatan\nUniversitas Muhammadiyah Jakarta";
+        
+        // Combine all parts
+        $message = "{$greeting}\n\n{$intro}\n\n{$details}\n{$action}{$footer}";
+        
+        return $message;
     }
 
     /**

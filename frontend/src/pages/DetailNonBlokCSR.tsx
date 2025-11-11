@@ -8,6 +8,7 @@ import { faPenToSquare, faTrash, faFileExcel, faDownload, faUpload, faExclamatio
 import { AnimatePresence, motion } from 'framer-motion';
 import { getRuanganOptions } from '../utils/ruanganHelper';
 import * as XLSX from 'xlsx';
+import * as ExcelJS from 'exceljs';
 
 // Constants
 const SESSION_DURATION_MINUTES = 50;
@@ -55,6 +56,13 @@ interface JadwalCSR {
   kelompok_kecil_id: number;
   kategori_id: number;
   topik: string;
+  // SIAKAD fields
+  siakad_kurikulum?: string;
+  siakad_kode_mk?: string;
+  siakad_nama_kelas?: string;
+  siakad_jenis_pertemuan?: string;
+  siakad_metode?: string;
+  siakad_dosen_pengganti?: string;
   dosen?: {
     id: number;
     name: string;
@@ -65,6 +73,7 @@ interface JadwalCSR {
     nama: string;
     kapasitas?: number;
     gedung?: string;
+    id_ruangan?: string;
   };
   kelompok_kecil?: {
     id: number;
@@ -104,6 +113,7 @@ interface RuanganOption {
   nama: string;
   kapasitas?: number;
   gedung?: string;
+  id_ruangan?: string;
 }
 
 
@@ -122,7 +132,172 @@ interface JadwalCSRType {
   nama_keahlian?: string;
   nama_dosen?: string;
   nama_ruangan?: string;
+  // SIAKAD fields
+  siakad_kurikulum?: string;
+  siakad_kode_mk?: string;
+  siakad_nama_kelas?: string;
+  siakad_jenis_pertemuan?: string;
+  siakad_metode?: string;
+  siakad_dosen_pengganti?: string;
 }
+
+// ========================================
+// SIAKAD EXPORT CONSTANTS & CONFIGURATION
+// ========================================
+
+// SIAKAD template headers with line breaks for better readability
+const SIAKAD_HEADERS = [
+  'Kurikulum', 'Kode MK', 'Nama Kelas', 'Kelompok\n(Contoh: 1)', 'Topik',
+  'Substansi\n(Lihat Daftar Substansi)', 'Jenis Pertemuan\n(Lihat Daftar Jenis Pertemuan)',
+  'Metode\n(Lihat Daftar Metode)', 'Ruang\n(Lihat Daftar Ruang)', 'NIP Pengajar',
+  'Dosen Pengganti\n(Y jika Ya)', 'Tanggal\n(YYYY-MM-DD)', 'Waktu Mulai\n(Lihat Daftar Waktu Mulai)',
+  'Waktu Selesai\n(Lihat Daftar Waktu Selesai)'
+];
+
+// Column widths optimized for SIAKAD template readability
+const SIAKAD_COLUMN_WIDTHS = [
+  { width: 12 }, { width: 10 }, { width: 12 }, { width: 12 }, { width: 30 }, { width: 22 },
+  { width: 30 }, { width: 25 }, { width: 25 }, { width: 15 }, { width: 18 }, { width: 15 },
+  { width: 28 }, { width: 28 }
+];
+
+// Styling definitions for SIAKAD headers
+const SIAKAD_STYLES = {
+  greenOneLine: {
+    fill: { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FF92D050' } },
+    font: { bold: true, color: { argb: 'FF000000' } },
+    alignment: { horizontal: 'left' as const, vertical: 'top' as const, wrapText: true }
+  },
+  greenTwoLines: {
+    fill: { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FF92D050' } },
+    font: { bold: true, color: { argb: 'FF000000' } },
+    alignment: { horizontal: 'left' as const, vertical: 'middle' as const, wrapText: true }
+  },
+  orangeOneLine: {
+    fill: { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFFFC000' } },
+    font: { bold: true, color: { argb: 'FF000000' } },
+    alignment: { horizontal: 'left' as const, vertical: 'top' as const, wrapText: true }
+  },
+  orangeTwoLines: {
+    fill: { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFFFC000' } },
+    font: { bold: true, color: { argb: 'FF000000' } },
+    alignment: { horizontal: 'left' as const, vertical: 'middle' as const, wrapText: true }
+  }
+};
+
+// Column style mapping for SIAKAD headers
+const SIAKAD_COLUMN_STYLES = {
+  greenOneLine: [1, 2, 3, 5],      // A, B, C, E (Kurikulum, Kode MK, Nama Kelas, Topik)
+  greenTwoLines: [7, 8, 12, 13, 14], // G, H, L, M, N (Jenis Pertemuan, Metode, Tanggal, Waktu Mulai, Waktu Selesai)
+  orangeOneLine: [10],              // J (NIP Pengajar)
+  orangeTwoLines: [4, 6, 9, 11]     // D, F, I, K (Kelompok, Substansi, Ruang, Dosen Pengganti)
+};
+
+// ========================================
+// SIAKAD HELPER FUNCTIONS - REUSABLE & OPTIMIZED
+// ========================================
+/**
+ * Apply SIAKAD styling to worksheet headers
+ * @param worksheet - ExcelJS worksheet object
+ */
+const applySIAKADStyling = (worksheet: any) => {
+  const headerRow = worksheet.getRow(1);
+  headerRow.height = 30;
+
+  // Apply green styling to SIAKAD fields (one line)
+  SIAKAD_COLUMN_STYLES.greenOneLine.forEach(col => {
+    headerRow.getCell(col).style = SIAKAD_STYLES.greenOneLine;
+  });
+
+  // Apply green styling to SIAKAD fields (two lines)
+  SIAKAD_COLUMN_STYLES.greenTwoLines.forEach(col => {
+    headerRow.getCell(col).style = SIAKAD_STYLES.greenTwoLines;
+  });
+
+  // Apply orange styling to system fields (one line)
+  SIAKAD_COLUMN_STYLES.orangeOneLine.forEach(col => {
+    headerRow.getCell(col).style = SIAKAD_STYLES.orangeOneLine;
+  });
+
+  // Apply orange styling to system fields (two lines)
+  SIAKAD_COLUMN_STYLES.orangeTwoLines.forEach(col => {
+    headerRow.getCell(col).style = SIAKAD_STYLES.orangeTwoLines;
+  });
+
+  // Set column widths
+  worksheet.columns = SIAKAD_COLUMN_WIDTHS;
+};
+
+/**
+ * Create information sheet for SIAKAD export
+ * @param workbook - ExcelJS workbook object
+ * @param data - Mata kuliah data
+ * @param jadwalType - Type of schedule (csr, kuliah besar, etc.)
+ * @param jadwalCount - Number of schedules exported
+ */
+const createSIAKADInfoSheet = (workbook: any, data: any, jadwalType: string, jadwalCount: number) => {
+  const infoSheet = workbook.addWorksheet('Informasi');
+  infoSheet.addRow(['INFORMASI EXPORT SIAKAD']);
+  infoSheet.addRow([]);
+  infoSheet.addRow(['Kode Mata Kuliah', data?.kode || '']);
+  infoSheet.addRow(['Nama Mata Kuliah', data?.nama || '']);
+  infoSheet.addRow(['Tanggal Mulai', data?.tanggal_mulai ? new Date(data.tanggal_mulai).toISOString().split('T')[0] : '']);
+  infoSheet.addRow(['Tanggal Akhir', data?.tanggal_akhir ? new Date(data.tanggal_akhir).toISOString().split('T')[0] : '']);
+  infoSheet.addRow(['Kurikulum', data?.kurikulum || '']);
+  infoSheet.addRow(['Jenis', data?.jenis || '']);
+  infoSheet.addRow(['Tipe Non Block', data?.tipe_non_block || '']);
+  infoSheet.addRow(['Durasi Minggu', data?.durasi_minggu || '']);
+  infoSheet.addRow([]);
+  infoSheet.addRow([`TOTAL JADWAL ${jadwalType.toUpperCase()}`, jadwalCount]);
+  infoSheet.addRow([]);
+  infoSheet.addRow(['CATATAN:']);
+  infoSheet.addRow([`• File ini berisi data jadwal ${jadwalType.toLowerCase()} dalam format SIAKAD`]);
+  infoSheet.addRow(['• Header dengan line break pada kolom: Kelompok, Substansi, Jenis Pertemuan, Metode, Ruang, Dosen Pengganti, Tanggal, Waktu Mulai, Waktu Selesai']);
+  infoSheet.addRow([]);
+  infoSheet.addRow(['STYLING HEADER:']);
+  infoSheet.addRow(['• Header HIJAU (kolom yang dibiarkan kosong): Kurikulum, Kode MK, Nama Kelas, Topik, Jenis Pertemuan, Metode, Tanggal, Waktu Mulai, Waktu Selesai']);
+  infoSheet.addRow(['• Header ORANGE (kolom yang diisi dari sistem): Kelompok, Substansi, Ruang, NIP Pengajar, Dosen Pengganti']);
+  infoSheet.addRow(['• Alignment Header:']);
+  infoSheet.addRow(['  - Header satu baris: Rata kiri horizontal, Rata atas vertikal']);
+  infoSheet.addRow(['  - Header dua baris: Rata kiri horizontal, Tengah vertikal']);
+  infoSheet.addRow([]);
+  infoSheet.addRow(['MAPPING DATA:']);
+  infoSheet.addRow(['• Kolom yang diisi dari data asli SIAKAD:']);
+  infoSheet.addRow(['  - Kurikulum ← siakad_kurikulum']);
+  infoSheet.addRow(['  - Kode MK ← siakad_kode_mk']);
+  infoSheet.addRow(['  - Nama Kelas ← siakad_nama_kelas']);
+  infoSheet.addRow(['  - Jenis Pertemuan ← siakad_jenis_pertemuan']);
+  infoSheet.addRow(['  - Metode ← siakad_metode']);
+  infoSheet.addRow(['  - Dosen Pengganti ← siakad_dosen_pengganti']);
+  infoSheet.addRow(['• Kolom yang diisi dari sistem:']);
+  infoSheet.addRow(['  - Kelompok ← nama_kelompok']);
+  infoSheet.addRow(['  - Topik ← topik']);
+  infoSheet.addRow(['  - Substansi ← keahlian (dari kategori)']);
+  infoSheet.addRow(['  - Ruang ← id_ruangan (kode ruangan)']);
+  infoSheet.addRow(['  - NIP Pengajar ← nid (NID dosen)']);
+  infoSheet.addRow(['  - Tanggal ← tanggal']);
+  infoSheet.addRow(['  - Waktu Mulai ← jam_mulai']);
+  infoSheet.addRow(['  - Waktu Selesai ← jam_selesai']);
+  infoSheet.addRow([]);
+  infoSheet.addRow(['• Format tanggal: YYYY-MM-DD']);
+  infoSheet.addRow(['• Format jam: HH:MM']);
+};
+
+/**
+ * Download Excel file to user's device
+ * @param workbook - ExcelJS workbook object
+ * @param filename - Name of the file to download
+ */
+const downloadExcelFile = async (workbook: any, filename: string) => {
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  window.URL.revokeObjectURL(url);
+};
 
 export default function DetailNonBlokCSR() {
   const { kode } = useParams();
@@ -224,6 +399,10 @@ export default function DetailNonBlokCSR() {
   const [showCSRBulkDeleteModal, setShowCSRBulkDeleteModal] = useState(false);
   const [isCSRDeleting, setIsCSRDeleting] = useState(false);
   const [csrSuccess, setCSRSuccess] = useState<string | null>(null);
+
+  // State untuk export Excel CSR
+  const [showCSRExportModal, setShowCSRExportModal] = useState(false);
+  const [selectedCSRExportTemplate, setSelectedCSRExportTemplate] = useState<'APLIKASI' | 'SIAKAD' | null>(null);
 
   function hitungJamSelesai(jamMulai: string, jumlahSesi: number) {
     if (!jamMulai) return '';
@@ -831,7 +1010,14 @@ export default function DetailNonBlokCSR() {
           topik: row.topik,
           kategori_id: row.kategori_id,
           dosen_id: row.dosen_id,
-          ruangan_id: row.ruangan_id
+          ruangan_id: row.ruangan_id,
+          // SIAKAD fields
+          siakad_kurikulum: row.siakad_kurikulum || null,
+          siakad_kode_mk: row.siakad_kode_mk || null,
+          siakad_nama_kelas: row.siakad_nama_kelas || null,
+          siakad_jenis_pertemuan: row.siakad_jenis_pertemuan || null,
+          siakad_metode: row.siakad_metode || null,
+          siakad_dosen_pengganti: row.siakad_dosen_pengganti || null
         };
         
         return transformedRow;
@@ -1159,47 +1345,84 @@ export default function DetailNonBlokCSR() {
         return -1;
       };
 
-      const tanggalIdx = findColumnIndex(['tanggal', 'date']);
-      const jamMulaiIdx = findColumnIndex(['waktu mulai', 'waktumulai', 'jam mulai', 'jammulai']);
-      const kelompokIdx = findColumnIndex(['kelompok', 'group']);
-      const topikIdx = findColumnIndex(['topik', 'topic']);
-      const ruanganIdx = findColumnIndex(['ruang', 'ruangan', 'room']);
-
-      // Convert data
-      const convertedData: JadwalCSRType[] = excelData.map((row: any[]) => {
-        const tanggal = row[tanggalIdx]?.toString() || '';
-        let jamMulai = row[jamMulaiIdx]?.toString() || '';
-        const kelompokNama = row[kelompokIdx]?.toString() || '';
-        const topik = row[topikIdx]?.toString() || '';
-        const ruanganNama = row[ruanganIdx]?.toString() || '';
-
-        // Convert time format
-        if (jamMulai) {
-          jamMulai = convertTimeFormat(jamMulai);
-          if (jamMulai.includes(':')) {
-            jamMulai = jamMulai.replace(':', '.');
+      // Helper function to get value from multiple possible column names
+      const getValueFromMultipleFormats = (possibleNames: string[], rowObj: any) => {
+        for (const name of possibleNames) {
+          const value = rowObj[name];
+          if (value !== undefined && value !== null && value !== '') {
+            return value.toString();
           }
         }
+        return '';
+      };
 
-        // Find IDs
-        const kelompokKecil = kelompokKecilList.find(k => k.nama_kelompok === kelompokNama);
-        const ruangan = ruanganList.find(r => r.nama === ruanganNama);
+      // Convert data
+      const convertedData: JadwalCSRType[] = excelData.map((row: any[], index) => {
+        // Convert row array to object for easier access
+        const rowObj: any = {};
+        headers.forEach((header, idx) => {
+          rowObj[header] = row[idx];
+        });
+
+        // Extract data from SIAKAD template
+        const tanggal = getValueFromMultipleFormats(['Tanggal\n(YYYY-MM-DD)', 'Tanggal'], rowObj);
+        const jamMulaiRaw = getValueFromMultipleFormats(['Waktu Mulai\n(Lihat Daftar Waktu Mulai)', 'Waktu Mulai'], rowObj);
+        let jamMulai = convertTimeFormat(jamMulaiRaw);
+        const jamSelesaiRaw = getValueFromMultipleFormats(['Waktu Selesai\n(Lihat Daftar Waktu Selesai)', 'Waktu Selesai'], rowObj);
+        let jamSelesai = convertTimeFormat(jamSelesaiRaw);
+
+        // SIAKAD fields dari file asli
+        const siakadKurikulum = rowObj['Kurikulum'] || '';
+        const siakadKodeMk = rowObj['Kode MK'] || '';
+        const siakadNamaKelas = rowObj['Nama Kelas'] || '';
+        const siakadJenisPertemuan = getValueFromMultipleFormats(['Jenis Pertemuan\n(Lihat Daftar Jenis Pertemuan)', 'Jenis Pertemuan'], rowObj);
+        const siakadMetode = getValueFromMultipleFormats(['Metode\n(Lihat Daftar Metode)', 'Metode'], rowObj);
+        const siakadDosenPengganti = rowObj['Dosen Pengganti\n(Y jika Ya)'] || '';
+
+        // Data dari sistem
+        const kelompokNama = getValueFromMultipleFormats(['Kelompok\n(Contoh: 1)', 'Kelompok'], rowObj);
+        const topik = rowObj['Topik'] || '';
+        const ruanganNama = getValueFromMultipleFormats(['Ruang\n(Lihat Daftar Ruang)', 'Ruang'], rowObj);
+        const nipPengajar = rowObj['NIP Pengajar'] || '';
+
+        // Find ruangan data - cari berdasarkan id_ruangan (kode ruangan) seperti di kuliah besar & praktikum
+        const ruanganData = ruanganList?.find(r => r.id_ruangan === ruanganNama);
+
+        // Find dosen data - cari berdasarkan NID
+        const dosenData = dosenList?.find(d => d.nid === nipPengajar);
+
+        // Find kelompok kecil data
+        const kelompokKecilData = kelompokKecilList?.find(k => k.nama_kelompok === kelompokNama);
+
+        // Calculate jam selesai if not provided
+        let calculatedJamSelesai = jamSelesai;
+        if (!calculatedJamSelesai && jamMulai) {
+          // Default to 2 sessions for CSR
+          calculatedJamSelesai = hitungJamSelesai(jamMulai, 2);
+        }
 
         return {
           jenis_csr: '' as 'reguler' | 'responsi', // Must be filled manually
           tanggal: tanggal || '',
           jam_mulai: jamMulai || '',
-          jam_selesai: '', // Will be calculated after jenis_csr is filled
-          jumlah_sesi: 0, // Will be set after jenis_csr is filled
-          kelompok_kecil_id: kelompokKecil?.id || 0,
+          jam_selesai: calculatedJamSelesai,
+          jumlah_sesi: 2, // Default 2 sessions for CSR
+          kelompok_kecil_id: kelompokKecilData?.id || 0,
           topik: topik || '',
           kategori_id: 0, // Must be filled manually (keahlian)
-          dosen_id: 0, // Must be filled manually
-          ruangan_id: ruangan?.id || 0,
-          nama_kelompok: kelompokNama,
+          dosen_id: dosenData?.id || 0, // User isi manual di preview
+          ruangan_id: ruanganData?.id || 0,
+          nama_kelompok: kelompokKecilData?.nama_kelompok || kelompokNama,
           nama_keahlian: '', // Must be filled manually
-          nama_dosen: '', // Must be filled manually
-          nama_ruangan: ruanganNama
+          nama_dosen: dosenData?.name || '', // User isi manual di preview
+          nama_ruangan: ruanganData?.nama || ruanganNama || '', // Display nama ruangan yang sudah di-mapping
+          // SIAKAD fields
+          siakad_kurikulum: siakadKurikulum,
+          siakad_kode_mk: siakadKodeMk,
+          siakad_nama_kelas: siakadNamaKelas,
+          siakad_jenis_pertemuan: siakadJenisPertemuan,
+          siakad_metode: siakadMetode,
+          siakad_dosen_pengganti: siakadDosenPengganti
         };
       });
 
@@ -1412,7 +1635,14 @@ export default function DetailNonBlokCSR() {
           topik: row.topik,
           kategori_id: row.kategori_id,
           dosen_id: row.dosen_id,
-          ruangan_id: row.ruangan_id
+          ruangan_id: row.ruangan_id,
+          // SIAKAD fields
+          siakad_kurikulum: row.siakad_kurikulum || null,
+          siakad_kode_mk: row.siakad_kode_mk || null,
+          siakad_nama_kelas: row.siakad_nama_kelas || null,
+          siakad_jenis_pertemuan: row.siakad_jenis_pertemuan || null,
+          siakad_metode: row.siakad_metode || null,
+          siakad_dosen_pengganti: row.siakad_dosen_pengganti || null
         };
       });
       
@@ -1575,13 +1805,28 @@ export default function DetailNonBlokCSR() {
   }
 
   function handleEditJadwal(idx: number) {
+    // Validasi index dan data
+    if (idx < 0 || idx >= jadwalCSR.length) {
+      console.error('Invalid index for jadwalCSR:', idx);
+      return;
+    }
+
     const row = jadwalCSR[idx];
+    
+    // Validasi bahwa row ada dan memiliki ID
+    if (!row || !row.id) {
+      console.error('Invalid row data or missing ID:', row);
+      return;
+    }
+
+    // Cari data berdasarkan ID untuk memastikan data yang benar (jika ada perubahan urutan)
+    const actualRow = jadwalCSR.find(j => j.id === row.id) || row;
     
     // Format tanggal untuk input date (YYYY-MM-DD)
     let formattedTanggal = '';
-    if (row.tanggal) {
+    if (actualRow.tanggal) {
       try {
-        const date = new Date(row.tanggal);
+        const date = new Date(actualRow.tanggal);
         if (!isNaN(date.getTime())) {
           formattedTanggal = date.toISOString().split('T')[0];
         }
@@ -1596,31 +1841,31 @@ export default function DetailNonBlokCSR() {
       return jam.replace(':', '.');
     };
     
-    const jamMulai = formatJamUntukDropdown(row.jam_mulai || '');
-    const jamSelesai = formatJamUntukDropdown(row.jam_selesai || '');
+    const jamMulai = formatJamUntukDropdown(actualRow.jam_mulai || '');
+    const jamSelesai = formatJamUntukDropdown(actualRow.jam_selesai || '');
     
     setForm({
-      jenis_csr: row.jenis_csr,
+      jenis_csr: actualRow.jenis_csr || '',
       tanggal: formattedTanggal,
       jam_mulai: jamMulai,
-      jumlah_sesi: row.jumlah_sesi,
+      jumlah_sesi: actualRow.jumlah_sesi || 3,
       jam_selesai: jamSelesai,
-      dosen_id: row.dosen_id,
-      ruangan_id: row.ruangan_id,
-      kelompok_kecil_id: row.kelompok_kecil_id,
-      kategori_id: row.kategori_id,
-      topik: row.topik,
+      dosen_id: actualRow.dosen_id || null,
+      ruangan_id: actualRow.ruangan_id || null,
+      kelompok_kecil_id: actualRow.kelompok_kecil_id || null,
+      kategori_id: actualRow.kategori_id || null,
+      topik: actualRow.topik || '',
     });
     
     // Set selectedKategoriValue untuk dropdown
-    setSelectedKategoriValue(row.kategori_id ? `${row.kategori_id}_0` : null);
+    setSelectedKategoriValue(actualRow.kategori_id ? `${actualRow.kategori_id}_0` : null);
     
     // Set selectedKeahlian berdasarkan data yang ada
-    if (row.kategori_id) {
-      const kategoriData = kategoriList.find(k => k.id === row.kategori_id);
+    if (actualRow.kategori_id) {
+      const kategoriData = kategoriList.find(k => k.id === actualRow.kategori_id);
       if (kategoriData?.keahlian_required && kategoriData.keahlian_required.length > 0) {
         // Cari keahlian yang sesuai dengan dosen yang dipilih
-        const selectedDosen = dosenList.find(d => d.id === row.dosen_id);
+        const selectedDosen = dosenList.find(d => d.id === actualRow.dosen_id);
         if (selectedDosen && selectedDosen.keahlian) {
           setSelectedKeahlian(selectedDosen.keahlian);
         } else {
@@ -1634,7 +1879,10 @@ export default function DetailNonBlokCSR() {
       setSelectedKeahlian(null);
     }
     
-    setEditIndex(idx);
+    // Set editIndex berdasarkan ID untuk memastikan konsistensi
+    const actualIndex = jadwalCSR.findIndex(j => j.id === row.id);
+    setEditIndex(actualIndex >= 0 ? actualIndex : idx);
+    
     setShowModal(true);
     setErrorForm('');
     setErrorBackend('');
@@ -1686,8 +1934,8 @@ export default function DetailNonBlokCSR() {
     }
   };
 
-  // Fungsi untuk export Excel CSR
-  const exportCSRExcel = async () => {
+  // Fungsi untuk export Excel CSR (Template Aplikasi)
+  const exportCSRExcelAplikasi = async () => {
     try {
       if (jadwalCSR.length === 0) {
         alert('Tidak ada data CSR untuk diekspor');
@@ -1769,11 +2017,84 @@ export default function DetailNonBlokCSR() {
       XLSX.utils.book_append_sheet(wb, infoWs, 'Info Mata Kuliah');
 
       // Download file
-      const fileName = `Export_CSR_${data?.kode || 'MataKuliah'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      const fileName = `Export_CSR_Aplikasi_${data?.kode || 'MataKuliah'}_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
-      alert('Gagal mengekspor data CSR');
+      console.error('Error exporting CSR (Aplikasi):', error);
+      alert('Gagal mengekspor data CSR (Template Aplikasi)');
     }
+  };
+
+  // ========================================
+  // CSR SIAKAD EXPORT FUNCTION - OPTIMIZED
+  // ========================================
+  const exportCSRExcelSIAKAD = async () => {
+    try {
+      if (jadwalCSR.length === 0) {
+        alert('Tidak ada data CSR untuk diekspor');
+        return;
+      }
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Jadwal CSR SIAKAD');
+
+      // Add headers and apply styling
+      worksheet.addRow(SIAKAD_HEADERS);
+      applySIAKADStyling(worksheet);
+
+      // Add data rows with optimized performance
+      jadwalCSR.forEach((row) => {
+        // Find related data for mapping
+        const dosen = dosenList.find(d => d.id === row.dosen_id);
+        const ruangan = ruanganList.find(r => r.id === row.ruangan_id);
+        const kelompok = kelompokKecilList.find(k => k.id === row.kelompok_kecil_id);
+        const kategori = kategoriList.find(k => k.id === row.kategori_id);
+
+        // Map data according to SIAKAD template requirements
+        worksheet.addRow([
+          // SIAKAD Fields (from original file) - Green headers
+          row.siakad_kurikulum || '',
+          row.siakad_kode_mk || '',
+          row.siakad_nama_kelas || '',
+          // System Fields - Orange headers
+          kelompok?.nama_kelompok || '',
+          row.topik || '',
+          kategori?.keahlian_required?.join(', ') || '',
+          // SIAKAD Fields (from original file) - Green headers
+          row.siakad_jenis_pertemuan || '',
+          row.siakad_metode || '',
+          // System Fields - Orange headers
+          ruangan?.id_ruangan || '',
+          dosen?.nid || '',
+          // SIAKAD Fields (from original file) - Green headers
+          row.siakad_dosen_pengganti || '',
+          // System Fields - Orange headers
+          row.tanggal ? new Date(row.tanggal).toISOString().split('T')[0] : '',
+          row.jam_mulai || '',
+          row.jam_selesai || ''
+        ]);
+      });
+
+      // Add info sheet and download
+      createSIAKADInfoSheet(workbook, data, 'csr', jadwalCSR.length);
+      const filename = `Export_CSR_SIAKAD_${data?.kode}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      await downloadExcelFile(workbook, filename);
+
+    } catch (error) {
+      console.error('Error exporting CSR (SIAKAD):', error);
+      alert('Gagal mengekspor data CSR (Template SIAKAD)');
+    }
+  };
+
+  // Fungsi untuk menangani export berdasarkan template yang dipilih
+  const handleCSRExport = async () => {
+    if (selectedCSRExportTemplate === 'APLIKASI') {
+      await exportCSRExcelAplikasi();
+    } else if (selectedCSRExportTemplate === 'SIAKAD') {
+      await exportCSRExcelSIAKAD();
+    }
+    setShowCSRExportModal(false);
+    setSelectedCSRExportTemplate(null);
   };
 
   // Initial load dengan loading state
@@ -1978,6 +2299,9 @@ export default function DetailNonBlokCSR() {
                       <div className="h-4 w-20 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
                     </td>
                     <td className="px-6 py-4">
+                      <div className="h-4 w-32 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
+                    </td>
+                    <td className="px-6 py-4">
                       <div className="h-4 w-24 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
                     </td>
                     <td className="px-4 py-4">
@@ -2096,7 +2420,7 @@ export default function DetailNonBlokCSR() {
             
             {/* Export Excel Button */}
             <button
-              onClick={exportCSRExcel}
+              onClick={() => setShowCSRExportModal(true)}
               disabled={jadwalCSR.length === 0}
               className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
                 jadwalCSR.length === 0 
@@ -2195,6 +2519,7 @@ export default function DetailNonBlokCSR() {
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pengampu</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Kelompok</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Topik</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Mata Kuliah</th>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Aksi</th>
                 </tr>
@@ -2202,7 +2527,7 @@ export default function DetailNonBlokCSR() {
               <tbody>
                 {jadwalCSR.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="text-center py-6 text-gray-400">Tidak ada data CSR</td>
+                    <td colSpan={12} className="text-center py-6 text-gray-400">Tidak ada data CSR</td>
                   </tr>
                 ) : (
                   getPaginatedData(jadwalCSR, csrPage, csrPageSize).map((row, i) => (
@@ -2237,6 +2562,7 @@ export default function DetailNonBlokCSR() {
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.dosen?.name || '-'}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.ruangan?.nama || '-'}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.kelompok_kecil?.nama_kelompok ? `Kelompok ${row.kelompok_kecil.nama_kelompok}` : '-'}</td>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap max-w-xs truncate" title={row.topik || '-'}>{row.topik || '-'}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.kategori?.nama || '-'}</td>
                       <td className="px-4 py-4 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-2">
@@ -2246,7 +2572,12 @@ export default function DetailNonBlokCSR() {
                             </svg>
                             <span className="hidden sm:inline">Absensi</span>
                           </button>
-                          <button onClick={() => handleEditJadwal(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition" title="Edit Jadwal">
+                          <button onClick={() => {
+                            // Cari index berdasarkan ID untuk memastikan data yang benar
+                            const actualCSRIndex = (csrPage - 1) * csrPageSize + i;
+                            const correctIndex = jadwalCSR.findIndex(j => j.id === row.id);
+                            handleEditJadwal(correctIndex >= 0 ? correctIndex : actualCSRIndex);
+                          }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition" title="Edit Jadwal">
                             <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
                             <span className="hidden sm:inline">Edit</span>
                           </button>
@@ -3986,6 +4317,185 @@ export default function DetailNonBlokCSR() {
                     ) : (
                       'Hapus'
                     )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Export CSR */}
+      <AnimatePresence>
+        {showCSRExportModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowCSRExportModal(false)}
+            />
+            
+            {/* Modal Content */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => setShowCSRExportModal(false)}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+              
+              <div>
+                <div className="flex items-center justify-between pb-4 sm:pb-6">
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
+                      Pilih Format Template
+                    </h2>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Pilih format template yang sesuai dengan file Excel Anda
+                    </p>
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="mb-3 sm:mb-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Pilih jenis template yang ingin digunakan
+                    </label>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {/* Template Aplikasi */}
+                    <div
+                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
+                        selectedCSRExportTemplate === 'APLIKASI'
+                          ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600'
+                          : ''
+                      }`}
+                      onClick={() => setSelectedCSRExportTemplate('APLIKASI')}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                            selectedCSRExportTemplate === 'APLIKASI'
+                              ? 'bg-brand-500 border-brand-500'
+                              : 'border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          {selectedCSRExportTemplate === 'APLIKASI' && (
+                            <svg
+                              className="w-2.5 h-2.5 text-white"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                          <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            Template Aplikasi
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            File dari download template atau export Excel aplikasi ini
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Template SIAKAD */}
+                    <div
+                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
+                        selectedCSRExportTemplate === 'SIAKAD'
+                          ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600'
+                          : ''
+                      }`}
+                      onClick={() => setSelectedCSRExportTemplate('SIAKAD')}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                            selectedCSRExportTemplate === 'SIAKAD'
+                              ? 'bg-brand-500 border-brand-500'
+                              : 'border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          {selectedCSRExportTemplate === 'SIAKAD' && (
+                            <svg
+                              className="w-2.5 h-2.5 text-white"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="w-10 h-10 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
+                          <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-green-600 dark:text-green-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            Template SIAKAD
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            File dari sistem SIAKAD dengan format standar
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end gap-2 pt-2 relative z-20">
+                  <button
+                    onClick={() => setShowCSRExportModal(false)}
+                    className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={handleCSRExport}
+                    disabled={!selectedCSRExportTemplate}
+                    className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 ease-in-out ${
+                      selectedCSRExportTemplate
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                        : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    Export
                   </button>
                 </div>
               </div>

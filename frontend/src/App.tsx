@@ -56,6 +56,7 @@ import ForumDetail from "./pages/ForumDetail";
 import ForumCategory from "./pages/ForumCategory";
 import Bookmarks from "./pages/Bookmarks";
 import SupportCenter from "./pages/SupportCenter";
+
 import AbSenQRMahasiswa from "./pages/AbSenQRMahasiswa";
 import DetailAbSenMahasiswa from "./pages/DetailAbSenMahasiswa";
 import DetailAbSenMahasiswaNonBlokNonCSR from "./pages/DetailAbSenMahasiswaNonBlokNonCSR";
@@ -70,6 +71,9 @@ import DosenAbsensiNonBlokNonCSR from "./pages/DosenAbsensiNonBlokNonCSR";
 import DosenAbsensiNonBlokNonCSRAntara from "./pages/DosenAbsensiNonBlokNonCSRAntara";
 import DosenAbsensiPraktikum from "./pages/DosenAbsensiPraktikum";
 import DosenAbsensiPraktikumAntara from "./pages/DosenAbsensiPraktikumAntara";
+
+import WhatsAppTest from "./pages/WhatsAppTest";
+
 
 function AppContent() {
   const { isSessionExpired, setSessionExpired } = useSession();
@@ -409,98 +413,37 @@ function AppContent() {
               <Route path="/profile" element={<Profile />} />
               <Route path="/bookmarks" element={<Bookmarks />} />
               <Route path="/support-center" element={<SupportCenter />} />
+              <Route
+                path="/whatsapp-test"
+                element={
+                  <RequireDosenRole allowedRoles={["super_admin"]}>
+                    <WhatsAppTest />
+                  </RequireDosenRole>
+                }
+              />
 
               {/* Peta Routes - Available for super_admin, dosen, tim_akademik, and mahasiswa */}
-              <Route
-                path="/peta-akademik"
-                element={
-                  <RequireDosenRole
-                    allowedRoles={[
-                      "super_admin",
-                      "dosen",
-                      "tim_akademik",
-                      "mahasiswa",
-                    ]}
-                  >
-                    <PetaAkademikPage />
-                  </RequireDosenRole>
-                }
-              />
-              <Route
-                path="/peta-blok"
-                element={
-                  <RequireDosenRole
-                    allowedRoles={[
-                      "super_admin",
-                      "dosen",
-                      "tim_akademik",
-                      "mahasiswa",
-                    ]}
-                  >
-                    <PilihPetaBlok />
-                  </RequireDosenRole>
-                }
-              />
-              <Route
-                path="/peta-blok/ganjil"
-                element={
-                  <RequireDosenRole
-                    allowedRoles={[
-                      "super_admin",
-                      "dosen",
-                      "tim_akademik",
-                      "mahasiswa",
-                    ]}
-                  >
-                    <PetaBlok />
-                  </RequireDosenRole>
-                }
-              />
-              <Route
-                path="/peta-blok/genap"
-                element={
-                  <RequireDosenRole
-                    allowedRoles={[
-                      "super_admin",
-                      "dosen",
-                      "tim_akademik",
-                      "mahasiswa",
-                    ]}
-                  >
-                    <PetaBlok />
-                  </RequireDosenRole>
-                }
-              />
-              <Route
-                path="/peta-blok/antara"
-                element={
-                  <RequireDosenRole
-                    allowedRoles={[
-                      "super_admin",
-                      "dosen",
-                      "tim_akademik",
-                      "mahasiswa",
-                    ]}
-                  >
-                    <PetaBlok />
-                  </RequireDosenRole>
-                }
-              />
-              <Route
-                path="/peta-blok/:semester/:blok"
-                element={
-                  <RequireDosenRole
-                    allowedRoles={[
-                      "super_admin",
-                      "dosen",
-                      "tim_akademik",
-                      "mahasiswa",
-                    ]}
-                  >
-                    <PetaBlok />
-                  </RequireDosenRole>
-                }
-              />
+              <Route path="/peta-akademik" element={
+                <RequireDosenRole allowedRoles={["super_admin", "dosen", "tim_akademik"]}>
+                  <PetaAkademikPage />
+                </RequireDosenRole>
+              } />
+              <Route path="/peta-blok" element={
+                <RequireDosenRole allowedRoles={["super_admin", "dosen", "tim_akademik"]}>
+                  <PilihPetaBlok />
+                </RequireDosenRole>
+              } />
+              <Route path="/peta-blok/:semester" element={
+                <RequireDosenRole allowedRoles={["super_admin", "dosen", "tim_akademik"]}>
+                  <PetaBlok />
+                </RequireDosenRole>
+              } />
+              <Route path="/peta-blok/:semester/:blok" element={
+                <RequireDosenRole allowedRoles={["super_admin", "dosen", "tim_akademik"]}>
+                  <PetaBlok />
+                </RequireDosenRole>
+              } />
+
 
               {/* Super Admin Only Routes */}
               <Route

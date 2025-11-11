@@ -61,6 +61,15 @@ class JadwalPBLController extends Controller
             'jam_selesai' => 'required|string',
             'jumlah_sesi' => 'nullable|integer|min:1|max:6',
             'pbl_tipe' => 'nullable|string',
+            // SIAKAD fields
+            'siakad_kurikulum' => 'nullable|string',
+            'siakad_kode_mk' => 'nullable|string',
+            'siakad_nama_kelas' => 'nullable|string',
+            'topik' => 'nullable|string',
+            'siakad_substansi' => 'nullable|string',
+            'siakad_jenis_pertemuan' => 'nullable|string',
+            'siakad_metode' => 'nullable|string',
+            'siakad_dosen_pengganti' => 'nullable|string',
         ]);
 
         // Validasi: harus ada salah satu dari kelompok_kecil_id atau kelompok_kecil_antara_id
@@ -104,7 +113,9 @@ class JadwalPBLController extends Controller
             return response()->json(['message' => $bentrokMessage], 422);
         }
 
-        $jadwal = JadwalPBL::create($data);
+        $jadwal = JadwalPBL::create(array_merge($data, [
+            'status_konfirmasi' => 'belum_konfirmasi'
+        ]));
 
         // Log activity
         activity()
@@ -232,6 +243,15 @@ class JadwalPBLController extends Controller
             'jam_selesai' => 'required|string',
             'jumlah_sesi' => 'nullable|integer|min:1|max:6',
             'pbl_tipe' => 'nullable|string',
+            // SIAKAD fields
+            'siakad_kurikulum' => 'nullable|string',
+            'siakad_kode_mk' => 'nullable|string',
+            'siakad_nama_kelas' => 'nullable|string',
+            'topik' => 'nullable|string',
+            'siakad_substansi' => 'nullable|string',
+            'siakad_jenis_pertemuan' => 'nullable|string',
+            'siakad_metode' => 'nullable|string',
+            'siakad_dosen_pengganti' => 'nullable|string',
         ]);
 
         // Validasi: harus ada salah satu dari kelompok_kecil_id atau kelompok_kecil_antara_id
@@ -254,9 +274,17 @@ class JadwalPBLController extends Controller
         }
 
         // Pastikan kelompok_kecil_id ada untuk semester reguler, atau null untuk semester antara
-        if (!isset($data['kelompok_kecil_id'])) {
+        // JANGAN override jika sudah ada nilai (untuk semester reguler)
+        // Hanya set null jika benar-benar tidak ada dan tidak ada kelompok_kecil_antara_id
+        if (!isset($data['kelompok_kecil_id']) && !isset($data['kelompok_kecil_antara_id'])) {
             $data['kelompok_kecil_id'] = null;
         }
+        
+        // Log untuk debugging
+        \Log::info('Jadwal PBL Update - Request data:', [
+            'kelompok_kecil_id' => $data['kelompok_kecil_id'] ?? 'not set',
+            'kelompok_kecil_antara_id' => $data['kelompok_kecil_antara_id'] ?? 'not set',
+        ]);
 
         // Pastikan dosen_id diset ke null jika menggunakan dosen_ids
         if (isset($data['dosen_ids']) && is_array($data['dosen_ids']) && !empty($data['dosen_ids'])) {
@@ -283,6 +311,14 @@ class JadwalPBLController extends Controller
         $jadwal->resetPenilaianSubmitted();
 
         $jadwal->update($data);
+        
+        // Log untuk debugging - pastikan data tersimpan dengan benar
+        $jadwal->refresh();
+        \Log::info('Jadwal PBL Update - After save:', [
+            'id' => $jadwal->id,
+            'kelompok_kecil_id' => $jadwal->kelompok_kecil_id,
+            'kelompok_kecil_antara_id' => $jadwal->kelompok_kecil_antara_id,
+        ]);
 
         // Log activity
         activity()
@@ -363,6 +399,14 @@ class JadwalPBLController extends Controller
                 'data.*.pbl_tipe' => 'required|string|in:PBL 1,PBL 2',
                 'data.*.topik' => 'nullable|string',
                 'data.*.jumlah_sesi' => 'nullable|integer|min:1|max:6',
+                // SIAKAD fields
+                'data.*.siakad_kurikulum' => 'nullable|string',
+                'data.*.siakad_kode_mk' => 'nullable|string',
+                'data.*.siakad_nama_kelas' => 'nullable|string',
+                'data.*.siakad_substansi' => 'nullable|string',
+                'data.*.siakad_jenis_pertemuan' => 'nullable|string',
+                'data.*.siakad_metode' => 'nullable|string',
+                'data.*.siakad_dosen_pengganti' => 'nullable|string',
             ]);
 
             $importedData = [];
@@ -386,7 +430,7 @@ class JadwalPBLController extends Controller
                 }
 
                 // Validasi bentrok
-                $row['mata_kuliah_kode'] = $kode; // Tambahkan mata_kuliah_kode untuk checkBentrokWithDetail
+                $row['mata_kuliah_kode'] = $kode;
                 $bentrokMessage = $this->checkBentrokWithDetail($row, null);
                 if ($bentrokMessage) {
                     $errors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;
@@ -931,8 +975,8 @@ class JadwalPBLController extends Controller
                 }
             })
             ->where(function ($q) use ($data, $kelompokKecilId) {
-                $q->where('pbl_id', $data['pbl_id'])
-                    ->orWhere('ruangan_id', $data['ruangan_id']);
+                // pbl_id sama tidak dianggap bentrok; hanya bentrok jika berbagi resource nyata
+                $q->where('ruangan_id', $data['ruangan_id']);
 
                 // Cek bentrok kelompok kecil
                 if ($kelompokKecilId) {
@@ -1071,8 +1115,8 @@ class JadwalPBLController extends Controller
                 }
             })
             ->where(function ($q) use ($data, $kelompokKecilId) {
-                $q->where('pbl_id', $data['pbl_id'])
-                    ->orWhere('ruangan_id', $data['ruangan_id']);
+                // pbl_id sama tidak dianggap bentrok; hanya bentrok jika berbagi resource nyata
+                $q->where('ruangan_id', $data['ruangan_id']);
 
                 // Cek bentrok kelompok kecil
                 if ($kelompokKecilId) {
@@ -1263,12 +1307,17 @@ class JadwalPBLController extends Controller
                 $reasons[] = "Dosen: " . ($dosen ? $dosen->name : 'Tidak diketahui');
             }
 
-            // Cek jika jadwal yang bentrok juga menggunakan multiple dosen
-            if (isset($jadwalBentrok->dosen_ids) && is_array($jadwalBentrok->dosen_ids)) {
-                $intersectingDosenIds = array_intersect($data['dosen_ids'], $jadwalBentrok->dosen_ids);
-                if (!empty($intersectingDosenIds)) {
-                    $dosenNames = \App\Models\User::whereIn('id', $intersectingDosenIds)->pluck('name')->toArray();
-                    $reasons[] = "Dosen: " . implode(', ', $dosenNames);
+            // Cek jika jadwal yang bentrok juga menggunakan multiple dosen (handle JSON string)
+            if (isset($jadwalBentrok->dosen_ids) && $jadwalBentrok->dosen_ids) {
+                $otherDosenIds = is_array($jadwalBentrok->dosen_ids)
+                    ? $jadwalBentrok->dosen_ids
+                    : (is_string($jadwalBentrok->dosen_ids) ? (json_decode($jadwalBentrok->dosen_ids, true) ?: []) : []);
+                if (!empty($otherDosenIds)) {
+                    $intersectingDosenIds = array_intersect($data['dosen_ids'], $otherDosenIds);
+                    if (!empty($intersectingDosenIds)) {
+                        $dosenNames = \App\Models\User::whereIn('id', $intersectingDosenIds)->pluck('name')->toArray();
+                        $reasons[] = "Dosen: " . implode(', ', $dosenNames);
+                    }
                 }
             }
         }
@@ -1296,9 +1345,34 @@ class JadwalPBLController extends Controller
             $reasons[] = "PBL ID: " . $data['pbl_id'];
         }
 
+        // Fallback: jika belum ada alasan spesifik, tampilkan konteks jadwal lain agar informatif
+        if (empty($reasons)) {
+            $fallback = [];
+            if (isset($jadwalBentrok->dosen_id) && $jadwalBentrok->dosen_id) {
+                $dosen = \App\Models\User::find($jadwalBentrok->dosen_id);
+                if ($dosen) $fallback[] = "Dosen: {$dosen->name}";
+            }
+            if (isset($jadwalBentrok->ruangan_id) && $jadwalBentrok->ruangan_id) {
+                $ruangan = \App\Models\Ruangan::find($jadwalBentrok->ruangan_id);
+                if ($ruangan) $fallback[] = "Ruangan: {$ruangan->nama}";
+            }
+            if (isset($jadwalBentrok->kelompok_kecil_id) && $jadwalBentrok->kelompok_kecil_id) {
+                $kk = \App\Models\KelompokKecil::find($jadwalBentrok->kelompok_kecil_id);
+                if ($kk) $fallback[] = "Kelompok Kecil: {$kk->nama_kelompok}";
+            }
+            if (isset($jadwalBentrok->kelompok_kecil_antara_id) && $jadwalBentrok->kelompok_kecil_antara_id) {
+                $kka = \App\Models\KelompokKecilAntara::find($jadwalBentrok->kelompok_kecil_antara_id);
+                if ($kka) $fallback[] = "Kelompok Kecil Antara: {$kka->nama_kelompok}";
+            }
+            if (isset($jadwalBentrok->pbl_id)) {
+                $fallback[] = "PBL ID: " . $jadwalBentrok->pbl_id;
+            }
+            $reasons = $fallback;
+        }
+
         return implode(', ', $reasons);
     }
-
+    
     /**
      * Send notification to mahasiswa in the kelompok
      */

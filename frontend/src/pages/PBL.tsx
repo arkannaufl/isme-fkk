@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faCog, faEdit, faCheckCircle } from "@fortawesome/free-solid-svg-icons";
+import { faCog, faEdit, faCheckCircle, faFileExcel } from "@fortawesome/free-solid-svg-icons";
 import { AnimatePresence, motion } from "framer-motion";
 import PageBreadCrumb from '../components/common/PageBreadCrumb';
 import BoxCubeIcon from '../icons/box-cube.svg';
@@ -175,6 +175,21 @@ export default function PBL() {
           </div>
         </div>
         <div className="p-6">
+          {/* Info: lokasi export Excel */}
+          <div className="mb-4 p-4 rounded-xl border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center shrink-0">
+                <FontAwesomeIcon icon={faFileExcel} className="w-4 h-4 text-white" />
+              </div>
+              <div className="text-sm text-blue-800 dark:text-blue-200">
+                <div className="font-semibold mb-1">Export Excel Mapping Dosen</div>
+                <div>
+                  Untuk mengekspor hasil generate dosen per blok, buka halaman Detail Blok
+                  (PBL Detail) setelah memilih blok, lalu gunakan tombol <span className="font-semibold">Export Excel</span> di sana.
+                </div>
+              </div>
+            </div>
+          </div>
           {loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {[...Array(4)].map((_, index) => (

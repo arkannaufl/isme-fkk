@@ -19,7 +19,8 @@ class AbsensiPBL extends Model
         'pertemuan',
         'mahasiswa_npm',
         'hadir',
-        'catatan'
+        'catatan',
+        'jadwal_pbl_id',
     ];
 
     protected $casts = [

@@ -34,6 +34,15 @@ class JadwalPBL extends Model
         'penilaian_submitted_by',
         'penilaian_submitted_at',
         'created_by',
+        // SIAKAD fields
+        'siakad_kurikulum',
+        'siakad_kode_mk',
+        'siakad_nama_kelas',
+        'topik',
+        'siakad_substansi',
+        'siakad_jenis_pertemuan',
+        'siakad_metode',
+        'siakad_dosen_pengganti',
     ];
 
     protected $casts = [

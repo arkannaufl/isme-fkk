@@ -59,6 +59,8 @@ class DetailBlokController extends Controller
     {
         return JadwalPBL::where('mata_kuliah_kode', $kode)
             ->with(['modulPBL', 'kelompokKecil', 'kelompokKecilAntara', 'dosen', 'ruangan'])
+            ->orderBy('tanggal', 'asc')
+            ->orderBy('jam_mulai', 'asc')
             ->get()
             ->map(function ($jadwal) {
                 // Transform jam format for frontend compatibility
@@ -101,7 +103,9 @@ class DetailBlokController extends Controller
     private function getJadwalKuliahBesar($kode)
     {
         return JadwalKuliahBesar::where('mata_kuliah_kode', $kode)
-            ->with(['dosen', 'ruangan'])
+            ->with(['dosen', 'ruangan', 'kelompokBesar'])
+            ->orderBy('tanggal', 'asc')
+            ->orderBy('jam_mulai', 'asc')
             ->get()
             ->map(function ($jadwal) {
                 if ($jadwal->jam_mulai) {
@@ -109,6 +113,39 @@ class DetailBlokController extends Controller
                 }
                 if ($jadwal->jam_selesai) {
                     $jadwal->jam_selesai = $this->formatJamForFrontend($jadwal->jam_selesai);
+                }
+                // Ensure kelompok_besar_id is explicitly included in response
+                // Prioritize from relationship, then from original attribute, then null
+                $originalKelompokBesarId = $jadwal->getOriginal('kelompok_besar_id');
+                if ($jadwal->kelompokBesar && $jadwal->kelompokBesar->id) {
+                    $jadwal->kelompok_besar_id = $jadwal->kelompokBesar->id;
+                } elseif ($originalKelompokBesarId !== null) {
+                    $jadwal->kelompok_besar_id = $originalKelompokBesarId;
+                } else {
+                    // Explicitly set to null to ensure field is included in JSON response
+                    $jadwal->kelompok_besar_id = null;
+                }
+                // Ensure dosen_id is included (even if dosen_ids exists)
+                if (!$jadwal->dosen_id && $jadwal->dosen) {
+                    $jadwal->dosen_id = $jadwal->dosen->id;
+                }
+                // Ensure materi is included
+                if (empty($jadwal->materi)) {
+                    $originalMateri = $jadwal->getOriginal('materi');
+                    if ($originalMateri) {
+                        $jadwal->materi = $originalMateri;
+                    }
+                }
+                // Ensure topik is included
+                if ($jadwal->topik === null) {
+                    $originalTopik = $jadwal->getOriginal('topik');
+                    if ($originalTopik !== null) {
+                        $jadwal->topik = $originalTopik;
+                    }
+                }
+                // Ensure ruangan_id is included
+                if (!$jadwal->ruangan_id && $jadwal->ruangan) {
+                    $jadwal->ruangan_id = $jadwal->ruangan->id;
                 }
                 return $jadwal;
             });
@@ -118,6 +155,8 @@ class DetailBlokController extends Controller
     {
         return JadwalAgendaKhusus::where('mata_kuliah_kode', $kode)
             ->with(['ruangan'])
+            ->orderBy('tanggal', 'asc')
+            ->orderBy('jam_mulai', 'asc')
             ->get()
             ->map(function ($jadwal) {
                 if ($jadwal->jam_mulai) {
@@ -125,6 +164,21 @@ class DetailBlokController extends Controller
                 }
                 if ($jadwal->jam_selesai) {
                     $jadwal->jam_selesai = $this->formatJamForFrontend($jadwal->jam_selesai);
+                }
+                // Ensure kelompok_besar_id is included
+                if (!$jadwal->kelompok_besar_id && $jadwal->getOriginal('kelompok_besar_id')) {
+                    $jadwal->kelompok_besar_id = $jadwal->getOriginal('kelompok_besar_id');
+                }
+                // Ensure ruangan_id is included
+                if (!$jadwal->ruangan_id && $jadwal->ruangan) {
+                    $jadwal->ruangan_id = $jadwal->ruangan->id;
+                }
+                // Ensure agenda is included
+                if (empty($jadwal->agenda)) {
+                    $originalAgenda = $jadwal->getOriginal('agenda');
+                    if ($originalAgenda) {
+                        $jadwal->agenda = $originalAgenda;
+                    }
                 }
                 return $jadwal;
             });
@@ -134,6 +188,8 @@ class DetailBlokController extends Controller
     {
         return JadwalPraktikum::where('mata_kuliah_kode', $kode)
             ->with(['dosen', 'ruangan'])
+            ->orderBy('tanggal', 'asc')
+            ->orderBy('jam_mulai', 'asc')
             ->get()
             ->map(function ($jadwal) {
                 if ($jadwal->jam_mulai) {
@@ -141,6 +197,33 @@ class DetailBlokController extends Controller
                 }
                 if ($jadwal->jam_selesai) {
                     $jadwal->jam_selesai = $this->formatJamForFrontend($jadwal->jam_selesai);
+                }
+                // Ensure dosen_ids is available for frontend (extract from relationship)
+                if ($jadwal->dosen && $jadwal->dosen->isNotEmpty()) {
+                    $jadwal->dosen_ids = $jadwal->dosen->pluck('id')->toArray();
+                }
+                // Ensure kelas_praktikum is explicitly included in response
+                // Always get from original attribute to ensure it's included even if empty
+                $originalKelasPraktikum = $jadwal->getOriginal('kelas_praktikum');
+                if ($originalKelasPraktikum !== null) {
+                    $jadwal->kelas_praktikum = $originalKelasPraktikum;
+                } else {
+                    // Explicitly set to empty string to ensure field is included in JSON response
+                    $jadwal->kelas_praktikum = '';
+                }
+                // Ensure materi is included
+                if (empty($jadwal->materi)) {
+                    $originalMateri = $jadwal->getOriginal('materi');
+                    if ($originalMateri) {
+                        $jadwal->materi = $originalMateri;
+                    }
+                }
+                // Ensure topik is included
+                if (empty($jadwal->topik)) {
+                    $originalTopik = $jadwal->getOriginal('topik');
+                    if ($originalTopik) {
+                        $jadwal->topik = $originalTopik;
+                    }
                 }
                 return $jadwal;
             });
@@ -150,6 +233,8 @@ class DetailBlokController extends Controller
     {
         return JadwalJurnalReading::where('mata_kuliah_kode', $kode)
             ->with(['kelompokKecil', 'kelompokKecilAntara', 'dosen', 'ruangan'])
+            ->orderBy('tanggal', 'asc')
+            ->orderBy('jam_mulai', 'asc')
             ->get()
             ->map(function ($jadwal) {
                 if ($jadwal->jam_mulai) {
@@ -170,6 +255,29 @@ class DetailBlokController extends Controller
                 if ($jadwal->dosen_ids && is_array($jadwal->dosen_ids)) {
                     $dosenNames = User::whereIn('id', $jadwal->dosen_ids)->pluck('name')->toArray();
                     $jadwal->dosen_names = implode(', ', $dosenNames);
+                }
+
+                // Ensure dosen_id is included for single dosen
+                if (!$jadwal->dosen_id && $jadwal->dosen_ids && is_array($jadwal->dosen_ids) && count($jadwal->dosen_ids) > 0) {
+                    $jadwal->dosen_id = $jadwal->dosen_ids[0];
+                } elseif (!$jadwal->dosen_id && $jadwal->dosen) {
+                    $dosen = is_array($jadwal->dosen) ? $jadwal->dosen->first() : $jadwal->dosen;
+                    if ($dosen) {
+                        $jadwal->dosen_id = $dosen->id;
+                    }
+                }
+
+                // Ensure topik is included
+                if (empty($jadwal->topik)) {
+                    $originalTopik = $jadwal->getOriginal('topik');
+                    if ($originalTopik) {
+                        $jadwal->topik = $originalTopik;
+                    }
+                }
+
+                // Ensure ruangan_id is included
+                if (!$jadwal->ruangan_id && $jadwal->ruangan) {
+                    $jadwal->ruangan_id = $jadwal->ruangan->id;
                 }
 
                 return $jadwal;

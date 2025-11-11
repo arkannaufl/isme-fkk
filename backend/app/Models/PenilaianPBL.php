@@ -30,6 +30,7 @@ class PenilaianPBL extends Model
         'signature_tutor',
         'signature_paraf',
         'nama_tutor',
+        'jadwal_pbl_id',
     ];
 
     public function getActivitylogOptions(): LogOptions

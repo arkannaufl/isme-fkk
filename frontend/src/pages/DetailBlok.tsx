@@ -16,6 +16,7 @@ import { faPenToSquare, faTrash, faFileExcel, faDownload, faUpload, faExclamatio
 import { getRuanganOptions } from '../utils/ruanganHelper';
 
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 // Constants
 const SESSION_DURATION_MINUTES = 50;
@@ -89,6 +90,15 @@ type JadwalKuliahBesarType = {
   ruangan_id: number;
 
   jumlah_sesi: number;
+
+  // SIAKAD fields
+  siakad_kurikulum?: string;
+  siakad_kode_mk?: string;
+  siakad_nama_kelas?: string;
+  siakad_kelompok?: string;
+  siakad_jenis_pertemuan?: string;
+  siakad_metode?: string;
+  siakad_dosen_pengganti?: string;
 
   [key: string]: any;
 
@@ -184,7 +194,7 @@ type KelompokKecilType = { id: number; nama_kelompok: string; jumlah_anggota: nu
 
 type DosenType = { id: number; name: string; nid?: string; keahlian?: string | string[]; };
 
-type RuanganType = { id: number; nama: string; kapasitas?: number; gedung?: string; };
+type RuanganType = { id: number; id_ruangan?: string; nama: string; kapasitas?: number; gedung?: string; };
 
 type JadwalPBLType = {
 
@@ -204,15 +214,19 @@ type JadwalPBLType = {
 
   ruangan_id: number;
 
+  // SIAKAD fields
+  siakad_kurikulum?: string;
+  siakad_kode_mk?: string;
+  siakad_nama_kelas?: string;
+  topik?: string;
+  siakad_substansi?: string;
+  siakad_jenis_pertemuan?: string;
+  siakad_metode?: string;
+  siakad_dosen_pengganti?: string;
+
   [key: string]: any;
 
 };
-
-
-
-
-
-
 
 export default function DetailBlok() {
 
@@ -249,13 +263,8 @@ export default function DetailBlok() {
     return () => timers.forEach(timer => clearTimeout(timer));
   }, [kuliahBesarSuccess, praktikumSuccess, agendaKhususSuccess, jurnalReadingSuccess]);
 
-
-
   // State untuk modal input jadwal materi
-
   const [showModal, setShowModal] = useState(false);
-
-
 
   const [form, setForm] = useState<{
 
@@ -344,6 +353,39 @@ export default function DetailBlok() {
   const [allDosenList, setAllDosenList] = useState<DosenType[]>([]);
 
   const [allRuanganList, setAllRuanganList] = useState<RuanganType[]>([]);
+
+  // Helper function untuk mendapatkan nama dosen pengganti
+  const getDosenPenggantiName = (row: any): string => {
+    // Cek apakah ada dosen_ids dan dosen_id
+    if (!row.dosen_ids || !row.dosen_id) return '-';
+    
+    try {
+      // Parse dosen_ids jika string
+      const dosenIds = Array.isArray(row.dosen_ids) 
+        ? row.dosen_ids 
+        : (typeof row.dosen_ids === 'string' ? JSON.parse(row.dosen_ids || '[]') : []);
+      
+      // Jika dosen_ids memiliki lebih dari 1 elemen, berarti ada penggantian
+      if (dosenIds.length > 1) {
+        // Dosen pengganti adalah dosen yang ada di dosen_id (dosen saat ini)
+        // Jika dosen_id berbeda dari elemen pertama di dosen_ids, berarti ada penggantian
+        const originalDosenId = dosenIds[0];
+        const currentDosenId = Number(row.dosen_id);
+        
+        // Jika dosen_id saat ini berbeda dari dosen asli (elemen pertama), berarti ada penggantian
+        if (currentDosenId !== Number(originalDosenId)) {
+          // Ada penggantian, tampilkan nama dosen pengganti (dosen saat ini)
+          const dosenPengganti = allDosenList.find(d => d.id === currentDosenId);
+          return dosenPengganti?.name || '-';
+        }
+      }
+    } catch (error) {
+      // Jika error parsing, return '-'
+      console.error('Error parsing dosen_ids:', error);
+    }
+    
+    return '-';
+  };
 
   const [jadwalPBL, setJadwalPBL] = useState<JadwalPBLType[]>([]);
 
@@ -527,6 +569,18 @@ export default function DetailBlok() {
   const [isJurnalReadingImporting, setIsJurnalReadingImporting] = useState(false);
   const [jurnalReadingImportedCount, setJurnalReadingImportedCount] = useState(0);
 
+  // State untuk export Excel Kuliah Besar
+  const [showKuliahBesarExportModal, setShowKuliahBesarExportModal] = useState(false);
+  const [selectedKuliahBesarExportTemplate, setSelectedKuliahBesarExportTemplate] = useState<'APLIKASI' | 'SIAKAD' | null>(null);
+
+  // State untuk export Excel Praktikum
+  const [showPraktikumExportModal, setShowPraktikumExportModal] = useState(false); 
+  const [selectedPraktikumExportTemplate, setSelectedPraktikumExportTemplate] = useState<'APLIKASI' | 'SIAKAD' | null>(null);
+
+  // State untuk export Excel PBL
+  const [showPBLExportModal, setShowPBLExportModal] = useState(false);
+  const [selectedPBLExportTemplate, setSelectedPBLExportTemplate] = useState<'APLIKASI' | 'SIAKAD' | null>(null);
+
   // State untuk bulk delete
   const [selectedKuliahBesarItems, setSelectedKuliahBesarItems] = useState<number[]>([]);
   const [selectedPraktikumItems, setSelectedPraktikumItems] = useState<number[]>([]);
@@ -607,8 +661,6 @@ export default function DetailBlok() {
     }
 
   };
-
-
 
   // Fetch pengampu dinamis setelah materi dipilih
 
@@ -1242,12 +1294,33 @@ export default function DetailBlok() {
 
 
   function handleEditJadwal(idx: number, jenisBaris?: string) {
-
     // Untuk PBL, gunakan jadwalPBL
+    // Validasi index dan data
+    if (jenisBaris === 'pbl') {
+      if (idx < 0 || idx >= jadwalPBL.length) {
+        console.error('Invalid index for jadwalPBL:', idx);
+        return;
+      }
+    }
 
     const row = jenisBaris === 'pbl' ? jadwalPBL[idx] : null;
 
     if (!row) return;
+
+    // Validasi bahwa row ada dan memiliki ID untuk PBL
+    if (jenisBaris === 'pbl' && (!row.id)) {
+      console.error('Invalid row data or missing ID for PBL:', row);
+      return;
+    }
+
+    // Cari data berdasarkan ID untuk memastikan data yang benar (jika ada perubahan urutan)
+    if (jenisBaris === 'pbl' && row.id) {
+      const actualRow = jadwalPBL.find(j => j.id === row.id) || row;
+      if (actualRow !== row) {
+        // Update row dengan actualRow jika berbeda
+        Object.assign(row, actualRow);
+      }
+    }
 
     let tglISO = '';
 
@@ -2981,7 +3054,7 @@ export default function DetailBlok() {
 
       await api.put(`/mata-kuliah/${kode}/jadwal-pbl/${id}`, updatedFormPBL);
 
-      fetchBatchData();
+      await fetchBatchData();
 
     } catch (err: any) {
 
@@ -3142,53 +3215,51 @@ export default function DetailBlok() {
   // Handler edit jadwal kuliah besar
 
   function handleEditJadwalKuliahBesar(idx: number) {
+    // Validasi index dan data
+    if (idx < 0 || idx >= jadwalKuliahBesar.length) {
+      console.error('Invalid index for jadwalKuliahBesar:', idx);
+      return;
+    }
 
     const row = jadwalKuliahBesar[idx];
+    
+    // Validasi bahwa row ada dan memiliki ID
+    if (!row || !row.id) {
+      console.error('Invalid row data or missing ID:', row);
+      return;
+    }
+
+    // Cari data berdasarkan ID untuk memastikan data yang benar (jika ada perubahan urutan)
+    const actualRow = jadwalKuliahBesar.find(j => j.id === row.id) || row;
 
     setForm({
-
-      hariTanggal: row.tanggal,
-
-      jamMulai: row.jam_mulai,
-
-      jumlahKali: row.jumlah_sesi || 2,
-
-      jamSelesai: row.jam_selesai,
-
-        pengampu: row.dosen_id,
-
-      materi: row.materi,
-
-      topik: row.topik || '',
-
-      lokasi: row.ruangan_id,
-
+      hariTanggal: actualRow.tanggal || '',
+      jamMulai: actualRow.jam_mulai || '',
+      jumlahKali: actualRow.jumlah_sesi || 2,
+      jamSelesai: actualRow.jam_selesai || '',
+      pengampu: actualRow.dosen_id || null,
+      materi: actualRow.materi || '',
+      topik: actualRow.topik || '',
+      lokasi: actualRow.ruangan_id || null,
       jenisBaris: 'materi',
-
       agenda: '',
-
       kelasPraktikum: '',
-
       pblTipe: '',
-
       modul: null,
-
       kelompok: '',
-
-        kelompokBesar: row.kelompok_besar_id || null,
-
+      kelompokBesar: actualRow.kelompok_besar_id !== undefined && actualRow.kelompok_besar_id !== null 
+        ? Number(actualRow.kelompok_besar_id) 
+        : null,
       useRuangan: true,
-
       fileJurnal: null,
-
     });
 
-    setEditIndex(idx);
+    // Set editIndex berdasarkan ID untuk memastikan konsistensi
+    const actualIndex = jadwalKuliahBesar.findIndex(j => j.id === row.id);
+    setEditIndex(actualIndex >= 0 ? actualIndex : idx);
 
     setShowModal(true);
-
     resetErrorForm();
-
   }
 
 
@@ -3314,53 +3385,51 @@ export default function DetailBlok() {
   // Handler edit jadwal agenda khusus
 
   function handleEditJadwalAgendaKhusus(idx: number) {
+    // Validasi index dan data
+    if (idx < 0 || idx >= jadwalAgendaKhusus.length) {
+      console.error('Invalid index for jadwalAgendaKhusus:', idx);
+      return;
+    }
 
     const row = jadwalAgendaKhusus[idx];
+    
+    // Validasi bahwa row ada dan memiliki ID
+    if (!row || !row.id) {
+      console.error('Invalid row data or missing ID:', row);
+      return;
+    }
+
+    // Cari data berdasarkan ID untuk memastikan data yang benar (jika ada perubahan urutan)
+    const actualRow = jadwalAgendaKhusus.find(j => j.id === row.id) || row;
 
     setForm({
-
-      hariTanggal: row.tanggal,
-
-      jamMulai: row.jam_mulai,
-
-      jumlahKali: row.jumlah_sesi || 2,
-
-      jamSelesai: row.jam_selesai,
-
+      hariTanggal: actualRow.tanggal || '',
+      jamMulai: actualRow.jam_mulai || '',
+      jumlahKali: actualRow.jumlah_sesi || 2,
+      jamSelesai: actualRow.jam_selesai || '',
       pengampu: null,
-
       materi: '',
-
       topik: '',
-
-      lokasi: row.use_ruangan ? row.ruangan_id : null,
-
+      lokasi: actualRow.use_ruangan ? (actualRow.ruangan_id || null) : null,
       jenisBaris: 'agenda',
-
-      agenda: row.agenda,
-
+      agenda: actualRow.agenda || '',
       kelasPraktikum: '',
-
       pblTipe: '',
-
       modul: null,
-
       kelompok: '',
-
-      kelompokBesar: row.kelompok_besar_id || null,
-
-      useRuangan: row.use_ruangan !== undefined ? row.use_ruangan : true,
-
+      kelompokBesar: actualRow.kelompok_besar_id !== undefined && actualRow.kelompok_besar_id !== null 
+        ? Number(actualRow.kelompok_besar_id) 
+        : null,
+      useRuangan: actualRow.use_ruangan !== undefined ? actualRow.use_ruangan : true,
       fileJurnal: null,
-
     });
 
-    setEditIndex(idx);
+    // Set editIndex berdasarkan ID untuk memastikan konsistensi
+    const actualIndex = jadwalAgendaKhusus.findIndex(j => j.id === row.id);
+    setEditIndex(actualIndex >= 0 ? actualIndex : idx);
 
     setShowModal(true);
-
     resetErrorForm();
-
   }
 
 
@@ -3500,53 +3569,63 @@ export default function DetailBlok() {
   // Handler edit jadwal praktikum
 
   function handleEditJadwalPraktikum(idx: number) {
+    // Validasi index dan data
+    if (idx < 0 || idx >= jadwalPraktikum.length) {
+      console.error('Invalid index for jadwalPraktikum:', idx);
+      return;
+    }
 
     const row = jadwalPraktikum[idx];
+    
+    // Validasi bahwa row ada dan memiliki ID
+    if (!row || !row.id) {
+      console.error('Invalid row data or missing ID:', row);
+      return;
+    }
+
+    // Cari data berdasarkan ID untuk memastikan data yang benar (jika ada perubahan urutan)
+    const actualRow = jadwalPraktikum.find(j => j.id === row.id) || row;
+
+    // Handle dosen - support both single dosen_id and multiple dosen array
+    let pengampuValue: number | number[] | null = null;
+    if (actualRow.dosen_ids && Array.isArray(actualRow.dosen_ids) && actualRow.dosen_ids.length > 0) {
+      pengampuValue = actualRow.dosen_ids;
+    } else if (actualRow.dosen && Array.isArray(actualRow.dosen) && actualRow.dosen.length > 0) {
+      pengampuValue = actualRow.dosen.map((d: any) => d.id || d);
+    } else if (actualRow.dosen_id) {
+      pengampuValue = actualRow.dosen_id;
+    } else if (actualRow.dosen && !Array.isArray(actualRow.dosen)) {
+      pengampuValue = actualRow.dosen.id || actualRow.dosen;
+    }
 
     setForm({
-
-      hariTanggal: row.tanggal,
-
-      jamMulai: row.jam_mulai,
-
-      jumlahKali: Number(row.jumlah_sesi || 2),
-
-      jamSelesai: row.jam_selesai,
-
-      pengampu: row.dosen?.map((d: any) => d.id) || [],
-
-      materi: row.materi,
-
-      topik: row.topik || '',
-
-      lokasi: row.ruangan_id,
-
+      hariTanggal: actualRow.tanggal || '',
+      jamMulai: actualRow.jam_mulai || '',
+      jumlahKali: Number(actualRow.jumlah_sesi || 2),
+      jamSelesai: actualRow.jam_selesai || '',
+      pengampu: pengampuValue,
+      materi: actualRow.materi || '',
+      topik: actualRow.topik || '',
+      lokasi: actualRow.ruangan_id || null,
       jenisBaris: 'praktikum',
-
       agenda: '',
-
-      kelasPraktikum: row.kelas_praktikum,
-
+      kelasPraktikum: actualRow.kelas_praktikum !== undefined && actualRow.kelas_praktikum !== null 
+        ? String(actualRow.kelas_praktikum) 
+        : '',
       pblTipe: '',
-
       modul: null,
-
       kelompok: '',
-
       kelompokBesar: null,
-
       useRuangan: true,
-
       fileJurnal: null,
-
     });
 
-    setEditIndex(idx);
+    // Set editIndex berdasarkan ID untuk memastikan konsistensi
+    const actualIndex = jadwalPraktikum.findIndex(j => j.id === row.id);
+    setEditIndex(actualIndex >= 0 ? actualIndex : idx);
 
     setShowModal(true);
-
     resetErrorForm();
-
   }
 
 
@@ -3806,77 +3885,79 @@ export default function DetailBlok() {
   // Handler edit jadwal jurnal reading
 
   function handleEditJadwalJurnalReading(idx: number) {
-
-    const row = jadwalJurnalReading[idx];
-
-    
-
-    setForm({
-
-      hariTanggal: row.tanggal || '',
-
-      jamMulai: row.jam_mulai || '',
-
-      jumlahKali: Number(row.jumlah_sesi || 1),
-
-      jamSelesai: row.jam_selesai || '',
-
-      pengampu: row.dosen_id || null,
-
-      materi: '',
-
-      topik: row.topik || '',
-
-      lokasi: row.ruangan_id || null,
-
-      jenisBaris: 'jurnal',
-
-      agenda: '',
-
-      kelasPraktikum: '',
-
-      pblTipe: '',
-
-      modul: null,
-
-      kelompok: row.kelompok_kecil?.nama_kelompok || '',
-
-      kelompokBesar: null,
-
-      useRuangan: true,
-
-      fileJurnal: null,
-
-    });
-
-    
-
-    // Set informasi file yang sudah ada di backend
-
-    if (row.file_jurnal) {
-
-      setExistingFileJurnal({
-
-        name: row.file_jurnal.split('/').pop() || 'File Jurnal',
-
-        url: row.file_jurnal
-
-      });
-
-    } else {
-
-      setExistingFileJurnal(null);
-
+    // Validasi index dan data
+    if (idx < 0 || idx >= jadwalJurnalReading.length) {
+      console.error('Invalid index for jadwalJurnalReading:', idx);
+      return;
     }
 
+    const row = jadwalJurnalReading[idx];
     
+    // Validasi bahwa row ada dan memiliki ID
+    if (!row || !row.id) {
+      console.error('Invalid row data or missing ID:', row);
+      return;
+    }
 
-    setEditIndex(idx);
+    // Cari data berdasarkan ID untuk memastikan data yang benar (jika ada perubahan urutan)
+    const actualRow = jadwalJurnalReading.find(j => j.id === row.id) || row;
+
+    // Handle kelompok - support both kelompok_kecil and kelompok_kecil_antara
+    let kelompokValue = '';
+    if (actualRow.kelompok_kecil_antara?.nama_kelompok) {
+      kelompokValue = actualRow.kelompok_kecil_antara.nama_kelompok;
+    } else if (actualRow.kelompok_kecil?.nama_kelompok) {
+      kelompokValue = actualRow.kelompok_kecil.nama_kelompok;
+    } else if (actualRow.nama_kelompok) {
+      kelompokValue = actualRow.nama_kelompok;
+    }
+
+    // Handle dosen - support both dosen_id and dosen_ids
+    let pengampuValue: number | null = null;
+    if (actualRow.dosen_ids && Array.isArray(actualRow.dosen_ids) && actualRow.dosen_ids.length > 0) {
+      pengampuValue = actualRow.dosen_ids[0]; // Take first dosen for single select
+    } else if (actualRow.dosen_id) {
+      pengampuValue = actualRow.dosen_id;
+    } else if (actualRow.dosen?.id) {
+      pengampuValue = actualRow.dosen.id;
+    }
+
+    setForm({
+      hariTanggal: actualRow.tanggal || '',
+      jamMulai: actualRow.jam_mulai || '',
+      jumlahKali: Number(actualRow.jumlah_sesi || 1),
+      jamSelesai: actualRow.jam_selesai || '',
+      pengampu: pengampuValue,
+      materi: '',
+      topik: actualRow.topik || '',
+      lokasi: actualRow.ruangan_id || null,
+      jenisBaris: 'jurnal',
+      agenda: '',
+      kelasPraktikum: '',
+      pblTipe: '',
+      modul: null,
+      kelompok: kelompokValue,
+      kelompokBesar: null,
+      useRuangan: true,
+      fileJurnal: null,
+    });
+
+    // Set informasi file yang sudah ada di backend
+    if (actualRow.file_jurnal) {
+      setExistingFileJurnal({
+        name: actualRow.file_jurnal.split('/').pop() || 'File Jurnal',
+        url: actualRow.file_jurnal
+      });
+    } else {
+      setExistingFileJurnal(null);
+    }
+
+    // Set editIndex berdasarkan ID untuk memastikan konsistensi
+    const actualIndex = jadwalJurnalReading.findIndex(j => j.id === row.id);
+    setEditIndex(actualIndex >= 0 ? actualIndex : idx);
 
     setShowModal(true);
-
     resetErrorForm();
-
   }
 
 
@@ -4110,8 +4191,8 @@ export default function DetailBlok() {
     }
   };
 
-  // Fungsi untuk export Excel Kuliah Besar
-  const exportKuliahBesarExcel = async () => {
+  // Fungsi untuk export Excel Kuliah Besar (Template Aplikasi)
+  const exportKuliahBesarExcelAplikasi = async () => {
     try {
       if (!data || jadwalKuliahBesar.length === 0) return;
 
@@ -4173,15 +4254,244 @@ export default function DetailBlok() {
       infoWs['!cols'] = [{ wch: 30 }, { wch: 50 }];
       XLSX.utils.book_append_sheet(wb, infoWs, 'Info Mata Kuliah');
 
-      const fileName = `Export_Kuliah_Besar_${data?.kode || 'MataKuliah'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      const fileName = `Export_Kuliah_Besar_Aplikasi_${data?.kode || 'MataKuliah'}_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
-      alert('Gagal mengekspor data jadwal kuliah besar');
+      console.error('Error exporting Kuliah Besar (Aplikasi):', error);
+      alert('Gagal mengekspor data jadwal kuliah besar (Template Aplikasi)');
     }
   };
 
-  // Fungsi untuk export Excel Praktikum
-  const exportPraktikumExcel = async () => {
+  // ===== SIAKAD EXPORT CONSTANTS & HELPERS =====
+  
+  // Common SIAKAD headers
+  const SIAKAD_HEADERS = [
+    'Kurikulum',
+    'Kode MK',
+    'Nama Kelas',
+    'Kelompok\n(Contoh: 1)',
+    'Topik',
+    'Substansi\n(Lihat Daftar Substansi)',
+    'Jenis Pertemuan\n(Lihat Daftar Jenis Pertemuan)',
+    'Metode\n(Lihat Daftar Metode)',
+    'Ruang\n(Lihat Daftar Ruang)',
+    'NIP Pengajar',
+    'Dosen Pengganti\n(Y jika Ya)',
+    'Tanggal\n(YYYY-MM-DD)',
+    'Waktu Mulai\n(Lihat Daftar Waktu Mulai)',
+    'Waktu Selesai\n(Lihat Daftar Waktu Selesai)'
+  ];``
+
+  // Common SIAKAD column widths
+  const SIAKAD_COLUMN_WIDTHS = [
+    { width: 12 }, // Kurikulum
+    { width: 10 }, // Kode MK
+    { width: 12 }, // Nama Kelas
+    { width: 12 }, // Kelompok
+    { width: 30 }, // Topik
+    { width: 22 }, // Substansi
+    { width: 30 }, // Jenis Pertemuan
+    { width: 25 }, // Metode
+    { width: 25 }, // Ruang
+    { width: 15 }, // NIP Pengajar
+    { width: 18 }, // Dosen Pengganti
+    { width: 15 }, // Tanggal
+    { width: 28 }, // Waktu Mulai
+    { width: 28 }  // Waktu Selesai
+  ];
+
+  // Common SIAKAD styling
+  const SIAKAD_STYLES = {
+    greenOneLine: {
+      fill: { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FF92D050' } },
+      font: { bold: true, color: { argb: 'FF000000' } },
+      alignment: { horizontal: 'left' as const, vertical: 'top' as const, wrapText: true }
+    },
+    greenTwoLines: {
+      fill: { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FF92D050' } },
+      font: { bold: true, color: { argb: 'FF000000' } },
+      alignment: { horizontal: 'left' as const, vertical: 'middle' as const, wrapText: true }
+    },
+    orangeOneLine: {
+      fill: { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFFFC000' } },
+      font: { bold: true, color: { argb: 'FF000000' } },
+      alignment: { horizontal: 'left' as const, vertical: 'top' as const, wrapText: true }
+    },
+    orangeTwoLines: {
+      fill: { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFFFC000' } },
+      font: { bold: true, color: { argb: 'FF000000' } },
+      alignment: { horizontal: 'left' as const, vertical: 'middle' as const, wrapText: true }
+    }
+  };
+
+  // Common SIAKAD column styling configuration
+  const SIAKAD_COLUMN_STYLES = {
+    greenOneLine: [1, 2, 3, 5],      // A, B, C, E
+    greenTwoLines: [7, 8, 12, 13, 14], // G, H, L, M, N
+    orangeOneLine: [10],              // J
+    orangeTwoLines: [4, 6, 9, 11]     // D, F, I, K
+  };
+
+  // Helper function to apply SIAKAD styling to worksheet
+  const applySIAKADStyling = (worksheet: any) => {
+    const headerRow = worksheet.getRow(1);
+    headerRow.height = 30;
+
+    SIAKAD_COLUMN_STYLES.greenOneLine.forEach(col => {
+      headerRow.getCell(col).style = SIAKAD_STYLES.greenOneLine;
+    });
+
+    SIAKAD_COLUMN_STYLES.greenTwoLines.forEach(col => {
+      headerRow.getCell(col).style = SIAKAD_STYLES.greenTwoLines;
+    });
+
+    SIAKAD_COLUMN_STYLES.orangeOneLine.forEach(col => {
+      headerRow.getCell(col).style = SIAKAD_STYLES.orangeOneLine;
+    });
+
+    SIAKAD_COLUMN_STYLES.orangeTwoLines.forEach(col => {
+      headerRow.getCell(col).style = SIAKAD_STYLES.orangeTwoLines;
+    });
+
+    worksheet.columns = SIAKAD_COLUMN_WIDTHS;
+  };
+
+  // Helper function to create SIAKAD info sheet
+  const createSIAKADInfoSheet = (workbook: any, data: any, jadwalType: string, jadwalCount: number) => {
+    const infoSheet = workbook.addWorksheet('Informasi');
+    infoSheet.addRow(['INFORMASI EXPORT SIAKAD']);
+    infoSheet.addRow([]);
+    infoSheet.addRow(['Blok', data?.blok || '']);
+    infoSheet.addRow(['Tanggal Mulai', data?.tanggal_mulai ? new Date(data.tanggal_mulai).toISOString().split('T')[0] : '']);
+    infoSheet.addRow(['Tanggal Akhir', data?.tanggal_akhir ? new Date(data.tanggal_akhir).toISOString().split('T')[0] : '']);
+    infoSheet.addRow(['Durasi Minggu', data?.durasi_minggu || '']);
+    infoSheet.addRow([]);
+    infoSheet.addRow([`TOTAL JADWAL ${jadwalType.toUpperCase()}`, jadwalCount]);
+    infoSheet.addRow([]);
+    infoSheet.addRow(['CATATAN:']);
+    infoSheet.addRow([`• File ini berisi data jadwal ${jadwalType.toLowerCase()} dalam format SIAKAD`]);
+    infoSheet.addRow(['• Header dengan line break pada kolom: Kelompok, Substansi, Jenis Pertemuan, Metode, Ruang, Dosen Pengganti, Tanggal, Waktu Mulai, Waktu Selesai']);
+    infoSheet.addRow([]);
+    infoSheet.addRow(['STYLING HEADER:']);
+    infoSheet.addRow(['• Header HIJAU (kolom yang dibiarkan kosong): Kurikulum, Kode MK, Nama Kelas, Topik, Jenis Pertemuan, Metode, Tanggal, Waktu Mulai, Waktu Selesai']);
+    infoSheet.addRow(['• Header ORANGE (kolom yang diisi dari sistem): Kelompok, Substansi, Ruang, NIP Pengajar, Dosen Pengganti']);
+    infoSheet.addRow(['• Alignment Header:']);
+    infoSheet.addRow(['  - Header satu baris: Rata kiri horizontal, Rata atas vertikal']);
+    infoSheet.addRow(['  - Header dua baris: Rata kiri horizontal, Tengah vertikal']);
+    infoSheet.addRow([]);
+    infoSheet.addRow(['MAPPING DATA:']);
+    infoSheet.addRow(['• Kolom yang diisi dari data asli SIAKAD:']);
+    infoSheet.addRow(['  - Kurikulum ← siakad_kurikulum']);
+    infoSheet.addRow(['  - Kode MK ← siakad_kode_mk']);
+    if (jadwalType === 'pbl') {
+      infoSheet.addRow(['  - Nama Kelas ← siakad_nama_kelas']);
+      infoSheet.addRow(['  - Topik ← topik']);
+      infoSheet.addRow(['  - Substansi ← siakad_substansi']);
+      infoSheet.addRow(['  - Jenis Pertemuan ← siakad_jenis_pertemuan']);
+      infoSheet.addRow(['  - Metode ← siakad_metode']);
+      infoSheet.addRow(['  - Dosen Pengganti ← siakad_dosen_pengganti']);
+    } else {
+      infoSheet.addRow(['  - Kelompok ← siakad_kelompok']);
+      infoSheet.addRow(['  - Topik ← topik']);
+      infoSheet.addRow(['  - Jenis Pertemuan ← siakad_jenis_pertemuan']);
+      infoSheet.addRow(['  - Metode ← siakad_metode']);
+      infoSheet.addRow(['  - Dosen Pengganti ← siakad_dosen_pengganti']);
+    }
+    infoSheet.addRow(['• Kolom yang diisi dari sistem:']);
+    if (jadwalType === 'pbl') {
+      infoSheet.addRow(['  - Kelompok ← nama_kelompok (dari sistem)']);
+      infoSheet.addRow(['  - Ruang ← id_ruangan (kode ruangan)']);
+      infoSheet.addRow(['  - NIP Pengajar ← nid (NID dosen)']);
+      infoSheet.addRow(['  - Tanggal ← tanggal']);
+      infoSheet.addRow(['  - Waktu Mulai ← jam_mulai']);
+      infoSheet.addRow(['  - Waktu Selesai ← jam_selesai']);
+    } else {
+      infoSheet.addRow(['  - Nama Kelas ← ' + (jadwalType === 'kuliah besar' ? 'siakad_nama_kelas' : 'kelas_praktikum')]);
+      infoSheet.addRow(['  - Substansi ← materi']);
+      infoSheet.addRow(['  - Ruang ← id_ruangan (kode ruangan)']);
+      infoSheet.addRow(['  - NIP Pengajar ← nid (NID dosen)']);
+      infoSheet.addRow(['  - Tanggal ← tanggal']);
+      infoSheet.addRow(['  - Waktu Mulai ← jam_mulai']);
+      infoSheet.addRow(['  - Waktu Selesai ← jam_selesai']);
+    }
+    infoSheet.addRow([]);
+    infoSheet.addRow(['• Format tanggal: YYYY-MM-DD']);
+    infoSheet.addRow(['• Format jam: HH:MM']);
+  };
+
+  // Helper function to download Excel file
+  const downloadExcelFile = async (workbook: any, filename: string) => {
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  // ===== EXPORT FUNCTIONS =====
+
+  // Fungsi untuk export Excel Kuliah Besar (Template SIAKAD)
+  const exportKuliahBesarExcelSIAKAD = async () => {
+    try {
+      if (!data || jadwalKuliahBesar.length === 0) return;
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Jadwal Kuliah Besar SIAKAD');
+
+      // Add headers and apply styling
+      worksheet.addRow(SIAKAD_HEADERS);
+      applySIAKADStyling(worksheet);
+
+      // Tambahkan data rows
+      jadwalKuliahBesar.forEach((row) => {
+        const dosen = allDosenList.find(d => d.id === row.dosen_id);
+        const ruangan = allRuanganList.find(r => r.id === row.ruangan_id);
+
+        worksheet.addRow([
+          row.siakad_kurikulum || '', // Kurikulum - dari data asli SIAKAD
+          row.siakad_kode_mk || '', // Kode MK - dari data asli SIAKAD
+          row.siakad_nama_kelas || '', // Nama Kelas - dari data asli SIAKAD
+          row.siakad_kelompok || '', // Kelompok - dari data asli SIAKAD
+          row.topik || '', // Topik - dari data asli SIAKAD
+          row.materi || '', // Substansi - dari materi
+          row.siakad_jenis_pertemuan || '', // Jenis Pertemuan - dari data asli SIAKAD
+          row.siakad_metode || '', // Metode - dari data asli SIAKAD
+          ruangan?.id_ruangan || '', // Ruang - kode ruangan
+          dosen?.nid || '', // NIP Pengajar - NID dosen
+          row.siakad_dosen_pengganti || '', // Dosen Pengganti - dari data asli SIAKAD
+          row.tanggal ? new Date(row.tanggal).toISOString().split('T')[0] : '', // Tanggal
+          row.jam_mulai || '', // Waktu Mulai
+          row.jam_selesai || '' // Waktu Selesai
+        ]);
+      });
+
+      // Add info sheet and download
+      createSIAKADInfoSheet(workbook, data, 'kuliah besar', jadwalKuliahBesar.length);
+      const filename = `Export_KuliahBesar_SIAKAD_${data?.kode}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      await downloadExcelFile(workbook, filename);
+
+    } catch (error) {
+      console.error('Error exporting Kuliah Besar (SIAKAD):', error);
+      alert('Gagal mengekspor data jadwal kuliah besar (Template SIAKAD)');
+    }
+  };
+
+  // Fungsi untuk menangani export berdasarkan template yang dipilih
+  const handleKuliahBesarExport = async () => {
+    if (selectedKuliahBesarExportTemplate === 'APLIKASI') {
+      await exportKuliahBesarExcelAplikasi();
+    } else if (selectedKuliahBesarExportTemplate === 'SIAKAD') {
+      await exportKuliahBesarExcelSIAKAD();
+    }
+    setShowKuliahBesarExportModal(false);
+    setSelectedKuliahBesarExportTemplate(null);
+  };
+
+  // Fungsi untuk export Excel Praktikum (Template Aplikasi)
+  const exportPraktikumExcelAplikasi = async () => {
     try {
       if (!data || jadwalPraktikum.length === 0) return;
 
@@ -4246,11 +4556,72 @@ export default function DetailBlok() {
       infoWs['!cols'] = [{ wch: 30 }, { wch: 50 }];
       XLSX.utils.book_append_sheet(wb, infoWs, 'Info Mata Kuliah');
 
-      const fileName = `Export_Praktikum_${data?.kode || 'MataKuliah'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      const fileName = `Export_Praktikum_Aplikasi_${data?.kode || 'MataKuliah'}_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
-      alert('Gagal mengekspor data jadwal praktikum');
+      console.error('Error exporting Praktikum (Aplikasi):', error);
+      alert('Gagal mengekspor data jadwal praktikum (Template Aplikasi)');
     }
+  };
+
+  // Fungsi untuk export Excel Praktikum (Template SIAKAD)
+  const exportPraktikumExcelSIAKAD = async () => {
+    try {
+      if (!data || jadwalPraktikum.length === 0) return;
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Jadwal Praktikum SIAKAD');
+
+      // Add headers and apply styling
+      worksheet.addRow(SIAKAD_HEADERS);
+      applySIAKADStyling(worksheet);
+
+      // Add data rows
+      jadwalPraktikum.forEach((row) => {
+        // Praktikum bisa memiliki multiple dosen (array)
+        const dosenNids = Array.isArray(row.dosen) 
+          ? row.dosen.map((d: any) => d.nid).join(', ')
+          : '';
+        const ruangan = allRuanganList.find(r => r.id === row.ruangan_id);
+
+        worksheet.addRow([
+          row.siakad_kurikulum || '',
+          row.siakad_kode_mk || '',
+          row.kelas_praktikum || '',
+          row.siakad_kelompok || '',
+          row.topik || '',
+          row.materi || '',
+          row.siakad_jenis_pertemuan || '',
+          row.siakad_metode || '',
+          ruangan?.id_ruangan || '',
+          dosenNids || '',
+          row.siakad_dosen_pengganti || '',
+          row.tanggal ? new Date(row.tanggal).toISOString().split('T')[0] : '',
+          row.jam_mulai || '',
+          row.jam_selesai || ''
+        ]);
+      });
+
+      // Add info sheet and download
+      createSIAKADInfoSheet(workbook, data, 'praktikum', jadwalPraktikum.length);
+      const filename = `Export_Praktikum_SIAKAD_${data?.kode}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      await downloadExcelFile(workbook, filename);
+
+    } catch (error) {
+      console.error('Error exporting Praktikum (SIAKAD):', error);
+      alert('Gagal mengekspor data jadwal praktikum (Template SIAKAD)');
+    }
+  };
+
+  // Fungsi untuk menangani export Praktikum berdasarkan template yang dipilih
+  const handlePraktikumExport = async () => {
+    if (selectedPraktikumExportTemplate === 'APLIKASI') {
+      await exportPraktikumExcelAplikasi();
+    } else if (selectedPraktikumExportTemplate === 'SIAKAD') {
+      await exportPraktikumExcelSIAKAD();
+    }
+    setShowPraktikumExportModal(false);
+    setSelectedPraktikumExportTemplate(null);
   };
 
   // Fungsi untuk export Excel Agenda Khusus
@@ -4320,8 +4691,8 @@ export default function DetailBlok() {
     }
   };
 
-  // Fungsi untuk export Excel PBL
-  const exportPBLExcel = async () => {
+  // Fungsi untuk export Excel PBL (Template Aplikasi)
+  const exportPBLExcelAplikasi = async () => {
     try {
       if (!data || jadwalPBL.length === 0) return;
 
@@ -4383,11 +4754,70 @@ export default function DetailBlok() {
       infoWs['!cols'] = [{ wch: 30 }, { wch: 50 }];
       XLSX.utils.book_append_sheet(wb, infoWs, 'Info Mata Kuliah');
 
-      const fileName = `Export_PBL_${data?.kode || 'MataKuliah'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      const fileName = `Export_PBL_Aplikasi_${data?.kode || 'MataKuliah'}_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
-      alert('Gagal mengekspor data jadwal PBL');
+      console.error('Error exporting PBL (Aplikasi):', error);
+      alert('Gagal mengekspor data jadwal PBL (Template Aplikasi)');
     }
+  };
+
+  // Fungsi untuk export Excel PBL (Template SIAKAD)
+  const exportPBLExcelSIAKAD = async () => {
+    try {
+      if (!data || jadwalPBL.length === 0) return;
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Jadwal PBL SIAKAD');
+
+      // Add headers and apply styling
+      worksheet.addRow(SIAKAD_HEADERS);
+      applySIAKADStyling(worksheet);
+
+      // Add data rows dengan optimasi performa
+      jadwalPBL.forEach((row) => {
+        const dosen = allDosenList.find(d => d.id === row.dosen_id);
+        const ruangan = allRuanganList.find(r => r.id === row.ruangan_id);
+        const kelompok = kelompokKecilList.find(k => k.id === row.kelompok_kecil_id);
+
+        worksheet.addRow([
+          row.siakad_kurikulum || '',
+          row.siakad_kode_mk || '',
+          row.siakad_nama_kelas || '', // Dari file asli SIAKAD
+          kelompok?.nama_kelompok || '', // Dari sistem (beda dengan kuliah besar & praktikum)
+          row.topik || '',
+          row.siakad_substansi || '', // Dari file asli SIAKAD (beda dengan kuliah besar & praktikum)
+          row.siakad_jenis_pertemuan || '',
+          row.siakad_metode || '',
+          ruangan?.id_ruangan || '',
+          dosen?.nid || '',
+          row.siakad_dosen_pengganti || '',
+          row.tanggal ? new Date(row.tanggal).toISOString().split('T')[0] : '',
+          row.jam_mulai || '',
+          row.jam_selesai || ''
+        ]);
+      });
+
+      // Add info sheet and download
+      createSIAKADInfoSheet(workbook, data, 'pbl', jadwalPBL.length);
+      const filename = `Export_PBL_SIAKAD_${data?.kode}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      await downloadExcelFile(workbook, filename);
+
+    } catch (error) {
+      console.error('Error exporting PBL (SIAKAD):', error);
+      alert('Gagal mengekspor data jadwal PBL (Template SIAKAD)');
+    }
+  };
+
+  // Fungsi untuk menangani export PBL berdasarkan template yang dipilih
+  const handlePBLExport = async () => {
+    if (selectedPBLExportTemplate === 'APLIKASI') {
+      await exportPBLExcelAplikasi();
+    } else if (selectedPBLExportTemplate === 'SIAKAD') {
+      await exportPBLExcelSIAKAD();
+    }
+    setShowPBLExportModal(false);
+    setSelectedPBLExportTemplate(null);
   };
 
   // Fungsi untuk export Excel Jurnal Reading
@@ -5596,16 +6026,6 @@ export default function DetailBlok() {
             row.some(cell => cell && cell.toString().trim() !== '')
           );
 
-          // DEBUG: Log untuk melihat struktur data
-          console.log('Excel parsing debug:', {
-            totalRows: jsonData.length,
-            headerRowCount,
-            firstRow: jsonData[0],
-            secondRow: jsonData[1],
-            dataRowsCount: dataRows.length,
-            firstDataRow: dataRows[0]
-          });
-
           resolve({ data: dataRows, headers });
         } catch (error) {
 
@@ -5885,7 +6305,10 @@ export default function DetailBlok() {
       if (!namaRuangan || namaRuangan.trim() === '') {
         cellErrors.push({ row: rowNumber, field: 'ruangan_id', message: `Ruangan wajib diisi (Baris ${rowNumber}, Kolom RUANGAN)` });
       } else {
-        const ruangan = allRuanganList?.find(r => r.nama.toLowerCase() === namaRuangan.toLowerCase());
+        const ruangan = allRuanganList?.find(r => 
+          r.nama.toLowerCase() === namaRuangan.toLowerCase() || 
+          (r.id_ruangan && r.id_ruangan.toLowerCase() === namaRuangan.toLowerCase())
+        );
         if (!ruangan) {
           cellErrors.push({ row: rowNumber, field: 'ruangan_id', message: `Ruangan "${namaRuangan}" tidak ditemukan (Baris ${rowNumber}, Kolom RUANGAN)` });
         }
@@ -5929,7 +6352,10 @@ export default function DetailBlok() {
       // Validasi ruangan (boleh dikosongkan)
       const namaRuangan = row.nama_ruangan;
       if (namaRuangan && namaRuangan.trim() !== '') {
-        const ruangan = allRuanganList?.find(r => r.nama.toLowerCase() === namaRuangan.toLowerCase());
+        const ruangan = allRuanganList?.find(r => 
+          r.nama.toLowerCase() === namaRuangan.toLowerCase() || 
+          (r.id_ruangan && r.id_ruangan.toLowerCase() === namaRuangan.toLowerCase())
+        );
         if (!ruangan) {
           cellErrors.push({ row: rowNumber, field: 'ruangan_id', message: `Ruangan "${namaRuangan}" tidak ditemukan (Baris ${rowNumber}, Kolom RUANGAN)` });
         }
@@ -6101,7 +6527,10 @@ export default function DetailBlok() {
       if (!namaRuangan || namaRuangan.trim() === '') {
         cellErrors.push({ row: index, field: 'ruangan_id', message: `Ruangan wajib diisi (Baris ${rowNumber}, Kolom Ruangan)` });
       } else {
-        const ruangan = allRuanganList?.find(r => r.nama.toLowerCase() === namaRuangan.toLowerCase());
+        const ruangan = allRuanganList?.find(r => 
+          r.nama.toLowerCase() === namaRuangan.toLowerCase() || 
+          (r.id_ruangan && r.id_ruangan.toLowerCase() === namaRuangan.toLowerCase())
+        );
         if (!ruangan) {
           cellErrors.push({ row: index, field: 'ruangan_id', message: `Ruangan "${namaRuangan}" tidak ditemukan (Baris ${rowNumber}, Kolom Ruangan)` });
         }
@@ -6335,9 +6764,20 @@ export default function DetailBlok() {
         const kelompok = getValueFromMultipleFormats('Kelompok\n(Contoh: 1)', rowObj);
         const ruangan = getValueFromMultipleFormats('Ruang\n(Lihat Daftar Ruang)', rowObj);
         
+        // SIAKAD fields
+        const siakadKurikulum = rowObj['Kurikulum'] || '';
+        const siakadKodeMk = rowObj['Kode MK'] || '';
+        const siakadKelompok = getValueFromMultipleFormats('Kelompok\n(Contoh: 1)', rowObj);
+        const siakadJenisPertemuan = getValueFromMultipleFormats('Jenis Pertemuan\n(Lihat Daftar Jenis Pertemuan)', rowObj);
+        const siakadMetode = getValueFromMultipleFormats('Metode\n(Lihat Daftar Metode)', rowObj);
+        const siakadDosenPengganti = getValueFromMultipleFormats('Dosen Pengganti\n(Y jika Ya)', rowObj);
+        
 
-        // Find ruangan data
-        const ruanganData = allRuanganList?.find(r => r.nama.toLowerCase() === ruangan.toLowerCase());
+        // Find ruangan data - cari berdasarkan nama atau kode ruangan (id_ruangan)
+        const ruanganData = allRuanganList?.find(r => 
+          r.nama.toLowerCase() === ruangan.toLowerCase() || 
+          (r.id_ruangan && r.id_ruangan.toLowerCase() === ruangan.toLowerCase())
+        );
 
         // Find kelompok besar data
         const kelompokBesarData = kelompokBesarOptions?.find(kb => kb.label.toLowerCase() === kelompok.toLowerCase());
@@ -6356,9 +6796,16 @@ export default function DetailBlok() {
           dosen_id: null, // User isi manual di preview
           nama_dosen: 'Kosong (isi manual)', // User isi manual di preview
           ruangan_id: ruanganData?.id || 0,
-          nama_ruangan: ruangan || ruanganData?.nama || '',
+          nama_ruangan: ruanganData?.nama || ruangan || 'Kosong (isi manual)',
           jumlah_sesi: jumlahSesi,
-          kelompok_besar_id: kelompokBesarData?.id || null
+          kelompok_besar_id: kelompokBesarData?.id || null,
+          // SIAKAD fields
+          siakad_kurikulum: siakadKurikulum,
+          siakad_kode_mk: siakadKodeMk,
+          siakad_kelompok: siakadKelompok,
+          siakad_jenis_pertemuan: siakadJenisPertemuan,
+          siakad_metode: siakadMetode,
+          siakad_dosen_pengganti: siakadDosenPengganti
         };
       });
 
@@ -6702,14 +7149,26 @@ export default function DetailBlok() {
         const tanggal = getValueFromMultipleFormats('Tanggal\n(YYYY-MM-DD)', rowObj);
         const jamMulaiRaw = getValueFromMultipleFormats('Waktu Mulai\n(Lihat Daftar Waktu Mulai)', rowObj);
         const jamMulai = convertTimeFormat(jamMulaiRaw);
+        const jamSelesaiRaw = getValueFromMultipleFormats('Waktu Selesai\n(Lihat Daftar Waktu Selesai)', rowObj);
+        const jamSelesai = convertTimeFormat(jamSelesaiRaw);
+        
+        // SIAKAD fields dari file asli
+        const siakadKurikulum = rowObj['Kurikulum'] || '';
+        const siakadKodeMk = rowObj['Kode MK'] || '';
+        const siakadNamaKelas = rowObj['Nama Kelas'] || '';
         const topik = rowObj['Topik'] || '';
-        const namaKelas = rowObj['Nama Kelas'] || '';
+        const siakadSubstansi = getValueFromMultipleFormats('Substansi\n(Lihat Daftar Substansi)', rowObj);
+        const siakadJenisPertemuan = getValueFromMultipleFormats('Jenis Pertemuan\n(Lihat Daftar Jenis Pertemuan)', rowObj);
+        const siakadMetode = getValueFromMultipleFormats('Metode\n(Lihat Daftar Metode)', rowObj);
+        const siakadDosenPengganti = rowObj['Dosen Pengganti\n(Y jika Ya)'] || '';
+        
+        // Data dari sistem (kelompok kecil)
         const kelompok = getValueFromMultipleFormats('Kelompok\n(Contoh: 1)', rowObj);
         const ruangan = getValueFromMultipleFormats('Ruang\n(Lihat Daftar Ruang)', rowObj);
         const nipPengajar = rowObj['NIP Pengajar'] || '';
 
-        // Find ruangan data
-        const ruanganData = allRuanganList?.find(r => r.nama.toLowerCase() === ruangan.toLowerCase());
+        // Find ruangan data - cari berdasarkan id_ruangan (kode ruangan) seperti di kuliah besar & praktikum
+        const ruanganData = allRuanganList?.find(r => r.id_ruangan === ruangan);
 
         // Find kelompok kecil data berdasarkan kelompok saja
         const kelompokKecilData = kelompokKecilList?.find(k => 
@@ -6722,7 +7181,7 @@ export default function DetailBlok() {
         // Hitung jam selesai otomatis berdasarkan PBL tipe (default PBL 1 = 2 sesi)
         const pblTipe = 'PBL 1'; // Default untuk SIAKAD template
         const jumlahSesi = 2; // Default untuk PBL 1
-        const calculatedJamSelesai = hitungJamSelesai(jamMulai || '08:00', jumlahSesi);
+        const calculatedJamSelesai = jamSelesai || hitungJamSelesai(jamMulai || '08:00', jumlahSesi);
 
         return {
           tanggal: tanggal,
@@ -6735,9 +7194,18 @@ export default function DetailBlok() {
           dosen_id: dosenData?.id || null, // User isi manual di preview
           nama_dosen: dosenData?.name || 'Kosong (isi manual)', // User isi manual di preview
           ruangan_id: ruanganData?.id || 0,
-          nama_ruangan: ruangan || ruanganData?.nama || '',
+          nama_ruangan: ruanganData?.nama || ruangan || '',
           pbl_tipe: pblTipe, // Default PBL 1
-          jumlah_sesi: jumlahSesi
+          jumlah_sesi: jumlahSesi,
+          // SIAKAD fields
+          siakad_kurikulum: siakadKurikulum,
+          siakad_kode_mk: siakadKodeMk,
+          siakad_nama_kelas: siakadNamaKelas,
+          topik: topik,
+          siakad_substansi: siakadSubstansi,
+          siakad_jenis_pertemuan: siakadJenisPertemuan,
+          siakad_metode: siakadMetode,
+          siakad_dosen_pengganti: siakadDosenPengganti
         };
       });
 
@@ -7311,13 +7779,25 @@ export default function DetailBlok() {
         const topik = rowObj['Topik'] || '';
         const namaRuangan = getValueFromMultipleFormats('Ruang\n(Lihat Daftar Ruang)', rowObj);
         const kelompokBesarId = getValueFromMultipleFormats('Kelompok\n(Contoh: 1)', rowObj);
+        
+        // Extract SIAKAD original data
+        const siakadKurikulum = rowObj['Kurikulum'] || '';
+        const siakadKodeMk = rowObj['Kode MK'] || '';
+        const siakadNamaKelas = rowObj['Nama Kelas'] || '';
+        const siakadKelompok = getValueFromMultipleFormats('Kelompok\n(Contoh: 1)', rowObj);
+        const siakadJenisPertemuan = getValueFromMultipleFormats('Jenis Pertemuan\n(Lihat Daftar Jenis Pertemuan)', rowObj);
+        const siakadMetode = getValueFromMultipleFormats('Metode\n(Lihat Daftar Metode)', rowObj);
+        const siakadDosenPengganti = getValueFromMultipleFormats('Dosen Pengganti\n(Y jika Ya)', rowObj);
 
         // DEBUG: Log nilai yang diekstrak untuk baris pertama
         if (index === 0) {
         }
 
-        // Cari ruangan berdasarkan nama
-        const ruangan = ruanganList.find(r => r.nama.toLowerCase() === namaRuangan.toLowerCase());
+        // Cari ruangan berdasarkan nama atau kode ruangan (id_ruangan)
+        const ruangan = ruanganList.find(r => 
+          r.nama.toLowerCase() === namaRuangan.toLowerCase() || 
+          (r.id_ruangan && r.id_ruangan.toLowerCase() === namaRuangan.toLowerCase())
+        );
 
         // Hitung jam selesai otomatis berdasarkan sistem
         const jumlahSesi = 2; // Default 2 sesi
@@ -7332,9 +7812,17 @@ export default function DetailBlok() {
           dosen_id: null, // Dikosongkan untuk template SIAKAD (akan diisi manual setelah import)
           nama_dosen: null, // Dikosongkan untuk template SIAKAD
           ruangan_id: ruangan?.id || 0,
-          nama_ruangan: namaRuangan || 'Kosong (isi manual)',
+          nama_ruangan: ruangan?.nama || namaRuangan || 'Kosong (isi manual)',
           kelompok_besar_id: kelompokBesarId ? parseInt(kelompokBesarId) : 0,
-          jumlah_sesi: jumlahSesi
+          jumlah_sesi: jumlahSesi,
+          // SIAKAD original data
+          siakad_kurikulum: siakadKurikulum,
+          siakad_kode_mk: siakadKodeMk,
+          siakad_nama_kelas: siakadNamaKelas,
+          siakad_kelompok: siakadKelompok,
+          siakad_jenis_pertemuan: siakadJenisPertemuan,
+          siakad_metode: siakadMetode,
+          siakad_dosen_pengganti: siakadDosenPengganti
         };
       });
 
@@ -7400,18 +7888,33 @@ export default function DetailBlok() {
             if (ruangan) ruanganId = ruangan.id;
           }
           
-          return {
-          tanggal: row.tanggal,
-          jam_mulai: row.jam_mulai,
-          jam_selesai: row.jam_selesai,
-          sesi: row.jumlah_sesi, // Backend mengharapkan field 'sesi'
-          materi: row.materi,
-          topik: row.topik,
-          kelas_praktikum: row.kelas_praktikum,
+          const baseData = {
+            tanggal: row.tanggal,
+            jam_mulai: row.jam_mulai,
+            jam_selesai: row.jam_selesai,
+            sesi: row.jumlah_sesi, // Backend mengharapkan field 'sesi'
+            materi: row.materi,
+            topik: row.topik,
+            kelas_praktikum: row.kelas_praktikum,
             dosen_id: dosenId,
             ruangan_id: ruanganId,
-          jumlah_sesi: row.jumlah_sesi
+            jumlah_sesi: row.jumlah_sesi
           };
+
+          // Add SIAKAD fields if they exist (for SIAKAD template)
+          if (selectedPraktikumTemplate === 'SIAKAD') {
+            return {
+              ...baseData,
+              siakad_kurikulum: row.siakad_kurikulum || '',
+              siakad_kode_mk: row.siakad_kode_mk || '',
+              siakad_kelompok: row.siakad_kelompok || '',
+              siakad_jenis_pertemuan: row.siakad_jenis_pertemuan || '',
+              siakad_metode: row.siakad_metode || '',
+              siakad_dosen_pengganti: row.siakad_dosen_pengganti || ''
+            };
+          }
+
+          return baseData;
         });
 
       // Send to API
@@ -7860,7 +8363,10 @@ export default function DetailBlok() {
       if (!namaRuangan || namaRuangan.trim() === '') {
         cellErrors.push({ row: rowNumber, field: 'ruangan_id', message: `Ruangan wajib diisi (Baris ${rowNumber}, Kolom RUANGAN)` });
       } else {
-        const ruangan = allRuanganList?.find(r => r.nama.toLowerCase() === namaRuangan.toLowerCase());
+        const ruangan = allRuanganList?.find(r => 
+          r.nama.toLowerCase() === namaRuangan.toLowerCase() || 
+          (r.id_ruangan && r.id_ruangan.toLowerCase() === namaRuangan.toLowerCase())
+        );
         if (!ruangan) {
           cellErrors.push({ row: rowNumber, field: 'ruangan_id', message: `Ruangan "${namaRuangan}" tidak ditemukan (Baris ${rowNumber}, Kolom RUANGAN)` });
         }
@@ -7926,9 +8432,12 @@ export default function DetailBlok() {
 
       // Convert data Excel ke format Jurnal Reading
       const convertedData = rows.map((row: any[]) => {
-        // Helper function untuk mencari ruangan berdasarkan nama
+        // Helper function untuk mencari ruangan berdasarkan nama atau kode
         const findRuangan = (namaRuangan: string) => {
-          return allRuanganList?.find(r => r.nama.toLowerCase() === namaRuangan.toLowerCase());
+          return allRuanganList?.find(r => 
+            r.nama.toLowerCase() === namaRuangan.toLowerCase() || 
+            (r.id_ruangan && r.id_ruangan.toLowerCase() === namaRuangan.toLowerCase())
+          );
         };
 
         // Helper function untuk mencari dosen berdasarkan nama
@@ -8190,9 +8699,12 @@ export default function DetailBlok() {
 
       // Convert data Excel ke format Agenda Khusus
       const convertedData = rows.map((row: any[]) => {
-        // Helper function untuk mencari ruangan berdasarkan nama
+        // Helper function untuk mencari ruangan berdasarkan nama atau kode
         const findRuangan = (namaRuangan: string) => {
-          return allRuanganList?.find(r => r.nama.toLowerCase() === namaRuangan.toLowerCase());
+          return allRuanganList?.find(r => 
+            r.nama.toLowerCase() === namaRuangan.toLowerCase() || 
+            (r.id_ruangan && r.id_ruangan.toLowerCase() === namaRuangan.toLowerCase())
+          );
         };
 
         const namaRuangan = row[3]?.toString() || '';
@@ -9333,11 +9845,14 @@ export default function DetailBlok() {
   // Handler untuk edit ruangan SIAKAD
   const handleSiakadRuanganEdit = (rowIndex: number, namaRuangan: string) => {
     const newData = [...siakadImportData];
-    const ruangan = allRuanganList.find(r => r.nama === namaRuangan);
+    const ruangan = allRuanganList.find(r => 
+      r.nama === namaRuangan || 
+      (r.id_ruangan && r.id_ruangan.toLowerCase() === namaRuangan.toLowerCase())
+    );
     
     newData[rowIndex] = { 
       ...newData[rowIndex], 
-      nama_ruangan: namaRuangan,
+      nama_ruangan: ruangan?.nama || namaRuangan,
       ruangan_id: ruangan?.id || null
     };
     setSiakadImportData(newData);
@@ -9742,7 +10257,7 @@ export default function DetailBlok() {
 
             {/* Export Excel Button */}
             <button
-              onClick={exportKuliahBesarExcel}
+              onClick={() => setShowKuliahBesarExportModal(true)}
               disabled={jadwalKuliahBesar.length === 0}
               className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
                 jadwalKuliahBesar.length === 0
@@ -9925,7 +10440,7 @@ export default function DetailBlok() {
 
                     <tr>
 
-                      <td colSpan={10} className="text-center py-6 text-gray-400">Tidak ada data Kuliah Besar</td>
+                      <td colSpan={11} className="text-center py-6 text-gray-400">Tidak ada data Kuliah Besar</td>
 
                   </tr>
 
@@ -9936,6 +10451,9 @@ export default function DetailBlok() {
                       const dosen = allDosenList.find(d => d.id === row.dosen_id);
 
                       const ruangan = allRuanganList.find(r => r.id === row.ruangan_id);
+
+                      // Hitung index yang benar berdasarkan pagination
+                      const actualIndex = (kuliahBesarPage - 1) * kuliahBesarPageSize + i;
 
                     return (
 
@@ -9974,6 +10492,10 @@ export default function DetailBlok() {
                           <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{dosen?.name || `Dosen ${row.dosen_id}`}</td>
 
                         <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                          {getDosenPenggantiName(row)}
+                        </td>
+
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
 
                           {row.kelompok_besar_id ? `Kelompok Besar Semester ${row.kelompok_besar_id}` : '-'}
 
@@ -9998,7 +10520,15 @@ export default function DetailBlok() {
                             )}
                             <button onClick={() => handleEditJadwalKuliahBesar(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition" title="Edit Jadwal">
 
+
                               <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 text-blue-500" />
+
+                          <button onClick={() => {
+                            // Cari index berdasarkan ID untuk memastikan data yang benar
+                            const correctIndex = jadwalKuliahBesar.findIndex(j => j.id === row.id);
+                            handleEditJadwalKuliahBesar(correctIndex >= 0 ? correctIndex : actualIndex);
+                          }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
+
 
                               <span className="hidden sm:inline">Edit</span>
 
@@ -10008,7 +10538,11 @@ export default function DetailBlok() {
 
                               setSelectedDeleteIndex(i); 
 
+
                               setSelectedDeleteType('materi');
+
+                            setSelectedDeleteIndex(actualIndex); 
+
 
                               setShowDeleteModal(true); 
 
@@ -10235,7 +10769,7 @@ export default function DetailBlok() {
             </button>
             {/* Export Excel Button */}
             <button
-              onClick={exportPraktikumExcel}
+              onClick={() => setShowPraktikumExportModal(true)}
               disabled={jadwalPraktikum.length === 0}
               className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
                 jadwalPraktikum.length === 0
@@ -10386,6 +10920,8 @@ export default function DetailBlok() {
 
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pengampu</th>
 
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Dosen Pengganti</th>
+
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Topik</th>
 
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Lokasi</th>
@@ -10402,7 +10938,7 @@ export default function DetailBlok() {
 
                   <tr>
 
-                    <td colSpan={11} className="text-center py-6 text-gray-400">Tidak ada data Praktikum</td>
+                    <td colSpan={12} className="text-center py-6 text-gray-400">Tidak ada data Praktikum</td>
 
                   </tr>
 
@@ -10460,6 +10996,10 @@ export default function DetailBlok() {
 
                     </td>
 
+                    <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                      {getDosenPenggantiName(row)}
+                    </td>
+
                     <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.topik || row.materi}</td>
 
                     <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
@@ -10469,6 +11009,7 @@ export default function DetailBlok() {
                     </td>
 
                     <td className="px-4 py-4 text-center whitespace-nowrap">
+
                       <div className="flex items-center justify-center gap-1 flex-wrap">
                         {/* Tombol Absensi - tampilkan jika ada dosen yang terdaftar */}
                         {row.dosen && row.dosen.length > 0 && (
@@ -10490,6 +11031,30 @@ export default function DetailBlok() {
                           <span className="hidden sm:inline">Hapus</span>
                         </button>
                       </div>
+
+
+                      <button onClick={() => {
+                        // Cari index berdasarkan ID untuk memastikan data yang benar
+                        const actualPraktikumIndex = (praktikumPage - 1) * praktikumPageSize + i;
+                        const correctIndex = jadwalPraktikum.findIndex(j => j.id === row.id);
+                        handleEditJadwalPraktikum(correctIndex >= 0 ? correctIndex : actualPraktikumIndex);
+                      }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
+
+                        <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
+
+                        <span className="hidden sm:inline">Edit</span>
+
+                      </button>
+
+                      <button onClick={() => handleDeleteJadwalPraktikum(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition" title="Hapus Jadwal">
+
+                        <FontAwesomeIcon icon={faTrash} className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
+
+                        <span className="hidden sm:inline">Hapus</span>
+
+                      </button>
+
+
                     </td>
 
                   </tr>
@@ -10908,7 +11473,12 @@ export default function DetailBlok() {
 
                     <td className="px-4 py-4 text-center whitespace-nowrap">
 
-                        <button onClick={() => handleEditJadwalAgendaKhusus(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
+                        <button onClick={() => {
+                          // Cari index berdasarkan ID untuk memastikan data yang benar
+                          const actualAgendaIndex = (agendaKhususPage - 1) * agendaKhususPageSize + i;
+                          const correctIndex = jadwalAgendaKhusus.findIndex(j => j.id === row.id);
+                          handleEditJadwalAgendaKhusus(correctIndex >= 0 ? correctIndex : actualAgendaIndex);
+                        }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
 
                         <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
 
@@ -16230,17 +16800,12 @@ export default function DetailBlok() {
     if (form.jenisBaris === 'pbl') {
 
       // Cari objek kelompok kecil yang cocok
-
+      // Pencarian harus berdasarkan nama_kelompok, bukan ID
+      // karena dropdown menggunakan nama_kelompok sebagai value
       const kelompokObj = kelompokKecilList.find(
-
-        k =>
-
-          `Kelompok ${k.nama_kelompok}` === form.kelompok ||
-
-          k.nama_kelompok === form.kelompok ||
-
-          String(k.id) === form.kelompok
-
+        k => k.nama_kelompok === form.kelompok
+      ) || kelompokKecilList.find(
+        k => `Kelompok ${k.nama_kelompok}` === form.kelompok
       );
 
       if (!kelompokObj) {
@@ -16283,16 +16848,12 @@ export default function DetailBlok() {
 
       if (form.jenisBaris === 'pbl' && jadwalPBL[editIndex] && jadwalPBL[editIndex].id) {
 
+        // Pencarian kelompok harus berdasarkan nama_kelompok, bukan ID
+        // karena dropdown menggunakan nama_kelompok sebagai value
         const kelompokObj = kelompokKecilList.find(
-
-          k =>
-
-            `Kelompok ${k.nama_kelompok}` === form.kelompok ||
-
-            k.nama_kelompok === form.kelompok ||
-
-            String(k.id) === form.kelompok
-
+          k => k.nama_kelompok === form.kelompok
+        ) || kelompokKecilList.find(
+          k => `Kelompok ${k.nama_kelompok}` === form.kelompok
         );
 
         if (!kelompokObj) {
@@ -16520,7 +17081,7 @@ export default function DetailBlok() {
 
             {/* Export Excel Button */}
             <button
-              onClick={exportPBLExcel}
+              onClick={() => setShowPBLExportModal(true)}
               disabled={jadwalPBL.length === 0}
               className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
                 jadwalPBL.length === 0
@@ -17205,6 +17766,8 @@ export default function DetailBlok() {
 
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pengampu</th>
 
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Dosen Pengganti</th>
+
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
 
                   <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Aksi</th>
@@ -17299,7 +17862,7 @@ export default function DetailBlok() {
 
                   <tr>
 
-                    <td colSpan={11} className="text-center py-6 text-gray-400">Tidak ada data PBL</td>
+                    <td colSpan={12} className="text-center py-6 text-gray-400">Tidak ada data PBL</td>
 
                   </tr>
 
@@ -17367,6 +17930,10 @@ export default function DetailBlok() {
 
                       </td>
 
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {getDosenPenggantiName(row)}
+                      </td>
+
                         <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
 
                           {allRuanganList.find(r => r.id === Number(row.ruangan_id))?.nama || (loadingDosenRuangan ? 'Memuat...' : `Ruangan ${row.ruangan_id}`)}
@@ -17379,7 +17946,7 @@ export default function DetailBlok() {
 
                           <button
 
-                            onClick={() => navigate(`/penilaian-pbl/${kode}/${row.kelompok_kecil?.nama_kelompok || ''}/${row.pbl_tipe || ''}?rowIndex=${i}`)}
+                            onClick={() => navigate(`/penilaian-pbl/${kode}/${row.kelompok_kecil?.nama_kelompok || ''}/${row.pbl_tipe || ''}?rowIndex=${i}&jadwal_id=${row.id || ''}`)}
 
                               className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-yellow-500 hover:text-yellow-600 dark:hover:text-yellow-400 transition"
 
@@ -17731,6 +18298,8 @@ export default function DetailBlok() {
 
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pengampu</th>
 
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Dosen Pengganti</th>
+
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">File Jurnal</th>
 
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
@@ -17827,7 +18396,7 @@ export default function DetailBlok() {
 
                   <tr>
 
-                    <td colSpan={11} className="text-center py-6 text-gray-400">Tidak ada data Jurnal Reading</td>
+                    <td colSpan={12} className="text-center py-6 text-gray-400">Tidak ada data Jurnal Reading</td>
 
                   </tr>
 
@@ -17873,6 +18442,10 @@ export default function DetailBlok() {
 
                         {row.dosen_names || allDosenList.find(d => d.id === Number(row.dosen_id))?.name || (loadingDosenRuangan ? 'Memuat...' : `Dosen ${row.dosen_id}`)}
 
+                      </td>
+
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {getDosenPenggantiName(row)}
                       </td>
 
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
@@ -18015,7 +18588,12 @@ export default function DetailBlok() {
 
                         </button>
 
-                          <button onClick={() => handleEditJadwalJurnalReading(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition" title="Edit Jadwal">
+                          <button onClick={() => {
+                            // Cari index berdasarkan ID untuk memastikan data yang benar
+                            const actualJurnalIndex = (jurnalReadingPage - 1) * jurnalReadingPageSize + i;
+                            const correctIndex = jadwalJurnalReading.findIndex(j => j.id === row.id);
+                            handleEditJadwalJurnalReading(correctIndex >= 0 ? correctIndex : actualJurnalIndex);
+                          }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition" title="Edit Jadwal">
 
                           <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
 
@@ -21416,6 +21994,543 @@ export default function DetailBlok() {
         onChange={handlePBLFileUpload}
         className="hidden"
       />
+
+      {/* Modal Export Kuliah Besar */}
+      <AnimatePresence>
+        {showKuliahBesarExportModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowKuliahBesarExportModal(false)}
+            />
+            
+            {/* Modal Content */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => setShowKuliahBesarExportModal(false)}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+              
+              <div>
+                <div className="flex items-center justify-between pb-4 sm:pb-6">
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
+                      Pilih Format Template
+                    </h2>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Pilih format template yang sesuai dengan file Excel Anda
+                    </p>
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="mb-3 sm:mb-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Pilih jenis template yang ingin digunakan
+                    </label>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {/* Template Aplikasi */}
+                    <div
+                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
+                        selectedKuliahBesarExportTemplate === 'APLIKASI'
+                          ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600'
+                          : ''
+                      }`}
+                      onClick={() => setSelectedKuliahBesarExportTemplate('APLIKASI')}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                            selectedKuliahBesarExportTemplate === 'APLIKASI'
+                              ? 'bg-brand-500 border-brand-500'
+                              : 'border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          {selectedKuliahBesarExportTemplate === 'APLIKASI' && (
+                            <svg
+                              className="w-2.5 h-2.5 text-white"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                          <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            Template Aplikasi
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            File dari download template atau export Excel aplikasi ini
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Template SIAKAD */}
+                    <div
+                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
+                        selectedKuliahBesarExportTemplate === 'SIAKAD'
+                          ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600'
+                          : ''
+                      }`}
+                      onClick={() => setSelectedKuliahBesarExportTemplate('SIAKAD')}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                            selectedKuliahBesarExportTemplate === 'SIAKAD'
+                              ? 'bg-brand-500 border-brand-500'
+                              : 'border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          {selectedKuliahBesarExportTemplate === 'SIAKAD' && (
+                            <svg
+                              className="w-2.5 h-2.5 text-white"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="w-10 h-10 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
+                          <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-green-600 dark:text-green-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            Template SIAKAD
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            File dari sistem SIAKAD dengan format standar
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end gap-2 pt-2 relative z-20">
+                  <button
+                    onClick={() => setShowKuliahBesarExportModal(false)}
+                    className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={handleKuliahBesarExport}
+                    disabled={!selectedKuliahBesarExportTemplate}
+                    className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 ease-in-out ${
+                      selectedKuliahBesarExportTemplate
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                        : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    Export
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Export Praktikum */}
+      <AnimatePresence>
+        {showPraktikumExportModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowPraktikumExportModal(false)}
+            />
+            
+            {/* Modal Content */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => setShowPraktikumExportModal(false)}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+              
+              <div>
+                <div className="flex items-center justify-between pb-4 sm:pb-6">
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
+                      Pilih Format Template
+                    </h2>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Pilih format template yang sesuai dengan file Excel Anda
+                    </p>
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="mb-3 sm:mb-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Pilih jenis template yang ingin digunakan
+                    </label>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {/* Template Aplikasi */}
+                    <div
+                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
+                        selectedPraktikumExportTemplate === 'APLIKASI'
+                          ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600'
+                          : ''
+                      }`}
+                      onClick={() => setSelectedPraktikumExportTemplate('APLIKASI')}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                            selectedPraktikumExportTemplate === 'APLIKASI'
+                              ? 'bg-brand-500 border-brand-500'
+                              : 'border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          {selectedPraktikumExportTemplate === 'APLIKASI' && (
+                            <svg
+                              className="w-2.5 h-2.5 text-white"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                          <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            Template Aplikasi
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            File dari download template atau export Excel aplikasi ini
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Template SIAKAD */}
+                    <div
+                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
+                        selectedPraktikumExportTemplate === 'SIAKAD'
+                          ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600'
+                          : ''
+                      }`}
+                      onClick={() => setSelectedPraktikumExportTemplate('SIAKAD')}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                            selectedPraktikumExportTemplate === 'SIAKAD'
+                              ? 'bg-brand-500 border-brand-500'
+                              : 'border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          {selectedPraktikumExportTemplate === 'SIAKAD' && (
+                            <svg
+                              className="w-2.5 h-2.5 text-white"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="w-10 h-10 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
+                          <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-green-600 dark:text-green-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            Template SIAKAD
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            File dari sistem SIAKAD dengan format standar
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end gap-2 pt-2 relative z-20">
+                  <button
+                    onClick={() => setShowPraktikumExportModal(false)}
+                    className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={handlePraktikumExport}
+                    disabled={!selectedPraktikumExportTemplate}
+                    className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 ease-in-out ${
+                      selectedPraktikumExportTemplate
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                        : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    Export
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Export PBL */}
+      <AnimatePresence>
+        {showPBLExportModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowPBLExportModal(false)}
+            />
+            
+            {/* Modal Content */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => setShowPBLExportModal(false)}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+              
+              <div>
+                <div className="flex items-center justify-between pb-4 sm:pb-6">
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
+                      Pilih Format Template
+                    </h2>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Pilih format template yang sesuai dengan file Excel Anda
+                    </p>
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="mb-3 sm:mb-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Pilih jenis template yang ingin digunakan
+                    </label>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {/* Template Aplikasi */}
+                    <div
+                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
+                        selectedPBLExportTemplate === 'APLIKASI'
+                          ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600'
+                          : ''
+                      }`}
+                      onClick={() => setSelectedPBLExportTemplate('APLIKASI')}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                            selectedPBLExportTemplate === 'APLIKASI'
+                              ? 'bg-brand-500 border-brand-500'
+                              : 'border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          {selectedPBLExportTemplate === 'APLIKASI' && (
+                            <svg
+                              className="w-2.5 h-2.5 text-white"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                          <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            Template Aplikasi
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            File dari download template atau export Excel aplikasi ini
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Template SIAKAD */}
+                    <div
+                      className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
+                        selectedPBLExportTemplate === 'SIAKAD'
+                          ? 'bg-brand-50 dark:bg-brand-900/20 border-brand-300 dark:border-brand-600'
+                          : ''
+                      }`}
+                      onClick={() => setSelectedPBLExportTemplate('SIAKAD')}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                            selectedPBLExportTemplate === 'SIAKAD'
+                              ? 'bg-brand-500 border-brand-500'
+                              : 'border-gray-300 dark:border-gray-600'
+                          }`}
+                        >
+                          {selectedPBLExportTemplate === 'SIAKAD' && (
+                            <svg
+                              className="w-2.5 h-2.5 text-white"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="w-10 h-10 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
+                          <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-green-600 dark:text-green-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            Template SIAKAD
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            File dari sistem SIAKAD dengan format standar
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end gap-2 pt-2 relative z-20">
+                  <button
+                    onClick={() => setShowPBLExportModal(false)}
+                    className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={handlePBLExport}
+                    disabled={!selectedPBLExportTemplate}
+                    className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all duration-300 ease-in-out ${
+                      selectedPBLExportTemplate
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                        : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    Export
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
 
   );

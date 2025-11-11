@@ -1,9 +1,9 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { ChevronLeftIcon } from "../icons";
 import api, { handleApiError, getUser } from "../utils/api";
 import SignaturePad from "react-signature-canvas";
-import React, { useRef } from "react";
+import React from "react";
 import { AnimatePresence } from "framer-motion";
 import { motion } from "framer-motion";
 import ExcelJS from "exceljs";
@@ -42,6 +42,10 @@ export default function PenilaianPBLPage() {
   const { kode_blok, kelompok, pertemuan } = useParams();
   const navigate = useNavigate();
 
+  // Ambil jadwal_id dari query parameter
+  const urlParams = new URLSearchParams(window.location.search);
+  const jadwalId = urlParams.get('jadwal_id');
+
   const [mahasiswa, setMahasiswa] = useState<{ npm: string; nama: string }[]>(
     []
   );
@@ -70,6 +74,18 @@ export default function PenilaianPBLPage() {
   const [userRole, setUserRole] = useState<string>("");
   const [penilaianSubmitted, setPenilaianSubmitted] = useState<boolean>(false);
   const [canEdit, setCanEdit] = useState<boolean>(true);
+
+  // State untuk track perubahan yang belum disimpan
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
+  const initialDataRef = useRef<{
+    penilaian: Penilaian;
+    absensi: AbsensiPBL;
+    tanggalParaf: string;
+    signatureParaf: string | null;
+    namaTutor: string;
+  } | null>(null);
+  const hasPushedStateRef = useRef<boolean>(false);
+  const isHandlingPopStateRef = useRef<boolean>(false);
 
   const [isDark, setIsDark] = useState(
     document.documentElement.classList.contains("dark")
@@ -103,16 +119,8 @@ export default function PenilaianPBLPage() {
     setUserRole(user.role || "");
   }, [navigate]);
 
-  // Check penilaian status from URL params or API
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const submitted = urlParams.get("penilaian_submitted") === "true";
-    // Prefill sementara dari URL kalau ada
-    if (submitted) {
-      setPenilaianSubmitted(true);
-      setIncludeInReport(true);
-    }
-  }, []);
+  // Status penilaian akan di-set dari API response di useEffect fetch data
+  // Tidak perlu useEffect terpisah untuk URL params karena status harus selalu sinkron dengan backend
 
   // Fetch data blok untuk dapatkan semester
   useEffect(() => {
@@ -127,12 +135,6 @@ export default function PenilaianPBLPage() {
   // Fetch mahasiswa kelompok kecil dari backend (pakai semester dari data blok)
   useEffect(() => {
     if (!kelompok || !semester) return;
-    console.log(
-      "Fetching mahasiswa for kelompok:",
-      kelompok,
-      "semester:",
-      semester
-    );
     api
       .get(
         `/kelompok-kecil/by-nama?nama_kelompok=${encodeURIComponent(
@@ -140,19 +142,14 @@ export default function PenilaianPBLPage() {
         )}&semester=${semester}`
       )
       .then((res) => {
-        console.log("Mahasiswa response:", res.data);
         const mhs = (res.data || [])
           .map((item: any) => item.mahasiswa)
           .filter((m: any) => m)
-          .map((m: any) => ({ npm: m.nim, nama: m.name ?? m.nama ?? "" }));
-        console.log("Processed mahasiswa:", mhs);
+          .map((m: any) => ({ npm: String(m.nim), nama: m.name ?? m.nama ?? "" }));
         setMahasiswa(mhs);
       })
       .catch((error: any) => {
-        console.error("Error fetching mahasiswa:", error);
-        console.error("Error response:", error.response);
-        // Jangan set error global, hanya log saja karena ini tidak critical
-        console.warn("Mahasiswa fetch failed, but continuing...");
+        // Silently fail, mahasiswa fetch is not critical
       });
   }, [kelompok, semester]);
 
@@ -161,19 +158,22 @@ export default function PenilaianPBLPage() {
     if (!kode_blok || !kelompok || !pertemuan) return;
     setLoading(true);
     setError(null);
+    // Reset penilaian state saat fetch baru dimulai untuk menghindari stale data
+    setPenilaian({});
+    // Reset status saat fetch baru dimulai
+    setPenilaianSubmitted(false);
+    setIncludeInReport(false);
 
     // Fetch penilaian dan absensi secara bersamaan
+    // Tambahkan jadwal_id sebagai query parameter jika ada
+    const penilaianUrl = `/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/penilaian-pbl${jadwalId ? `?jadwal_id=${jadwalId}` : ''}`;
+    const absensiUrl = `/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/absensi-pbl${jadwalId ? `?jadwal_id=${jadwalId}` : ''}`;
+    
     Promise.all([
-      api.get(
-        `/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/penilaian-pbl`
-      ),
-      api
-        .get(
-          `/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/absensi-pbl`
-        )
+      api.get(penilaianUrl),
+      api.get(absensiUrl)
         .catch((err) => {
           // Jika absensi gagal, return empty data
-          console.warn("Absensi fetch failed, using empty data:", err);
           return { data: { absensi: [] } };
         }),
     ])
@@ -182,25 +182,37 @@ export default function PenilaianPBLPage() {
         const data = penilaianRes.data.penilaian || [];
         const pen: Penilaian = {};
         data.forEach((row: any) => {
-          pen[row.mahasiswa_npm] = {
-            A: row.nilai_a,
-            B: row.nilai_b,
-            C: row.nilai_c,
-            D: row.nilai_d,
-            E: row.nilai_e,
-            F: row.nilai_f,
-            G: row.nilai_g,
-            petaKonsep: row.peta_konsep || 0,
+          
+          // Pastikan mahasiswa_npm adalah string untuk konsistensi
+          const npmKey = String(row.mahasiswa_npm);
+          // Gunakan nilai dari database, hanya set default jika benar-benar null/undefined
+          // Jangan set default 0 jika nilai adalah 0 yang valid dari database
+          pen[npmKey] = {
+            A: row.nilai_a !== null && row.nilai_a !== undefined ? row.nilai_a : 0,
+            B: row.nilai_b !== null && row.nilai_b !== undefined ? row.nilai_b : 0,
+            C: row.nilai_c !== null && row.nilai_c !== undefined ? row.nilai_c : 0,
+            D: row.nilai_d !== null && row.nilai_d !== undefined ? row.nilai_d : 0,
+            E: row.nilai_e !== null && row.nilai_e !== undefined ? row.nilai_e : 0,
+            F: row.nilai_f !== null && row.nilai_f !== undefined ? row.nilai_f : 0,
+            G: row.nilai_g !== null && row.nilai_g !== undefined ? row.nilai_g : 0,
+            petaKonsep: row.peta_konsep !== null && row.peta_konsep !== undefined ? row.peta_konsep : 0,
           };
-          if (row.tanggal_paraf) setTanggalParaf(row.tanggal_paraf);
+          // Format tanggal dari ISO (2025-10-31T00:00:00.000000Z) ke yyyy-MM-dd untuk input type="date"
+          let tanggalParafFormatted = "";
+          if (row.tanggal_paraf) {
+            tanggalParafFormatted = row.tanggal_paraf.split('T')[0];
+            setTanggalParaf(tanggalParafFormatted);
+          }
           if (row.signature_paraf) setSignatureParaf(row.signature_paraf);
           if (row.nama_tutor) setNamaTutor(row.nama_tutor);
         });
+        
         setPenilaian(pen);
         setNamaModul(penilaianRes.data.nama_modul || ""); // Ambil nama modul dari response API
         setIsPBL2(penilaianRes.data.is_pbl_2 || false); // Set status PBL 2 dari backend
 
         // Sinkron status submitted & checkbox dari backend
+        // Pastikan kita menggunakan nilai dari backend, bukan dari state sebelumnya
         const submittedFlag = Boolean(penilaianRes.data.penilaian_submitted);
         setPenilaianSubmitted(submittedFlag);
         setIncludeInReport(submittedFlag);
@@ -211,33 +223,28 @@ export default function PenilaianPBLPage() {
           const isAdmin =
             user.role === "super_admin" || user.role === "tim_akademik";
           setCanEdit(
-            isAdmin || !(penilaianRes.data.penilaian_submitted || false)
+            isAdmin || !submittedFlag
           );
         }
 
         // Jika PBL type berubah, reset petaKonsep untuk semua mahasiswa
+        // Gunakan `pen` (data baru) bukan `penilaian` (state lama) karena setPenilaian adalah async
         if (penilaianRes.data.is_pbl_2 && !isPBL2) {
           // PBL 1 → PBL 2: tambah petaKonsep dengan nilai 0
-          const updatedPenilaian = { ...penilaian };
-          Object.keys(updatedPenilaian).forEach((npm) => {
-            if (updatedPenilaian[npm].petaKonsep === undefined) {
-              updatedPenilaian[npm].petaKonsep = 0;
+          Object.keys(pen).forEach((npm) => {
+            if (pen[npm].petaKonsep === undefined) {
+              pen[npm].petaKonsep = 0;
             }
           });
-          setPenilaian(updatedPenilaian);
         } else if (!penilaianRes.data.is_pbl_2 && isPBL2) {
           // PBL 2 → PBL 1: hapus petaKonsep
-          const updatedPenilaian = { ...penilaian };
-          Object.keys(updatedPenilaian).forEach((npm) => {
-            delete updatedPenilaian[npm].petaKonsep;
+          Object.keys(pen).forEach((npm) => {
+            delete pen[npm].petaKonsep;
           });
-          setPenilaian(updatedPenilaian);
         }
 
         // Process absensi data
         const absensiData = absensiRes.data.absensi || {};
-        console.log("Absensi response:", absensiRes.data);
-        console.log("Absensi data:", absensiData);
 
         const abs: AbsensiPBL = {};
         // Handle both array and object formats
@@ -257,18 +264,28 @@ export default function PenilaianPBLPage() {
               catatan: row.catatan || "",
             };
           });
-        } else {
-          console.warn("Absensi data is not in expected format:", absensiData);
         }
-        console.log("Processed absensi state:", abs);
         setAbsensi(abs);
+        
+        // Simpan data awal sebagai referensi untuk deteksi perubahan
+        // Ambil tanggal paraf dari data pertama yang memiliki tanggal_paraf
+        const firstRowWithTanggal = data.find((r: any) => r.tanggal_paraf);
+        const initialTanggalParaf = firstRowWithTanggal?.tanggal_paraf 
+          ? firstRowWithTanggal.tanggal_paraf.split('T')[0] 
+          : "";
+        const initialSignatureParaf = firstRowWithTanggal?.signature_paraf || null;
+        const initialNamaTutor = firstRowWithTanggal?.nama_tutor || "";
+        
+        initialDataRef.current = {
+          penilaian: pen,
+          absensi: abs,
+          tanggalParaf: initialTanggalParaf,
+          signatureParaf: initialSignatureParaf,
+          namaTutor: initialNamaTutor,
+        };
+        setHasUnsavedChanges(false);
       })
       .catch((error: any) => {
-        console.error("Error fetching data:", error);
-        console.error("Error response:", error.response);
-        console.error("Error status:", error.response?.status);
-        console.error("Error data:", error.response?.data);
-
         if (error.response?.status === 403) {
           setError(
             "Anda tidak memiliki akses untuk menilai jadwal ini. Hanya dosen yang ditugaskan dan telah mengkonfirmasi ketersediaan yang dapat mengakses halaman ini."
@@ -282,7 +299,7 @@ export default function PenilaianPBLPage() {
         }
       })
       .finally(() => setLoading(false));
-  }, [kode_blok, kelompok, pertemuan]);
+  }, [kode_blok, kelompok, pertemuan, jadwalId]);
 
   // Fetch modul PBL list
   useEffect(() => {
@@ -291,6 +308,94 @@ export default function PenilaianPBLPage() {
       .get(`/mata-kuliah/${kode_blok}/pbls`)
       .then((res) => setModulPBLList(res.data || []));
   }, [kode_blok]);
+
+  // Deteksi perubahan yang belum disimpan
+  useEffect(() => {
+    if (!initialDataRef.current || loading || saving || !canEdit) {
+      return;
+    }
+
+    const initial = initialDataRef.current;
+    
+    // Bandingkan penilaian
+    const penilaianChanged = JSON.stringify(penilaian) !== JSON.stringify(initial.penilaian);
+    
+    // Bandingkan absensi
+    const absensiChanged = JSON.stringify(absensi) !== JSON.stringify(initial.absensi);
+    
+    // Bandingkan tanggal paraf, signature, dan nama tutor
+    const otherChanged = 
+      tanggalParaf !== initial.tanggalParaf ||
+      signatureParaf !== initial.signatureParaf ||
+      namaTutor !== initial.namaTutor;
+    
+    const hasChanges = penilaianChanged || absensiChanged || otherChanged;
+    setHasUnsavedChanges(hasChanges);
+  }, [penilaian, absensi, tanggalParaf, signatureParaf, namaTutor, loading, saving, canEdit]);
+
+  // beforeunload event untuk close tab/browser
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges && canEdit) {
+        e.preventDefault();
+        e.returnValue = "Anda memiliki perubahan yang belum disimpan. Apakah Anda yakin ingin meninggalkan halaman ini?";
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges, canEdit]);
+
+  // Handle browser back button dengan popstate event
+  useEffect(() => {
+    if (!hasUnsavedChanges || !canEdit) {
+      // Reset flag jika tidak ada perubahan
+      hasPushedStateRef.current = false;
+      return;
+    }
+
+    // Push state baru ke history hanya sekali saat pertama kali ada perubahan
+    if (!hasPushedStateRef.current) {
+      window.history.pushState({ hasUnsavedChanges: true }, "");
+      hasPushedStateRef.current = true;
+    }
+
+    const handlePopState = (e: PopStateEvent) => {
+      // Prevent multiple alerts
+      if (isHandlingPopStateRef.current) {
+        return;
+      }
+
+      // Cek lagi apakah masih ada perubahan (karena state bisa berubah)
+      if (hasUnsavedChanges && canEdit) {
+        isHandlingPopStateRef.current = true;
+        const confirmed = window.confirm(
+          "Anda memiliki perubahan yang belum disimpan. Apakah Anda yakin ingin meninggalkan halaman ini? Perubahan yang belum disimpan akan hilang."
+        );
+        if (!confirmed) {
+          // Push state lagi untuk mencegah navigasi
+          window.history.pushState({ hasUnsavedChanges: true }, "");
+          isHandlingPopStateRef.current = false;
+        } else {
+          // User confirm, reset flag dan navigate ke halaman sebelumnya
+          hasPushedStateRef.current = false;
+          setHasUnsavedChanges(false);
+          // Navigate ke halaman sebelumnya setelah user confirm (skip pushed state)
+          // Gunakan setTimeout untuk memastikan state sudah diupdate
+          setTimeout(() => {
+            isHandlingPopStateRef.current = false;
+            window.history.go(-1);
+          }, 100);
+        }
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [hasUnsavedChanges, canEdit]);
 
   // Fungsi simpan ke backend
   const handleSaveAll = async () => {
@@ -303,7 +408,6 @@ export default function PenilaianPBLPage() {
     }
 
     // Peta Konsep tidak wajib diisi - optional untuk PBL 2
-
     setSaving(true);
     setError(null);
     try {
@@ -333,27 +437,41 @@ export default function PenilaianPBLPage() {
         // Flag agar backend bisa menandai jadwal terhitung ke laporan
         penilaian_submitted: true,
       };
-      await api.post(
-        `/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/penilaian-pbl`,
-        payload
-      );
+      // Tambahkan jadwal_id sebagai query parameter jika ada
+      const storeUrl = `/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/penilaian-pbl${jadwalId ? `?jadwal_id=${jadwalId}` : ''}`;
+      
+      await api.post(storeUrl, payload);
 
-      // Update penilaian submitted status for dosen
-      const user = getUser();
-      if (user && user.role === "dosen") {
+      // Update penilaian submitted status - untuk semua role, karena backend sudah update status
         setPenilaianSubmitted(true);
-        setCanEdit(false);
+      setIncludeInReport(true);
+      
+      // Update canEdit berdasarkan role
+      const user = getUser();
+      if (user) {
+        const isAdmin =
+          user.role === "super_admin" || user.role === "tim_akademik";
+        setCanEdit(isAdmin);
       }
 
       setSuccess(
         `Absensi dan penilaian ${isPBL2 ? "PBL 2" : "PBL 1"} berhasil disimpan!`
       );
+      
+      // Update initial data ref setelah save berhasil
+      if (initialDataRef.current) {
+        initialDataRef.current = {
+          penilaian: { ...penilaian },
+          absensi: { ...absensi },
+          tanggalParaf: tanggalParaf,
+          signatureParaf: signatureParaf,
+          namaTutor: namaTutor,
+        };
+      }
+      setHasUnsavedChanges(false);
+      // Reset flag setelah save berhasil
+      hasPushedStateRef.current = false;
     } catch (error: any) {
-      console.error("Error saving penilaian:", error);
-      console.error(
-        "Error details:",
-        handleApiError(error, "Menyimpan penilaian")
-      );
       setError(handleApiError(error, "Menyimpan penilaian"));
     } finally {
       setSaving(false);
@@ -441,6 +559,7 @@ export default function PenilaianPBLPage() {
   };
 
   const handleSaveAbsensi = async () => {
+    // Tambahkan jadwal_id sebagai query parameter jika ada
     if (!kode_blok || !kelompok || !pertemuan) return;
 
     try {
@@ -451,17 +570,12 @@ export default function PenilaianPBLPage() {
           catatan: absensi[m.npm]?.catatan || "",
         })),
       };
-      await api.post(
-        `/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/absensi-pbl`,
-        payload
-      );
+      // Tambahkan jadwal_id sebagai query parameter jika ada
+      const absensiUrl = `/mata-kuliah/${kode_blok}/kelompok/${kelompok}/pertemuan/${pertemuan}/absensi-pbl${jadwalId ? `?jadwal_id=${jadwalId}` : ''}`;
+      
+      await api.post(absensiUrl, payload);
       return true;
     } catch (error: any) {
-      console.error("Error saving absensi:", error);
-      console.error(
-        "Error details:",
-        handleApiError(error, "Menyimpan absensi")
-      );
       setError(handleApiError(error, "Menyimpan absensi"));
       return false;
     }
@@ -723,7 +837,6 @@ export default function PenilaianPBLPage() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (error) {
-      console.error("Error exporting Excel:", error);
       alert("Gagal export Excel: " + error);
     }
   };
@@ -884,6 +997,16 @@ export default function PenilaianPBLPage() {
         <div className="pb-2 flex justify-between items-center">
           <button
             onClick={() => {
+              if (hasUnsavedChanges && canEdit) {
+                const confirmed = window.confirm(
+                  "Anda memiliki perubahan yang belum disimpan. Apakah Anda yakin ingin meninggalkan halaman ini? Perubahan yang belum disimpan akan hilang."
+                );
+                if (!confirmed) {
+                  return;
+                }
+                // Reset flag jika user confirm
+                hasPushedStateRef.current = false;
+              }
               const user = getUser();
               if (user?.role === "dosen") {
                 navigate("/dashboard-dosen");
@@ -1214,7 +1337,9 @@ export default function PenilaianPBLPage() {
                           }`}
                         />
                       </td>
-                      {Object.keys(KRITERIA).map((key) => (
+                      {Object.keys(KRITERIA).map((key) => {
+                        const nilai = penilaian[m.npm]?.[key as keyof typeof KRITERIA];
+                        return (
                         <td
                           key={key}
                           className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200"
@@ -1224,9 +1349,7 @@ export default function PenilaianPBLPage() {
                             min="0"
                             max="5"
                             value={
-                              penilaian[m.npm]?.[
-                                key as keyof typeof KRITERIA
-                              ] || ""
+                              nilai !== null && nilai !== undefined ? nilai : ""
                             }
                             onChange={(e) =>
                               handleInputChange(
@@ -1243,7 +1366,7 @@ export default function PenilaianPBLPage() {
                             }`}
                           />
                         </td>
-                      ))}
+                      )})}
                       <td className="px-2 py-2 text-center whitespace-nowrap dark:text-gray-200">
                         {hitungJumlah(m.npm)}
                       </td>
@@ -1264,7 +1387,7 @@ export default function PenilaianPBLPage() {
                             type="number"
                             min="0"
                             max="100"
-                            value={penilaian[m.npm]?.petaKonsep || ""}
+                            value={penilaian[m.npm]?.petaKonsep ?? ""}
                             onChange={(e) =>
                               handleInputChange(
                                 m.npm,
@@ -1425,7 +1548,8 @@ export default function PenilaianPBLPage() {
                   type="checkbox"
                   checked={includeInReport}
                   onChange={(e) => setIncludeInReport(e.target.checked)}
-                  className="w-4 h-4"
+                  disabled={!canEdit}
+                  className={`w-4 h-4 ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
                 />
                 Masukkan ke Laporan (wajib dicentang sebelum submit)
               </label>
@@ -1435,7 +1559,7 @@ export default function PenilaianPBLPage() {
           <div className="mt-6 flex gap-4">
             <button
               onClick={handleSaveAll}
-              disabled={saving || loading || !canEdit}
+              disabled={saving || loading || !canEdit || (!hasUnsavedChanges && initialDataRef.current !== null)}
               className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium shadow-theme-xs hover:bg-blue-600 transition dark:bg-blue-600 dark:hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving

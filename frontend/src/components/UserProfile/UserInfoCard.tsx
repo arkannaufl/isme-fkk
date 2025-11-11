@@ -1,9 +1,18 @@
+
 import { useState, useEffect, useRef } from "react";
+
+import { useState, useEffect, useCallback, useRef } from "react";
+
 import { useNavigate } from "react-router";
 import api, { handleApiError } from "../../utils/api";
 import { AnimatePresence, motion } from "framer-motion";
 import { EyeIcon, EyeCloseIcon } from "../../icons";
+
 import SignaturePad from "react-signature-canvas";
+
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faCheckCircle } from "@fortawesome/free-solid-svg-icons";
+
 
 export default function UserInfoCard() {
   const navigate = useNavigate();
@@ -18,14 +27,27 @@ export default function UserInfoCard() {
     current_password: "",
     new_password: "",
     confirm_password: "",
+    // WhatsApp fields (wajib untuk dosen)
+    whatsapp_phone: "",
+    whatsapp_email: "",
+    whatsapp_address: "",
+    whatsapp_birth_day: "",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [signatureImage, setSignatureImage] = useState<string | null>(null);
   const sigPadRef = useRef<SignaturePad>(null);
+
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [phoneError, setPhoneError] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [checkingPhone, setCheckingPhone] = useState(false);
+  const [checkingEmail, setCheckingEmail] = useState(false);
+
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -37,15 +59,52 @@ export default function UserInfoCard() {
         // Update localStorage dengan data terbaru
         localStorage.setItem("user", JSON.stringify(userData));
         setUser(userData);
+        // Telp diambil dari whatsapp_phone (sinkronisasi) - sama seperti email
+        const telpFromWhatsApp = userData.whatsapp_phone
+          ? userData.whatsapp_phone.replace(/^62/, "0") // Convert 62 ke 0 untuk telp
+          : userData.telp || "";
+
+        // Format whatsapp_birth_day untuk input type="date" (YYYY-MM-DD)
+        let formattedBirthDay = "";
+        if (userData.whatsapp_birth_day) {
+          // Jika sudah format YYYY-MM-DD, gunakan langsung
+          if (
+            typeof userData.whatsapp_birth_day === "string" &&
+            userData.whatsapp_birth_day.match(/^\d{4}-\d{2}-\d{2}$/)
+          ) {
+            formattedBirthDay = userData.whatsapp_birth_day;
+          } else if (userData.whatsapp_birth_day instanceof Date) {
+            // Jika Date object, convert ke YYYY-MM-DD
+            formattedBirthDay = userData.whatsapp_birth_day
+              .toISOString()
+              .split("T")[0];
+          } else if (typeof userData.whatsapp_birth_day === "string") {
+            // Jika string dengan format lain, coba parse
+            try {
+              const dateObj = new Date(userData.whatsapp_birth_day);
+              if (!isNaN(dateObj.getTime())) {
+                formattedBirthDay = dateObj.toISOString().split("T")[0];
+              }
+            } catch {
+              // Jika gagal, gunakan string asli
+              formattedBirthDay = userData.whatsapp_birth_day;
+            }
+          }
+        }
+
         setForm({
           name: userData.name || "",
           username: userData.username || "",
           email: userData.email || "",
-          telp: userData.telp || "",
+          telp: telpFromWhatsApp, // Get dari whatsapp_phone (sinkronisasi)
           ket: userData.ket || "",
           current_password: "",
           new_password: "",
           confirm_password: "",
+          whatsapp_phone: userData.whatsapp_phone || "",
+          whatsapp_email: userData.whatsapp_email || userData.email || "",
+          whatsapp_address: userData.whatsapp_address || "",
+          whatsapp_birth_day: formattedBirthDay, // Format untuk input type="date"
         });
         setSignatureImage(userData.signature_image || null);
       } catch (error) {
@@ -53,15 +112,52 @@ export default function UserInfoCard() {
         console.error("Error loading user data:", error);
         const userData = JSON.parse(localStorage.getItem("user") || "{}");
         setUser(userData);
+        // Telp diambil dari whatsapp_phone (sinkronisasi) - sama seperti email
+        const telpFromWhatsApp = userData.whatsapp_phone
+          ? userData.whatsapp_phone.replace(/^62/, "0") // Convert 62 ke 0 untuk telp
+          : userData.telp || "";
+
+        // Format whatsapp_birth_day untuk input type="date" (YYYY-MM-DD)
+        let formattedBirthDay = "";
+        if (userData.whatsapp_birth_day) {
+          // Jika sudah format YYYY-MM-DD, gunakan langsung
+          if (
+            typeof userData.whatsapp_birth_day === "string" &&
+            userData.whatsapp_birth_day.match(/^\d{4}-\d{2}-\d{2}$/)
+          ) {
+            formattedBirthDay = userData.whatsapp_birth_day;
+          } else if (userData.whatsapp_birth_day instanceof Date) {
+            // Jika Date object, convert ke YYYY-MM-DD
+            formattedBirthDay = userData.whatsapp_birth_day
+              .toISOString()
+              .split("T")[0];
+          } else if (typeof userData.whatsapp_birth_day === "string") {
+            // Jika string dengan format lain, coba parse
+            try {
+              const dateObj = new Date(userData.whatsapp_birth_day);
+              if (!isNaN(dateObj.getTime())) {
+                formattedBirthDay = dateObj.toISOString().split("T")[0];
+              }
+            } catch {
+              // Jika gagal, gunakan string asli
+              formattedBirthDay = userData.whatsapp_birth_day;
+            }
+          }
+        }
+
         setForm({
           name: userData.name || "",
           username: userData.username || "",
           email: userData.email || "",
-          telp: userData.telp || "",
+          telp: telpFromWhatsApp, // Get dari whatsapp_phone (sinkronisasi)
           ket: userData.ket || "",
           current_password: "",
           new_password: "",
           confirm_password: "",
+          whatsapp_phone: userData.whatsapp_phone || "",
+          whatsapp_email: userData.whatsapp_email || userData.email || "",
+          whatsapp_address: userData.whatsapp_address || "",
+          whatsapp_birth_day: formattedBirthDay, // Format untuk input type="date"
         });
         setSignatureImage(userData.signature_image || null);
       }
@@ -81,6 +177,108 @@ export default function UserInfoCard() {
     };
   }, []);
 
+  // Debounce helper function (must be defined before useCallback hooks)
+  const debounce = useCallback((func: (args: any[]) => void, wait: number) => {
+    let timeout: NodeJS.Timeout;
+    return function executedFunction(...args: any[]) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }, []);
+
+  // Check phone availability
+  const checkPhoneAvailability = useCallback(
+    async (phone: string) => {
+      if (!phone || !phone.match(/^62\d+$/)) {
+        setPhoneError("");
+        return;
+      }
+
+      // Jika nomor sama dengan yang sudah ada, tidak perlu check
+      if (phone === user?.whatsapp_phone) {
+        setPhoneError("");
+        return;
+      }
+
+      setCheckingPhone(true);
+      try {
+        const response = await api.get(
+          `/profile/check-availability?phone=${encodeURIComponent(phone)}`
+        );
+        if (!response.data.phone_available) {
+          setPhoneError(
+            response.data.phone_message ||
+              "Nomor WhatsApp ini sudah digunakan oleh user lain."
+          );
+        } else {
+          setPhoneError("");
+        }
+      } catch (error) {
+        console.error("Error checking phone:", error);
+        setPhoneError("");
+      } finally {
+        setCheckingPhone(false);
+      }
+    },
+    [user?.whatsapp_phone]
+  );
+
+  // Check email availability
+  const checkEmailAvailability = useCallback(
+    async (email: string) => {
+      if (!email || !email.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+        setEmailError("");
+        return;
+      }
+
+      // Jika email sama dengan yang sudah ada, tidak perlu check
+      if (email === user?.email) {
+        setEmailError("");
+        return;
+      }
+
+      setCheckingEmail(true);
+      try {
+        const response = await api.get(
+          `/profile/check-availability?email=${encodeURIComponent(email)}`
+        );
+        if (!response.data.email_available) {
+          setEmailError(
+            response.data.email_message ||
+              "Email ini sudah digunakan oleh user lain."
+          );
+        } else {
+          setEmailError("");
+        }
+      } catch (error) {
+        console.error("Error checking email:", error);
+        setEmailError("");
+      } finally {
+        setCheckingEmail(false);
+      }
+    },
+    [user?.email]
+  );
+
+  // Debounced versions - use useRef to store debounced functions
+  const debouncedCheckPhoneRef = useRef<((args: any[]) => void) | null>(null);
+  const debouncedCheckEmailRef = useRef<((args: any[]) => void) | null>(null);
+
+  useEffect(() => {
+    debouncedCheckPhoneRef.current = debounce(
+      (args: any[]) => checkPhoneAvailability(args[0]),
+      500
+    );
+    debouncedCheckEmailRef.current = debounce(
+      (args: any[]) => checkEmailAvailability(args[0]),
+      500
+    );
+  }, [checkPhoneAvailability, checkEmailAvailability, debounce]);
+
   if (!user) return null;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -88,19 +286,56 @@ export default function UserInfoCard() {
   };
 
   const openModal = () => {
+    // Telp diambil dari whatsapp_phone (sinkronisasi)
+    const telpFromWhatsApp = user.whatsapp_phone
+      ? user.whatsapp_phone.replace(/^62/, "0") // Convert 62 ke 0 untuk telp
+      : user.telp || "";
+
+    // Format whatsapp_birth_day untuk input type="date" (YYYY-MM-DD)
+    let formattedBirthDay = "";
+    if (user.whatsapp_birth_day) {
+      // Jika sudah format YYYY-MM-DD, gunakan langsung
+      if (
+        typeof user.whatsapp_birth_day === "string" &&
+        user.whatsapp_birth_day.match(/^\d{4}-\d{2}-\d{2}$/)
+      ) {
+        formattedBirthDay = user.whatsapp_birth_day;
+      } else if (user.whatsapp_birth_day instanceof Date) {
+        // Jika Date object, convert ke YYYY-MM-DD
+        formattedBirthDay = user.whatsapp_birth_day.toISOString().split("T")[0];
+      } else if (typeof user.whatsapp_birth_day === "string") {
+        // Jika string dengan format lain, coba parse
+        try {
+          const dateObj = new Date(user.whatsapp_birth_day);
+          if (!isNaN(dateObj.getTime())) {
+            formattedBirthDay = dateObj.toISOString().split("T")[0];
+          }
+        } catch {
+          // Jika gagal, gunakan string asli
+          formattedBirthDay = user.whatsapp_birth_day;
+        }
+      }
+    }
+
     setForm({
       name: user.name || "",
       username: user.username || "",
       email: user.email || "",
-      telp: user.telp || "",
+      telp: telpFromWhatsApp, // Get dari whatsapp_phone
       ket: user.ket || "",
       current_password: "",
       new_password: "",
       confirm_password: "",
+      whatsapp_phone: user.whatsapp_phone || "",
+      whatsapp_email: user.whatsapp_email || user.email || "",
+      whatsapp_address: user.whatsapp_address || "",
+      whatsapp_birth_day: formattedBirthDay, // Format untuk input type="date"
     });
     setSignatureImage(user.signature_image || null);
     setIsModalOpen(true);
     setError("");
+    setPhoneError("");
+    setEmailError("");
   };
 
   const handleUploadSignature = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -131,6 +366,13 @@ export default function UserInfoCard() {
     setSaving(true);
     setError("");
 
+    // Cek apakah ada error validasi
+    if (phoneError || emailError) {
+      setError("Silakan perbaiki error di atas sebelum menyimpan.");
+      setSaving(false);
+      return;
+    }
+
     if (form.new_password && form.new_password !== form.confirm_password) {
       setError("Konfirmasi password baru tidak sama.");
       setSaving(false);
@@ -142,6 +384,30 @@ export default function UserInfoCard() {
       return;
     }
 
+    // Validasi untuk dosen: WhatsApp fields wajib
+    const isDosen = user?.role === "dosen";
+    if (isDosen) {
+      if (!form.whatsapp_phone || !form.whatsapp_phone.match(/^62\d+$/)) {
+        setError(
+          "Nomor WhatsApp wajib diisi dan harus dimulai dengan 62 (contoh: 6281234567890)."
+        );
+        setSaving(false);
+        return;
+      }
+      // WhatsApp email selalu sama dengan email verification (auto-sync di onChange)
+      // Tidak perlu validasi lagi karena sudah dihandle di onChange email
+      if (!form.whatsapp_address) {
+        setError("Alamat wajib diisi untuk dosen.");
+        setSaving(false);
+        return;
+      }
+      if (!form.whatsapp_birth_day) {
+        setError("Tanggal lahir wajib diisi untuk dosen.");
+        setSaving(false);
+        return;
+      }
+    }
+
     try {
       const payload: any = {
         name: form.name,
@@ -150,24 +416,58 @@ export default function UserInfoCard() {
         telp: form.telp,
         ket: form.ket,
       };
+
+      // Tambah WhatsApp fields
+      if (isDosen || form.whatsapp_phone) {
+        payload.whatsapp_phone = form.whatsapp_phone;
+        payload.whatsapp_email = form.email; // Selalu sama dengan email verification
+        payload.whatsapp_address = form.whatsapp_address;
+        payload.whatsapp_birth_day = form.whatsapp_birth_day;
+
+        // Sinkronisasi telp dengan whatsapp_phone (convert 62 ke 0)
+        if (form.whatsapp_phone) {
+          payload.telp = form.whatsapp_phone.replace(/^62/, "0");
+        }
+      }
+
       if (form.new_password) {
         payload.current_password = form.current_password;
         payload.password = form.new_password;
         payload.confirm_password = form.confirm_password;
       }
+
       // Tambahkan signature_image (khusus untuk dosen)
       // Kirim null jika dihapus, atau base64 jika ada
       if (user.role === "dosen") {
         payload.signature_image = signatureImage || null;
       }
+
+
+
       const response = await api.put("/profile", payload);
       const updatedUser = response.data.user;
       localStorage.setItem("user", JSON.stringify(updatedUser));
       setUser(updatedUser);
       window.dispatchEvent(new Event("user-updated"));
-      setIsModalOpen(false);
+
+      // Show success modal jika sync ke Wablas berhasil
+      if (isDosen && response.data.wablas_synced) {
+        setIsModalOpen(false); // Tutup modal edit dulu
+        setShowSuccessModal(true); // Tampilkan success modal
+      } else {
+        // Jika tidak sync ke Wablas, tutup modal langsung
+        setIsModalOpen(false);
+      }
     } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to update profile");
+      const errorMessage =
+        err.response?.data?.message ||
+        err.response?.data?.errors ||
+        "Failed to update profile";
+      setError(
+        typeof errorMessage === "string"
+          ? errorMessage
+          : JSON.stringify(errorMessage)
+      );
     } finally {
       setSaving(false);
     }
@@ -353,17 +653,182 @@ export default function UserInfoCard() {
                   </div>
                   <div className="mb-3 sm:mb-4">
                     <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">
-                      Email
+                      Email (Verification)
                     </label>
                     <input
                       type="email"
                       name="email"
                       value={form.email}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      onChange={(e) => {
+                        const emailValue = e.target.value;
+                        // Auto-sync whatsapp_email dengan email verification
+                        setForm({
+                          ...form,
+                          email: emailValue,
+                          whatsapp_email: emailValue,
+                        });
+                        // Check availability realtime (debounced)
+                        if (debouncedCheckEmailRef.current) {
+                          debouncedCheckEmailRef.current([emailValue]);
+                        }
+                      }}
+                      className={`w-full px-3 py-2 rounded-lg border ${
+                        emailError
+                          ? "border-red-500 dark:border-red-500"
+                          : "border-gray-300 dark:border-gray-700"
+                      } bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500`}
                       required
                     />
+                    {emailError && (
+                      <p className="text-xs text-red-500 dark:text-red-400 mt-1 flex items-center gap-1">
+                        <svg
+                          className="w-4 h-4"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        {emailError}
+                      </p>
+                    )}
+                    {checkingEmail && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Memeriksa ketersediaan...
+                      </p>
+                    )}
                   </div>
+
+                  {/* WhatsApp fields untuk Dosen (wajib) */}
+                  {user.role === "dosen" && (
+                    <>
+                      <div className="mb-3 sm:mb-4 border-t border-gray-200 dark:border-gray-700 pt-4">
+                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                          Data WhatsApp untuk Wablas
+                        </h3>
+                      </div>
+                      <div className="mb-3 sm:mb-4">
+                        <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">
+                          Nomor WhatsApp <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="tel"
+                          name="whatsapp_phone"
+                          value={form.whatsapp_phone}
+                          onChange={(e) => {
+                            const phoneValue = e.target.value;
+                            handleChange(e);
+                            // Sinkronisasi telp dengan whatsapp_phone (convert 62 ke 0)
+                            if (phoneValue) {
+                              const telpValue = phoneValue.startsWith("62")
+                                ? "0" + phoneValue.substring(2)
+                                : phoneValue;
+                              setForm({
+                                ...form,
+                                whatsapp_phone: phoneValue,
+                                telp: telpValue,
+                              });
+                            }
+                            // Check availability realtime (debounced)
+                            if (debouncedCheckPhoneRef.current) {
+                              debouncedCheckPhoneRef.current([phoneValue]);
+                            }
+                          }}
+                          placeholder="6281234567890"
+                          className={`w-full px-3 py-2 rounded-lg border ${
+                            phoneError
+                              ? "border-red-500 dark:border-red-500"
+                              : "border-gray-300 dark:border-gray-700"
+                          } bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500`}
+                          required
+                        />
+                        {phoneError && (
+                          <p className="text-xs text-red-500 dark:text-red-400 mt-1 flex items-center gap-1">
+                            <svg
+                              className="w-4 h-4"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                            {phoneError}
+                          </p>
+                        )}
+                        {checkingPhone && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Memeriksa ketersediaan...
+                          </p>
+                        )}
+                        {!phoneError && !checkingPhone && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Format: 6281234567890 (tanpa +, mulai dengan 62)
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Nomor telepon akan otomatis terupdate (sinkronisasi
+                          dengan nomor WhatsApp)
+                        </p>
+                      </div>
+                      <div className="mb-3 sm:mb-4">
+                        <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">
+                          Email untuk Wablas{" "}
+                          <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="email"
+                          name="whatsapp_email"
+                          value={form.email} // Selalu sama dengan email verification
+                          readOnly
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 cursor-not-allowed"
+                        />
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Otomatis sama dengan Email Verification di atas
+                        </p>
+                      </div>
+                      <div className="mb-3 sm:mb-4">
+                        <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">
+                          Alamat <span className="text-red-500">*</span>
+                        </label>
+                        <textarea
+                          name="whatsapp_address"
+                          value={form.whatsapp_address}
+                          onChange={(e) =>
+                            setForm({
+                              ...form,
+                              whatsapp_address: e.target.value,
+                            })
+                          }
+                          rows={3}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+                          required
+                        />
+                      </div>
+                      <div className="mb-3 sm:mb-4">
+                        <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">
+                          Tanggal Lahir <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="date"
+                          name="whatsapp_birth_day"
+                          value={form.whatsapp_birth_day}
+                          onChange={handleChange}
+                          max={new Date().toISOString().split("T")[0]}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          required
+                        />
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Format: YYYY-mm-dd (contoh: 1990-01-15)
+                        </p>
+                      </div>
+                    </>
+                  )}
 
                   {/* Super Admin extra fields */}
                   {user.role === "super_admin" && (
@@ -601,6 +1066,82 @@ export default function UserInfoCard() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Success Modal */}
+      <AnimatePresence>
+        {showSuccessModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => {
+                setShowSuccessModal(false);
+                setIsModalOpen(false);
+              }}
+            />
+
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  setIsModalOpen(false);
+                }}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+
+              <div className="text-center">
+                <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FontAwesomeIcon
+                    icon={faCheckCircle}
+                    className="w-8 h-8 text-green-600 dark:text-green-400"
+                  />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                  Profile Berhasil Diupdate!
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  Profile Anda telah berhasil diupdate
+                </p>
+                <button
+                  onClick={() => {
+                    setShowSuccessModal(false);
+                    setIsModalOpen(false);
+                  }}
+                  className="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-4 rounded-xl transition-colors"
+                >
+                  OK
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

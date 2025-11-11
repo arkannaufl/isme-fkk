@@ -182,7 +182,8 @@ const AdminNotifications: React.FC = () => {
     useState<string>("all");
 
   // Success modal state for reminder
-  const [showReminderSuccessModal, setShowReminderSuccessModal] = useState(false);
+  const [showReminderSuccessModal, setShowReminderSuccessModal] =
+    useState(false);
   const [reminderSuccessMessage, setReminderSuccessMessage] = useState("");
 
   // Pagination state
@@ -719,7 +720,6 @@ const AdminNotifications: React.FC = () => {
       );
       setPendingDosenList(response.data.pending_dosen || []);
       setPendingDosenTotal(response.data.total || 0);
-      console.log("Pending dosen loaded:", response.data.pending_dosen || []);
     } catch (error: any) {
       console.error("Error loading pending dosen:", error);
       setPendingDosenList([]);
@@ -748,7 +748,7 @@ const AdminNotifications: React.FC = () => {
       setReminderSuccessMessage(
         `Notifikasi pengingat berhasil dikirim ke ${response.data.reminder_count} dosen`
       );
-      
+
       // Close reminder modal and show success modal
       setShowReminderModal(false);
       setShowReminderSuccessModal(true);
@@ -1211,7 +1211,7 @@ const AdminNotifications: React.FC = () => {
         const ticketId = n.data?.ticket_id || n.id;
         const ticketNumber = n.data?.ticket_number || "";
         const key = `service_center:${ticketId}:${ticketNumber}:${n.id}`;
-        
+
         // Service center notifications should not be deduplicated
         const prev = byKey[key];
         if (!prev || new Date(n.created_at) > new Date(prev.created_at)) {
@@ -2054,7 +2054,6 @@ const AdminNotifications: React.FC = () => {
             {userTypeFilter === "dosen" && (
               <button
                 onClick={async () => {
-                  console.log("Loading pending dosen before opening modal...");
                   await loadPendingDosen(
                     pendingDosenPage,
                     pendingDosenPageSize,
@@ -2382,9 +2381,12 @@ const AdminNotifications: React.FC = () => {
       </div>
 
       {/* Dosen Replacement Modal */}
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {showReplacementModal && selectedNotification && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <motion.div
+            key="replacement-modal"
+            className="fixed inset-0 z-[100000] flex items-center justify-center"
+          >
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -2423,68 +2425,70 @@ const AdminNotifications: React.FC = () => {
                 </svg>
               </button>
 
-              <div className="flex-1 flex flex-col min-h-0">
-                {/* Header */}
-                <div className="flex items-center space-x-4 mb-6 flex-shrink-0">
-                  <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center">
-                    <FontAwesomeIcon
-                      icon={faCog}
-                      className="w-6 h-6 text-blue-600 dark:text-blue-400"
-                    />
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                {/* Scrollable Content */}
+                <div className="flex-1 overflow-y-auto hide-scroll pr-2 -mr-2">
+                  {/* Header */}
+                  <div className="flex items-center space-x-4 mb-6 flex-shrink-0">
+                    <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center">
+                      <FontAwesomeIcon
+                        icon={faCog}
+                        className="w-6 h-6 text-blue-600 dark:text-blue-400"
+                      />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                        Kelola Penggantian Dosen
+                      </h2>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Penerima: {selectedNotification.user_name}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">
-                      Kelola Penggantian Dosen
-                    </h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Penerima: {selectedNotification.user_name}
-                    </p>
-                  </div>
-                </div>
 
-                {/* Jadwal Info */}
-                <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 flex-shrink-0">
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2">
-                    Detail Jadwal
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-400">
-                        Mata Kuliah:
-                      </span>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {selectedNotification.data?.mata_kuliah || "N/A"}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-400">
-                        Tanggal:
-                      </span>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {selectedNotification.data?.tanggal || "N/A"}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-400">
-                        Waktu:
-                      </span>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {selectedNotification.data?.waktu || "N/A"}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-400">
-                        Ruangan:
-                      </span>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {selectedNotification.data?.ruangan || "N/A"}
-                      </p>
+                  {/* Jadwal Info */}
+                  <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 flex-shrink-0">
+                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2">
+                      Detail Jadwal
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          Mata Kuliah:
+                        </span>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {selectedNotification.data?.mata_kuliah || "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          Tanggal:
+                        </span>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {selectedNotification.data?.tanggal || "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          Waktu:
+                        </span>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {selectedNotification.data?.waktu || "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          Ruangan:
+                        </span>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {selectedNotification.data?.ruangan || "N/A"}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Action Selection */}
-                <div className="mb-4 flex-shrink-0">
+                  {/* Action Selection */}
+                  <div className="mb-4 flex-shrink-0">
                   <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
                     Pilih Aksi:
                   </h4>
@@ -2605,146 +2609,147 @@ const AdminNotifications: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Dosen Selection (only if replace is selected) */}
-                {replacementAction === "replace" && (
-                  <div className="mb-4">
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
-                      Pilih Dosen Pengganti:
-                    </h4>
+                  {/* Dosen Selection (only if replace is selected) */}
+                  {replacementAction === "replace" && (
+                    <div className="mb-4 flex-shrink-0">
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
+                        Pilih Dosen Pengganti:
+                      </h4>
 
-                    {/* Search Bar */}
-                    <div className="mb-3">
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <svg
-                            className="h-5 w-5 text-gray-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                            />
-                          </svg>
-                        </div>
-                        <input
-                          type="text"
-                          placeholder="Cari nama dosen..."
-                          value={dosenSearchQuery}
-                          onChange={(e) => setDosenSearchQuery(e.target.value)}
-                          className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                      </div>
-                    </div>
-
-                    {loadingDosen ? (
-                      <div className="text-center py-8">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                          Memuat daftar dosen...
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-xl hide-scroll">
-                        {filteredDosenList.length === 0 ? (
-                          <div className="text-center py-8">
-                            <p className="text-gray-500 dark:text-gray-400">
-                              {dosenSearchQuery
-                                ? "Tidak ada dosen yang cocok dengan pencarian"
-                                : "Tidak ada dosen tersedia"}
-                            </p>
+                      {/* Search Bar */}
+                      <div className="mb-3">
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg
+                              className="h-5 w-5 text-gray-400"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                              />
+                            </svg>
                           </div>
-                        ) : (
-                          <div className="space-y-2 p-2">
-                            {filteredDosenList.map((dosen) => {
-                              // Check if dosen is standby based on keahlian
-                              const isStandby = Array.isArray(dosen.keahlian)
-                                ? dosen.keahlian.some((k: string) =>
-                                    k.toLowerCase().includes("standby")
-                                  )
-                                : (dosen.keahlian || "")
-                                    .toLowerCase()
-                                    .includes("standby");
+                          <input
+                            type="text"
+                            placeholder="Cari nama dosen..."
+                            value={dosenSearchQuery}
+                            onChange={(e) => setDosenSearchQuery(e.target.value)}
+                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                        </div>
+                      </div>
 
-                              const avatar = getAvatarFromName(
-                                dosen.name,
-                                isStandby
-                              );
-                              return (
-                                <label
-                                  key={dosen.id}
-                                  className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all duration-200 ${
-                                    selectedDosen?.id === dosen.id
-                                      ? "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600"
-                                      : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
-                                  }`}
-                                >
-                                  <div
-                                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center mr-3 ${
+                      {loadingDosen ? (
+                        <div className="text-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                            Memuat daftar dosen...
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-xl hide-scroll">
+                          {filteredDosenList.length === 0 ? (
+                            <div className="text-center py-8">
+                              <p className="text-gray-500 dark:text-gray-400">
+                                {dosenSearchQuery
+                                  ? "Tidak ada dosen yang cocok dengan pencarian"
+                                  : "Tidak ada dosen tersedia"}
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="space-y-2 p-2">
+                              {filteredDosenList.map((dosen) => {
+                                // Check if dosen is standby based on keahlian
+                                const isStandby = Array.isArray(dosen.keahlian)
+                                  ? dosen.keahlian.some((k: string) =>
+                                      k.toLowerCase().includes("standby")
+                                    )
+                                  : (dosen.keahlian || "")
+                                      .toLowerCase()
+                                      .includes("standby");
+
+                                const avatar = getAvatarFromName(
+                                  dosen.name,
+                                  isStandby
+                                );
+                                return (
+                                  <label
+                                    key={dosen.id}
+                                    className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all duration-200 ${
                                       selectedDosen?.id === dosen.id
-                                        ? "bg-blue-500 border-blue-500"
-                                        : "border-gray-300 dark:border-gray-600"
+                                        ? "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600"
+                                        : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
                                     }`}
                                   >
-                                    {selectedDosen?.id === dosen.id && (
-                                      <svg
-                                        className="w-2.5 h-2.5 text-white"
-                                        fill="currentColor"
-                                        viewBox="0 0 20 20"
-                                      >
-                                        <path
-                                          fillRule="evenodd"
-                                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                          clipRule="evenodd"
-                                        />
-                                      </svg>
-                                    )}
-                                  </div>
-                                  <input
-                                    type="radio"
-                                    name="selectedDosen"
-                                    value={dosen.id}
-                                    checked={selectedDosen?.id === dosen.id}
-                                    onChange={() => setSelectedDosen(dosen)}
-                                    className="sr-only"
-                                  />
-                                  {/* Avatar */}
-                                  <div
-                                    className={`w-10 h-10 ${avatar.color} rounded-full flex items-center justify-center text-white font-semibold text-sm mr-3`}
-                                  >
-                                    {avatar.initial}
-                                  </div>
-                                  {/* Dosen Info */}
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <p className="font-medium text-gray-900 dark:text-white">
-                                        {dosen.name}
-                                      </p>
-                                      {isStandby && (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 text-xs font-medium">
-                                          Standby
-                                        </span>
+                                    <div
+                                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center mr-3 ${
+                                        selectedDosen?.id === dosen.id
+                                          ? "bg-blue-500 border-blue-500"
+                                          : "border-gray-300 dark:border-gray-600"
+                                      }`}
+                                    >
+                                      {selectedDosen?.id === dosen.id && (
+                                        <svg
+                                          className="w-2.5 h-2.5 text-white"
+                                          fill="currentColor"
+                                          viewBox="0 0 20 20"
+                                        >
+                                          <path
+                                            fillRule="evenodd"
+                                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                            clipRule="evenodd"
+                                          />
+                                        </svg>
                                       )}
                                     </div>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                      {dosen.email}
-                                    </p>
-                                  </div>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
+                                    <input
+                                      type="radio"
+                                      name="selectedDosen"
+                                      value={dosen.id}
+                                      checked={selectedDosen?.id === dosen.id}
+                                      onChange={() => setSelectedDosen(dosen)}
+                                      className="sr-only"
+                                    />
+                                    {/* Avatar */}
+                                    <div
+                                      className={`w-10 h-10 ${avatar.color} rounded-full flex items-center justify-center text-white font-semibold text-sm mr-3`}
+                                    >
+                                      {avatar.initial}
+                                    </div>
+                                    {/* Dosen Info */}
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <p className="font-medium text-gray-900 dark:text-white">
+                                          {dosen.name}
+                                        </p>
+                                        {isStandby && (
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 text-xs font-medium">
+                                            Standby
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        {dosen.email}
+                                      </p>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {/* Footer */}
-                <div className="flex justify-end gap-3 pt-4 flex-shrink-0 border-t border-gray-200 dark:border-gray-700 mt-4">
+                <div className="flex justify-end gap-3 pt-4 flex-shrink-0 border-t border-gray-200 dark:border-gray-700 mt-auto">
                   <button
                     onClick={() => setShowReplacementModal(false)}
                     className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
@@ -2774,12 +2779,17 @@ const AdminNotifications: React.FC = () => {
                 </div>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
+      </AnimatePresence>
 
-        {/* Reschedule Modal */}
+      {/* Reschedule Modal */}
+      <AnimatePresence mode="wait">
         {showRescheduleModal && selectedNotification && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <motion.div
+            key="reschedule-modal"
+            className="fixed inset-0 z-[100000] flex items-center justify-center"
+          >
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -3158,13 +3168,17 @@ const AdminNotifications: React.FC = () => {
                 </div>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
+      </AnimatePresence>
 
-        {/* Reminder Notification Modal */}
-        <AnimatePresence>
+      {/* Reminder Notification Modal */}
+      <AnimatePresence mode="wait">
         {showReminderModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+          <motion.div
+            key="reminder-modal"
+            className="fixed inset-0 z-[100000] flex items-center justify-center"
+          >
             {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -3180,7 +3194,7 @@ const AdminNotifications: React.FC = () => {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              className="relative w-full max-w-5xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[95vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
               <button
@@ -3219,20 +3233,20 @@ const AdminNotifications: React.FC = () => {
                   <div className="mb-3 sm:mb-4">
                     <div className="flex items-center space-x-3 mb-4">
                       <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
-                    <FontAwesomeIcon
-                      icon={faRedo}
-                      className="w-6 h-6 text-orange-600 dark:text-orange-400"
-                    />
-                  </div>
-                  <div>
+                        <FontAwesomeIcon
+                          icon={faRedo}
+                          className="w-6 h-6 text-orange-600 dark:text-orange-400"
+                        />
+                      </div>
+                      <div>
                         <h3 className="text-sm font-semibold text-gray-800 dark:text-white">
                           Dosen yang Akan Dikirim Pengingat
                         </h3>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           Pilih filter untuk mengirim pengingat
-                    </p>
-                  </div>
-                </div>
+                        </p>
+                      </div>
+                    </div>
 
                     {/* Filter Semester dan Blok */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
@@ -3284,7 +3298,7 @@ const AdminNotifications: React.FC = () => {
                     <div className="mb-4">
                       <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Tipe Pengingat
-                        </label>
+                      </label>
                       <div className="space-y-3">
                         <div
                           className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
@@ -3315,7 +3329,7 @@ const AdminNotifications: React.FC = () => {
                                   />
                                 </svg>
                               )}
-                      </div>
+                            </div>
                             <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
                               <FontAwesomeIcon
                                 icon={faRedo}
@@ -3339,7 +3353,9 @@ const AdminNotifications: React.FC = () => {
                               ? "bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-600"
                               : ""
                           }`}
-                          onClick={() => setPendingDosenReminderType("unconfirmed")}
+                          onClick={() =>
+                            setPendingDosenReminderType("unconfirmed")
+                          }
                         >
                           <div className="flex items-center space-x-3">
                             <div
@@ -3386,7 +3402,9 @@ const AdminNotifications: React.FC = () => {
                               ? "bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-600"
                               : ""
                           }`}
-                          onClick={() => setPendingDosenReminderType("upcoming")}
+                          onClick={() =>
+                            setPendingDosenReminderType("upcoming")
+                          }
                         >
                           <div className="flex items-center space-x-3">
                             <div
@@ -3430,20 +3448,20 @@ const AdminNotifications: React.FC = () => {
                     </div>
 
                     <div className="flex justify-end mb-4">
-                        <button
-                          onClick={() =>
-                            loadPendingDosen(
-                              1,
-                              pendingDosenPageSize,
-                              pendingDosenSemester,
-                              pendingDosenBlok,
-                              pendingDosenReminderType
-                            )
-                          }
+                      <button
+                        onClick={() =>
+                          loadPendingDosen(
+                            1,
+                            pendingDosenPageSize,
+                            pendingDosenSemester,
+                            pendingDosenBlok,
+                            pendingDosenReminderType
+                          )
+                        }
                         className="px-3 sm:px-4 py-2 rounded-lg bg-orange-500 text-white text-xs sm:text-sm font-medium hover:bg-orange-600 transition-all duration-300 ease-in-out"
-                        >
-                          Filter
-                        </button>
+                      >
+                        Filter
+                      </button>
                     </div>
 
                     {loadingPendingDosen ? (
@@ -3461,8 +3479,17 @@ const AdminNotifications: React.FC = () => {
                             dosen.email.trim() !== "" &&
                             dosen.email.includes("@");
                           const isEmailVerified = dosen.email_verified == true;
+
+                          // Check WhatsApp verification (mirip dengan email verification)
+                          const isWhatsAppValid =
+                            dosen.whatsapp_phone &&
+                            dosen.whatsapp_phone.trim() !== "" &&
+                            /^62\d+$/.test(dosen.whatsapp_phone);
+
+                          // Dosen akan menerima reminder jika email valid & verified ATAU WhatsApp valid
                           const willReceiveReminder =
-                            isEmailValid && isEmailVerified;
+                            (isEmailValid && isEmailVerified) ||
+                            isWhatsAppValid;
 
                           return (
                             <div
@@ -3520,37 +3547,75 @@ const AdminNotifications: React.FC = () => {
                                       )}
                                       {!willReceiveReminder && (
                                         <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300">
-                                          {!isEmailValid
+                                          {!isEmailValid && !isWhatsAppValid
+                                            ? "Email & WhatsApp Invalid"
+                                            : !isEmailValid && isWhatsAppValid
                                             ? "Email Invalid"
-                                            : !isEmailVerified
-                                            ? "Email Belum Aktif"
+                                            : isEmailValid &&
+                                              !isEmailVerified &&
+                                              !isWhatsAppValid
+                                            ? "Email Belum Aktif & WhatsApp Invalid"
+                                            : !isEmailVerified &&
+                                              !isWhatsAppValid
+                                            ? "Tidak Akan Dikirim"
                                             : "Tidak Akan Dikirim"}
                                         </span>
                                       )}
+                                      {isWhatsAppValid && (
+                                        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">
+                                          ✓ WhatsApp Aktif
+                                        </span>
+                                      )}
+                                      {!isWhatsAppValid &&
+                                        willReceiveReminder && (
+                                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">
+                                            ⚠ WhatsApp Belum Aktif
+                                          </span>
+                                        )}
                                     </div>
                                   </div>
                                   <div className="space-y-1">
                                     <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
                                       {dosen.jadwal_type} - {dosen.mata_kuliah}
                                     </p>
-                                    {dosen.email && (
-                                      <div className="flex items-center gap-2">
-                                        <p
-                                          className={`text-xs ${
-                                            willReceiveReminder
-                                              ? "text-gray-500 dark:text-gray-400"
-                                              : "text-red-600 dark:text-red-400"
-                                          }`}
-                                        >
-                                          Email: {dosen.email}
-                                        </p>
-                                        {isEmailVerified && (
-                                          <span className="inline-flex items-center px-1 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">
-                                            ✓ Aktif
-                                          </span>
-                                        )}
-                                      </div>
-                                    )}
+                                    <div className="space-y-1">
+                                      {dosen.email && (
+                                        <div className="flex items-center gap-2">
+                                          <p
+                                            className={`text-xs ${
+                                              isEmailValid && isEmailVerified
+                                                ? "text-gray-500 dark:text-gray-400"
+                                                : "text-red-600 dark:text-red-400"
+                                            }`}
+                                          >
+                                            Email: {dosen.email}
+                                          </p>
+                                          {isEmailVerified && (
+                                            <span className="inline-flex items-center px-1 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">
+                                              ✓ Aktif
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                      {dosen.whatsapp_phone && (
+                                        <div className="flex items-center gap-2">
+                                          <p
+                                            className={`text-xs ${
+                                              isWhatsAppValid
+                                                ? "text-gray-500 dark:text-gray-400"
+                                                : "text-red-600 dark:text-red-400"
+                                            }`}
+                                          >
+                                            WhatsApp: {dosen.whatsapp_phone}
+                                          </p>
+                                          {isWhatsAppValid && (
+                                            <span className="inline-flex items-center px-1 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">
+                                              ✓ Aktif
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
@@ -3691,76 +3756,80 @@ const AdminNotifications: React.FC = () => {
                 </div>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
-        </AnimatePresence>
+      </AnimatePresence>
 
-        {/* Reminder Success Modal */}
-        <AnimatePresence>
-          {showReminderSuccessModal && (
-            <div className="fixed inset-0 z-[100000] flex items-center justify-center">
-              {/* Overlay */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+      {/* Reminder Success Modal */}
+      <AnimatePresence mode="wait">
+        {showReminderSuccessModal && (
+          <motion.div
+            key="reminder-success-modal"
+            className="fixed inset-0 z-[100000] flex items-center justify-center"
+          >
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowReminderSuccessModal(false)}
+            />
+
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
                 onClick={() => setShowReminderSuccessModal(false)}
-              />
-
-              {/* Modal Content */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.2 }}
-                className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
               >
-                {/* Close Button */}
-                  <button
-                  onClick={() => setShowReminderSuccessModal(false)}
-                  className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
                 >
-                  <svg
-                    width="20"
-                    height="20"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    className="w-6 h-6"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      clipRule="evenodd"
-                      d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
-                      fill="currentColor"
-                    />
-                  </svg>
-                  </button>
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
 
-                <div className="text-center">
-                  <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <FontAwesomeIcon
-                      icon={faCheckCircle}
-                      className="w-8 h-8 text-green-600 dark:text-green-400"
-                    />
+              <div className="text-center">
+                <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FontAwesomeIcon
+                    icon={faCheckCircle}
+                    className="w-8 h-8 text-green-600 dark:text-green-400"
+                  />
                 </div>
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                    {reminderSuccessMessage.includes("berhasil") ? "Berhasil!" : "Terjadi Kesalahan"}
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-400 mb-6">
-                    {reminderSuccessMessage}
-                  </p>
-                  <button
-                    onClick={() => setShowReminderSuccessModal(false)}
-                    className="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-4 rounded-xl transition-colors"
-                  >
-                    OK
-                  </button>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                  {reminderSuccessMessage.includes("berhasil")
+                    ? "Berhasil!"
+                    : "Terjadi Kesalahan"}
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  {reminderSuccessMessage}
+                </p>
+                <button
+                  onClick={() => setShowReminderSuccessModal(false)}
+                  className="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-4 rounded-xl transition-colors"
+                >
+                  OK
+                </button>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
-        </AnimatePresence>
       </AnimatePresence>
     </div>
   );
