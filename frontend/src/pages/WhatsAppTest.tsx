@@ -39,6 +39,8 @@ interface Contact {
   [key: string]: any;
 }
 
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+
 export default function WhatsAppTest() {
   const [loading, setLoading] = useState(false);
   const [deviceLoading, setDeviceLoading] = useState(false);
@@ -84,6 +86,7 @@ export default function WhatsAppTest() {
   });
   const [loadingRealtime, setLoadingRealtime] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
+  const [lastDeviceRefreshTime, setLastDeviceRefreshTime] = useState<number>(0);
   const [currentDay, setCurrentDay] = useState<string>("");
 
   // Settings states
@@ -98,6 +101,28 @@ export default function WhatsAppTest() {
   });
   const [showSecretKey, setShowSecretKey] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
+
+  // Pagination states for Report Realtime
+  const [reportPage, setReportPage] = useState(1);
+  const [reportPageSize, setReportPageSize] = useState(10);
+
+  // Pagination states for Contacts
+  const [contactsPage, setContactsPage] = useState(1);
+  const [contactsPageSize, setContactsPageSize] = useState(10);
+
+  // Pagination computed values for Report Realtime
+  const reportTotalPages = Math.ceil(reportRealtime.length / reportPageSize);
+  const paginatedReportRealtime = reportRealtime.slice(
+    (reportPage - 1) * reportPageSize,
+    reportPage * reportPageSize
+  );
+
+  // Pagination computed values for Contacts
+  const contactsTotalPages = Math.ceil(contacts.length / contactsPageSize);
+  const paginatedContacts = contacts.slice(
+    (contactsPage - 1) * contactsPageSize,
+    contactsPage * contactsPageSize
+  );
 
   // Check if user is super_admin
   const user = getUser();
@@ -136,6 +161,7 @@ export default function WhatsAppTest() {
       console.error("Error checking device:", err);
     } finally {
       setDeviceLoading(false);
+      setLastDeviceRefreshTime(Date.now());
     }
   };
 
@@ -500,6 +526,9 @@ export default function WhatsAppTest() {
     // Load realtime reports saat component mount
     loadReportRealtime();
 
+    // Check device status saat component mount
+    checkDevice();
+
     // Load settings jika super admin
     if (isSuperAdmin) {
       loadSettings();
@@ -523,6 +552,19 @@ export default function WhatsAppTest() {
           return prevTime; // Keep previous time
         }
       });
+
+      // Auto-refresh device status setiap 30 detik
+      // Hanya refresh jika sudah lebih dari 60 detik sejak refresh terakhir (untuk menghindari rate limit)
+      setLastDeviceRefreshTime((prevTime) => {
+        const timeSinceLastRefresh = now - prevTime;
+        // Hanya refresh jika sudah lebih dari 60 detik (rate limit biasanya 1 request per menit)
+        if (timeSinceLastRefresh >= 60000) {
+          checkDevice();
+          return now; // Update last refresh time
+        } else {
+          return prevTime; // Keep previous time
+        }
+      });
     }, 30000); // Check every 30 seconds
 
     // Cleanup interval saat component unmount
@@ -531,6 +573,15 @@ export default function WhatsAppTest() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps = hanya run saat mount/reload
+
+  // Reset page to 1 when data changes
+  useEffect(() => {
+    setReportPage(1);
+  }, [reportRealtime.length]);
+
+  useEffect(() => {
+    setContactsPage(1);
+  }, [contacts.length]);
 
   const handleContactSelect = (contact: Contact) => {
     setPhone(contact.phone || "");
@@ -589,57 +640,46 @@ export default function WhatsAppTest() {
     />
   );
 
-  const SkeletonTable = () => (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse" />
-          <div>
-            <SkeletonLine width="w-48" height="h-6" />
-            <SkeletonLine width="w-32" height="h-4" />
-          </div>
-        </div>
-      </div>
-      <div className="space-y-3">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex gap-4">
-            <SkeletonLine width="w-12" height="h-4" />
-            <SkeletonLine width="w-32" height="h-4" />
-            <SkeletonLine width="w-48" height="h-4" />
-            <SkeletonLine width="w-20" height="h-4" />
-            <SkeletonLine width="w-24" height="h-4" />
-          </div>
+  const SkeletonTable = ({ columns = 6 }: { columns?: number }) => (
+    <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+      <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+        <tr>
+          {Array.from({ length: columns }).map((_, i) => (
+            <th key={i} className="px-6 py-4">
+              <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {Array.from({ length: 5 }).map((_, idx) => (
+          <tr
+            key={idx}
+            className={idx % 2 === 1 ? "bg-gray-50 dark:bg-white/[0.02]" : ""}
+          >
+            {Array.from({ length: columns }).map((_, i) => (
+              <td key={i} className="px-6 py-4">
+                <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+              </td>
+            ))}
+          </tr>
         ))}
-      </div>
-    </div>
+      </tbody>
+    </table>
   );
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="w-full mx-auto">
         {/* Header Section */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mb-8"
-        >
+      <div className="mb-8">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg">
-                <FontAwesomeIcon
-                  icon={faMobileAlt}
-                  className="w-8 h-8 text-white"
-                />
-              </div>
               <div>
-                <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90 mb-2">
                   WhatsApp Bot
                 </h1>
-                <p className="text-gray-600 dark:text-gray-400 text-lg">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
                   Kelola dan monitor pesan WhatsApp melalui Wablas API
                 </p>
-              </div>
             </div>
             {isSuperAdmin && (
               <button
@@ -647,24 +687,39 @@ export default function WhatsAppTest() {
                   setShowSettings(true);
                   loadSettings();
                 }}
-                className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-all duration-200 font-medium flex items-center gap-2 shadow-md hover:shadow-lg"
+              className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white text-sm rounded-lg transition-all duration-200 font-medium flex items-center gap-2"
               >
                 <FontAwesomeIcon icon={faCog} className="w-4 h-4" />
                 <span>Settings</span>
               </button>
             )}
           </div>
-        </motion.div>
+        <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+          <div className="flex items-start gap-3">
+            <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center">
+              <span className="text-white text-xs font-bold">i</span>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-1">
+                Catatan Penting
+              </h4>
+              <ul className="text-xs text-blue-700 dark:text-blue-300 space-y-1">
+                <li>• Pastikan device WhatsApp sudah terhubung di dashboard Wablas</li>
+                <li>• Token WABLAS_TOKEN dan WABLAS_SECRET_KEY sudah di-set di .env backend</li>
+                <li>• Format nomor: 6281234567890 (tanpa +, mulai dengan 62)</li>
+                <li>• Jika IP belum di-whitelist, tambahkan IP server di dashboard Wablas (Device → Settings → Whitelist IP)</li>
+                <li>• Data Source: Semua data (laporan, contact) diambil langsung dari Wablas API, bukan dari database lokal</li>
+                <li>• Jika muncul rate limit (429), tunggu beberapa saat lalu refresh</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
 
         {/* Stats Cards Row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           {/* Device Status Card */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.3, delay: 0.1 }}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700"
-          >
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-gray-200 dark:border-white/[0.05] p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div
@@ -702,7 +757,7 @@ export default function WhatsAppTest() {
             <button
               onClick={checkDevice}
               disabled={deviceLoading}
-              className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white px-4 py-2.5 rounded-lg transition-all duration-200 font-medium text-sm flex items-center justify-center gap-2 shadow-md hover:shadow-lg disabled:shadow-none"
+            className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white px-4 py-2.5 rounded-lg transition-all duration-200 font-medium text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {deviceLoading ? (
                 <>
@@ -719,15 +774,10 @@ export default function WhatsAppTest() {
                 </>
               )}
             </button>
-          </motion.div>
+        </div>
 
           {/* Contacts Count Card */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.3, delay: 0.2 }}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700"
-          >
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-gray-200 dark:border-white/[0.05] p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-lg bg-indigo-100 dark:bg-indigo-900/20 flex items-center justify-center">
@@ -749,7 +799,7 @@ export default function WhatsAppTest() {
             <button
               onClick={loadContacts}
               disabled={loadingContacts}
-              className="w-full bg-indigo-500 hover:bg-indigo-600 disabled:bg-gray-400 text-white px-4 py-2.5 rounded-lg transition-all duration-200 font-medium text-sm flex items-center justify-center gap-2 shadow-md hover:shadow-lg disabled:shadow-none"
+            className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white px-4 py-2.5 rounded-lg transition-all duration-200 font-medium text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loadingContacts ? (
                 <>
@@ -766,15 +816,10 @@ export default function WhatsAppTest() {
                 </>
               )}
             </button>
-          </motion.div>
+        </div>
 
           {/* Messages Today Card */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.3, delay: 0.3 }}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700"
-          >
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-gray-200 dark:border-white/[0.05] p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-lg bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center">
@@ -796,7 +841,7 @@ export default function WhatsAppTest() {
             <button
               onClick={loadReportRealtime}
               disabled={loadingRealtime}
-              className="w-full bg-purple-500 hover:bg-purple-600 disabled:bg-gray-400 text-white px-4 py-2.5 rounded-lg transition-all duration-200 font-medium text-sm flex items-center justify-center gap-2 shadow-md hover:shadow-lg disabled:shadow-none"
+            className="w-full bg-brand-500 hover:bg-brand-600 disabled:bg-gray-400 text-white px-4 py-2.5 rounded-lg transition-all duration-200 font-medium text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               title="Rate limit: 1 request per menit"
             >
               {loadingRealtime ? (
@@ -814,18 +859,13 @@ export default function WhatsAppTest() {
                 </>
               )}
             </button>
-          </motion.div>
+        </div>
         </div>
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Send Message Card */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700"
-          >
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-gray-200 dark:border-white/[0.05] p-6">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/20 flex items-center justify-center">
                 <FontAwesomeIcon
@@ -833,7 +873,7 @@ export default function WhatsAppTest() {
                   className="w-5 h-5 text-green-600 dark:text-green-400"
                 />
               </div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Kirim Pesan
               </h2>
             </div>
@@ -868,7 +908,7 @@ export default function WhatsAppTest() {
                         onClick={() =>
                           setShowContactDropdown(!showContactDropdown)
                         }
-                        className="px-4 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
+                      className="px-4 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg transition-all duration-200"
                         title="Pilih dari contact"
                       >
                         <FontAwesomeIcon icon={faAddressBook} />
@@ -878,7 +918,7 @@ export default function WhatsAppTest() {
 
                   {/* Contact Dropdown */}
                   {showContactDropdown && contacts.length > 0 && (
-                    <div className="absolute z-10 mt-2 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+                  <div className="absolute z-10 mt-2 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                       {contacts.map((contact, index) => (
                         <button
                           key={index}
@@ -932,7 +972,7 @@ export default function WhatsAppTest() {
               <button
                 onClick={testSendMessage}
                 disabled={loading || !phone.trim() || !message.trim()}
-                className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:from-gray-400 disabled:to-gray-500 text-white px-6 py-3.5 rounded-lg transition-all duration-200 font-semibold text-lg shadow-lg hover:shadow-xl disabled:shadow-none flex items-center justify-center gap-3"
+              className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg transition-all duration-200 font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <>
@@ -951,11 +991,7 @@ export default function WhatsAppTest() {
               </button>
 
               {testResult && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800"
-                >
+              <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
                   <div className="flex items-center gap-2 mb-2">
                     <FontAwesomeIcon
                       icon={faCheckCircle}
@@ -968,15 +1004,11 @@ export default function WhatsAppTest() {
                   <pre className="text-xs overflow-auto bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200">
                     {JSON.stringify(testResult, null, 2)}
                   </pre>
-                </motion.div>
+              </div>
               )}
 
               {error && testResult && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800"
-                >
+              <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
                   <div className="flex items-center gap-2">
                     <FontAwesomeIcon
                       icon={faExclamationTriangle}
@@ -984,18 +1016,13 @@ export default function WhatsAppTest() {
                     />
                     <p className="text-red-800 dark:text-red-300">{error}</p>
                   </div>
-                </motion.div>
+              </div>
               )}
             </div>
-          </motion.div>
+        </div>
 
           {/* Device Info Card */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700"
-          >
+        <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-gray-200 dark:border-white/[0.05] p-6">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
                 <FontAwesomeIcon
@@ -1003,14 +1030,14 @@ export default function WhatsAppTest() {
                   className="w-5 h-5 text-blue-600 dark:text-blue-400"
                 />
               </div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Informasi Device
               </h2>
             </div>
 
             {deviceInfo ? (
               <div className="space-y-4">
-                <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg border border-green-200 dark:border-green-800">
+              <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
                   <div className="flex items-center gap-2 mb-3">
                     <FontAwesomeIcon
                       icon={faCheckCircle}
@@ -1105,16 +1132,11 @@ export default function WhatsAppTest() {
                 </div>
               </div>
             )}
-          </motion.div>
+        </div>
         </div>
 
         {/* Report Realtime Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-          className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-6 border border-gray-200 dark:border-gray-700"
-        >
+      <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-gray-200 dark:border-white/[0.05] p-6 mb-8">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center">
@@ -1124,7 +1146,7 @@ export default function WhatsAppTest() {
                 />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Laporan Pesan Realtime
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -1134,35 +1156,51 @@ export default function WhatsAppTest() {
             </div>
           </div>
 
+        {/* Tabel dengan scroll horizontal */}
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+          <div
+            className="max-w-full overflow-x-auto hide-scroll"
+            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+          >
+            <style>{`
+              .max-w-full::-webkit-scrollbar { display: none; }
+              .hide-scroll { 
+                -ms-overflow-style: none; /* IE and Edge */
+                scrollbar-width: none; /* Firefox */
+              }
+              .hide-scroll::-webkit-scrollbar { /* Chrome, Safari, Opera */
+                display: none;
+              }
+            `}</style>
           {loadingRealtime ? (
             <SkeletonTable />
           ) : reportRealtime.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+              <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                  <tr>
+                    <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                       No
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                       Name
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                       Phone
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                       Message
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                       Status
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                       Time
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {reportRealtime.map((report: any, index: number) => {
+                <tbody>
+                  {paginatedReportRealtime.map((report: any, index: number) => {
+                    const globalIndex = (reportPage - 1) * reportPageSize + index;
                     // Format phone - bisa object {from, to} atau string
                     let phoneDisplay = "-";
                     let phoneNumber = "";
@@ -1239,21 +1277,21 @@ export default function WhatsAppTest() {
                     return (
                       <tr
                         key={index}
-                        className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+                        className={index % 2 === 1 ? "bg-gray-50 dark:bg-white/[0.02]" : ""}
                       >
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
-                          {index + 1}
+                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                          {globalIndex + 1}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white font-medium">
+                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-white font-medium">
                           {contactName}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white font-medium">
+                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-white font-medium">
                           {phoneDisplay}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white max-w-xs truncate">
+                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-white max-w-xs truncate">
                           {report.message || report.text || "-"}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-6 py-4">
                           <span
                             className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
                               report.status === "read"
@@ -1270,7 +1308,7 @@ export default function WhatsAppTest() {
                             {report.status ? report.status.toUpperCase() : "-"}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
                           <div className="flex items-center gap-2">
                             <FontAwesomeIcon
                               icon={faClock}
@@ -1284,7 +1322,6 @@ export default function WhatsAppTest() {
                   })}
                 </tbody>
               </table>
-            </div>
           ) : (
             <div className="text-center py-12">
               <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
@@ -1298,17 +1335,162 @@ export default function WhatsAppTest() {
               </p>
             </div>
           )}
-        </motion.div>
+          </div>
+
+          {/* Pagination */}
+          {reportRealtime.length > 0 && (
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 sm:px-6 py-4">
+              <div className="flex items-center gap-4">
+                <select
+                  value={reportPageSize}
+                  onChange={(e) => {
+                    setReportPageSize(Number(e.target.value));
+                    setReportPage(1);
+                  }}
+                  className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
+                >
+                  {PAGE_SIZE_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  Menampilkan {paginatedReportRealtime.length} dari {reportRealtime.length} data
+                </span>
+              </div>
+              <div className="flex items-center gap-2 justify-center sm:justify-end">
+                <button
+                  onClick={() => setReportPage((p) => Math.max(1, p - 1))}
+                  disabled={reportPage === 1}
+                  className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                >
+                  Prev
+                </button>
+
+                {/* Smart Pagination with Scroll */}
+                <div
+                  className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll"
+                  style={{
+                    scrollbarWidth: "thin",
+                    scrollbarColor: "#cbd5e1 #f1f5f9",
+                  }}
+                >
+                  <style
+                    dangerouslySetInnerHTML={{
+                      __html: `
+                      .pagination-scroll::-webkit-scrollbar {
+                        height: 6px;
+                      }
+                      .pagination-scroll::-webkit-scrollbar-track {
+                        background: #f1f5f9;
+                        border-radius: 3px;
+                      }
+                      .pagination-scroll::-webkit-scrollbar-thumb {
+                        background: #cbd5e1;
+                        border-radius: 3px;
+                      }
+                      .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                        background: #94a3b8;
+                      }
+                      .dark .pagination-scroll::-webkit-scrollbar-track {
+                        background: #1e293b;
+                      }
+                      .dark .pagination-scroll::-webkit-scrollbar-thumb {
+                        background: #475569;
+                      }
+                      .dark .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                        background: #64748b;
+                      }
+                    `,
+                    }}
+                  />
+
+                  {/* Always show first page */}
+                  <button
+                    onClick={() => setReportPage(1)}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                      reportPage === 1
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
+                  >
+                    1
+                  </button>
+
+                  {/* Show ellipsis if current page is far from start */}
+                  {reportPage > 4 && (
+                    <span className="px-2 text-gray-500 dark:text-gray-400">
+                      ...
+                    </span>
+                  )}
+
+                  {/* Show pages around current page */}
+                  {Array.from({ length: reportTotalPages }, (_, i) => {
+                    const pageNum = i + 1;
+                    // Show pages around current page (2 pages before and after)
+                    const shouldShow =
+                      pageNum > 1 &&
+                      pageNum < reportTotalPages &&
+                      pageNum >= reportPage - 2 &&
+                      pageNum <= reportPage + 2;
+
+                    if (!shouldShow) return null;
+
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => setReportPage(pageNum)}
+                        className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                          reportPage === pageNum
+                            ? "bg-brand-500 text-white"
+                            : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+
+                  {/* Show ellipsis if current page is far from end */}
+                  {reportPage < reportTotalPages - 3 && (
+                    <span className="px-2 text-gray-500 dark:text-gray-400">
+                      ...
+                    </span>
+                  )}
+
+                  {/* Always show last page if it's not the first page */}
+                  {reportTotalPages > 1 && (
+                    <button
+                      onClick={() => setReportPage(reportTotalPages)}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                        reportPage === reportTotalPages
+                          ? "bg-brand-500 text-white"
+                          : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      }`}
+                    >
+                      {reportTotalPages}
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => setReportPage((p) => Math.min(reportTotalPages, p + 1))}
+                  disabled={reportPage === reportTotalPages}
+                  className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
         {/* REMOVED: Report Messages (All) Section - Deleted per user request */}
 
         {/* Contacts List Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.7 }}
-          className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-6 border border-gray-200 dark:border-gray-700"
-        >
+      <div className="bg-white dark:bg-white/[0.03] rounded-xl border border-gray-200 dark:border-white/[0.05] p-6 mb-8">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-indigo-100 dark:bg-indigo-900/20 flex items-center justify-center">
@@ -1318,7 +1500,7 @@ export default function WhatsAppTest() {
                 />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Daftar Kontak
                 </h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -1328,34 +1510,51 @@ export default function WhatsAppTest() {
             </div>
           </div>
 
+        {/* Tabel dengan scroll horizontal */}
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+          <div
+            className="max-w-full overflow-x-auto hide-scroll"
+            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+          >
+            <style>{`
+              .max-w-full::-webkit-scrollbar { display: none; }
+              .hide-scroll { 
+                -ms-overflow-style: none; /* IE and Edge */
+                scrollbar-width: none; /* Firefox */
+              }
+              .hide-scroll::-webkit-scrollbar { /* Chrome, Safari, Opera */
+                display: none;
+              }
+            `}</style>
           {loadingContacts ? (
-            <SkeletonTable />
+              <SkeletonTable columns={3} />
           ) : contacts.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+              <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                  <tr>
+                    <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                       No
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                       Name
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                       Phone
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {contacts.map((contact: Contact, index: number) => (
+                <tbody>
+                  {paginatedContacts.map((contact: Contact, index: number) => {
+                    const globalIndex = (contactsPage - 1) * contactsPageSize + index;
+                    return (
                     <tr
                       key={index}
-                      className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+                        className={index % 2 === 1 ? "bg-gray-50 dark:bg-white/[0.02]" : ""}
                     >
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
-                        {index + 1}
+                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                          {globalIndex + 1}
                       </td>
-                      <td className="px-4 py-3">
+                        <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/20 flex items-center justify-center">
                             <FontAwesomeIcon
@@ -1368,14 +1567,14 @@ export default function WhatsAppTest() {
                           </span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white font-medium">
+                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-white font-medium">
                         {contact.phone || "-"}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
-            </div>
           ) : (
             <div className="text-center py-12">
               <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
@@ -1389,83 +1588,201 @@ export default function WhatsAppTest() {
               </p>
             </div>
           )}
-        </motion.div>
-
-        {/* Info Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.8 }}
-          className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl shadow-lg p-6 border border-blue-200 dark:border-blue-800"
-        >
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center">
-              <FontAwesomeIcon
-                icon={faInfoCircle}
-                className="w-5 h-5 text-blue-600 dark:text-blue-400"
-              />
-            </div>
-            <h3 className="font-bold text-blue-900 dark:text-blue-300 text-lg">
-              Catatan Penting
-            </h3>
           </div>
-          <ul className="space-y-2 text-sm text-blue-800 dark:text-blue-300">
-            <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400 mt-1">•</span>
-              <span>
-                Pastikan device WhatsApp sudah terhubung di dashboard Wablas
+
+          {/* Pagination */}
+          {contacts.length > 0 && (
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 sm:px-6 py-4">
+              <div className="flex items-center gap-4">
+                <select
+                  value={contactsPageSize}
+                  onChange={(e) => {
+                    setContactsPageSize(Number(e.target.value));
+                    setContactsPage(1);
+                  }}
+                  className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
+                >
+                  {PAGE_SIZE_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  Menampilkan {paginatedContacts.length} dari {contacts.length} data
+                </span>
+            </div>
+              <div className="flex items-center gap-2 justify-center sm:justify-end">
+                <button
+                  onClick={() => setContactsPage((p) => Math.max(1, p - 1))}
+                  disabled={contactsPage === 1}
+                  className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                >
+                  Prev
+                </button>
+
+                {/* Smart Pagination with Scroll */}
+                <div
+                  className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll"
+                  style={{
+                    scrollbarWidth: "thin",
+                    scrollbarColor: "#cbd5e1 #f1f5f9",
+                  }}
+                >
+                  <style
+                    dangerouslySetInnerHTML={{
+                      __html: `
+                      .pagination-scroll::-webkit-scrollbar {
+                        height: 6px;
+                      }
+                      .pagination-scroll::-webkit-scrollbar-track {
+                        background: #f1f5f9;
+                        border-radius: 3px;
+                      }
+                      .pagination-scroll::-webkit-scrollbar-thumb {
+                        background: #cbd5e1;
+                        border-radius: 3px;
+                      }
+                      .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                        background: #94a3b8;
+                      }
+                      .dark .pagination-scroll::-webkit-scrollbar-track {
+                        background: #1e293b;
+                      }
+                      .dark .pagination-scroll::-webkit-scrollbar-thumb {
+                        background: #475569;
+                      }
+                      .dark .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                        background: #64748b;
+                      }
+                    `,
+                    }}
+                  />
+
+                  {/* Always show first page */}
+                  <button
+                    onClick={() => setContactsPage(1)}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                      contactsPage === 1
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
+                  >
+                    1
+                  </button>
+
+                  {/* Show ellipsis if current page is far from start */}
+                  {contactsPage > 4 && (
+                    <span className="px-2 text-gray-500 dark:text-gray-400">
+                      ...
               </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400 mt-1">•</span>
-              <span>
-                Token WABLAS_TOKEN dan WABLAS_SECRET_KEY sudah di-set di .env
-                backend
+                  )}
+
+                  {/* Show pages around current page */}
+                  {Array.from({ length: contactsTotalPages }, (_, i) => {
+                    const pageNum = i + 1;
+                    // Show pages around current page (2 pages before and after)
+                    const shouldShow =
+                      pageNum > 1 &&
+                      pageNum < contactsTotalPages &&
+                      pageNum >= contactsPage - 2 &&
+                      pageNum <= contactsPage + 2;
+
+                    if (!shouldShow) return null;
+
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => setContactsPage(pageNum)}
+                        className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                          contactsPage === pageNum
+                            ? "bg-brand-500 text-white"
+                            : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+
+                  {/* Show ellipsis if current page is far from end */}
+                  {contactsPage < contactsTotalPages - 3 && (
+                    <span className="px-2 text-gray-500 dark:text-gray-400">
+                      ...
               </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400 mt-1">•</span>
-              <span>
-                Format nomor: 6281234567890 (tanpa +, mulai dengan 62)
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400 mt-1">•</span>
-              <span>
-                Jika IP belum di-whitelist, tambahkan IP server di dashboard
-                Wablas (Device → Settings → Whitelist IP)
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400 mt-1">•</span>
-              <span>
-                <strong>Data Source:</strong> Semua data (laporan, contact)
-                diambil langsung dari Wablas API, bukan dari database lokal
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-blue-600 dark:text-blue-400 mt-1">•</span>
-              <span>
-                Jika muncul rate limit (429), tunggu beberapa saat lalu refresh
-              </span>
-            </li>
-          </ul>
-        </motion.div>
+                  )}
+
+                  {/* Always show last page if it's not the first page */}
+                  {contactsTotalPages > 1 && (
+                    <button
+                      onClick={() => setContactsPage(contactsTotalPages)}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                        contactsPage === contactsTotalPages
+                          ? "bg-brand-500 text-white"
+                          : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      }`}
+                    >
+                      {contactsTotalPages}
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => setContactsPage((p) => Math.min(contactsTotalPages, p + 1))}
+                  disabled={contactsPage === contactsTotalPages}
+                  className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
 
         {/* Settings Modal */}
         <AnimatePresence mode="wait">
           {showSettings && isSuperAdmin && (
-            <div
-              className="fixed inset-0 bg-black/80 backdrop-blur-lg z-[999999] flex items-center justify-center p-4"
-              style={{ zIndex: 999999 }}
-            >
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowSettings(false)}
+            ></motion.div>
+            {/* Modal Content */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-gray-700"
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-2xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => setShowSettings(false)}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
               >
-                <div className="flex items-center justify-between mb-6">
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+              <div>
+                <div className="flex items-center justify-between pb-4 sm:pb-6">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
                       <FontAwesomeIcon
@@ -1473,30 +1790,39 @@ export default function WhatsAppTest() {
                         className="w-5 h-5 text-gray-600 dark:text-gray-400"
                       />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
                       Settings Wablas
                     </h2>
                   </div>
-                  <button
-                    onClick={() => setShowSettings(false)}
-                    className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center justify-center transition-colors"
-                  >
-                    <FontAwesomeIcon
-                      icon={faTimesCircle}
-                      className="w-5 h-5 text-gray-500 dark:text-gray-400"
-                    />
-                  </button>
                 </div>
 
                 {loadingSettings ? (
-                  <div className="text-center py-12">
-                    <FontAwesomeIcon
-                      icon={faSpinner}
-                      className="w-8 h-8 text-blue-500 animate-spin mx-auto mb-4"
-                    />
-                    <p className="text-gray-500 dark:text-gray-400">
-                      Memuat settings...
-                    </p>
+                <div className="space-y-4">
+                  {/* Token Field Skeleton */}
+                  <div>
+                    <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse"></div>
+                    <div className="h-12 w-full bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
+                    <div className="h-3 w-64 bg-gray-200 dark:bg-gray-700 rounded mt-1 animate-pulse"></div>
+                  </div>
+
+                  {/* Secret Key Field Skeleton */}
+                  <div>
+                    <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse"></div>
+                    <div className="h-12 w-full bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
+                    <div className="h-3 w-72 bg-gray-200 dark:bg-gray-700 rounded mt-1 animate-pulse"></div>
+                  </div>
+
+                  {/* Base URL Field Skeleton */}
+                  <div>
+                    <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse"></div>
+                    <div className="h-12 w-full bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
+                  </div>
+
+                  {/* Buttons Skeleton */}
+                  <div className="flex justify-end gap-2 pt-2">
+                    <div className="h-10 w-20 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
+                    <div className="h-10 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
+                  </div>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -1580,7 +1906,16 @@ export default function WhatsAppTest() {
                       </div>
                     )}
 
-                    <div className="flex gap-3 pt-4">
+                  <div className="flex justify-end gap-2 pt-2 relative z-20">
+                    <button
+                      onClick={() => {
+                        setShowSettings(false);
+                        setSettingsError(null);
+                      }}
+                      className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
+                    >
+                      Batal
+                    </button>
                       <button
                         onClick={saveSettings}
                         disabled={
@@ -1588,34 +1923,41 @@ export default function WhatsAppTest() {
                           !settings.token ||
                           !settings.secret_key
                         }
-                        className="flex-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg transition-all duration-200 font-semibold shadow-lg hover:shadow-xl disabled:shadow-none flex items-center justify-center gap-2"
+                      className="px-3 sm:px-4 py-2 rounded-lg bg-blue-600 text-white text-xs sm:text-sm font-medium shadow-theme-xs hover:bg-blue-700 transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed relative z-10 flex items-center justify-center gap-2"
                       >
                         {savingSettings ? (
                           <>
-                            <FontAwesomeIcon
-                              icon={faSpinner}
-                              className="w-5 h-5 animate-spin"
-                            />
+                          <svg
+                            className="w-5 h-5 mr-2 animate-spin text-white inline-block align-middle"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                            ></path>
+                          </svg>
                             <span>Menyimpan...</span>
                           </>
                         ) : (
                           <>
                             <FontAwesomeIcon
                               icon={faCheckCircle}
-                              className="w-5 h-5"
+                            className="w-4 h-4"
                             />
                             <span>Simpan Settings</span>
                           </>
                         )}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowSettings(false);
-                          setSettingsError(null);
-                        }}
-                        className="px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-all duration-200 font-semibold shadow-md hover:shadow-lg"
-                      >
-                        Batal
                       </button>
                     </div>
 
@@ -1637,11 +1979,11 @@ export default function WhatsAppTest() {
                     </div>
                   </div>
                 )}
+              </div>
               </motion.div>
             </div>
           )}
         </AnimatePresence>
-      </div>
     </div>
   );
 }

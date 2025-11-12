@@ -326,16 +326,16 @@ const getNavItems = (userRole?: string): NavItem[] => {
       roles: ["mahasiswa"],
     },
     {
+      icon: <WhatsAppIcon />,
+      name: "WhatsApp Bot",
+      path: "/whatsapp-test",
+      roles: ["super_admin"],
+    },
+    {
       icon: <ServiceCenterIcon />,
       name: "Service Center",
       path: "/support-center",
       roles: ["super_admin", "dosen", "mahasiswa", "tim_akademik"],
-    },
-    {
-      icon: <WhatsAppIcon />,
-      name: "WhatsApp Test",
-      path: "/whatsapp-test",
-      roles: ["super_admin"],
     },
   ];
 
