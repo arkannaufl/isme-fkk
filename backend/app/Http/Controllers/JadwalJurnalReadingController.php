@@ -1084,17 +1084,39 @@ class JadwalJurnalReadingController extends Controller
             $semesterType = $request->query('semester_type');
             \Log::info("Getting jadwal jurnal reading for dosen ID: {$dosenId}, semester_type: {$semesterType}");
 
-            // Use raw query to get data first
+            // PENTING: Query harus mengambil jadwal dimana:
+            // 1. dosen_id = $dosenId (dosen aktif saat ini)
+            // 2. ATAU $dosenId ada di dosen_ids (dosen lama/history)
+            // Filter semester_type harus diterapkan ke kedua kondisi
             $rawJadwal = \DB::table('jadwal_jurnal_reading')
-                ->where(function ($q) use ($dosenId) {
-                    $q->where('dosen_id', $dosenId)
-                        ->orWhereJsonContains('dosen_ids', $dosenId);
+                ->where(function ($q) use ($dosenId, $semesterType) {
+                    // Kondisi 1: Dosen aktif (dosen_id = $dosenId)
+                    $q->where('dosen_id', $dosenId);
+                    
+                    // Filter semester_type untuk kondisi 1
+                    if ($semesterType === 'antara') {
+                        $q->whereNotNull('kelompok_kecil_antara_id');
+                    } elseif ($semesterType === 'reguler') {
+                        $q->whereNull('kelompok_kecil_antara_id');
+                    }
                 })
-                ->when($semesterType === 'antara', function ($q) {
-                    $q->whereNotNull('kelompok_kecil_antara_id');
-                })
-                ->when($semesterType === 'reguler', function ($q) {
-                    $q->whereNull('kelompok_kecil_antara_id');
+                ->orWhere(function ($q) use ($dosenId, $semesterType) {
+                    // Kondisi 2: Dosen lama/history ($dosenId ada di dosen_ids)
+                    $q->whereNotNull('dosen_ids')
+                        ->where(function ($subQ) use ($dosenId) {
+                            // Coba beberapa metode untuk kompatibilitas
+                            $subQ->whereRaw('JSON_CONTAINS(dosen_ids, ?)', [json_encode($dosenId)])
+                                ->orWhereRaw('JSON_SEARCH(dosen_ids, "one", ?) IS NOT NULL', [$dosenId])
+                                ->orWhereRaw('CAST(dosen_ids AS CHAR) LIKE ?', ['%"' . $dosenId . '"%'])
+                                ->orWhereRaw('CAST(dosen_ids AS CHAR) LIKE ?', ['%' . $dosenId . '%']);
+                        });
+                    
+                    // Filter semester_type untuk kondisi 2
+                    if ($semesterType === 'antara') {
+                        $q->whereNotNull('kelompok_kecil_antara_id');
+                    } elseif ($semesterType === 'reguler') {
+                        $q->whereNull('kelompok_kecil_antara_id');
+                    }
                 })
                 ->orderBy('tanggal')
                 ->orderBy('jam_mulai')
@@ -1147,7 +1169,30 @@ class JadwalJurnalReadingController extends Controller
                 ]);
             }
 
-            $mappedJadwal = $jadwal->map(function ($jadwal) {
+            $mappedJadwal = $jadwal->map(function ($jadwal) use ($dosenId) {
+                // Parse dosen_ids jika ada
+                $dosenIds = [];
+                if ($jadwal->dosen_ids) {
+                    $dosenIds = is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true);
+                    if (!is_array($dosenIds)) {
+                        $dosenIds = [];
+                    }
+                }
+
+                // PENTING: Tentukan apakah dosen ini adalah dosen aktif (dosen_id) atau hanya ada di history (dosen_ids)
+                $isActiveDosen = ($jadwal->dosen_id == $dosenId);
+                $isInHistory = false;
+                if (!$isActiveDosen && !empty($dosenIds)) {
+                    $isInHistory = in_array($dosenId, $dosenIds);
+                }
+
+                // Jika dosen hanya ada di history (sudah diganti), status harus "tidak_bisa" dan tidak bisa diubah
+                $statusKonfirmasi = $jadwal->status_konfirmasi ?? 'belum_konfirmasi';
+                if ($isInHistory && !$isActiveDosen) {
+                    // Dosen lama yang sudah diganti: status tetap "tidak_bisa"
+                    $statusKonfirmasi = 'tidak_bisa';
+                }
+
                 // Determine semester type based on kelompok_kecil_antara_id
                 $semesterType = $jadwal->kelompok_kecil_antara_id ? 'antara' : 'reguler';
 
@@ -1183,7 +1228,7 @@ class JadwalJurnalReadingController extends Controller
                         'id' => $jadwal->ruangan->id ?? null,
                         'nama' => $jadwal->ruangan->nama ?? 'Unknown'
                     ],
-                    'status_konfirmasi' => $jadwal->status_konfirmasi ?? 'belum_konfirmasi',
+                    'status_konfirmasi' => $statusKonfirmasi, // Status berdasarkan apakah dosen aktif atau history
                     'alasan_konfirmasi' => $jadwal->alasan_konfirmasi ?? null,
                     'status_reschedule' => $jadwal->status_reschedule ?? null,
                     'reschedule_reason' => $jadwal->reschedule_reason ?? null,
@@ -1192,7 +1237,9 @@ class JadwalJurnalReadingController extends Controller
                         'name' => implode(', ', $dosenNames)
                     ] : null,
                     'dosen_id' => $jadwal->dosen_id,
-                    'dosen_ids' => $jadwal->dosen_ids,
+                    'dosen_ids' => $dosenIds,
+                    'is_active_dosen' => $isActiveDosen, // Flag: apakah dosen ini adalah dosen aktif
+                    'is_in_history' => $isInHistory, // Flag: apakah dosen ini hanya ada di history
                     'jumlah_sesi' => $jadwal->jumlah_sesi ?? 1,
                     'kelompok_kecil_id' => $jadwal->kelompok_kecil_id,
                     'kelompok_kecil_antara_id' => $jadwal->kelompok_kecil_antara_id,
@@ -1781,6 +1828,7 @@ class JadwalJurnalReadingController extends Controller
                         'jadwal_id' => $jadwal->id,
                         'jadwal_type' => 'jurnal_reading',
                         'dosen_id' => $dosenId,
+                        'dosen_name' => $dosen->name, // Simpan nama dosen untuk ditampilkan di frontend
                         'mata_kuliah' => $jadwal->mataKuliah->nama,
                         'tanggal' => $jadwal->tanggal,
                         'waktu' => $jadwal->jam_mulai . ' - ' . $jadwal->jam_selesai,

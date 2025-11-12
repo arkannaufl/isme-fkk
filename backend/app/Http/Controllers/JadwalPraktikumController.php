@@ -827,10 +827,14 @@ class JadwalPraktikumController extends Controller
         try {
             $semesterType = $request->query('semester_type');
 
+            // PENTING: Untuk Praktikum, semua dosen disimpan di pivot table (jadwal_praktikum_dosen)
+            // Dosen aktif: dosen yang ada di pivot dengan status bukan "tidak_bisa"
+            // Dosen lama: dosen yang ada di pivot dengan status "tidak_bisa"
             $query = JadwalPraktikum::with(['mataKuliah', 'ruangan', 'dosen' => function ($query) use ($dosenId) {
                 $query->where('dosen_id', $dosenId)->withPivot('status_konfirmasi', 'alasan_konfirmasi', 'status_reschedule', 'reschedule_reason');
             }])
                 ->whereHas('dosen', function ($query) use ($dosenId) {
+                    // Ambil semua jadwal yang memiliki dosen ini di pivot (baik aktif maupun lama)
                     $query->where('dosen_id', $dosenId);
                 });
 
@@ -858,6 +862,15 @@ class JadwalPraktikumController extends Controller
                 $pivotData = $item->dosen->where('id', $dosenId)->first();
                 $statusKonfirmasi = $pivotData && $pivotData->pivot ? $pivotData->pivot->status_konfirmasi ?? 'belum_konfirmasi' : 'belum_konfirmasi';
 
+                // PENTING: Untuk Praktikum, tentukan apakah dosen ini aktif atau hanya history
+                // Dosen aktif: status bukan "tidak_bisa"
+                // Dosen lama: status "tidak_bisa"
+                $isActiveDosen = ($statusKonfirmasi !== 'tidak_bisa');
+                $isInHistory = ($statusKonfirmasi === 'tidak_bisa');
+
+                // Jika dosen hanya ada di history (sudah diganti), status harus "tidak_bisa" dan tidak bisa diubah
+                // (Status sudah "tidak_bisa" dari pivot, tidak perlu diubah)
+
                 return (object) [
                     'id' => $item->id,
                     'tanggal' => $item->tanggal,
@@ -865,7 +878,7 @@ class JadwalPraktikumController extends Controller
                     'jam_selesai' => $item->jam_selesai,
                     'materi' => $item->materi,
                     'topik' => $item->topik,
-                    'status_konfirmasi' => $statusKonfirmasi,
+                    'status_konfirmasi' => $statusKonfirmasi, // Status dari pivot table
                     'alasan_konfirmasi' => $pivotData && $pivotData->pivot ? $pivotData->pivot->alasan_konfirmasi ?? null : null,
                     'status_reschedule' => $pivotData && $pivotData->pivot ? $pivotData->pivot->status_reschedule ?? null : null,
                     'reschedule_reason' => $pivotData && $pivotData->pivot ? $pivotData->pivot->reschedule_reason ?? null : null,
@@ -882,6 +895,10 @@ class JadwalPraktikumController extends Controller
                             'name' => $d->name
                         ];
                     }),
+                    'dosen_id' => $dosenId, // Dosen yang sedang login
+                    'dosen_ids' => $item->dosen->pluck('id')->toArray(), // Semua dosen di pivot
+                    'is_active_dosen' => $isActiveDosen, // Flag: apakah dosen ini adalah dosen aktif (status bukan "tidak_bisa")
+                    'is_in_history' => $isInHistory, // Flag: apakah dosen ini hanya ada di history (status "tidak_bisa")
                     'ruangan' => (object) [
                         'id' => $item->ruangan->id ?? null,
                         'nama' => $item->ruangan->nama ?? 'N/A'
@@ -1188,6 +1205,7 @@ class JadwalPraktikumController extends Controller
                         'jadwal_id' => $jadwal->id,
                         'jadwal_type' => 'praktikum',
                         'dosen_id' => $dosenId,
+                        'dosen_name' => $dosen->name, // Simpan nama dosen untuk ditampilkan di frontend
                         'mata_kuliah' => $jadwal->mataKuliah->nama,
                         'tanggal' => $jadwal->tanggal,
                         'waktu' => $jadwal->jam_mulai . ' - ' . $jadwal->jam_selesai,

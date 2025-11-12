@@ -1564,40 +1564,65 @@ class JadwalKuliahBesarController extends Controller
                 'request_params' => $request->all()
             ]);
 
-            // Build query dengan whereIn untuk filter semester (lebih reliable daripada whereHas dengan select)
+            // PENTING: Query harus mengambil jadwal dimana:
+            // 1. dosen_id = $dosenId (dosen aktif saat ini)
+            // 2. ATAU $dosenId ada di dosen_ids (dosen lama/history)
+            // Filter semester_type harus diterapkan ke kedua kondisi
             $query = JadwalKuliahBesar::with([
                 'mataKuliah:kode,nama,semester',
                 'ruangan:id,nama,gedung',
                 'kelompokBesar:id,semester',
                 'kelompokBesarAntara:id,nama_kelompok'
             ])
-                ->where(function ($q) use ($dosenId) {
-                    // Ambil jadwal dimana dosen_id adalah dosen yang sedang login (untuk semester reguler)
-                    $q->where('dosen_id', $dosenId)
-                      // Atau ambil jadwal dimana dosen_id ada di dosen_ids (untuk semester antara)
-                      ->orWhere(function ($subQ) use ($dosenId) {
-                          // Gunakan JSON_CONTAINS dengan integer untuk kompatibilitas MySQL
-                          $subQ->whereNotNull('dosen_ids')
-                               ->whereRaw('JSON_CONTAINS(dosen_ids, ?)', [json_encode($dosenId)]);
-                      });
+                ->where(function ($q) use ($dosenId, $semesterType) {
+                    // Kondisi 1: Dosen aktif (dosen_id = $dosenId)
+                    $q->where('dosen_id', $dosenId);
+                    
+                    // Filter semester_type untuk kondisi 1
+                    if ($semesterType && $semesterType !== 'all') {
+                        if ($semesterType === 'reguler') {
+                            $q->whereIn('mata_kuliah_kode', function ($subQuery) {
+                                $subQuery->select('kode')
+                                         ->from('mata_kuliah')
+                                         ->where('semester', '!=', 'Antara');
+                            });
+                        } elseif ($semesterType === 'antara') {
+                            $q->whereIn('mata_kuliah_kode', function ($subQuery) {
+                                $subQuery->select('kode')
+                                         ->from('mata_kuliah')
+                                         ->where('semester', '=', 'Antara');
+                            });
+                        }
+                    }
+                })
+                ->orWhere(function ($q) use ($dosenId, $semesterType) {
+                    // Kondisi 2: Dosen lama/history ($dosenId ada di dosen_ids)
+                    $q->whereNotNull('dosen_ids')
+                        ->where(function ($subQ) use ($dosenId) {
+                            // Coba beberapa metode untuk kompatibilitas
+                            $subQ->whereRaw('JSON_CONTAINS(dosen_ids, ?)', [json_encode($dosenId)])
+                                ->orWhereRaw('JSON_SEARCH(dosen_ids, "one", ?) IS NOT NULL', [$dosenId])
+                                ->orWhereRaw('CAST(dosen_ids AS CHAR) LIKE ?', ['%"' . $dosenId . '"%'])
+                                ->orWhereRaw('CAST(dosen_ids AS CHAR) LIKE ?', ['%' . $dosenId . '%']);
+                        });
+                    
+                    // Filter semester_type untuk kondisi 2
+                    if ($semesterType && $semesterType !== 'all') {
+                        if ($semesterType === 'reguler') {
+                            $q->whereIn('mata_kuliah_kode', function ($subQuery) {
+                                $subQuery->select('kode')
+                                         ->from('mata_kuliah')
+                                         ->where('semester', '!=', 'Antara');
+                            });
+                        } elseif ($semesterType === 'antara') {
+                            $q->whereIn('mata_kuliah_kode', function ($subQuery) {
+                                $subQuery->select('kode')
+                                         ->from('mata_kuliah')
+                                         ->where('semester', '=', 'Antara');
+                            });
+                        }
+                    }
                 });
-
-            // Filter berdasarkan semester type jika ada - gunakan whereIn dengan subquery
-            if ($semesterType && $semesterType !== 'all') {
-                if ($semesterType === 'reguler') {
-                    $query->whereIn('mata_kuliah_kode', function ($subQuery) {
-                        $subQuery->select('kode')
-                                 ->from('mata_kuliah')
-                                 ->where('semester', '!=', 'Antara');
-                    });
-                } elseif ($semesterType === 'antara') {
-                    $query->whereIn('mata_kuliah_kode', function ($subQuery) {
-                        $subQuery->select('kode')
-                                 ->from('mata_kuliah')
-                                 ->where('semester', '=', 'Antara');
-                    });
-                }
-            }
 
             // Log SQL query untuk debugging
             $sql = $query->toSql();
@@ -1617,8 +1642,8 @@ class JadwalKuliahBesarController extends Controller
             ]);
 
             // Mapping data untuk response
-            $mappedJadwal = $jadwal->map(function ($item) use ($dosenId) {
-                // Cek apakah dosen_id ada di dosen_ids (untuk semester antara)
+            $mappedJadwal = $jadwal->map(function ($item) use ($dosenId, $semesterType) {
+                // Parse dosen_ids jika ada
                 $dosenIds = [];
                 if ($item->dosen_ids) {
                     $dosenIds = is_array($item->dosen_ids) ? $item->dosen_ids : json_decode($item->dosen_ids, true);
@@ -1626,12 +1651,25 @@ class JadwalKuliahBesarController extends Controller
                         $dosenIds = [];
                     }
                 }
-                $isDosenInArray = !empty($dosenIds) && in_array($dosenId, $dosenIds);
+
+                // PENTING: Tentukan apakah dosen ini adalah dosen aktif (dosen_id) atau hanya ada di history (dosen_ids)
+                $isActiveDosen = ($item->dosen_id == $dosenId);
+                $isInHistory = false;
+                if (!$isActiveDosen && !empty($dosenIds)) {
+                    $isInHistory = in_array($dosenId, $dosenIds);
+                }
+
+                // Jika dosen hanya ada di history (sudah diganti), status harus "tidak_bisa" dan tidak bisa diubah
+                $statusKonfirmasi = $item->status_konfirmasi ?? 'belum_konfirmasi';
+                if ($isInHistory && !$isActiveDosen) {
+                    // Dosen lama yang sudah diganti: status tetap "tidak_bisa"
+                    $statusKonfirmasi = 'tidak_bisa';
+                }
 
                 // Tentukan dosen yang akan ditampilkan
                 $dosen = null;
                 if ($item->dosen_id == $dosenId) {
-                    // Untuk semester reguler, gunakan dosen_id
+                    // Untuk dosen aktif, gunakan dosen_id
                     $dosenModel = \App\Models\User::find($item->dosen_id);
                     if ($dosenModel) {
                         $dosen = [
@@ -1639,9 +1677,8 @@ class JadwalKuliahBesarController extends Controller
                             'name' => $dosenModel->name,
                         ];
                     }
-                } elseif ($isDosenInArray) {
-                    // Untuk semester antara, gunakan dosen_ids (array JSON)
-                    // Tampilkan dosen yang sedang login untuk dashboard
+                } elseif ($isInHistory) {
+                    // Untuk dosen lama, tampilkan dosen yang sedang login
                     $dosenModel = \App\Models\User::find($dosenId);
                     if ($dosenModel) {
                         $dosen = [
@@ -1662,8 +1699,8 @@ class JadwalKuliahBesarController extends Controller
                     }
                 }
 
-                // Tentukan semester_type berdasarkan mata kuliah
-                $semesterType = $item->mataKuliah && $item->mataKuliah->semester === 'Antara' ? 'antara' : 'reguler';
+                // Tentukan semester_type berdasarkan mata kuliah atau parameter
+                $semesterTypeValue = $item->mataKuliah && $item->mataKuliah->semester === 'Antara' ? 'antara' : 'reguler';
 
                 // Tentukan kelompok_besar
                 $kelompokBesar = null;
@@ -1690,7 +1727,7 @@ class JadwalKuliahBesarController extends Controller
                     'jam_selesai' => $item->jam_selesai,
                     'materi' => $item->materi,
                     'topik' => $item->topik,
-                    'status_konfirmasi' => $item->status_konfirmasi ?? 'belum_konfirmasi',
+                    'status_konfirmasi' => $statusKonfirmasi, // Status berdasarkan apakah dosen aktif atau history
                     'alasan_konfirmasi' => $item->alasan_konfirmasi,
                     'status_reschedule' => $item->status_reschedule,
                     'reschedule_reason' => $item->reschedule_reason,
@@ -1698,13 +1735,15 @@ class JadwalKuliahBesarController extends Controller
                     'mata_kuliah_nama' => $item->mataKuliah ? $item->mataKuliah->nama : null,
                     'dosen_id' => $item->dosen_id,
                     'dosen_ids' => $dosenIds,
+                    'is_active_dosen' => $isActiveDosen, // Flag: apakah dosen ini adalah dosen aktif
+                    'is_in_history' => $isInHistory, // Flag: apakah dosen ini hanya ada di history
                     'dosen' => $dosen,
                     'ruangan' => $item->ruangan ? [
                         'id' => $item->ruangan->id,
                         'nama' => $item->ruangan->nama,
                     ] : null,
                     'jumlah_sesi' => $item->jumlah_sesi ?? 1,
-                    'semester_type' => $semesterType,
+                    'semester_type' => $semesterTypeValue,
                     'kelompok_besar' => $kelompokBesar,
                     'created_at' => $item->created_at,
                 ];

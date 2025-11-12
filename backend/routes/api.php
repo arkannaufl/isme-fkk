@@ -196,6 +196,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Admin notification tracking routes (MUST come BEFORE parameterized routes)
     Route::middleware(['auth:sanctum', 'role:super_admin,tim_akademik'])->get('/notifications/admin/all', [App\Http\Controllers\NotificationController::class, 'getAllNotificationsForAdmin']);
     Route::middleware(['auth:sanctum', 'role:super_admin,tim_akademik'])->get('/notifications/admin/stats', [App\Http\Controllers\NotificationController::class, 'getNotificationStats']);
+    Route::middleware(['auth:sanctum', 'role:super_admin,tim_akademik'])->delete('/notifications/admin/reset', [App\Http\Controllers\NotificationController::class, 'resetNotificationsForAdmin']);
 
     // Notification routes - Allow both super_admin and dosen to access their respective endpoints
     Route::middleware(['auth:sanctum'])->get('/notifications/dosen/{userId}', [App\Http\Controllers\NotificationController::class, 'getUserNotifications']);

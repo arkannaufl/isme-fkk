@@ -81,17 +81,35 @@ class JadwalNonBlokNonCSRController extends Controller
                     'reschedule_reason',
                     'created_at'
                 ])
-                ->where(function ($q) use ($dosenId) {
-                    // Cek single dosen_id atau dosen_ids (array) yang mengandung dosenId
-                    $q->where('dosen_id', $dosenId)
-                      ->orWhereNotNull('dosen_ids');
+                ->where(function ($q) use ($dosenId, $semesterType) {
+                    // Kondisi 1: Dosen aktif (dosen_id = $dosenId)
+                    $q->where('dosen_id', $dosenId);
+                    
+                    // Filter semester_type untuk kondisi 1
+                    if ($semesterType === 'reguler') {
+                        $q->whereNull('kelompok_besar_antara_id');
+                    } elseif ($semesterType === 'antara') {
+                        $q->whereNotNull('kelompok_besar_antara_id');
+                    }
+                })
+                ->orWhere(function ($q) use ($dosenId, $semesterType) {
+                    // Kondisi 2: Dosen lama/history ($dosenId ada di dosen_ids)
+                    $q->whereNotNull('dosen_ids')
+                        ->where(function ($subQ) use ($dosenId) {
+                            // Coba beberapa metode untuk kompatibilitas
+                            $subQ->whereRaw('JSON_CONTAINS(dosen_ids, ?)', [json_encode($dosenId)])
+                                ->orWhereRaw('JSON_SEARCH(dosen_ids, "one", ?) IS NOT NULL', [$dosenId])
+                                ->orWhereRaw('CAST(dosen_ids AS CHAR) LIKE ?', ['%"' . $dosenId . '"%'])
+                                ->orWhereRaw('CAST(dosen_ids AS CHAR) LIKE ?', ['%' . $dosenId . '%']);
+                        });
+                    
+                    // Filter semester_type untuk kondisi 2
+                    if ($semesterType === 'reguler') {
+                        $q->whereNull('kelompok_besar_antara_id');
+                    } elseif ($semesterType === 'antara') {
+                        $q->whereNotNull('kelompok_besar_antara_id');
+                    }
                 });
-
-            if ($semesterType === 'reguler') {
-                $query->whereNull('kelompok_besar_antara_id');
-            } elseif ($semesterType === 'antara') {
-                $query->whereNotNull('kelompok_besar_antara_id');
-            }
 
             $jadwalData = $query->orderBy('tanggal', 'asc')
                 ->orderBy('jam_mulai', 'asc')
@@ -99,14 +117,18 @@ class JadwalNonBlokNonCSRController extends Controller
 
 
             // Filter jadwal yang benar-benar memiliki dosenId (untuk dosen_ids array)
+            // Note: Query sudah mengambil jadwal yang sesuai, filter ini hanya untuk memastikan
             $jadwalData = $jadwalData->filter(function ($item) use ($dosenId) {
                 // Jika single dosen_id, langsung return true jika match
                 if ($item->dosen_id == $dosenId) {
                     return true;
                 }
                 // Jika dosen_ids (array), cek apakah dosenId ada di dalam array
-                if (!empty($item->dosen_ids) && is_array($item->dosen_ids) && in_array($dosenId, $item->dosen_ids)) {
-                    return true;
+                if (!empty($item->dosen_ids)) {
+                    $dosenIds = is_array($item->dosen_ids) ? $item->dosen_ids : json_decode($item->dosen_ids, true);
+                    if (is_array($dosenIds) && in_array($dosenId, $dosenIds)) {
+                        return true;
+                    }
                 }
                 return false;
             });
@@ -114,7 +136,30 @@ class JadwalNonBlokNonCSRController extends Controller
             Log::info("Found " . $jadwalData->count() . " jadwal Non Blok Non CSR records");
 
 
-            $formattedData = $jadwalData->map(function ($jadwal) use ($semesterType) {
+            $formattedData = $jadwalData->map(function ($jadwal) use ($semesterType, $dosenId) {
+                // Parse dosen_ids jika ada
+                $dosenIds = [];
+                if ($jadwal->dosen_ids) {
+                    $dosenIds = is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true);
+                    if (!is_array($dosenIds)) {
+                        $dosenIds = [];
+                    }
+                }
+
+                // PENTING: Tentukan apakah dosen ini adalah dosen aktif (dosen_id) atau hanya ada di history (dosen_ids)
+                $isActiveDosen = ($jadwal->dosen_id == $dosenId);
+                $isInHistory = false;
+                if (!$isActiveDosen && !empty($dosenIds)) {
+                    $isInHistory = in_array($dosenId, $dosenIds);
+                }
+
+                // Jika dosen hanya ada di history (sudah diganti), status harus "tidak_bisa" dan tidak bisa diubah
+                $statusKonfirmasi = $jadwal->status_konfirmasi ?? 'belum_konfirmasi';
+                if ($isInHistory && !$isActiveDosen) {
+                    // Dosen lama yang sudah diganti: status tetap "tidak_bisa"
+                    $statusKonfirmasi = 'tidak_bisa';
+                }
+
                 // Handle empty or invalid time format
                 $jamMulai = '';
                 $jamSelesai = '';
@@ -166,6 +211,10 @@ class JadwalNonBlokNonCSRController extends Controller
                     'jenis_jadwal' => 'non_blok_non_csr',
                     'pengampu' => $pengampu,
                     'dosen' => $jadwal->dosen,
+                    'dosen_id' => $jadwal->dosen_id,
+                    'dosen_ids' => $dosenIds,
+                    'is_active_dosen' => $isActiveDosen, // Flag: apakah dosen ini adalah dosen aktif
+                    'is_in_history' => $isInHistory, // Flag: apakah dosen ini hanya ada di history
                     'ruangan' => $jadwal->ruangan,
                     'kelompok_besar' => $jadwal->kelompokBesar ? [
                         'id' => $jadwal->kelompokBesar->id,
@@ -178,7 +227,7 @@ class JadwalNonBlokNonCSRController extends Controller
                     'jumlah_sesi' => $jadwal->jumlah_sesi,
                     'use_ruangan' => $jadwal->use_ruangan,
                     'semester_type' => $semesterType,
-                    'status_konfirmasi' => $jadwal->status_konfirmasi ?? 'belum_konfirmasi',
+                    'status_konfirmasi' => $statusKonfirmasi, // Status berdasarkan apakah dosen aktif atau history
                     'alasan_konfirmasi' => $jadwal->alasan_konfirmasi,
                     'status_reschedule' => $jadwal->status_reschedule ?? null,
                     'reschedule_reason' => $jadwal->reschedule_reason ?? null,

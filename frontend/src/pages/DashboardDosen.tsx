@@ -63,6 +63,8 @@ interface JadwalPBL extends JadwalItem {
   kelompok: string;
   x50: number;
   semester_type?: "reguler" | "antara";
+  is_active_dosen?: boolean; // Flag: apakah dosen ini adalah dosen aktif
+  is_in_history?: boolean; // Flag: apakah dosen ini hanya ada di history
 }
 
 interface JadwalKuliahBesar {
@@ -98,6 +100,8 @@ interface JadwalKuliahBesar {
     semester: number;
     nama_kelompok: string;
   } | null;
+  is_active_dosen?: boolean; // Flag: apakah dosen ini adalah dosen aktif
+  is_in_history?: boolean; // Flag: apakah dosen ini hanya ada di history
 }
 
 interface JadwalPraktikum {
@@ -127,6 +131,8 @@ interface JadwalPraktikum {
   jumlah_sesi: number;
   semester_type?: "reguler" | "antara";
   created_at: string;
+  is_active_dosen?: boolean; // Flag: apakah dosen ini adalah dosen aktif
+  is_in_history?: boolean; // Flag: apakah dosen ini hanya ada di history
 }
 
 interface JadwalJurnalReading {
@@ -159,6 +165,8 @@ interface JadwalJurnalReading {
   file_jurnal?: string;
   semester_type?: "reguler" | "antara";
   created_at: string;
+  is_active_dosen?: boolean; // Flag: apakah dosen ini adalah dosen aktif
+  is_in_history?: boolean; // Flag: apakah dosen ini hanya ada di history
 }
 
 interface TodayScheduleItem {
@@ -467,6 +475,7 @@ export default function DashboardDosen() {
   const [blokAssignments, setBlokAssignments] = useState<BlokAssignment[]>([]);
   const [loadingBlok, setLoadingBlok] = useState(true);
   const [isBlokMinimized] = useState(false);
+  const [allDosenList, setAllDosenList] = useState<any[]>([]);
 
   // Reschedule states
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
@@ -794,6 +803,15 @@ export default function DashboardDosen() {
       } catch (error) {
         console.warn("Failed to fetch blok assignments:", error);
         setBlokAssignments([]);
+      }
+
+      // Fetch all dosen list for resolving dosen_ids
+      try {
+        const dosenResponse = await api.get("/users?role=dosen");
+        setAllDosenList(dosenResponse.data || []);
+      } catch (error) {
+        console.warn("Failed to fetch dosen list:", error);
+        setAllDosenList([]);
       }
     } catch (error: any) {
       console.error("Gagal memuat data dashboard:", error);
@@ -1244,6 +1262,170 @@ export default function DashboardDosen() {
     );
   };
 
+  // Helper function untuk mendapatkan nama dosen pengampu
+  // - Untuk dosen baru (is_active_dosen = true): tampilkan dosen baru itu sendiri
+  // - Untuk dosen lama (is_in_history = true): tampilkan dosen_ids[0] (dosen awal)
+  const getPengampuName = (item: any, jadwalType: string): string => {
+    try {
+      const user = getUser();
+      if (!user) return "N/A";
+
+      // Jika dosen ini adalah dosen aktif (dosen baru), tampilkan dosen baru itu sendiri
+      if (item.is_active_dosen && item.dosen_id) {
+        const activeDosen = allDosenList.find(
+          (d) => d.id === Number(item.dosen_id)
+        );
+        if (
+          activeDosen &&
+          activeDosen.role !== "super_admin" &&
+          activeDosen.role !== "tim_akademik" &&
+          activeDosen.role !== "admin"
+        ) {
+          return activeDosen.name;
+        }
+      }
+
+      // Jika dosen ini hanya ada di history (dosen lama), tampilkan dosen_ids[0] (dosen awal)
+      if (item.is_in_history || !item.is_active_dosen) {
+        // Parse dosen_ids jika ada
+        let dosenIds: number[] = [];
+        if (item.dosen_ids) {
+          dosenIds = Array.isArray(item.dosen_ids)
+            ? item.dosen_ids
+            : typeof item.dosen_ids === "string"
+            ? JSON.parse(item.dosen_ids || "[]")
+            : [];
+        }
+
+        // Ambil dosen pengampu awal (elemen pertama)
+        if (dosenIds.length > 0) {
+          const originalDosenId = dosenIds[0];
+          const originalDosen = allDosenList.find(
+            (d) => d.id === Number(originalDosenId)
+          );
+
+          // Filter super admin dan tim akademik
+          if (
+            originalDosen &&
+            originalDosen.role !== "super_admin" &&
+            originalDosen.role !== "tim_akademik" &&
+            originalDosen.role !== "admin"
+          ) {
+            return originalDosen.name;
+          }
+        }
+      }
+
+      // Fallback: gunakan dosen_id atau dosen object yang ada
+      if (jadwalType === "kuliah_besar" || jadwalType === "jurnal") {
+        if (item.dosen?.name) {
+          const dosen = allDosenList.find((d) => d.id === item.dosen.id);
+          if (
+            dosen &&
+            dosen.role !== "super_admin" &&
+            dosen.role !== "tim_akademik" &&
+            dosen.role !== "admin"
+          ) {
+            return item.dosen.name;
+          }
+        }
+      } else if (jadwalType === "praktikum") {
+        if (item.dosen && Array.isArray(item.dosen) && item.dosen.length > 0) {
+          const firstDosen = item.dosen[0];
+          const dosen = allDosenList.find((d) => d.id === firstDosen.id);
+          if (
+            dosen &&
+            dosen.role !== "super_admin" &&
+            dosen.role !== "tim_akademik" &&
+            dosen.role !== "admin"
+          ) {
+            return firstDosen.name;
+          }
+        }
+      } else if (item.pengampu) {
+        return item.pengampu;
+      }
+
+      return "N/A";
+    } catch (error) {
+      console.error("Error getting pengampu name:", error);
+      return "N/A";
+    }
+  };
+
+  // Helper function untuk mendapatkan nama dosen pengganti
+  // - Untuk dosen baru (is_active_dosen = true): tampilkan "-" (kosong)
+  // - Untuk dosen lama (is_in_history = true): tampilkan dosen yang menggantikan dia secara langsung (bukan lompat)
+  //   Contoh: Cemeti diganti Ganda, maka Cemeti melihat DOSEN PENGGANTI = Ganda
+  //           Ganda diganti Dosen C, maka Ganda melihat DOSEN PENGGANTI = Dosen C
+  //           Tapi Cemeti tetap melihat DOSEN PENGGANTI = Ganda (karena Ganda yang menggantikan Cemeti secara langsung)
+  const getDosenPenggantiName = (item: any, jadwalType: string): string => {
+    try {
+      const user = getUser();
+      if (!user) return "-";
+
+      // Jika dosen ini adalah dosen aktif (dosen baru), tidak ada dosen pengganti
+      if (item.is_active_dosen) {
+        return "-";
+      }
+
+      // Jika dosen ini hanya ada di history (dosen lama), cari dosen yang menggantikan dia secara langsung
+      if (item.is_in_history || !item.is_active_dosen) {
+        // Parse dosen_ids jika ada
+        let dosenIds: number[] = [];
+        if (item.dosen_ids) {
+          dosenIds = Array.isArray(item.dosen_ids)
+            ? item.dosen_ids
+            : typeof item.dosen_ids === "string"
+            ? JSON.parse(item.dosen_ids || "[]")
+            : [];
+        }
+
+        // Cari index dosen ini di dosen_ids
+        const currentDosenIndex = dosenIds.findIndex(
+          (id) => Number(id) === Number(user.id)
+        );
+
+        // Jika dosen ini ditemukan di dosen_ids dan bukan elemen terakhir
+        if (currentDosenIndex >= 0 && currentDosenIndex < dosenIds.length - 1) {
+          // Ambil dosen yang menggantikan dia secara langsung (elemen setelahnya)
+          const nextDosenId = dosenIds[currentDosenIndex + 1];
+          const dosenPengganti = allDosenList.find(
+            (d) => d.id === Number(nextDosenId)
+          );
+          if (
+            dosenPengganti &&
+            dosenPengganti.role !== "super_admin" &&
+            dosenPengganti.role !== "tim_akademik" &&
+            dosenPengganti.role !== "admin"
+          ) {
+            return dosenPengganti.name;
+          }
+        }
+      }
+
+      // Fallback: jika tidak ditemukan di dosen_ids, gunakan dosen_id saat ini
+      if (item.dosen_id) {
+        const dosenPengganti = allDosenList.find(
+          (d) => d.id === Number(item.dosen_id)
+        );
+        if (
+          dosenPengganti &&
+          dosenPengganti.role !== "super_admin" &&
+          dosenPengganti.role !== "tim_akademik" &&
+          dosenPengganti.role !== "admin"
+        ) {
+          return dosenPengganti.name;
+        }
+      }
+
+      return "-";
+    } catch (error) {
+      console.error("Error getting dosen pengganti name:", error);
+      return "-";
+    }
+  };
+
   const renderJadwalTable = useCallback(
     (
       title: string,
@@ -1442,19 +1624,10 @@ export default function DashboardDosen() {
                         </td>
                       )}
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {jadwalType === "kuliah_besar"
-                          ? item.dosen?.name || "N/A"
-                          : jadwalType === "praktikum"
-                          ? item.dosen?.map((d: any) => d.name).join(", ") ||
-                            "N/A"
-                          : jadwalType === "jurnal"
-                          ? item.dosen?.name || "N/A"
-                          : jadwalType === "pbl"
-                          ? item.pengampu || "N/A"
-                          : jadwalType === "csr" ||
-                            jadwalType === "non_blok_non_csr"
-                          ? item.pengampu || item.dosen?.name || "N/A"
-                          : item.pengampu}
+                        {getPengampuName(item, jadwalType)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {getDosenPenggantiName(item, jadwalType)}
                       </td>
                       {jadwalType === "kuliah_besar" && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
@@ -1590,7 +1763,8 @@ export default function DashboardDosen() {
                             item.status_konfirmasi,
                             item.status_reschedule
                           )}
-                          {item.status_konfirmasi === "belum_konfirmasi" && (
+                          {/* Hanya tampilkan aksi jika dosen ini adalah dosen aktif (bukan hanya di history) */}
+                          {item.is_active_dosen && item.status_konfirmasi === "belum_konfirmasi" && (
                             <button
                               onClick={() => openKonfirmasiModal(item)}
                               className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
@@ -1599,7 +1773,7 @@ export default function DashboardDosen() {
                               Konfirmasi
                             </button>
                           )}
-                          {item.status_konfirmasi === "bisa" && (
+                          {item.is_active_dosen && item.status_konfirmasi === "bisa" && (
                             <>
                               {jadwalType === "csr" ? (
                                 <button
@@ -1748,7 +1922,8 @@ export default function DashboardDosen() {
                               )}
                             </>
                           )}
-                          {item.status_konfirmasi === "belum_konfirmasi" && (
+                          {/* Hanya tampilkan aksi jika dosen ini adalah dosen aktif (bukan hanya di history) */}
+                          {item.is_active_dosen && item.status_konfirmasi === "belum_konfirmasi" && (
                             <button
                               onClick={() => openRescheduleModal(item)}
                               className="px-3 py-1 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 transition-colors"
@@ -3108,6 +3283,7 @@ export default function DashboardDosen() {
                     "KELOMPOK",
                     "MODUL",
                     "PENGAMPU",
+                    "DOSEN PENGGANTI",
                     "RUANGAN",
                     "JENIS SEMESTER",
                     "AKSI",
@@ -3135,6 +3311,7 @@ export default function DashboardDosen() {
                     "WAKTU",
                     "MATERI",
                     "PENGAMPU",
+                    "DOSEN PENGGANTI",
                     "TOPIK",
                     "KELOMPOK",
                     "LOKASI",
@@ -3167,6 +3344,7 @@ export default function DashboardDosen() {
                       "MATERI",
                       "TOPIK",
                       "PENGAMPU",
+                      "DOSEN PENGGANTI",
                       "LOKASI",
                       "JENIS SEMESTER",
                       "AKSI",
@@ -3195,6 +3373,7 @@ export default function DashboardDosen() {
                     "WAKTU",
                     "TOPIK",
                     "PENGAMPU",
+                    "DOSEN PENGGANTI",
                     "KELOMPOK",
                     "LOKASI",
                     "FILE JURNAL",
@@ -3227,6 +3406,7 @@ export default function DashboardDosen() {
                       "KATEGORI",
                       "JENIS CSR",
                       "PENGAMPU",
+                      "DOSEN PENGGANTI",
                       "KELOMPOK",
                       "LOKASI",
                       "JENIS SEMESTER",
@@ -3257,6 +3437,7 @@ export default function DashboardDosen() {
                     "MATERI/AGENDA",
                     "JENIS",
                     "PENGAMPU",
+                    "DOSEN PENGGANTI",
                     "KELOMPOK",
                     "LOKASI",
                     "JENIS SEMESTER",

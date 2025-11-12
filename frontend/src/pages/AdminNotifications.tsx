@@ -18,6 +18,7 @@ import {
   faComment,
   faReply,
   faFolderPlus,
+  faTrash,
 } from "@fortawesome/free-solid-svg-icons";
 import api from "../utils/api";
 
@@ -167,10 +168,8 @@ const AdminNotifications: React.FC = () => {
   const [jadwalStatusMap, setJadwalStatusMap] = useState<
     Record<string, string>
   >({});
-  // Cache jadwal detail (dosen_ids, dosen_id) untuk cek siklus penggantian
-  const [jadwalDetailMap, setJadwalDetailMap] = useState<
-    Record<string, { dosen_ids?: number[]; dosen_id?: number }>
-  >({});
+  // Note: jadwalDetailMap dihapus karena prefetchJadwalStatuses sudah di-disable
+  // Logika "Kelola" button sekarang tidak bergantung pada jadwalDetailMap
 
   // Reminder notification state
   const [isSendingReminder, setIsSendingReminder] = useState(false);
@@ -185,16 +184,28 @@ const AdminNotifications: React.FC = () => {
   const [pendingDosenReminderType, setPendingDosenReminderType] =
     useState<string>("all");
   // Selected dosen for reminder (Set of dosen keys: `${jadwal_id}_${dosen_id}`)
-  const [selectedReminderDosen, setSelectedReminderDosen] = useState<Set<string>>(new Set());
+  const [selectedReminderDosen, setSelectedReminderDosen] = useState<
+    Set<string>
+  >(new Set());
 
   // Success modal state for reminder
   const [showReminderSuccessModal, setShowReminderSuccessModal] =
     useState(false);
   const [reminderSuccessMessage, setReminderSuccessMessage] = useState("");
 
+  // Reset notification modal state
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [showResetConfirmModal, setShowResetConfirmModal] = useState(false);
+  const [resetScope, setResetScope] = useState<"all" | "dosen" | "mahasiswa">(
+    "all"
+  );
+  const [isResetting, setIsResetting] = useState(false);
+
   // Change confirmation status modal state
   const [showChangeStatusModal, setShowChangeStatusModal] = useState(false);
-  const [selectedDosenList, setSelectedDosenList] = useState<Map<string, { dosen: any; status: "bisa" | "tidak_bisa" }>>(new Map());
+  const [selectedDosenList, setSelectedDosenList] = useState<
+    Map<string, { dosen: any; status: "bisa" | "tidak_bisa" }>
+  >(new Map());
   const [isChangingStatus, setIsChangingStatus] = useState(false);
 
   // Pagination state
@@ -565,7 +576,8 @@ const AdminNotifications: React.FC = () => {
 
       setNotifications(processedNotifications);
       // Prefetch status_konfirmasi terbaru untuk setiap notifikasi yang punya jadwal
-      prefetchJadwalStatuses(processedNotifications);
+      // DISABLED: Menyebabkan banyak API calls dan error 404 jika jadwal sudah dihapus
+      // prefetchJadwalStatuses(processedNotifications);
       setError(null);
     } catch (err) {
       console.error("Failed to load notifications:", err);
@@ -624,20 +636,8 @@ const AdminNotifications: React.FC = () => {
               }));
             }
 
-            // Store jadwal detail (dosen_ids, dosen_id) untuk cek siklus penggantian
-            const dosenIds = data.dosen_ids 
-              ? (Array.isArray(data.dosen_ids) ? data.dosen_ids : JSON.parse(data.dosen_ids || '[]'))
-              : undefined;
-            const dosenId = data.dosen_id;
-            if (dosenIds || dosenId) {
-              setJadwalDetailMap((prev) => ({
-                ...prev,
-                [key]: {
-                  dosen_ids: dosenIds,
-                  dosen_id: dosenId,
-                },
-              }));
-            }
+            // Note: jadwalDetailMap dihapus karena prefetchJadwalStatuses sudah di-disable
+            // Logika "Kelola" button sekarang tidak bergantung pada jadwalDetailMap
 
             // Enrich notification data for CSR with jenis_csr so badge can show Reguler/Responsi
             if (type === "csr" && data?.jenis_csr && !n.data?.jenis_csr) {
@@ -758,32 +758,34 @@ const AdminNotifications: React.FC = () => {
   // Handle toggle dosen selection for reminder
   const handleToggleReminderDosen = (dosen: any) => {
     // Create unique key: `${jadwal_id}_${dosen_id}`
-    const cleanJadwalId = typeof dosen.jadwal_id === "string" && dosen.jadwal_id.includes(":") 
-      ? dosen.jadwal_id.split(":")[0] 
-      : dosen.jadwal_id;
+    const cleanJadwalId =
+      typeof dosen.jadwal_id === "string" && dosen.jadwal_id.includes(":")
+        ? dosen.jadwal_id.split(":")[0]
+        : dosen.jadwal_id;
     const key = `${cleanJadwalId}_${dosen.dosen_id}`;
     const newSet = new Set(selectedReminderDosen);
-    
+
     if (newSet.has(key)) {
       newSet.delete(key);
     } else {
       newSet.add(key);
     }
-    
+
     setSelectedReminderDosen(newSet);
   };
 
   // Handle select all dosen for reminder
   const handleSelectAllReminderDosen = () => {
     const allKeys = pendingDosenList.map((dosen) => {
-      const cleanJadwalId = typeof dosen.jadwal_id === "string" && dosen.jadwal_id.includes(":") 
-        ? dosen.jadwal_id.split(":")[0] 
-        : dosen.jadwal_id;
+      const cleanJadwalId =
+        typeof dosen.jadwal_id === "string" && dosen.jadwal_id.includes(":")
+          ? dosen.jadwal_id.split(":")[0]
+          : dosen.jadwal_id;
       return `${cleanJadwalId}_${dosen.dosen_id}`;
     });
-    
+
     // If all are selected, deselect all. Otherwise, select all.
-    const allSelected = allKeys.every(key => selectedReminderDosen.has(key));
+    const allSelected = allKeys.every((key) => selectedReminderDosen.has(key));
     if (allSelected) {
       setSelectedReminderDosen(new Set());
     } else {
@@ -796,64 +798,71 @@ const AdminNotifications: React.FC = () => {
     try {
       setIsSendingReminder(true);
 
-      // If no dosen selected, use filter-based approach (backward compatible)
-      // If dosen selected, send only to selected dosen
-      if (selectedReminderDosen.size === 0) {
-        // Use filter-based approach
       const params = new URLSearchParams();
-      if (pendingDosenSemester) params.append("semester", pendingDosenSemester);
-      if (pendingDosenBlok) params.append("blok", pendingDosenBlok);
-      if (pendingDosenReminderType)
-        params.append("reminder_type", pendingDosenReminderType);
 
-      const response = await api.post(
-        `/notifications/send-reminder?${params.toString()}`
-      );
-
-      setReminderSuccessMessage(
-        `Notifikasi pengingat berhasil dikirim ke ${response.data.reminder_count} dosen`
-      );
-      } else {
-        // Send to selected dosen only
-        // Extract dosen_id and jadwal_id from selected keys
-        const selectedDosenData = Array.from(selectedReminderDosen).map(key => {
-          const [jadwalId, dosenId] = key.split('_');
-          return { jadwal_id: jadwalId, dosen_id: dosenId };
-        });
-
+      // KONSEP:
+      // 1. Jika ada selected dosen → kirim HANYA ke selected dosen (TIDAK pakai filter)
+      // 2. Jika TIDAK ada selected dosen → kirim berdasarkan filter
+      if (selectedReminderDosen.size > 0) {
+        // MODE: Selected Dosen (prioritas)
         // Find the actual dosen data from pendingDosenList
-        const dosenToSend = pendingDosenList.filter(dosen => {
-          const cleanJadwalId = typeof dosen.jadwal_id === "string" && dosen.jadwal_id.includes(":") 
-            ? dosen.jadwal_id.split(":")[0] 
-            : dosen.jadwal_id;
+        const dosenToSend = pendingDosenList.filter((dosen) => {
+          const cleanJadwalId =
+            typeof dosen.jadwal_id === "string" && dosen.jadwal_id.includes(":")
+              ? dosen.jadwal_id.split(":")[0]
+              : dosen.jadwal_id;
           const key = `${cleanJadwalId}_${dosen.dosen_id}`;
           return selectedReminderDosen.has(key);
         });
 
-        // Send reminder to each selected dosen
-        // For now, we'll use the existing API with filters, but we can enhance this later
-        // by sending specific dosen_ids if backend supports it
-        const params = new URLSearchParams();
-        if (pendingDosenSemester) params.append("semester", pendingDosenSemester);
+        if (dosenToSend.length === 0) {
+          throw new Error(
+            "Tidak ada dosen yang dipilih untuk dikirim pengingat"
+          );
+        }
+
+        // Extract unique dosen_ids (bisa ada multiple jadwal untuk 1 dosen)
+        const uniqueDosenIds = [...new Set(dosenToSend.map((d) => d.dosen_id))];
+
+        // Kirim HANYA dengan dosen_ids (TIDAK pakai filter semester/blok/reminder_type)
+        params.append("dosen_ids", uniqueDosenIds.join(","));
+
+        await api.post(`/notifications/send-reminder?${params.toString()}`);
+
+        setReminderSuccessMessage(
+          `Notifikasi pengingat berhasil dikirim ke ${uniqueDosenIds.length} dosen yang dipilih`
+        );
+      } else {
+        // MODE: Filter-based (jika tidak ada selected)
+        // Validasi: minimal harus ada 1 filter atau reminder_type
+        if (
+          !pendingDosenSemester &&
+          !pendingDosenBlok &&
+          !pendingDosenReminderType
+        ) {
+          throw new Error(
+            "Silakan pilih filter (Semester/Blok/Tipe Pengingat) atau pilih dosen yang akan dikirim pengingat"
+          );
+        }
+
+        // Gunakan filter-based approach
+        if (pendingDosenSemester)
+          params.append("semester", pendingDosenSemester);
         if (pendingDosenBlok) params.append("blok", pendingDosenBlok);
         if (pendingDosenReminderType)
           params.append("reminder_type", pendingDosenReminderType);
-        
-        // Add selected dosen_ids as comma-separated list
-        const dosenIds = dosenToSend.map(d => d.dosen_id).join(',');
-        if (dosenIds) {
-          params.append("dosen_ids", dosenIds);
-        }
 
         const response = await api.post(
           `/notifications/send-reminder?${params.toString()}`
         );
 
         setReminderSuccessMessage(
-          `Notifikasi pengingat berhasil dikirim ke ${selectedReminderDosen.size} dosen yang dipilih`
+          `Notifikasi pengingat berhasil dikirim ke ${
+            response.data.reminder_count || 0
+          } dosen berdasarkan filter`
         );
       }
-      
+
       // Close reminder modal and show success modal
       setShowReminderModal(false);
       setSelectedReminderDosen(new Set()); // Reset selection
@@ -862,15 +871,66 @@ const AdminNotifications: React.FC = () => {
       // Refresh notifications to show new reminder notifications
       await loadNotifications(false);
       await loadStats();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to send reminder notifications:", error);
       // Set error message and show success modal (for error case)
-      setReminderSuccessMessage("Gagal mengirim notifikasi pengingat");
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "Gagal mengirim notifikasi pengingat";
+      setReminderSuccessMessage(errorMessage);
       setShowReminderModal(false);
       setSelectedReminderDosen(new Set()); // Reset selection
       setShowReminderSuccessModal(true);
     } finally {
       setIsSendingReminder(false);
+    }
+  };
+
+  // Handle reset notifications
+  const handleResetNotifications = async () => {
+    try {
+      setIsResetting(true);
+
+      const params = new URLSearchParams();
+      params.append("scope", resetScope);
+
+      const response = await api.delete(
+        `/notifications/admin/reset?${params.toString()}`
+      );
+
+      // Close modals
+      setShowResetConfirmModal(false);
+      setShowResetModal(false);
+      setResetScope("all");
+
+      // Show success message
+      setReminderSuccessMessage(
+        `Berhasil mereset ${response.data.deleted_count || 0} notifikasi (${
+          resetScope === "all"
+            ? "Semua"
+            : resetScope === "dosen"
+            ? "Dosen"
+            : "Mahasiswa"
+        })`
+      );
+      setShowReminderSuccessModal(true);
+
+      // Refresh notifications and stats
+      await loadNotifications(false);
+      await loadStats();
+    } catch (error: any) {
+      console.error("Failed to reset notifications:", error);
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "Gagal mereset notifikasi";
+      setReminderSuccessMessage(errorMessage);
+      setShowResetConfirmModal(false);
+      setShowResetModal(false);
+      setShowReminderSuccessModal(true);
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -1172,13 +1232,14 @@ const AdminNotifications: React.FC = () => {
   // Handle toggle dosen selection
   const handleToggleDosenSelection = (dosen: any) => {
     // Ensure jadwal_id is clean (remove colon if present)
-    const cleanJadwalId = typeof dosen.jadwal_id === "string" && dosen.jadwal_id.includes(":") 
-      ? dosen.jadwal_id.split(":")[0] 
-      : dosen.jadwal_id;
-    
+    const cleanJadwalId =
+      typeof dosen.jadwal_id === "string" && dosen.jadwal_id.includes(":")
+        ? dosen.jadwal_id.split(":")[0]
+        : dosen.jadwal_id;
+
     const key = `${cleanJadwalId}_${dosen.dosen_id}`;
     const newMap = new Map(selectedDosenList);
-    
+
     if (newMap.has(key)) {
       // Unselect if already selected
       newMap.delete(key);
@@ -1187,29 +1248,33 @@ const AdminNotifications: React.FC = () => {
       // Create a clean dosen object with normalized jadwal_id
       const cleanDosen = {
         ...dosen,
-        jadwal_id: cleanJadwalId
+        jadwal_id: cleanJadwalId,
       };
       newMap.set(key, { dosen: cleanDosen, status: "tidak_bisa" });
     }
-    
+
     setSelectedDosenList(newMap);
   };
 
   // Handle change status for selected dosen
-  const handleChangeStatusForDosen = (dosen: any, status: "bisa" | "tidak_bisa") => {
+  const handleChangeStatusForDosen = (
+    dosen: any,
+    status: "bisa" | "tidak_bisa"
+  ) => {
     // Ensure jadwal_id is clean (remove colon if present)
-    const cleanJadwalId = typeof dosen.jadwal_id === "string" && dosen.jadwal_id.includes(":") 
-      ? dosen.jadwal_id.split(":")[0] 
-      : dosen.jadwal_id;
-    
+    const cleanJadwalId =
+      typeof dosen.jadwal_id === "string" && dosen.jadwal_id.includes(":")
+        ? dosen.jadwal_id.split(":")[0]
+        : dosen.jadwal_id;
+
     const key = `${cleanJadwalId}_${dosen.dosen_id}`;
     const newMap = new Map(selectedDosenList);
-    
+
     if (newMap.has(key)) {
       // Update the dosen object with clean jadwal_id
       const cleanDosen = {
         ...dosen,
-        jadwal_id: cleanJadwalId
+        jadwal_id: cleanJadwalId,
       };
       newMap.set(key, { dosen: cleanDosen, status });
       setSelectedDosenList(newMap);
@@ -1223,115 +1288,147 @@ const AdminNotifications: React.FC = () => {
     try {
       setIsChangingStatus(true);
 
-      const promises = Array.from(selectedDosenList.values()).map(async ({ dosen, status }) => {
-        const { jadwal_id, jadwal_type, dosen_id } = dosen;
+      const promises = Array.from(selectedDosenList.values()).map(
+        async ({ dosen, status }) => {
+          const { jadwal_id, jadwal_type, dosen_id } = dosen;
 
-        // Normalize jadwal_type: backend returns "PBL", "Kuliah Besar", "Jurnal Reading", etc.
-        // Convert to lowercase and replace spaces with underscores
-        const normalizedType = String(jadwal_type || "")
-          .toLowerCase()
-          .trim()
-          .replace(/\s+/g, "_")
-          .replace(/_+/g, "_");
-        
-        // Ensure jadwal_id is a number (not string with colon)
-        // Handle cases like "1:1" or "2:1" by taking the first part
-        let cleanJadwalId = jadwal_id;
-        if (typeof jadwal_id === "string") {
-          if (jadwal_id.includes(":")) {
-            cleanJadwalId = parseInt(jadwal_id.split(":")[0], 10);
-          } else {
-            cleanJadwalId = parseInt(jadwal_id, 10);
+          // Normalize jadwal_type: backend returns "PBL", "Kuliah Besar", "Jurnal Reading", etc.
+          // Convert to lowercase and replace spaces with underscores
+          const normalizedType = String(jadwal_type || "")
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, "_")
+            .replace(/_+/g, "_");
+
+          // Ensure jadwal_id is a number (not string with colon)
+          // Handle cases like "1:1" or "2:1" by taking the first part
+          let cleanJadwalId = jadwal_id;
+          if (typeof jadwal_id === "string") {
+            if (jadwal_id.includes(":")) {
+              cleanJadwalId = parseInt(jadwal_id.split(":")[0], 10);
+            } else {
+              cleanJadwalId = parseInt(jadwal_id, 10);
+            }
           }
-        }
-        
-        // Validate cleanJadwalId
-        if (isNaN(cleanJadwalId) || cleanJadwalId <= 0) {
-          console.error("Invalid jadwal_id:", jadwal_id, "cleaned:", cleanJadwalId, "dosen:", dosen);
-          throw new Error(`Jadwal ID tidak valid: ${jadwal_id}`);
-        }
-        
-        // Determine endpoint based on jadwal type
-        // Backend returns: "PBL", "Kuliah Besar", "Praktikum", "Jurnal Reading", "CSR", "Non Blok Non CSR"
-        let endpoint = "";
-        if (normalizedType === "pbl") {
-          endpoint = `/jadwal-pbl/${cleanJadwalId}/konfirmasi`;
-        } else if (normalizedType === "kuliah_besar") {
-          endpoint = `/jadwal-kuliah-besar/${cleanJadwalId}/konfirmasi`;
-        } else if (normalizedType === "praktikum") {
-          endpoint = `/jadwal-praktikum/${cleanJadwalId}/konfirmasi`;
-        } else if (normalizedType === "jurnal_reading" || normalizedType === "jurnal") {
-          endpoint = `/jadwal-jurnal-reading/${cleanJadwalId}/konfirmasi`;
-        } else if (normalizedType === "csr") {
-          endpoint = `/jadwal-csr/${cleanJadwalId}/konfirmasi`;
-        } else if (normalizedType === "non_blok_non_csr") {
-          endpoint = `/jadwal-non-blok-non-csr/${cleanJadwalId}/konfirmasi`;
-        } else {
-          console.error("Invalid jadwal_type:", jadwal_type, "normalized:", normalizedType, "dosen:", dosen);
-          throw new Error(`Jenis jadwal tidak valid: ${jadwal_type} (normalized: ${normalizedType})`);
-        }
-        
-        console.log("Updating status for:", { jadwal_type, normalizedType, cleanJadwalId, endpoint, dosen_id });
 
-        // Prepare payload
-        const payload: any = {
-          status: status,
-          dosen_id: dosen_id,
-          alasan: status === "tidak_bisa" ? "Status diubah oleh admin" : null,
-        };
+          // Validate cleanJadwalId
+          if (isNaN(cleanJadwalId) || cleanJadwalId <= 0) {
+            console.error(
+              "Invalid jadwal_id:",
+              jadwal_id,
+              "cleaned:",
+              cleanJadwalId,
+              "dosen:",
+              dosen
+            );
+            throw new Error(`Jadwal ID tidak valid: ${jadwal_id}`);
+          }
 
-        // Call API
-        return api.put(endpoint, payload);
-      });
+          // Determine endpoint based on jadwal type
+          // Backend returns: "PBL", "Kuliah Besar", "Praktikum", "Jurnal Reading", "CSR", "Non Blok Non CSR"
+          let endpoint = "";
+          if (normalizedType === "pbl") {
+            endpoint = `/jadwal-pbl/${cleanJadwalId}/konfirmasi`;
+          } else if (normalizedType === "kuliah_besar") {
+            endpoint = `/jadwal-kuliah-besar/${cleanJadwalId}/konfirmasi`;
+          } else if (normalizedType === "praktikum") {
+            endpoint = `/jadwal-praktikum/${cleanJadwalId}/konfirmasi`;
+          } else if (
+            normalizedType === "jurnal_reading" ||
+            normalizedType === "jurnal"
+          ) {
+            endpoint = `/jadwal-jurnal-reading/${cleanJadwalId}/konfirmasi`;
+          } else if (normalizedType === "csr") {
+            endpoint = `/jadwal-csr/${cleanJadwalId}/konfirmasi`;
+          } else if (normalizedType === "non_blok_non_csr") {
+            endpoint = `/jadwal-non-blok-non-csr/${cleanJadwalId}/konfirmasi`;
+          } else {
+            console.error(
+              "Invalid jadwal_type:",
+              jadwal_type,
+              "normalized:",
+              normalizedType,
+              "dosen:",
+              dosen
+            );
+            throw new Error(
+              `Jenis jadwal tidak valid: ${jadwal_type} (normalized: ${normalizedType})`
+            );
+          }
+
+          console.log("Updating status for:", {
+            jadwal_type,
+            normalizedType,
+            cleanJadwalId,
+            endpoint,
+            dosen_id,
+          });
+
+          // Prepare payload
+          const payload: any = {
+            status: status,
+            dosen_id: dosen_id,
+            alasan: status === "tidak_bisa" ? "Status diubah oleh admin" : null,
+          };
+
+          // Call API
+          return api.put(endpoint, payload);
+        }
+      );
 
       // Execute all API calls
       await Promise.all(promises);
 
       // Send notifications for each updated dosen
-      const notificationPromises = Array.from(selectedDosenList.values()).map(async ({ dosen, status }) => {
-        const { jadwal_id, jadwal_type, dosen_id } = dosen;
+      const notificationPromises = Array.from(selectedDosenList.values()).map(
+        async ({ dosen, status }) => {
+          const { jadwal_id, jadwal_type, dosen_id } = dosen;
 
-        // Normalize jadwal_type
-        const normalizedType = String(jadwal_type || "")
-          .toLowerCase()
-          .trim()
-          .replace(/\s+/g, "_")
-          .replace(/_+/g, "_");
-        
-        // Ensure jadwal_id is a number
-        let cleanJadwalId = jadwal_id;
-        if (typeof jadwal_id === "string") {
-          if (jadwal_id.includes(":")) {
-            cleanJadwalId = parseInt(jadwal_id.split(":")[0], 10);
-          } else {
-            cleanJadwalId = parseInt(jadwal_id, 10);
+          // Normalize jadwal_type
+          const normalizedType = String(jadwal_type || "")
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, "_")
+            .replace(/_+/g, "_");
+
+          // Ensure jadwal_id is a number
+          let cleanJadwalId = jadwal_id;
+          if (typeof jadwal_id === "string") {
+            if (jadwal_id.includes(":")) {
+              cleanJadwalId = parseInt(jadwal_id.split(":")[0], 10);
+            } else {
+              cleanJadwalId = parseInt(jadwal_id, 10);
+            }
           }
-        }
 
-        // Map normalized type to backend type
-        let backendType = normalizedType;
-        if (normalizedType === "pbl") {
-          backendType = "pbl";
-        } else if (normalizedType === "kuliah_besar") {
-          backendType = "kuliah_besar";
-        } else if (normalizedType === "praktikum") {
-          backendType = "praktikum";
-        } else if (normalizedType === "jurnal_reading" || normalizedType === "jurnal") {
-          backendType = "jurnal_reading";
-        } else if (normalizedType === "csr") {
-          backendType = "csr";
-        } else if (normalizedType === "non_blok_non_csr") {
-          backendType = "non_blok_non_csr";
-        }
+          // Map normalized type to backend type
+          let backendType = normalizedType;
+          if (normalizedType === "pbl") {
+            backendType = "pbl";
+          } else if (normalizedType === "kuliah_besar") {
+            backendType = "kuliah_besar";
+          } else if (normalizedType === "praktikum") {
+            backendType = "praktikum";
+          } else if (
+            normalizedType === "jurnal_reading" ||
+            normalizedType === "jurnal"
+          ) {
+            backendType = "jurnal_reading";
+          } else if (normalizedType === "csr") {
+            backendType = "csr";
+          } else if (normalizedType === "non_blok_non_csr") {
+            backendType = "non_blok_non_csr";
+          }
 
-        // Send notification
-        return api.post("/notifications/send-status-change", {
-          jadwal_id: cleanJadwalId,
-          jadwal_type: backendType,
-          dosen_id: dosen_id,
-          status: status,
-        });
-      });
+          // Send notification
+          return api.post("/notifications/send-status-change", {
+            jadwal_id: cleanJadwalId,
+            jadwal_type: backendType,
+            dosen_id: dosen_id,
+            status: status,
+          });
+        }
+      );
 
       // Send notifications (don't wait for them to complete)
       Promise.all(notificationPromises).catch((error) => {
@@ -1355,8 +1452,12 @@ const AdminNotifications: React.FC = () => {
       setSelectedDosenList(new Map());
 
       // Show success message
-      const bisaCount = Array.from(selectedDosenList.values()).filter(s => s.status === "bisa").length;
-      const tidakBisaCount = Array.from(selectedDosenList.values()).filter(s => s.status === "tidak_bisa").length;
+      const bisaCount = Array.from(selectedDosenList.values()).filter(
+        (s) => s.status === "bisa"
+      ).length;
+      const tidakBisaCount = Array.from(selectedDosenList.values()).filter(
+        (s) => s.status === "tidak_bisa"
+      ).length;
       let message = `Status konfirmasi berhasil diubah untuk ${selectedDosenList.size} dosen`;
       if (bisaCount > 0 && tidakBisaCount > 0) {
         message += ` (${bisaCount} Bisa Mengajar, ${tidakBisaCount} Tidak Bisa Mengajar)`;
@@ -1527,7 +1628,7 @@ const AdminNotifications: React.FC = () => {
         const ticketId = n.data?.ticket_id || n.id;
         const ticketNumber = n.data?.ticket_number || "";
         const key = `service_center:${ticketId}:${ticketNumber}:${n.id}`;
-        
+
         // Service center notifications should not be deduplicated
         const prev = byKey[key];
         if (!prev || new Date(n.created_at) > new Date(prev.created_at)) {
@@ -1537,14 +1638,18 @@ const AdminNotifications: React.FC = () => {
       }
 
       // For student notifications (PBL, Kuliah Besar, Praktikum, etc.), include user_id to avoid deduplication between different students
-      // For lecturer notifications, use the original key without user_id
+      // For lecturer notifications, include user_id to allow different dosen to have their own notifications
       const isStudentNotification =
         n.user_type === "Mahasiswa" ||
         n.user_role === "mahasiswa" ||
         n.user_type === "mahasiswa";
+
+      // For dosen notifications: use key with user_id (type:id:user_id) to allow different dosen to have separate notifications
+      // This allows assignment notifications for new dosen (Dosen C) to appear separately from old dosen (Dosen B)
+      // For student notifications: use kind-based key (type:id:kind:user_id) to allow multiple kinds per jadwal per student
       const key = isStudentNotification
         ? `${type}:${id}:${kind}:${n.user_id}`
-        : `${type}:${id}:${kind}`;
+        : `${type}:${id}:${n.user_id}`;
 
       // Track notifications per jadwal for replacement logic
       const jadwalKey = `${type}:${id}`;
@@ -1569,138 +1674,238 @@ const AdminNotifications: React.FC = () => {
     }
 
     // Post-process: handle replacement notifications
-    // If there's a "Penggantian Dosen Berhasil" notification for a jadwal,
-    // check if there's a newer status change notification (tidak_bisa) that should override it
+    // PENTING: Prioritaskan notifikasi "tidak_bisa" yang lebih baru, bahkan jika ada "replacement_success"
+    // Ini memungkinkan siklus penggantian: Dosen A tidak bisa → ganti Dosen B → Dosen B tidak bisa → ganti Dosen C → dst
+    // PENTING: Logic ini hanya untuk notifikasi admin ("Punya Saya"), bukan untuk notifikasi dosen
+    // Untuk notifikasi dosen, setiap dosen punya notifikasinya sendiri (tidak perlu deduplication per jadwal)
     Object.keys(jadwalNotifications).forEach((jadwalKey) => {
       const notifications = jadwalNotifications[jadwalKey];
-      const hasReplacementSuccess = notifications.some(
-        (n) =>
-          n.data?.admin_action === "replacement_success" ||
-          n.title?.toLowerCase().includes("penggantian dosen berhasil")
-      );
 
-      if (hasReplacementSuccess) {
-        // Find the replacement success notification
-        const replacementNotification = notifications.find(
+      // Group notifications by user_id untuk membandingkan per dosen
+      const notificationsByUser: Record<number, Notification[]> = {};
+      notifications.forEach((n) => {
+        const userId = n.user_id;
+        if (userId) {
+          if (!notificationsByUser[userId]) {
+            notificationsByUser[userId] = [];
+          }
+          notificationsByUser[userId].push(n);
+        }
+      });
+
+      // Process each user's notifications separately
+      Object.keys(notificationsByUser).forEach((userIdStr) => {
+        const userId = Number(userIdStr);
+        const userNotifications = notificationsByUser[userId];
+
+        // Cari semua notifikasi "tidak_bisa" (status change) untuk dosen ini
+        const statusChangeNotifications = userNotifications.filter((n) => {
+          const title = String(n.title || "").toLowerCase();
+          const message = String(n.message || "").toLowerCase();
+          const statusField = (n.data as any)?.status_konfirmasi;
+          const isStatusChange =
+            title.includes("status konfirmasi diubah") ||
+            title.includes("konfirmasi diubah") ||
+            title.includes("tidak bisa") ||
+            title.includes("tidak dapat") ||
+            message.includes("status konfirmasi") ||
+            message.includes("diubah menjadi") ||
+            message.includes("tidak bisa") ||
+            message.includes("tidak dapat") ||
+            statusField === "tidak_bisa";
+
+          return isStatusChange;
+        });
+
+        // Cari notifikasi "replacement_success" untuk admin (user_id adalah admin)
+        // PENTING: "replacement_success" hanya untuk admin, bukan untuk dosen
+        const replacementNotifications = userNotifications.filter(
           (n) =>
-            n.data?.admin_action === "replacement_success" ||
-            n.title?.toLowerCase().includes("penggantian dosen berhasil")
+            (n.data?.admin_action === "replacement_success" ||
+              n.title?.toLowerCase().includes("penggantian dosen berhasil")) &&
+            // Hanya untuk admin notifications (check user role)
+            (n.user_type === "Admin" ||
+              n.user_role === "admin" ||
+              n.user_role === "super_admin" ||
+              n.user_role === "tim_akademik")
         );
 
-        if (replacementNotification) {
-          // Check if there's a newer status change notification (tidak_bisa)
-          const statusChangeNotifications = notifications.filter((n) => {
-            const title = String(n.title || "").toLowerCase();
-            const message = String(n.message || "").toLowerCase();
-            const statusField = (n.data as any)?.status_konfirmasi;
-            const isStatusChange = 
-              title.includes("status konfirmasi diubah") ||
-              title.includes("konfirmasi diubah") ||
-              message.includes("status konfirmasi") ||
-              message.includes("diubah menjadi") ||
-              statusField === "tidak_bisa";
-            
-            return isStatusChange;
-          });
+        // PENTING: Bandingkan waktu antara "tidak_bisa" TERBARU dan "replacement_success" TERBARU
+        // Pilih yang lebih baru, bukan selalu memprioritaskan "tidak_bisa"
+        const newestStatusChange =
+          statusChangeNotifications.length > 0
+            ? statusChangeNotifications.sort((a, b) => {
+                const timeA = new Date(
+                  a.created_at || a.created_time || 0
+                ).getTime();
+                const timeB = new Date(
+                  b.created_at || b.created_time || 0
+                ).getTime();
+                return timeB - timeA; // Descending order (newest first)
+              })[0]
+            : null;
 
-          // If there's a newer status change notification, prioritize it over replacement success
-          if (statusChangeNotifications.length > 0) {
-            // Find the newest status change notification
-            const newestStatusChange = statusChangeNotifications.sort((a, b) => {
-              const timeA = new Date(a.created_at || a.created_time || 0).getTime();
-              const timeB = new Date(b.created_at || b.created_time || 0).getTime();
-              return timeB - timeA; // Descending order (newest first)
-            })[0];
+        const newestReplacement =
+          replacementNotifications.length > 0
+            ? replacementNotifications.sort((a, b) => {
+                const timeA = new Date(
+                  a.created_at || a.created_time || 0
+                ).getTime();
+                const timeB = new Date(
+                  b.created_at || b.created_time || 0
+                ).getTime();
+                return timeB - timeA; // Descending order (newest first)
+              })[0]
+            : null;
 
-            const replacementTime = new Date(
-              replacementNotification.created_at || replacementNotification.created_time || 0
-            ).getTime();
-            const statusChangeTime = new Date(
-              newestStatusChange.created_at || newestStatusChange.created_time || 0
-            ).getTime();
+        // Bandingkan waktu dan pilih yang lebih baru
+        if (newestStatusChange && newestReplacement) {
+          const statusChangeTime = new Date(
+            newestStatusChange.created_at ||
+              newestStatusChange.created_time ||
+              0
+          ).getTime();
+          const replacementTime = new Date(
+            newestReplacement.created_at || newestReplacement.created_time || 0
+          ).getTime();
 
-            // If status change notification is newer, prioritize it
-            if (statusChangeTime > replacementTime) {
-              // Remove replacement success notification from byKey
-              const type = String(
-                replacementNotification.data?.jadwal_type || "-"
-              ).toLowerCase();
-              const id = String(replacementNotification.data?.jadwal_id || "-");
-              const kind = normalizeKind(replacementNotification);
-              const isStudentNotification =
-                replacementNotification.user_type === "Mahasiswa" ||
-                replacementNotification.user_role === "mahasiswa" ||
-                replacementNotification.user_type === "mahasiswa";
-              const replacementKey = isStudentNotification
-                ? `${type}:${id}:${kind}:${replacementNotification.user_id}`
-                : `${type}:${id}:${kind}`;
-              
-              // Remove replacement success notification
-              if (byKey[replacementKey]?.id === replacementNotification.id) {
-                delete byKey[replacementKey];
-              }
-              
-              // Ensure the status change notification is in byKey
-              // Find the key for the status change notification
-              const statusChangeKey = isStudentNotification
-                ? `${type}:${id}:${kind}:${newestStatusChange.user_id}`
-                : `${type}:${id}:${kind}`;
-              
-              // If status change notification is not in byKey, add it
-              if (!byKey[statusChangeKey] || byKey[statusChangeKey].id !== newestStatusChange.id) {
-                byKey[statusChangeKey] = newestStatusChange;
-              }
-            } else {
-              // Replacement success is newer, keep it and remove other notifications
+          // Hapus hanya notifikasi "tidak_bisa" dan "replacement_success" untuk user ini dan jadwal ini
+          // JANGAN hapus notifikasi assignment untuk dosen yang berbeda
           Object.keys(byKey).forEach((key) => {
+            // Check if key matches this jadwal and this user
+            // Key format:
+            // - Dosen: `${type}:${id}:${user_id}`
+            // - Student: `${type}:${id}:${kind}:${user_id}`
+            // Check if key contains this user_id (after jadwalKey)
             if (key.startsWith(jadwalKey)) {
-              delete byKey[key];
+              const notif = byKey[key];
+              // Check if this notification belongs to the current user
+              if (notif.user_id === userId) {
+                // Hanya hapus jika ini adalah notifikasi "tidak_bisa" atau "replacement_success" untuk user ini
+                const isStatusChange = statusChangeNotifications.some(
+                  (n) => n.id === notif.id
+                );
+                const isReplacement = replacementNotifications.some(
+                  (n) => n.id === notif.id
+                );
+                if (isStatusChange || isReplacement) {
+                  delete byKey[key];
+                }
+              }
             }
           });
 
-          // Add only the replacement success notification
-          const type = String(
-            replacementNotification.data?.jadwal_type || "-"
-          ).toLowerCase();
-          const id = String(replacementNotification.data?.jadwal_id || "-");
-          const kind = normalizeKind(replacementNotification);
-          const isStudentNotification =
-            replacementNotification.user_type === "Mahasiswa" ||
-            replacementNotification.user_role === "mahasiswa" ||
-            replacementNotification.user_type === "mahasiswa";
-          const replacementKey = isStudentNotification
-            ? `${type}:${id}:${kind}:${replacementNotification.user_id}`
-            : `${type}:${id}:${kind}`;
-
-          byKey[replacementKey] = replacementNotification;
-            }
-          } else {
-            // No status change notification, keep replacement success and remove other notifications
-            Object.keys(byKey).forEach((key) => {
-              if (key.startsWith(jadwalKey)) {
-                delete byKey[key];
-              }
-            });
-
-            // Add only the replacement success notification
+          // Pilih yang lebih baru
+          if (replacementTime > statusChangeTime) {
+            // "replacement_success" lebih baru, tampilkan ini
             const type = String(
-              replacementNotification.data?.jadwal_type || "-"
+              newestReplacement.data?.jadwal_type || "-"
             ).toLowerCase();
-            const id = String(replacementNotification.data?.jadwal_id || "-");
-            const kind = normalizeKind(replacementNotification);
+            const id = String(newestReplacement.data?.jadwal_id || "-");
             const isStudentNotification =
-              replacementNotification.user_type === "Mahasiswa" ||
-              replacementNotification.user_role === "mahasiswa" ||
-              replacementNotification.user_type === "mahasiswa";
-            const replacementKey = isStudentNotification
-              ? `${type}:${id}:${kind}:${replacementNotification.user_id}`
-              : `${type}:${id}:${kind}`;
+              newestReplacement.user_type === "Mahasiswa" ||
+              newestReplacement.user_role === "mahasiswa" ||
+              newestReplacement.user_type === "mahasiswa";
 
-            byKey[replacementKey] = replacementNotification;
+            const kind = normalizeKind(newestReplacement);
+            const replacementKey = isStudentNotification
+              ? `${type}:${id}:${kind}:${newestReplacement.user_id}`
+              : `${type}:${id}:${newestReplacement.user_id}`;
+
+            byKey[replacementKey] = newestReplacement;
+          } else {
+            // "tidak_bisa" lebih baru atau sama, tampilkan ini
+            const type = String(
+              newestStatusChange.data?.jadwal_type || "-"
+            ).toLowerCase();
+            const id = String(newestStatusChange.data?.jadwal_id || "-");
+            const isStudentNotification =
+              newestStatusChange.user_type === "Mahasiswa" ||
+              newestStatusChange.user_role === "mahasiswa" ||
+              newestStatusChange.user_type === "mahasiswa";
+
+            const statusChangeKind = normalizeKind(newestStatusChange);
+            const statusChangeKey = isStudentNotification
+              ? `${type}:${id}:${statusChangeKind}:${newestStatusChange.user_id}`
+              : `${type}:${id}:${newestStatusChange.user_id}`;
+
+            byKey[statusChangeKey] = newestStatusChange;
           }
+        } else if (newestStatusChange) {
+          // Hanya ada "tidak_bisa", hapus hanya notifikasi "tidak_bisa" dan "replacement_success" yang lama untuk user ini
+          Object.keys(byKey).forEach((key) => {
+            // Check if key matches this jadwal and this user
+            if (key.startsWith(jadwalKey)) {
+              const notif = byKey[key];
+              // Check if this notification belongs to the current user
+              if (notif.user_id === userId) {
+                const isStatusChange = statusChangeNotifications.some(
+                  (n) => n.id === notif.id
+                );
+                const isReplacement = replacementNotifications.some(
+                  (n) => n.id === notif.id
+                );
+                if (isStatusChange || isReplacement) {
+                  delete byKey[key];
+                }
+              }
+            }
+          });
+
+          const type = String(
+            newestStatusChange.data?.jadwal_type || "-"
+          ).toLowerCase();
+          const id = String(newestStatusChange.data?.jadwal_id || "-");
+          const isStudentNotification =
+            newestStatusChange.user_type === "Mahasiswa" ||
+            newestStatusChange.user_role === "mahasiswa" ||
+            newestStatusChange.user_type === "mahasiswa";
+
+          const statusChangeKind = normalizeKind(newestStatusChange);
+          const statusChangeKey = isStudentNotification
+            ? `${type}:${id}:${statusChangeKind}:${newestStatusChange.user_id}`
+            : `${type}:${id}:${newestStatusChange.user_id}`;
+
+          byKey[statusChangeKey] = newestStatusChange;
+        } else if (newestReplacement) {
+          // Hanya ada "replacement_success", hapus hanya notifikasi "tidak_bisa" dan "replacement_success" yang lama untuk user ini
+          Object.keys(byKey).forEach((key) => {
+            // Check if key matches this jadwal and this user
+            if (key.startsWith(jadwalKey)) {
+              const notif = byKey[key];
+              // Check if this notification belongs to the current user
+              if (notif.user_id === userId) {
+                const isStatusChange = statusChangeNotifications.some(
+                  (n) => n.id === notif.id
+                );
+                const isReplacement = replacementNotifications.some(
+                  (n) => n.id === notif.id
+                );
+                if (isStatusChange || isReplacement) {
+                  delete byKey[key];
+                }
+              }
+            }
+          });
+
+          const type = String(
+            newestReplacement.data?.jadwal_type || "-"
+          ).toLowerCase();
+          const id = String(newestReplacement.data?.jadwal_id || "-");
+          const isStudentNotification =
+            newestReplacement.user_type === "Mahasiswa" ||
+            newestReplacement.user_role === "mahasiswa" ||
+            newestReplacement.user_type === "mahasiswa";
+
+          const kind = normalizeKind(newestReplacement);
+          const replacementKey = isStudentNotification
+            ? `${type}:${id}:${kind}:${newestReplacement.user_id}`
+            : `${type}:${id}:${newestReplacement.user_id}`;
+
+          byKey[replacementKey] = newestReplacement;
         }
-      }
-    });
+      }); // End of forEach userNotifications
+    }); // End of forEach jadwalNotifications
 
     let filtered = Object.values(byKey);
 
@@ -1875,7 +2080,7 @@ const AdminNotifications: React.FC = () => {
     const statusField =
       (notification.data as any)?.status_konfirmasi ||
       (key ? jadwalStatusMap[key] : undefined);
-    
+
     // If status is "tidak_bisa", prioritize it over replacement_success
     if (statusField) {
       const s = String(statusField).toLowerCase();
@@ -1890,7 +2095,7 @@ const AdminNotifications: React.FC = () => {
         };
       }
     }
-    
+
     // Check if this is a replacement success notification (only if status is not "tidak_bisa")
     if (notification.data?.admin_action === "replacement_success") {
       return {
@@ -2474,26 +2679,28 @@ const AdminNotifications: React.FC = () => {
             {/* Kirim Ulang Notifikasi Button - Only show for dosen notifications */}
             {userTypeFilter === "dosen" && (
               <>
-              <button
-                onClick={async () => {
-                  await loadPendingDosen(
-                    pendingDosenPage,
-                    pendingDosenPageSize,
-                    pendingDosenSemester,
-                    pendingDosenBlok,
-                    pendingDosenReminderType
-                  );
-                    setSelectedReminderDosen(new Set()); // Reset selection when opening modal
-                  setShowReminderModal(true);
-                }}
-                className="w-full md:w-auto flex items-center justify-center gap-2 px-5 text-sm py-2 bg-orange-500 text-white rounded-lg shadow hover:bg-orange-600 transition-colors font-semibold"
-              >
-                <FontAwesomeIcon icon={faRedo} className="w-4 h-4" />
-                Kirim Ulang Notifikasi
-              </button>
                 <button
                   onClick={async () => {
-                    console.log("Loading pending dosen before opening change status modal...");
+                    await loadPendingDosen(
+                      pendingDosenPage,
+                      pendingDosenPageSize,
+                      pendingDosenSemester,
+                      pendingDosenBlok,
+                      pendingDosenReminderType
+                    );
+                    setSelectedReminderDosen(new Set()); // Reset selection when opening modal
+                    setShowReminderModal(true);
+                  }}
+                  className="w-full md:w-auto flex items-center justify-center gap-2 px-5 text-sm py-2 bg-orange-500 text-white rounded-lg shadow hover:bg-orange-600 transition-colors font-semibold"
+                >
+                  <FontAwesomeIcon icon={faRedo} className="w-4 h-4" />
+                  Kirim Ulang Notifikasi
+                </button>
+                <button
+                  onClick={async () => {
+                    console.log(
+                      "Loading pending dosen before opening change status modal..."
+                    );
                     await loadPendingDosen(
                       pendingDosenPage,
                       pendingDosenPageSize,
@@ -2510,6 +2717,17 @@ const AdminNotifications: React.FC = () => {
                 </button>
               </>
             )}
+            {/* Reset Notification Button */}
+            <button
+              onClick={() => {
+                setResetScope("all");
+                setShowResetModal(true);
+              }}
+              className="w-full md:w-auto flex items-center justify-center gap-2 px-5 text-sm py-2 bg-red-500 text-white rounded-lg shadow hover:bg-red-600 transition-colors font-semibold"
+            >
+              <FontAwesomeIcon icon={faTrash} className="w-4 h-4" />
+              Reset Notification
+            </button>
           </div>
         </div>
       </div>
@@ -2581,13 +2799,37 @@ const AdminNotifications: React.FC = () => {
                     <div className="flex items-start justify-between mb-2">
                       <div>
                         <h4 className="font-semibold text-gray-900 dark:text-white text-sm mb-1">
-                          {notification.user_name !== "Unknown User"
+                          {notification.data?.admin_action ===
+                            "replacement_success" &&
+                          notification.data?.new_dosen
+                            ? notification.data.new_dosen // Tampilkan nama dosen pengganti untuk replacement_success
+                            : (notification.title?.includes(
+                                "Status Konfirmasi Diubah"
+                              ) ||
+                                notification.title?.includes(
+                                  "Dosen Tidak Bisa Mengajar"
+                                )) &&
+                              notification.data?.dosen_name
+                            ? notification.data.dosen_name // Tampilkan nama dosen untuk status change atau tidak bisa mengajar
+                            : notification.user_name !== "Unknown User"
                             ? notification.user_name
                             : "Sistem"}
                         </h4>
                         <div className="flex items-center gap-2">
                           <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-medium rounded-full">
-                            {notification.user_type}
+                            {notification.data?.admin_action ===
+                              "replacement_success" &&
+                            notification.data?.new_dosen
+                              ? "Dosen" // Tampilkan "Dosen" untuk replacement_success karena ini tentang dosen pengganti
+                              : (notification.title?.includes(
+                                  "Status Konfirmasi Diubah"
+                                ) ||
+                                  notification.title?.includes(
+                                    "Dosen Tidak Bisa Mengajar"
+                                  )) &&
+                                notification.data?.dosen_name
+                              ? "Dosen" // Tampilkan "Dosen" untuk status change atau tidak bisa mengajar karena ini tentang dosen
+                              : notification.user_type}
                           </span>
                           {getConfirmationStatus(notification)?.adminInfo && (
                             <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300 text-xs font-medium rounded-full">
@@ -2652,52 +2894,33 @@ const AdminNotifications: React.FC = () => {
                             </span>
                           )}
                           {/* Action button for "Tidak Bisa Mengajar" notifications */}
-                          {/* PENTING: Tombol "Kelola" muncul di "Punya Saya" (my_notifications) jika:
-                              1. dosen_id tidak bisa mengajar, ATAU
-                              2. dosen_ids terbaru (elemen terakhir) tidak bisa mengajar
-                              Ini memungkinkan siklus penggantian bolak-balik (repeat order) */}
+                          {/* PENTING: Tombol "Kelola" muncul di "Punya Saya" (my_notifications) untuk SEMUA jenis jadwal jika:
+                              1. Status tidak_bisa, DAN
+                              2. Bukan replacement_success, DAN
+                              3. Di filter "Punya Saya"
+                              Ini memungkinkan siklus penggantian bolak-balik untuk semua jenis jadwal (PBL, Kuliah Besar, Praktikum, Jurnal Reading, CSR, Non Blok Non CSR) */}
                           {(() => {
-                            const status = getConfirmationStatus(notification)?.status;
+                            const status =
+                              getConfirmationStatus(notification)?.status;
                             // Hanya tampilkan jika status tidak_bisa, bukan replacement_success, dan di "Punya Saya"
-                            if (status !== "tidak_bisa" || 
-                                notification.data?.admin_action === "replacement_success" ||
-                                userTypeFilter !== "my_notifications") {
+                            // PENTING: Logika ini berlaku untuk SEMUA jenis jadwal, bukan hanya PBL
+                            if (
+                              status !== "tidak_bisa" ||
+                              notification.data?.admin_action ===
+                                "replacement_success" ||
+                              userTypeFilter !== "my_notifications"
+                            ) {
                               return null;
                             }
 
-                            // Cek apakah dosen_ids terbaru juga tidak bisa mengajar (untuk siklus penggantian)
-                            const type = String(notification.data?.jadwal_type || "").toLowerCase();
-                            const id = notification.data?.jadwal_id
-                              ? Number(notification.data!.jadwal_id)
-                              : null;
-                            const key = id ? `${type}:${id}` : "";
-                            const jadwalDetail = key ? jadwalDetailMap[key] : null;
-                            
-                            // Default: show tombol "Kelola" jika status tidak_bisa
-                            // Ini memungkinkan siklus penggantian: dosen_id tidak bisa → ganti → dosen_ids terbaru tidak bisa → ganti lagi → dst
-                            let shouldShowKelola = true;
-                            
-                            // Jika ada dosen_ids, pastikan logika siklus penggantian bekerja
-                            if (jadwalDetail?.dosen_ids && jadwalDetail.dosen_ids.length > 1) {
-                              // Ada penggantian: dosen_ids[0] = pengampu awal, dosen_ids terakhir = pengganti terbaru
-                              const latestDosenId = jadwalDetail.dosen_ids[jadwalDetail.dosen_ids.length - 1];
-                              const currentDosenId = jadwalDetail.dosen_id;
-                              
-                              // Jika dosen_id saat ini sama dengan dosen_ids terbaru, dan status tidak_bisa
-                              // Maka muncul tombol "Kelola" (siklus penggantian bolak-balik)
-                              // Ini memungkinkan: dosen A tidak bisa → ganti dengan dosen B → dosen B tidak bisa → ganti lagi
-                              if (currentDosenId && Number(currentDosenId) === Number(latestDosenId)) {
-                                // Dosen_ids terbaru adalah dosen yang saat ini mengajar dan tidak bisa
-                                // Muncul tombol "Kelola" untuk mengganti lagi
-                                shouldShowKelola = true;
-                              } else {
-                                // Jika dosen_id berbeda, tetap muncul tombol "Kelola" jika status tidak_bisa
-                                // Karena status tidak_bisa berarti dosen yang terkait dengan notifikasi ini tidak bisa
-                                shouldShowKelola = true;
-                              }
-                            }
+                            // PENTING: Tombol "Kelola" muncul untuk semua jenis jadwal yang statusnya "tidak_bisa"
+                            // Tidak perlu cek jadwalDetailMap karena:
+                            // 1. prefetchJadwalStatuses sudah di-disable (menyebabkan 404 errors)
+                            // 2. Status "tidak_bisa" sudah cukup untuk menampilkan tombol "Kelola"
+                            // 3. Backend replaceDosen sudah handle semua jenis jadwal (pbl, kuliah_besar, praktikum, jurnal_reading, csr, non_blok_non_csr)
 
-                            return shouldShowKelola ? (
+                            // Tampilkan tombol "Kelola" untuk semua jenis jadwal yang statusnya "tidak_bisa"
+                            return (
                               <button
                                 onClick={() =>
                                   handleOpenReplacementModal(notification)
@@ -2711,7 +2934,7 @@ const AdminNotifications: React.FC = () => {
                                 />
                                 Kelola
                               </button>
-                            ) : null;
+                            );
                           })()}
                           {/* Action button for "Reschedule" notifications */}
                           {notification.data?.notification_type ===
@@ -2910,324 +3133,326 @@ const AdminNotifications: React.FC = () => {
               <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                 {/* Scrollable Content */}
                 <div className="flex-1 overflow-y-auto hide-scroll pr-2 -mr-2">
-                {/* Header */}
-                <div className="flex items-center space-x-4 mb-6 flex-shrink-0">
-                  <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center">
-                    <FontAwesomeIcon
-                      icon={faCog}
-                      className="w-6 h-6 text-blue-600 dark:text-blue-400"
-                    />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">
-                      Kelola Penggantian Dosen
-                    </h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Penerima: {selectedNotification.user_name}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Jadwal Info */}
-                <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 flex-shrink-0">
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2">
-                    Detail Jadwal
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-400">
-                        Mata Kuliah:
-                      </span>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {selectedNotification.data?.mata_kuliah || "N/A"}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-400">
-                        Tanggal:
-                      </span>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {selectedNotification.data?.tanggal || "N/A"}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-400">
-                        Waktu:
-                      </span>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {selectedNotification.data?.waktu || "N/A"}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-400">
-                        Ruangan:
-                      </span>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {selectedNotification.data?.ruangan || "N/A"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Action Selection */}
-                <div className="mb-4 flex-shrink-0">
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
-                    Pilih Aksi:
-                  </h4>
-                  <div className="space-y-3">
-                    {/* Ask Again Option */}
-                    <label
-                      className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 ${
-                        replacementAction === "ask_again"
-                          ? "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600"
-                          : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
-                      }`}
-                    >
-                      <div
-                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mr-4 ${
-                          replacementAction === "ask_again"
-                            ? "bg-blue-500 border-blue-500"
-                            : "border-gray-300 dark:border-gray-600"
-                        }`}
-                      >
-                        {replacementAction === "ask_again" && (
-                          <svg
-                            className="w-3 h-3 text-white"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        )}
-                      </div>
-                      <input
-                        type="radio"
-                        name="replacementAction"
-                        value="ask_again"
-                        checked={replacementAction === "ask_again"}
-                        onChange={(e) =>
-                          setReplacementAction(e.target.value as "ask_again")
-                        }
-                        className="sr-only"
+                  {/* Header */}
+                  <div className="flex items-center space-x-4 mb-6 flex-shrink-0">
+                    <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center">
+                      <FontAwesomeIcon
+                        icon={faCog}
+                        className="w-6 h-6 text-blue-600 dark:text-blue-400"
                       />
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/20 rounded-lg flex items-center justify-center">
-                          <FontAwesomeIcon
-                            icon={faRedo}
-                            className="w-5 h-5 text-yellow-600 dark:text-yellow-400"
-                          />
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            Minta Dosen yang Sama Mengajar Lagi
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Dosen akan diminta untuk konfirmasi ulang
-                          </p>
-                        </div>
-                      </div>
-                    </label>
-
-                    {/* Replace Option */}
-                    <label
-                      className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 ${
-                        replacementAction === "replace"
-                          ? "bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-600"
-                          : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
-                      }`}
-                    >
-                      <div
-                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mr-4 ${
-                          replacementAction === "replace"
-                            ? "bg-green-500 border-green-500"
-                            : "border-gray-300 dark:border-gray-600"
-                        }`}
-                      >
-                        {replacementAction === "replace" && (
-                          <svg
-                            className="w-3 h-3 text-white"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        )}
-                      </div>
-                      <input
-                        type="radio"
-                        name="replacementAction"
-                        value="replace"
-                        checked={replacementAction === "replace"}
-                        onChange={(e) =>
-                          setReplacementAction(e.target.value as "replace")
-                        }
-                        className="sr-only"
-                      />
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
-                          <FontAwesomeIcon
-                            icon={faUserPlus}
-                            className="w-5 h-5 text-green-600 dark:text-green-400"
-                          />
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            Pilih Dosen Pengganti
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Ganti dengan dosen lain yang tersedia
-                          </p>
-                        </div>
-                      </div>
-                    </label>
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                        Kelola Penggantian Dosen
+                      </h2>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Penerima: {selectedNotification.user_name}
+                      </p>
+                    </div>
                   </div>
-                </div>
 
-                {/* Dosen Selection (only if replace is selected) */}
-                {replacementAction === "replace" && (
-                    <div className="mb-4 flex-shrink-0">
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
-                      Pilih Dosen Pengganti:
+                  {/* Jadwal Info */}
+                  <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 flex-shrink-0">
+                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2">
+                      Detail Jadwal
                     </h4>
-
-                    {/* Search Bar */}
-                    <div className="mb-3">
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <svg
-                            className="h-5 w-5 text-gray-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                            />
-                          </svg>
-                        </div>
-                        <input
-                          type="text"
-                          placeholder="Cari nama dosen..."
-                          value={dosenSearchQuery}
-                          onChange={(e) => setDosenSearchQuery(e.target.value)}
-                          className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                      </div>
-                    </div>
-
-                    {loadingDosen ? (
-                      <div className="text-center py-8">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                          Memuat daftar dosen...
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          Mata Kuliah:
+                        </span>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {selectedNotification.data?.mata_kuliah || "N/A"}
                         </p>
                       </div>
-                    ) : (
-                      <div className="max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-xl hide-scroll">
-                        {filteredDosenList.length === 0 ? (
-                          <div className="text-center py-8">
-                            <p className="text-gray-500 dark:text-gray-400">
-                              {dosenSearchQuery
-                                ? "Tidak ada dosen yang cocok dengan pencarian"
-                                : "Tidak ada dosen tersedia"}
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          Tanggal:
+                        </span>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {selectedNotification.data?.tanggal || "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          Waktu:
+                        </span>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {selectedNotification.data?.waktu || "N/A"}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">
+                          Ruangan:
+                        </span>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {selectedNotification.data?.ruangan || "N/A"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Selection */}
+                  <div className="mb-4 flex-shrink-0">
+                    <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
+                      Pilih Aksi:
+                    </h4>
+                    <div className="space-y-3">
+                      {/* Ask Again Option */}
+                      <label
+                        className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 ${
+                          replacementAction === "ask_again"
+                            ? "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600"
+                            : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                        }`}
+                      >
+                        <div
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mr-4 ${
+                            replacementAction === "ask_again"
+                              ? "bg-blue-500 border-blue-500"
+                              : "border-gray-300 dark:border-gray-600"
+                          }`}
+                        >
+                          {replacementAction === "ask_again" && (
+                            <svg
+                              className="w-3 h-3 text-white"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          )}
+                        </div>
+                        <input
+                          type="radio"
+                          name="replacementAction"
+                          value="ask_again"
+                          checked={replacementAction === "ask_again"}
+                          onChange={(e) =>
+                            setReplacementAction(e.target.value as "ask_again")
+                          }
+                          className="sr-only"
+                        />
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-yellow-100 dark:bg-yellow-900/20 rounded-lg flex items-center justify-center">
+                            <FontAwesomeIcon
+                              icon={faRedo}
+                              className="w-5 h-5 text-yellow-600 dark:text-yellow-400"
+                            />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              Minta Dosen yang Sama Mengajar Lagi
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              Dosen akan diminta untuk konfirmasi ulang
                             </p>
                           </div>
-                        ) : (
-                          <div className="space-y-2 p-2">
-                            {filteredDosenList.map((dosen) => {
-                              // Check if dosen is standby based on keahlian
-                              const isStandby = Array.isArray(dosen.keahlian)
-                                ? dosen.keahlian.some((k: string) =>
-                                    k.toLowerCase().includes("standby")
-                                  )
-                                : (dosen.keahlian || "")
-                                    .toLowerCase()
-                                    .includes("standby");
+                        </div>
+                      </label>
 
-                              const avatar = getAvatarFromName(
-                                dosen.name,
-                                isStandby
-                              );
-                              return (
-                                <label
-                                  key={dosen.id}
-                                  className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all duration-200 ${
-                                    selectedDosen?.id === dosen.id
-                                      ? "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600"
-                                      : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
-                                  }`}
-                                >
-                                  <div
-                                    className={`w-4 h-4 rounded-full border-2 flex items-center justify-center mr-3 ${
+                      {/* Replace Option */}
+                      <label
+                        className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 ${
+                          replacementAction === "replace"
+                            ? "bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-600"
+                            : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                        }`}
+                      >
+                        <div
+                          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mr-4 ${
+                            replacementAction === "replace"
+                              ? "bg-green-500 border-green-500"
+                              : "border-gray-300 dark:border-gray-600"
+                          }`}
+                        >
+                          {replacementAction === "replace" && (
+                            <svg
+                              className="w-3 h-3 text-white"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          )}
+                        </div>
+                        <input
+                          type="radio"
+                          name="replacementAction"
+                          value="replace"
+                          checked={replacementAction === "replace"}
+                          onChange={(e) =>
+                            setReplacementAction(e.target.value as "replace")
+                          }
+                          className="sr-only"
+                        />
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
+                            <FontAwesomeIcon
+                              icon={faUserPlus}
+                              className="w-5 h-5 text-green-600 dark:text-green-400"
+                            />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              Pilih Dosen Pengganti
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              Ganti dengan dosen lain yang tersedia
+                            </p>
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Dosen Selection (only if replace is selected) */}
+                  {replacementAction === "replace" && (
+                    <div className="mb-4 flex-shrink-0">
+                      <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
+                        Pilih Dosen Pengganti:
+                      </h4>
+
+                      {/* Search Bar */}
+                      <div className="mb-3">
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg
+                              className="h-5 w-5 text-gray-400"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                              />
+                            </svg>
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="Cari nama dosen..."
+                            value={dosenSearchQuery}
+                            onChange={(e) =>
+                              setDosenSearchQuery(e.target.value)
+                            }
+                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+
+                      {loadingDosen ? (
+                        <div className="text-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                            Memuat daftar dosen...
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-xl hide-scroll">
+                          {filteredDosenList.length === 0 ? (
+                            <div className="text-center py-8">
+                              <p className="text-gray-500 dark:text-gray-400">
+                                {dosenSearchQuery
+                                  ? "Tidak ada dosen yang cocok dengan pencarian"
+                                  : "Tidak ada dosen tersedia"}
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="space-y-2 p-2">
+                              {filteredDosenList.map((dosen) => {
+                                // Check if dosen is standby based on keahlian
+                                const isStandby = Array.isArray(dosen.keahlian)
+                                  ? dosen.keahlian.some((k: string) =>
+                                      k.toLowerCase().includes("standby")
+                                    )
+                                  : (dosen.keahlian || "")
+                                      .toLowerCase()
+                                      .includes("standby");
+
+                                const avatar = getAvatarFromName(
+                                  dosen.name,
+                                  isStandby
+                                );
+                                return (
+                                  <label
+                                    key={dosen.id}
+                                    className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all duration-200 ${
                                       selectedDosen?.id === dosen.id
-                                        ? "bg-blue-500 border-blue-500"
-                                        : "border-gray-300 dark:border-gray-600"
+                                        ? "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600"
+                                        : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
                                     }`}
                                   >
-                                    {selectedDosen?.id === dosen.id && (
-                                      <svg
-                                        className="w-2.5 h-2.5 text-white"
-                                        fill="currentColor"
-                                        viewBox="0 0 20 20"
-                                      >
-                                        <path
-                                          fillRule="evenodd"
-                                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                          clipRule="evenodd"
-                                        />
-                                      </svg>
-                                    )}
-                                  </div>
-                                  <input
-                                    type="radio"
-                                    name="selectedDosen"
-                                    value={dosen.id}
-                                    checked={selectedDosen?.id === dosen.id}
-                                    onChange={() => setSelectedDosen(dosen)}
-                                    className="sr-only"
-                                  />
-                                  {/* Avatar */}
-                                  <div
-                                    className={`w-10 h-10 ${avatar.color} rounded-full flex items-center justify-center text-white font-semibold text-sm mr-3`}
-                                  >
-                                    {avatar.initial}
-                                  </div>
-                                  {/* Dosen Info */}
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <p className="font-medium text-gray-900 dark:text-white">
-                                        {dosen.name}
-                                      </p>
-                                      {isStandby && (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 text-xs font-medium">
-                                          Standby
-                                        </span>
+                                    <div
+                                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center mr-3 ${
+                                        selectedDosen?.id === dosen.id
+                                          ? "bg-blue-500 border-blue-500"
+                                          : "border-gray-300 dark:border-gray-600"
+                                      }`}
+                                    >
+                                      {selectedDosen?.id === dosen.id && (
+                                        <svg
+                                          className="w-2.5 h-2.5 text-white"
+                                          fill="currentColor"
+                                          viewBox="0 0 20 20"
+                                        >
+                                          <path
+                                            fillRule="evenodd"
+                                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                            clipRule="evenodd"
+                                          />
+                                        </svg>
                                       )}
                                     </div>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                      {dosen.email}
-                                    </p>
-                                  </div>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
+                                    <input
+                                      type="radio"
+                                      name="selectedDosen"
+                                      value={dosen.id}
+                                      checked={selectedDosen?.id === dosen.id}
+                                      onChange={() => setSelectedDosen(dosen)}
+                                      className="sr-only"
+                                    />
+                                    {/* Avatar */}
+                                    <div
+                                      className={`w-10 h-10 ${avatar.color} rounded-full flex items-center justify-center text-white font-semibold text-sm mr-3`}
+                                    >
+                                      {avatar.initial}
+                                    </div>
+                                    {/* Dosen Info */}
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <p className="font-medium text-gray-900 dark:text-white">
+                                          {dosen.name}
+                                        </p>
+                                        {isStandby && (
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 text-xs font-medium">
+                                            Standby
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        {dosen.email}
+                                      </p>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Footer */}
@@ -3265,7 +3490,7 @@ const AdminNotifications: React.FC = () => {
         )}
       </AnimatePresence>
 
-        {/* Reschedule Modal */}
+      {/* Reschedule Modal */}
       <AnimatePresence mode="wait">
         {showRescheduleModal && selectedNotification && (
           <motion.div
@@ -3654,7 +3879,7 @@ const AdminNotifications: React.FC = () => {
         )}
       </AnimatePresence>
 
-        {/* Reminder Notification Modal */}
+      {/* Reminder Notification Modal */}
       <AnimatePresence mode="wait">
         {showReminderModal && (
           <motion.div
@@ -3721,20 +3946,20 @@ const AdminNotifications: React.FC = () => {
                   <div className="mb-3 sm:mb-4">
                     <div className="flex items-center space-x-3 mb-4">
                       <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
-                    <FontAwesomeIcon
-                      icon={faRedo}
-                      className="w-6 h-6 text-orange-600 dark:text-orange-400"
-                    />
-                  </div>
-                  <div>
+                        <FontAwesomeIcon
+                          icon={faRedo}
+                          className="w-6 h-6 text-orange-600 dark:text-orange-400"
+                        />
+                      </div>
+                      <div>
                         <h3 className="text-sm font-semibold text-gray-800 dark:text-white">
                           Dosen yang Akan Dikirim Pengingat
                         </h3>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           Pilih filter untuk mengirim pengingat
-                    </p>
-                  </div>
-                </div>
+                        </p>
+                      </div>
+                    </div>
 
                     {/* Filter Semester dan Blok */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
@@ -3747,6 +3972,7 @@ const AdminNotifications: React.FC = () => {
                           onChange={(e) => {
                             setPendingDosenSemester(e.target.value);
                             setPendingDosenPage(1);
+                            setSelectedReminderDosen(new Set()); // Reset selection when filter changes
                           }}
                           className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                         >
@@ -3770,6 +3996,7 @@ const AdminNotifications: React.FC = () => {
                           onChange={(e) => {
                             setPendingDosenBlok(e.target.value);
                             setPendingDosenPage(1);
+                            setSelectedReminderDosen(new Set()); // Reset selection when filter changes
                           }}
                           className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                         >
@@ -3786,7 +4013,7 @@ const AdminNotifications: React.FC = () => {
                     <div className="mb-4">
                       <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Tipe Pengingat
-                        </label>
+                      </label>
                       <div className="space-y-3">
                         <div
                           className={`p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-200 ${
@@ -3794,7 +4021,10 @@ const AdminNotifications: React.FC = () => {
                               ? "bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-600"
                               : ""
                           }`}
-                          onClick={() => setPendingDosenReminderType("all")}
+                          onClick={() => {
+                            setPendingDosenReminderType("all");
+                            setSelectedReminderDosen(new Set()); // Reset selection when filter changes
+                          }}
                         >
                           <div className="flex items-center space-x-3">
                             <div
@@ -3817,7 +4047,7 @@ const AdminNotifications: React.FC = () => {
                                   />
                                 </svg>
                               )}
-                      </div>
+                            </div>
                             <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
                               <FontAwesomeIcon
                                 icon={faRedo}
@@ -3841,9 +4071,10 @@ const AdminNotifications: React.FC = () => {
                               ? "bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-600"
                               : ""
                           }`}
-                          onClick={() =>
-                            setPendingDosenReminderType("unconfirmed")
-                          }
+                          onClick={() => {
+                            setPendingDosenReminderType("unconfirmed");
+                            setSelectedReminderDosen(new Set()); // Reset selection when filter changes
+                          }}
                         >
                           <div className="flex items-center space-x-3">
                             <div
@@ -3890,9 +4121,10 @@ const AdminNotifications: React.FC = () => {
                               ? "bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-600"
                               : ""
                           }`}
-                          onClick={() =>
-                            setPendingDosenReminderType("upcoming")
-                          }
+                          onClick={() => {
+                            setPendingDosenReminderType("upcoming");
+                            setSelectedReminderDosen(new Set()); // Reset selection when filter changes
+                          }}
                         >
                           <div className="flex items-center space-x-3">
                             <div
@@ -3936,22 +4168,22 @@ const AdminNotifications: React.FC = () => {
                     </div>
 
                     <div className="flex justify-end mb-4">
-                        <button
+                      <button
                         onClick={() => {
                           setPendingDosenPage(1); // Reset to first page
                           setSelectedReminderDosen(new Set()); // Reset selection when filtering
-                            loadPendingDosen(
-                              1,
-                              pendingDosenPageSize,
-                              pendingDosenSemester,
-                              pendingDosenBlok,
-                              pendingDosenReminderType
+                          loadPendingDosen(
+                            1,
+                            pendingDosenPageSize,
+                            pendingDosenSemester,
+                            pendingDosenBlok,
+                            pendingDosenReminderType
                           );
                         }}
                         className="px-3 sm:px-4 py-2 rounded-lg bg-orange-500 text-white text-xs sm:text-sm font-medium hover:bg-orange-600 transition-all duration-300 ease-in-out"
-                        >
-                          Filter
-                        </button>
+                      >
+                        Filter
+                      </button>
                     </div>
 
                     {loadingPendingDosen ? (
@@ -3968,11 +4200,13 @@ const AdminNotifications: React.FC = () => {
                           <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-all">
                             <div
                               className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
-                                pendingDosenList.length > 0 && 
-                                pendingDosenList.every(dosen => {
-                                  const cleanJadwalId = typeof dosen.jadwal_id === "string" && dosen.jadwal_id.includes(":") 
-                                    ? dosen.jadwal_id.split(":")[0] 
-                                    : dosen.jadwal_id;
+                                pendingDosenList.length > 0 &&
+                                pendingDosenList.every((dosen) => {
+                                  const cleanJadwalId =
+                                    typeof dosen.jadwal_id === "string" &&
+                                    dosen.jadwal_id.includes(":")
+                                      ? dosen.jadwal_id.split(":")[0]
+                                      : dosen.jadwal_id;
                                   const key = `${cleanJadwalId}_${dosen.dosen_id}`;
                                   return selectedReminderDosen.has(key);
                                 })
@@ -3980,42 +4214,49 @@ const AdminNotifications: React.FC = () => {
                                   : "border-gray-300 dark:border-gray-600"
                               }`}
                             >
-                              {pendingDosenList.length > 0 && 
-                               pendingDosenList.every(dosen => {
-                                 const cleanJadwalId = typeof dosen.jadwal_id === "string" && dosen.jadwal_id.includes(":") 
-                                   ? dosen.jadwal_id.split(":")[0] 
-                                   : dosen.jadwal_id;
-                                 const key = `${cleanJadwalId}_${dosen.dosen_id}`;
-                                 return selectedReminderDosen.has(key);
-                               }) && (
-                                <svg
-                                  className="w-3 h-3 text-white"
-                                  fill="currentColor"
-                                  viewBox="0 0 20 20"
-                                >
-                                  <path
-                                    fillRule="evenodd"
-                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                    clipRule="evenodd"
-                                  />
-                                </svg>
-                              )}
+                              {pendingDosenList.length > 0 &&
+                                pendingDosenList.every((dosen) => {
+                                  const cleanJadwalId =
+                                    typeof dosen.jadwal_id === "string" &&
+                                    dosen.jadwal_id.includes(":")
+                                      ? dosen.jadwal_id.split(":")[0]
+                                      : dosen.jadwal_id;
+                                  const key = `${cleanJadwalId}_${dosen.dosen_id}`;
+                                  return selectedReminderDosen.has(key);
+                                }) && (
+                                  <svg
+                                    className="w-3 h-3 text-white"
+                                    fill="currentColor"
+                                    viewBox="0 0 20 20"
+                                  >
+                                    <path
+                                      fillRule="evenodd"
+                                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                      clipRule="evenodd"
+                                    />
+                                  </svg>
+                                )}
                             </div>
                             <input
                               type="checkbox"
-                              checked={pendingDosenList.length > 0 && 
-                                pendingDosenList.every(dosen => {
-                                  const cleanJadwalId = typeof dosen.jadwal_id === "string" && dosen.jadwal_id.includes(":") 
-                                    ? dosen.jadwal_id.split(":")[0] 
-                                    : dosen.jadwal_id;
+                              checked={
+                                pendingDosenList.length > 0 &&
+                                pendingDosenList.every((dosen) => {
+                                  const cleanJadwalId =
+                                    typeof dosen.jadwal_id === "string" &&
+                                    dosen.jadwal_id.includes(":")
+                                      ? dosen.jadwal_id.split(":")[0]
+                                      : dosen.jadwal_id;
                                   const key = `${cleanJadwalId}_${dosen.dosen_id}`;
                                   return selectedReminderDosen.has(key);
-                                })}
+                                })
+                              }
                               onChange={handleSelectAllReminderDosen}
                               className="sr-only"
                             />
                             <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                              Pilih Semua ({selectedReminderDosen.size} dari {pendingDosenList.length} dipilih)
+                              Pilih Semua ({selectedReminderDosen.size} dari{" "}
+                              {pendingDosenList.length} dipilih)
                             </span>
                           </label>
                         </div>
@@ -4038,11 +4279,14 @@ const AdminNotifications: React.FC = () => {
                             isWhatsAppValid;
 
                           // Check if this dosen is selected
-                          const cleanJadwalId = typeof dosen.jadwal_id === "string" && dosen.jadwal_id.includes(":") 
-                            ? dosen.jadwal_id.split(":")[0] 
-                            : dosen.jadwal_id;
+                          const cleanJadwalId =
+                            typeof dosen.jadwal_id === "string" &&
+                            dosen.jadwal_id.includes(":")
+                              ? dosen.jadwal_id.split(":")[0]
+                              : dosen.jadwal_id;
                           const dosenKey = `${cleanJadwalId}_${dosen.dosen_id}`;
-                          const isSelected = selectedReminderDosen.has(dosenKey);
+                          const isSelected =
+                            selectedReminderDosen.has(dosenKey);
 
                           return (
                             <div
@@ -4086,7 +4330,9 @@ const AdminNotifications: React.FC = () => {
                                 <input
                                   type="checkbox"
                                   checked={isSelected}
-                                  onChange={() => handleToggleReminderDosen(dosen)}
+                                  onChange={() =>
+                                    handleToggleReminderDosen(dosen)
+                                  }
                                   className="sr-only"
                                 />
                                 <div
@@ -4158,8 +4404,8 @@ const AdminNotifications: React.FC = () => {
                                         willReceiveReminder && (
                                           <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">
                                             ⚠ WhatsApp Belum Aktif
-                                        </span>
-                                      )}
+                                          </span>
+                                        )}
                                     </div>
                                   </div>
                                   <div className="space-y-1">
@@ -4167,23 +4413,23 @@ const AdminNotifications: React.FC = () => {
                                       {dosen.jadwal_type} - {dosen.mata_kuliah}
                                     </p>
                                     <div className="space-y-1">
-                                    {dosen.email && (
-                                      <div className="flex items-center gap-2">
-                                        <p
-                                          className={`text-xs ${
+                                      {dosen.email && (
+                                        <div className="flex items-center gap-2">
+                                          <p
+                                            className={`text-xs ${
                                               isEmailValid && isEmailVerified
-                                              ? "text-gray-500 dark:text-gray-400"
-                                              : "text-red-600 dark:text-red-400"
-                                          }`}
-                                        >
-                                          Email: {dosen.email}
-                                        </p>
-                                        {isEmailVerified && (
-                                          <span className="inline-flex items-center px-1 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">
-                                            ✓ Aktif
-                                          </span>
-                                        )}
-                                      </div>
+                                                ? "text-gray-500 dark:text-gray-400"
+                                                : "text-red-600 dark:text-red-400"
+                                            }`}
+                                          >
+                                            Email: {dosen.email}
+                                          </p>
+                                          {isEmailVerified && (
+                                            <span className="inline-flex items-center px-1 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">
+                                              ✓ Aktif
+                                            </span>
+                                          )}
+                                        </div>
                                       )}
                                       {dosen.whatsapp_phone && (
                                         <div className="flex items-center gap-2">
@@ -4250,11 +4496,16 @@ const AdminNotifications: React.FC = () => {
                         <p className="text-xs text-orange-600 dark:text-orange-400 mb-4">
                           {selectedReminderDosen.size > 0 ? (
                             <>
-                              <span className="font-semibold">{selectedReminderDosen.size} dosen dipilih</span> dari {pendingDosenTotal} dosen akan menerima pengingat
+                              <span className="font-semibold">
+                                {selectedReminderDosen.size} dosen dipilih
+                              </span>{" "}
+                              dari {pendingDosenTotal} dosen akan menerima
+                              pengingat
                             </>
                           ) : (
                             <>
-                              Total: {pendingDosenTotal} dosen akan menerima pengingat
+                              Total: {pendingDosenTotal} dosen akan menerima
+                              pengingat
                             </>
                           )}
                         </p>
@@ -4336,7 +4587,20 @@ const AdminNotifications: React.FC = () => {
                   </button>
                   <button
                     onClick={handleSendReminder}
-                    disabled={isSendingReminder || (selectedReminderDosen.size === 0 && pendingDosenList.length > 0)}
+                    disabled={
+                      isSendingReminder ||
+                      // Disabled jika:
+                      // 1. Tidak ada selected dosen DAN
+                      // 2. Tidak ada filter (semester/blok/reminder_type) DAN
+                      // 3. Ada pendingDosenList (ada data yang bisa dipilih)
+                      (selectedReminderDosen.size === 0 &&
+                        !pendingDosenSemester &&
+                        !pendingDosenBlok &&
+                        !pendingDosenReminderType &&
+                        pendingDosenList.length > 0) ||
+                      // ATAU tidak ada data sama sekali
+                      pendingDosenList.length === 0
+                    }
                     className="px-3 sm:px-4 py-2 rounded-lg bg-orange-500 text-white text-xs sm:text-sm font-medium hover:bg-orange-600 transition-all duration-300 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
                   >
                     {isSendingReminder ? (
@@ -4348,7 +4612,7 @@ const AdminNotifications: React.FC = () => {
                       <>
                         <FontAwesomeIcon icon={faRedo} className="w-4 h-4" />
                         <span>
-                          {selectedReminderDosen.size > 0 
+                          {selectedReminderDosen.size > 0
                             ? `Kirim Pengingat (${selectedReminderDosen.size})`
                             : "Kirim Pengingat"}
                         </span>
@@ -4422,7 +4686,7 @@ const AdminNotifications: React.FC = () => {
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                       Pilih dosen dan ubah status konfirmasinya
                     </p>
-          </div>
+                  </div>
                 </div>
 
                 <div>
@@ -4516,10 +4780,12 @@ const AdminNotifications: React.FC = () => {
                       <div className="space-y-3 max-h-[400px] overflow-y-auto">
                         {pendingDosenList.map((dosen: any, index: number) => {
                           // Ensure jadwal_id is clean (remove colon if present)
-                          const cleanJadwalId = typeof dosen.jadwal_id === "string" && dosen.jadwal_id.includes(":") 
-                            ? dosen.jadwal_id.split(":")[0] 
-                            : dosen.jadwal_id;
-                          
+                          const cleanJadwalId =
+                            typeof dosen.jadwal_id === "string" &&
+                            dosen.jadwal_id.includes(":")
+                              ? dosen.jadwal_id.split(":")[0]
+                              : dosen.jadwal_id;
+
                           const key = `${cleanJadwalId}_${dosen.dosen_id}`;
                           const isSelected = selectedDosenList.has(key);
                           const selectedData = selectedDosenList.get(key);
@@ -4614,7 +4880,10 @@ const AdminNotifications: React.FC = () => {
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleChangeStatusForDosen(dosen, "bisa");
+                                        handleChangeStatusForDosen(
+                                          dosen,
+                                          "bisa"
+                                        );
                                       }}
                                       className={`p-3 border-2 rounded-lg transition-all ${
                                         currentStatus === "bisa"
@@ -4658,7 +4927,10 @@ const AdminNotifications: React.FC = () => {
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleChangeStatusForDosen(dosen, "tidak_bisa");
+                                        handleChangeStatusForDosen(
+                                          dosen,
+                                          "tidak_bisa"
+                                        );
                                       }}
                                       className={`p-3 border-2 rounded-lg transition-all ${
                                         currentStatus === "tidak_bisa"
@@ -4718,7 +4990,8 @@ const AdminNotifications: React.FC = () => {
                           Tidak ada dosen yang belum konfirmasi
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          Semua dosen sudah konfirmasi atau tidak ada jadwal yang menunggu konfirmasi
+                          Semua dosen sudah konfirmasi atau tidak ada jadwal
+                          yang menunggu konfirmasi
                         </p>
                       </div>
                     )}
@@ -4833,74 +5106,439 @@ const AdminNotifications: React.FC = () => {
             </motion.div>
           </motion.div>
         )}
-        </AnimatePresence>
+      </AnimatePresence>
 
-        {/* Reminder Success Modal */}
+      {/* Reminder Success Modal */}
       <AnimatePresence mode="wait">
-          {showReminderSuccessModal && (
+        {showReminderSuccessModal && (
           <motion.div
             key="reminder-success-modal"
             className="fixed inset-0 z-[100000] flex items-center justify-center"
           >
-              {/* Overlay */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowReminderSuccessModal(false)}
+            />
+
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
                 onClick={() => setShowReminderSuccessModal(false)}
-              />
-
-              {/* Modal Content */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.2 }}
-                className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
               >
-                {/* Close Button */}
-                  <button
-                  onClick={() => setShowReminderSuccessModal(false)}
-                  className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
                 >
-                  <svg
-                    width="20"
-                    height="20"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    className="w-6 h-6"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      clipRule="evenodd"
-                      d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
-                      fill="currentColor"
-                    />
-                  </svg>
-                  </button>
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
 
-                <div className="text-center">
-                  <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <FontAwesomeIcon
-                      icon={faCheckCircle}
-                      className="w-8 h-8 text-green-600 dark:text-green-400"
-                    />
+              <div className="text-center">
+                <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FontAwesomeIcon
+                    icon={faCheckCircle}
+                    className="w-8 h-8 text-green-600 dark:text-green-400"
+                  />
                 </div>
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                   {reminderSuccessMessage.includes("berhasil")
                     ? "Berhasil!"
                     : "Terjadi Kesalahan"}
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-400 mb-6">
-                    {reminderSuccessMessage}
-                  </p>
-                  <button
-                    onClick={() => setShowReminderSuccessModal(false)}
-                    className="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-4 rounded-xl transition-colors"
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  {reminderSuccessMessage}
+                </p>
+                <button
+                  onClick={() => setShowReminderSuccessModal(false)}
+                  className="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-3 px-4 rounded-xl transition-colors"
+                >
+                  OK
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Reset Notification Modal - Select Scope */}
+      <AnimatePresence mode="wait">
+        {showResetModal && (
+          <motion.div
+            key="reset-modal"
+            className="fixed inset-0 z-[100000] flex items-center justify-center"
+          >
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowResetModal(false)}
+            />
+
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => setShowResetModal(false)}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+
+              <div>
+                {/* Header */}
+                <div className="flex items-center space-x-4 mb-6">
+                  <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-2xl flex items-center justify-center">
+                    <FontAwesomeIcon
+                      icon={faTrash}
+                      className="w-6 h-6 text-red-600 dark:text-red-400"
+                    />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                      Reset Notification
+                    </h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Pilih scope notifikasi yang akan direset
+                    </p>
+                  </div>
+                </div>
+
+                {/* Scope Selection */}
+                <div className="space-y-3 mb-6">
+                  <label
+                    className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 ${
+                      resetScope === "all"
+                        ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-600"
+                        : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    }`}
                   >
-                    OK
+                    <div
+                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mr-4 ${
+                        resetScope === "all"
+                          ? "bg-red-500 border-red-500"
+                          : "border-gray-300 dark:border-gray-600"
+                      }`}
+                    >
+                      {resetScope === "all" && (
+                        <svg
+                          className="w-3 h-3 text-white"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      )}
+                    </div>
+                    <input
+                      type="radio"
+                      name="resetScope"
+                      value="all"
+                      checked={resetScope === "all"}
+                      onChange={(e) =>
+                        setResetScope(
+                          e.target.value as "all" | "dosen" | "mahasiswa"
+                        )
+                      }
+                      className="sr-only"
+                    />
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-red-100 dark:bg-red-900/20 rounded-lg flex items-center justify-center">
+                        <FontAwesomeIcon
+                          icon={faTrash}
+                          className="w-5 h-5 text-red-600 dark:text-red-400"
+                        />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          Semua Notifikasi
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Reset semua notifikasi (Dosen, Mahasiswa, dan Admin)
+                        </p>
+                      </div>
+                    </div>
+                  </label>
+
+                  <label
+                    className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 ${
+                      resetScope === "dosen"
+                        ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-600"
+                        : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    }`}
+                  >
+                    <div
+                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mr-4 ${
+                        resetScope === "dosen"
+                          ? "bg-red-500 border-red-500"
+                          : "border-gray-300 dark:border-gray-600"
+                      }`}
+                    >
+                      {resetScope === "dosen" && (
+                        <svg
+                          className="w-3 h-3 text-white"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      )}
+                    </div>
+                    <input
+                      type="radio"
+                      name="resetScope"
+                      value="dosen"
+                      checked={resetScope === "dosen"}
+                      onChange={(e) =>
+                        setResetScope(
+                          e.target.value as "all" | "dosen" | "mahasiswa"
+                        )
+                      }
+                      className="sr-only"
+                    />
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                        <FontAwesomeIcon
+                          icon={faUser}
+                          className="w-5 h-5 text-blue-600 dark:text-blue-400"
+                        />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          Notifikasi Dosen
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Reset hanya notifikasi yang dikirim ke dosen
+                        </p>
+                      </div>
+                    </div>
+                  </label>
+
+                  <label
+                    className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-200 ${
+                      resetScope === "mahasiswa"
+                        ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-600"
+                        : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    }`}
+                  >
+                    <div
+                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mr-4 ${
+                        resetScope === "mahasiswa"
+                          ? "bg-red-500 border-red-500"
+                          : "border-gray-300 dark:border-gray-600"
+                      }`}
+                    >
+                      {resetScope === "mahasiswa" && (
+                        <svg
+                          className="w-3 h-3 text-white"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      )}
+                    </div>
+                    <input
+                      type="radio"
+                      name="resetScope"
+                      value="mahasiswa"
+                      checked={resetScope === "mahasiswa"}
+                      onChange={(e) =>
+                        setResetScope(
+                          e.target.value as "all" | "dosen" | "mahasiswa"
+                        )
+                      }
+                      className="sr-only"
+                    />
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
+                        <FontAwesomeIcon
+                          icon={faUser}
+                          className="w-5 h-5 text-green-600 dark:text-green-400"
+                        />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          Notifikasi Mahasiswa
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Reset hanya notifikasi yang dikirim ke mahasiswa
+                        </p>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    onClick={() => setShowResetModal(false)}
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    Batal
                   </button>
+                  <button
+                    onClick={() => {
+                      setShowResetModal(false);
+                      setShowResetConfirmModal(true);
+                    }}
+                    className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-lg hover:bg-red-600 transition-colors flex items-center space-x-2"
+                  >
+                    <FontAwesomeIcon icon={faTrash} className="w-4 h-4" />
+                    <span>Lanjutkan</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Reset Notification Confirm Modal */}
+      <AnimatePresence mode="wait">
+        {showResetConfirmModal && (
+          <motion.div
+            key="reset-confirm-modal"
+            className="fixed inset-0 z-[100000] flex items-center justify-center"
+          >
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowResetConfirmModal(false)}
+            />
+
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => setShowResetConfirmModal(false)}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+
+              <div className="text-center">
+                <div className="w-16 h-16 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FontAwesomeIcon
+                    icon={faExclamationTriangle}
+                    className="w-8 h-8 text-red-600 dark:text-red-400"
+                  />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                  Apakah Anda Yakin?
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-2">
+                  Anda akan mereset semua notifikasi{" "}
+                  <span className="font-semibold">
+                    {resetScope === "all"
+                      ? "(Semua)"
+                      : resetScope === "dosen"
+                      ? "(Dosen)"
+                      : "(Mahasiswa)"}
+                  </span>
+                </p>
+                <p className="text-sm text-red-600 dark:text-red-400 mb-6">
+                  Tindakan ini tidak dapat dibatalkan!
+                </p>
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setShowResetConfirmModal(false)}
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={handleResetNotifications}
+                    disabled={isResetting}
+                    className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                  >
+                    {isResetting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span>Memproses...</span>
+                      </>
+                    ) : (
+                      <>
+                        <FontAwesomeIcon icon={faTrash} className="w-4 h-4" />
+                        <span>Ya, Reset</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>

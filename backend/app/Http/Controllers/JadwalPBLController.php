@@ -559,57 +559,113 @@ class JadwalPBLController extends Controller
 
             $semesterType = $request->query('semester_type');
 
-            $query = JadwalPBL::with([
+            // PENTING: Query harus mengambil jadwal dimana:
+            // 1. dosen_id = $dosenId (dosen aktif saat ini)
+            // 2. ATAU $dosenId ada di dosen_ids (dosen lama/history)
+            // Filter semester_type harus diterapkan ke kedua kondisi
+            
+            // Gunakan Eloquent untuk query yang lebih reliable
+            $jadwalQuery = JadwalPBL::with([
                 'modulPBL.mataKuliah',
                 'kelompokKecil',
                 'kelompokKecilAntara',
                 'dosen',
                 'ruangan'
             ])
-                ->where(function ($query) use ($dosenId) {
-                    // Ambil jadwal dimana dosen_id adalah dosen yang sedang login
-                    $query->where('dosen_id', $dosenId);
-                })
-                ->orWhere(function ($query) use ($dosenId) {
-                    // Juga ambil jadwal dimana dosen_id ada di dosen_ids (untuk history)
-                    $query->whereJsonContains('dosen_ids', $dosenId);
-                });
-
-            // Filter berdasarkan semester type jika ada
-            if ($semesterType && $semesterType !== 'all') {
-                if ($semesterType === 'reguler') {
-                    $query->whereNull('kelompok_kecil_antara_id');
-                } elseif ($semesterType === 'antara') {
-                    $query->whereNotNull('kelompok_kecil_antara_id');
+            ->where(function ($query) use ($dosenId, $semesterType) {
+                // Kondisi 1: Dosen aktif (dosen_id = $dosenId)
+                $query->where('dosen_id', $dosenId);
+                
+                // Filter semester_type untuk kondisi 1
+                if ($semesterType && $semesterType !== 'all') {
+                    if ($semesterType === 'reguler') {
+                        $query->whereNull('kelompok_kecil_antara_id');
+                    } elseif ($semesterType === 'antara') {
+                        $query->whereNotNull('kelompok_kecil_antara_id');
+                    }
                 }
+            })
+            ->orWhere(function ($query) use ($dosenId, $semesterType) {
+                // Kondisi 2: Dosen lama/history ($dosenId ada di dosen_ids)
+                // Coba beberapa metode untuk memastikan kompatibilitas
+                $query->whereNotNull('dosen_ids')
+                    ->where(function ($q) use ($dosenId) {
+                        // Metode 1: JSON_CONTAINS untuk MySQL
+                        $q->whereRaw('JSON_CONTAINS(dosen_ids, ?)', [json_encode($dosenId)])
+                            // Metode 2: JSON_SEARCH untuk MySQL (fallback)
+                            ->orWhereRaw('JSON_SEARCH(dosen_ids, "one", ?) IS NOT NULL', [$dosenId])
+                            // Metode 3: LIKE untuk string (fallback jika JSON tidak bekerja)
+                            ->orWhereRaw('CAST(dosen_ids AS CHAR) LIKE ?', ['%"' . $dosenId . '"%'])
+                            ->orWhereRaw('CAST(dosen_ids AS CHAR) LIKE ?', ['%' . $dosenId . '%']);
+                    });
+                
+                // Filter semester_type untuk kondisi 2
+                if ($semesterType && $semesterType !== 'all') {
+                    if ($semesterType === 'reguler') {
+                        $query->whereNull('kelompok_kecil_antara_id');
+                    } elseif ($semesterType === 'antara') {
+                        $query->whereNotNull('kelompok_kecil_antara_id');
+                    }
+                }
+            })
+            ->orderBy('tanggal')
+            ->orderBy('jam_mulai');
+
+            // Get all jadwal
+            $jadwal = $jadwalQuery->get();
+            
+            // Fallback: Jika tidak ada hasil, coba ambil semua jadwal dan filter di PHP
+            if ($jadwal->isEmpty()) {
+                Log::warning("No jadwal found with query, trying fallback method for dosen ID: {$dosenId}");
+                $allJadwal = JadwalPBL::with([
+                    'modulPBL.mataKuliah',
+                    'kelompokKecil',
+                    'kelompokKecilAntara',
+                    'dosen',
+                    'ruangan'
+                ])->get();
+                
+                $jadwal = $allJadwal->filter(function ($item) use ($dosenId, $semesterType) {
+                    // Cek apakah dosen_id atau dosen_ids cocok
+                    $isDosenActive = ($item->dosen_id == $dosenId);
+                    $isDosenInHistory = false;
+                    
+                    if ($item->dosen_ids) {
+                        $dosenIds = is_array($item->dosen_ids) ? $item->dosen_ids : json_decode($item->dosen_ids, true);
+                        $isDosenInHistory = is_array($dosenIds) && in_array($dosenId, $dosenIds);
+                    }
+                    
+                    if (!$isDosenActive && !$isDosenInHistory) {
+                        return false;
+                    }
+                    
+                    // Filter semester_type
+                    if ($semesterType && $semesterType !== 'all') {
+                        if ($semesterType === 'reguler' && $item->kelompok_kecil_antara_id) {
+                            return false;
+                        } elseif ($semesterType === 'antara' && !$item->kelompok_kecil_antara_id) {
+                            return false;
+                        }
+                    }
+                    
+                    return true;
+                })->sortBy([
+                    ['tanggal', 'asc'],
+                    ['jam_mulai', 'asc']
+                ])->values();
             }
 
-            // Use raw query to get data
-            $rawJadwal = DB::table('jadwal_pbl')
-                ->where(function ($query) use ($dosenId) {
-                    $query->where('dosen_id', $dosenId)
-                        ->orWhereJsonContains('dosen_ids', $dosenId);
-                })
-                ->when($semesterType === 'antara', function ($q) {
-                    $q->whereNotNull('kelompok_kecil_antara_id');
-                })
-                ->when($semesterType === 'reguler', function ($q) {
-                    $q->whereNull('kelompok_kecil_antara_id');
-                })
-                ->orderBy('tanggal')
-                ->orderBy('jam_mulai')
-                ->get();
+            Log::info("Found {$jadwal->count()} JadwalPBL records for dosen ID: {$dosenId}");
 
-            Log::info("Raw query found {$rawJadwal->count()} records");
-
-            // Convert to Eloquent models for relationships
-            $jadwal = JadwalPBL::with([
-                'modulPBL.mataKuliah',
-                'kelompokKecil',
-                'kelompokKecilAntara',
-                'dosen',
-                'ruangan'
-            ])->whereIn('id', $rawJadwal->pluck('id'))->get();
+            // Log untuk debugging: cek apakah ada jadwal dengan dosen_ids yang mengandung $dosenId
+            $jadwal->each(function ($item) use ($dosenId) {
+                if ($item->dosen_ids) {
+                    $dosenIds = is_array($item->dosen_ids) ? $item->dosen_ids : json_decode($item->dosen_ids, true);
+                    if (is_array($dosenIds) && in_array($dosenId, $dosenIds)) {
+                        Log::info("Jadwal ID {$item->id}: dosen_id={$item->dosen_id}, dosen_ids=" . json_encode($dosenIds) . ", current_dosen={$dosenId}, is_active=" . ($item->dosen_id == $dosenId ? 'yes' : 'no'));
+                    }
+                }
+            });
 
             // Load dosen for each jadwal based on dosen_ids
             $jadwal->each(function ($item) {
@@ -624,16 +680,31 @@ class JadwalPBLController extends Controller
                 }
             });
 
-            Log::info("Found {$jadwal->count()} JadwalPBL records for dosen ID: {$dosenId}");
-
-            $mappedJadwal = $jadwal->map(function ($jadwal) {
+            $mappedJadwal = $jadwal->map(function ($jadwal) use ($dosenId) {
                 // Determine semester type based on kelompok_kecil_antara_id
                 $semesterType = $jadwal->kelompok_kecil_antara_id ? 'antara' : 'reguler';
+
+                // PENTING: Tentukan apakah dosen ini adalah dosen aktif (dosen_id) atau hanya ada di history (dosen_ids)
+                $isActiveDosen = ($jadwal->dosen_id == $dosenId);
+                $isInHistory = false;
+                if (!$isActiveDosen && $jadwal->dosen_ids) {
+                    $dosenIds = is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true);
+                    $isInHistory = is_array($dosenIds) && in_array($dosenId, $dosenIds);
+                }
+
+                // Jika dosen hanya ada di history (sudah diganti), status harus "tidak_bisa" dan tidak bisa diubah
+                $statusKonfirmasi = $jadwal->status_konfirmasi ?? 'belum_konfirmasi';
+                if ($isInHistory && !$isActiveDosen) {
+                    // Dosen lama yang sudah diganti: status tetap "tidak_bisa"
+                    $statusKonfirmasi = 'tidak_bisa';
+                }
 
                 return [
                     'id' => $jadwal->id,
                     'dosen_id' => $jadwal->dosen_id,
                     'dosen_ids' => $jadwal->dosen_ids,
+                    'is_active_dosen' => $isActiveDosen, // Flag: apakah dosen ini adalah dosen aktif
+                    'is_in_history' => $isInHistory, // Flag: apakah dosen ini hanya ada di history
                     'mata_kuliah_kode' => $jadwal->modulPBL->mataKuliah->kode ?? $jadwal->mata_kuliah_kode,
                     'mata_kuliah_nama' => $jadwal->modulPBL->mataKuliah->nama ?? 'Unknown',
                     'modul' => $jadwal->modulPBL->nama_modul ?? 'Unknown',
@@ -654,7 +725,7 @@ class JadwalPBLController extends Controller
                     })() : 'Unknown'),
                     'ruangan' => $jadwal->ruangan->nama ?? 'Unknown',
                     'lokasi' => $jadwal->ruangan->nama ?? 'Unknown',
-                    'status_konfirmasi' => $jadwal->status_konfirmasi ?? 'belum_konfirmasi',
+                    'status_konfirmasi' => $statusKonfirmasi, // Status berdasarkan apakah dosen aktif atau history
                     'alasan_konfirmasi' => $jadwal->alasan_konfirmasi ?? null,
                     'status_reschedule' => $jadwal->status_reschedule ?? null,
                     'reschedule_reason' => $jadwal->reschedule_reason ?? null,
@@ -942,6 +1013,7 @@ class JadwalPBLController extends Controller
                     'jadwal_type' => 'pbl',
                     'dosen_id' => $jadwal->dosen_id,
                     'dosen_ids' => $jadwal->dosen_ids,
+                    'dosen_name' => $dosenName, // Simpan nama dosen untuk ditampilkan di frontend
                     'mata_kuliah' => $jadwal->modulPBL->mataKuliah->nama,
                     'modul' => $jadwal->modulPBL->modul_ke,
                     'tanggal' => $jadwal->tanggal,

@@ -1053,9 +1053,9 @@ class JadwalCSRController extends Controller
         try {
             $semesterType = $request->query('semester_type', 'reguler'); // CSR hanya ada di semester reguler
 
-            $query = JadwalCSR::with(['mataKuliah', 'ruangan', 'dosen', 'kelompokKecil', 'kategori'])
-                ->where('dosen_id', $dosenId);
-
+            // PENTING: Query harus mengambil jadwal dimana:
+            // 1. dosen_id = $dosenId (dosen aktif saat ini)
+            // 2. ATAU $dosenId ada di dosen_ids (dosen lama/history)
             // CSR hanya ada di semester reguler, tidak ada semester antara
             if ($semesterType === 'antara') {
                 return response()->json([
@@ -1064,12 +1064,52 @@ class JadwalCSRController extends Controller
                 ]);
             }
 
+            $query = JadwalCSR::with(['mataKuliah', 'ruangan', 'dosen', 'kelompokKecil', 'kategori'])
+                ->where(function ($q) use ($dosenId) {
+                    // Kondisi 1: Dosen aktif (dosen_id = $dosenId)
+                    $q->where('dosen_id', $dosenId);
+                })
+                ->orWhere(function ($q) use ($dosenId) {
+                    // Kondisi 2: Dosen lama/history ($dosenId ada di dosen_ids)
+                    $q->whereNotNull('dosen_ids')
+                        ->where(function ($subQ) use ($dosenId) {
+                            // Coba beberapa metode untuk kompatibilitas
+                            $subQ->whereRaw('JSON_CONTAINS(dosen_ids, ?)', [json_encode($dosenId)])
+                                ->orWhereRaw('JSON_SEARCH(dosen_ids, "one", ?) IS NOT NULL', [$dosenId])
+                                ->orWhereRaw('CAST(dosen_ids AS CHAR) LIKE ?', ['%"' . $dosenId . '"%'])
+                                ->orWhereRaw('CAST(dosen_ids AS CHAR) LIKE ?', ['%' . $dosenId . '%']);
+                        });
+                });
+
             $jadwal = $query->orderBy('tanggal')
                 ->orderBy('jam_mulai')
                 ->get();
 
             // Map data untuk konsistensi dengan jadwal lain
-            $mappedJadwal = $jadwal->map(function ($item) {
+            $mappedJadwal = $jadwal->map(function ($item) use ($dosenId) {
+                // Parse dosen_ids jika ada
+                $dosenIds = [];
+                if ($item->dosen_ids) {
+                    $dosenIds = is_array($item->dosen_ids) ? $item->dosen_ids : json_decode($item->dosen_ids, true);
+                    if (!is_array($dosenIds)) {
+                        $dosenIds = [];
+                    }
+                }
+
+                // PENTING: Tentukan apakah dosen ini adalah dosen aktif (dosen_id) atau hanya ada di history (dosen_ids)
+                $isActiveDosen = ($item->dosen_id == $dosenId);
+                $isInHistory = false;
+                if (!$isActiveDosen && !empty($dosenIds)) {
+                    $isInHistory = in_array($dosenId, $dosenIds);
+                }
+
+                // Jika dosen hanya ada di history (sudah diganti), status harus "tidak_bisa" dan tidak bisa diubah
+                $statusKonfirmasi = $item->status_konfirmasi ?? 'belum_konfirmasi';
+                if ($isInHistory && !$isActiveDosen) {
+                    // Dosen lama yang sudah diganti: status tetap "tidak_bisa"
+                    $statusKonfirmasi = 'tidak_bisa';
+                }
+
                 return [
                     'id' => $item->id,
                     'tanggal' => date('d-m-Y', strtotime($item->tanggal)),
@@ -1077,7 +1117,7 @@ class JadwalCSRController extends Controller
                     'jam_selesai' => substr(str_replace(':', '.', $item->jam_selesai), 0, 5), // Remove seconds
                     'materi' => $item->topik,
                     'topik' => $item->topik,
-                    'status_konfirmasi' => $item->status_konfirmasi ?? 'belum_konfirmasi',
+                    'status_konfirmasi' => $statusKonfirmasi, // Status berdasarkan apakah dosen aktif atau history
                     'alasan_konfirmasi' => $item->alasan_konfirmasi,
                     'status_reschedule' => $item->status_reschedule ?? null,
                     'reschedule_reason' => $item->reschedule_reason ?? null,
@@ -1089,6 +1129,10 @@ class JadwalCSRController extends Controller
                         'id' => $item->dosen->id,
                         'name' => $item->dosen->name
                     ],
+                    'dosen_id' => $item->dosen_id,
+                    'dosen_ids' => $dosenIds,
+                    'is_active_dosen' => $isActiveDosen, // Flag: apakah dosen ini adalah dosen aktif
+                    'is_in_history' => $isInHistory, // Flag: apakah dosen ini hanya ada di history
                     'ruangan' => [
                         'id' => $item->ruangan->id ?? null,
                         'nama' => $item->ruangan->nama ?? 'N/A'
@@ -1509,6 +1553,7 @@ class JadwalCSRController extends Controller
                         'jadwal_id' => $jadwal->id,
                         'jadwal_type' => 'csr',
                         'dosen_id' => $jadwal->dosen_id,
+                        'dosen_name' => $jadwal->dosen->name, // Simpan nama dosen untuk ditampilkan di frontend
                         'mata_kuliah' => $jadwal->mataKuliah->nama,
                         'kategori' => $jadwal->kategori->nama,
                         'tanggal' => $jadwal->tanggal,

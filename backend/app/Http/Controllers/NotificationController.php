@@ -505,6 +505,63 @@ class NotificationController extends Controller
     }
 
     /**
+     * Reset notifications for admin based on scope (all, dosen, mahasiswa)
+     */
+    public function resetNotificationsForAdmin(Request $request)
+    {
+        // Check if user is admin or tim akademik
+        if (!Auth::user() || !in_array(Auth::user()->role, ['admin', 'super_admin', 'tim_akademik'])) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $scope = $request->get('scope', 'all'); // all, dosen, mahasiswa
+
+        $query = Notification::query();
+
+        // Apply scope filter (same logic as getAllNotificationsForAdmin)
+        if ($scope === 'dosen') {
+            // Filter notifications sent to dosen
+            $query->whereHas('user', function ($q) {
+                $q->whereIn('role', ['dosen', 'koordinator', 'tim_blok', 'dosen_mengajar']);
+            });
+        } elseif ($scope === 'mahasiswa') {
+            // Filter notifications sent to mahasiswa
+            $query->whereHas('user', function ($q) {
+                $q->where('role', 'mahasiswa');
+            });
+        } elseif ($scope === 'my_notifications') {
+            // Filter notifications for current admin user only
+            $currentUser = Auth::user();
+            
+            if ($currentUser->role === 'super_admin') {
+                // Super Admin can see all admin notifications
+                $adminIds = User::whereIn('role', ['admin', 'super_admin', 'tim_akademik'])->pluck('id')->toArray();
+                $query->where(function ($q) use ($currentUser, $adminIds) {
+                    $q->where('user_id', $currentUser->id)
+                        ->orWhereIn('user_id', $adminIds);
+                });
+            } else {
+                // Tim Akademik can only see their own notifications
+                $query->where('user_id', $currentUser->id);
+            }
+        }
+        // If scope is 'all', delete all notifications (no filter)
+
+        $deletedCount = $query->count();
+        $query->delete();
+
+        // Log activity
+        activity()
+            ->log("Reset notifications for admin - Scope: {$scope}, Deleted: {$deletedCount}");
+
+        return response()->json([
+            'message' => 'Notifications reset successfully',
+            'deleted_count' => $deletedCount,
+            'scope' => $scope
+        ]);
+    }
+
+    /**
      * Delete a specific notification
      */
     public function deleteNotification($notificationId)
@@ -846,6 +903,96 @@ class NotificationController extends Controller
                 'read_at' => now()
             ]);
 
+            // PENTING: Jika dosen pengganti sudah pernah punya notifikasi "Tidak Bisa Mengajar" untuk jadwal ini,
+            // hapus atau mark as read notifikasi lama tersebut agar tidak muncul lagi
+            // Ini memastikan dosen pengganti mendapat notifikasi assignment baru "Menunggu Konfirmasi", bukan notifikasi lama "Tidak Bisa Mengajar"
+            $notificationData = is_string($notification->data) ? json_decode($notification->data, true) : ($notification->data ?? []);
+            $jadwalId = $request->jadwal_id;
+            $jadwalType = $request->jadwal_type;
+            $newDosenId = $request->new_dosen_id;
+
+            // PENTING: Cari notifikasi lama "Tidak Bisa Mengajar" untuk dosen pengganti pada jadwal yang sama
+            // TIDAK PEDULI sudah dibaca atau belum, langsung timpa dengan notifikasi assignment baru
+            // Cari semua notifikasi yang terkait dengan "tidak bisa mengajar" (baik dari dosen sendiri atau dari admin)
+            $allOldNotifications = Notification::where('user_id', $newDosenId)
+                ->where(function ($query) {
+                    $query->where('title', 'LIKE', '%Dosen Tidak Bisa Mengajar%')
+                        ->orWhere('title', 'LIKE', '%Tidak Bisa Mengajar%')
+                        ->orWhere('title', 'LIKE', '%Status Konfirmasi Diubah%'); // Juga cari notifikasi status change
+                })
+                ->get(); // Ambil semua, tidak peduli sudah dibaca atau belum
+
+            // Filter notifikasi yang sesuai dengan jadwal_id dan jadwal_type
+            // Juga filter yang statusnya "tidak_bisa" untuk notifikasi "Status Konfirmasi Diubah"
+            $oldNotifications = $allOldNotifications->filter(function ($notif) use ($jadwalId, $jadwalType) {
+                $notifData = is_string($notif->data) ? json_decode($notif->data, true) : ($notif->data ?? []);
+                
+                // Cek apakah jadwal_id dan jadwal_type cocok
+                $isMatchingJadwal = isset($notifData['jadwal_id']) && 
+                                   isset($notifData['jadwal_type']) &&
+                                   $notifData['jadwal_id'] == $jadwalId &&
+                                   $notifData['jadwal_type'] == $jadwalType;
+                
+                if (!$isMatchingJadwal) {
+                    return false;
+                }
+                
+                // Jika ini notifikasi "Status Konfirmasi Diubah", cek apakah statusnya "tidak_bisa"
+                if (strpos($notif->title, 'Status Konfirmasi Diubah') !== false) {
+                    return isset($notifData['status_konfirmasi']) && $notifData['status_konfirmasi'] === 'tidak_bisa';
+                }
+                
+                // Untuk notifikasi "Tidak Bisa Mengajar", langsung return true
+                return true;
+            });
+
+            // Update notifikasi lama menjadi notifikasi assignment baru (langsung timpa)
+            $newNotification = null;
+            if ($oldNotifications->count() > 0) {
+                // Gunakan notifikasi pertama yang ditemukan untuk diupdate
+                $oldNotif = $oldNotifications->first();
+                $oldNotif->update([
+                    'title' => 'Penugasan Jadwal Baru',
+                    'message' => "Anda ditugaskan sebagai dosen pengganti untuk jadwal yang sebelumnya ditolak oleh dosen lain. Silakan konfirmasi ketersediaan Anda.",
+                    'type' => 'info',
+                    'is_read' => false, // Reset menjadi belum dibaca
+                    'read_at' => null, // Reset read_at
+                    'data' => array_merge($notificationData, [
+                        'jadwal_id' => $jadwalId,
+                        'jadwal_type' => $jadwalType,
+                        'replacement' => true,
+                        'original_dosen' => $notificationData['dosen_name'] ?? $notificationData['sender_name'] ?? 'Unknown',
+                        'admin_action' => 'replaced'
+                    ])
+                ]);
+                $newNotification = $oldNotif;
+                \Log::info("Updated old 'Tidak Bisa Mengajar' notification to 'Penugasan Jadwal Baru' for dosen {$newDosenId} on jadwal {$jadwalType} ID {$jadwalId}");
+
+                // Hapus notifikasi lama lainnya jika ada lebih dari satu
+                if ($oldNotifications->count() > 1) {
+                    $oldNotifications->skip(1)->each(function ($notif) {
+                        $notif->delete();
+                        \Log::info("Deleted duplicate old notification ID: {$notif->id}");
+                    });
+                }
+            } else {
+                // Jika tidak ada notifikasi lama, buat notifikasi baru
+                $newNotification = Notification::create([
+                    'user_id' => $newDosenId,
+                    'title' => 'Penugasan Jadwal Baru',
+                    'message' => "Anda ditugaskan sebagai dosen pengganti untuk jadwal yang sebelumnya ditolak oleh dosen lain. Silakan konfirmasi ketersediaan Anda.",
+                    'type' => 'info',
+                    'is_read' => false,
+                    'data' => array_merge($notificationData, [
+                        'jadwal_id' => $jadwalId,
+                        'jadwal_type' => $jadwalType,
+                        'replacement' => true,
+                        'original_dosen' => $notificationData['dosen_name'] ?? $notificationData['sender_name'] ?? 'Unknown',
+                        'admin_action' => 'replaced'
+                    ])
+                ]);
+                \Log::info("Created new 'Penugasan Jadwal Baru' notification for dosen {$newDosenId} on jadwal {$jadwalType} ID {$jadwalId}");
+            }
 
             // Log activity
 
@@ -866,21 +1013,6 @@ class NotificationController extends Controller
             activity()
 
                 ->log('Notification created');
-
-            // Create notification for new dosen
-            $notificationData = is_string($notification->data) ? json_decode($notification->data, true) : ($notification->data ?? []);
-            $newNotification = Notification::create([
-                'user_id' => $request->new_dosen_id,
-                'title' => 'Penugasan Jadwal Baru',
-                'message' => "Anda ditugaskan sebagai dosen pengganti untuk jadwal yang sebelumnya ditolak oleh dosen lain. Silakan konfirmasi ketersediaan Anda.",
-                'type' => 'info',
-                'is_read' => false,
-                'data' => array_merge($notificationData, [
-                    'replacement' => true,
-                    'original_dosen' => $notificationData['dosen_name'] ?? $notificationData['sender_name'] ?? 'Unknown',
-                    'admin_action' => 'replaced'
-                ])
-            ]);
 
             // Create success notification for admin
             $adminNotification = Notification::create([
@@ -3383,7 +3515,9 @@ class NotificationController extends Controller
                 'ruangan' => $jadwal->ruangan->nama ?? 'TBD',
                 'status_konfirmasi' => $status,
                 'changed_by' => $adminName,
-                'changed_by_role' => 'admin'
+                'changed_by_role' => 'admin',
+                'dosen_name' => $dosen->name, // Simpan nama dosen untuk ditampilkan di frontend
+                'dosen_id' => $dosen->id
             ]
         ]);
     }
