@@ -972,7 +972,7 @@ export default function WhatsAppTest() {
               <button
                 onClick={testSendMessage}
                 disabled={loading || !phone.trim() || !message.trim()}
-              className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg transition-all duration-200 font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-brand-500 hover:bg-brand-600 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg transition-all duration-200 font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <>
@@ -1173,7 +1173,7 @@ export default function WhatsAppTest() {
               }
             `}</style>
           {loadingRealtime ? (
-            <SkeletonTable />
+            <SkeletonTable columns={7} />
           ) : reportRealtime.length > 0 ? (
               <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
                 <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
@@ -1185,7 +1185,10 @@ export default function WhatsAppTest() {
                       Name
                     </th>
                     <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                      Phone
+                      Sender (BOT)
+                    </th>
+                    <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                      Recipient
                     </th>
                     <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                       Message
@@ -1202,7 +1205,8 @@ export default function WhatsAppTest() {
                   {paginatedReportRealtime.map((report: any, index: number) => {
                     const globalIndex = (reportPage - 1) * reportPageSize + index;
                     // Format phone - bisa object {from, to} atau string
-                    let phoneDisplay = "-";
+                    let senderPhone = "-";
+                    let recipientPhone = "-";
                     let phoneNumber = "";
                     if (report.phone) {
                       if (
@@ -1210,15 +1214,26 @@ export default function WhatsAppTest() {
                         report.phone.from &&
                         report.phone.to
                       ) {
-                        phoneDisplay = `${report.phone.from} → ${report.phone.to}`;
+                        senderPhone = String(report.phone.from);
+                        recipientPhone = String(report.phone.to);
                         phoneNumber = report.phone.to; // Ambil nomor tujuan untuk lookup nama
                       } else {
-                        phoneDisplay = String(report.phone);
+                        // Jika phone adalah string, anggap sebagai recipient
+                        recipientPhone = String(report.phone);
                         phoneNumber = String(report.phone);
                       }
                     } else if (report.recipient) {
-                      phoneDisplay = String(report.recipient);
+                      recipientPhone = String(report.recipient);
                       phoneNumber = String(report.recipient);
+                    }
+                    
+                    // Cek juga field from dan to langsung di report
+                    if (report.from && !senderPhone) {
+                      senderPhone = String(report.from);
+                    }
+                    if (report.to && !recipientPhone) {
+                      recipientPhone = String(report.to);
+                      phoneNumber = String(report.to);
                     }
 
                     // Cari nama dari contacts berdasarkan phone number
@@ -1286,7 +1301,10 @@ export default function WhatsAppTest() {
                           {contactName}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900 dark:text-white font-medium">
-                          {phoneDisplay}
+                          {senderPhone}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-white font-medium">
+                          {recipientPhone}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900 dark:text-white max-w-xs truncate">
                           {report.message || report.text || "-"}
@@ -1906,6 +1924,23 @@ export default function WhatsAppTest() {
                       </div>
                     )}
 
+                    <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                      <div className="flex items-start gap-2">
+                        <FontAwesomeIcon
+                          icon={faInfoCircle}
+                          className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5"
+                        />
+                        <div className="text-sm text-yellow-800 dark:text-yellow-300">
+                          <p className="font-semibold mb-1">Perhatian:</p>
+                          <p>
+                            Setelah menyimpan settings, halaman akan otomatis
+                            di-reload untuk menerapkan perubahan. Pastikan token
+                            dan secret key sudah benar.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
                   <div className="flex justify-end gap-2 pt-2 relative z-20">
                     <button
                       onClick={() => {
@@ -1959,23 +1994,6 @@ export default function WhatsAppTest() {
                           </>
                         )}
                       </button>
-                    </div>
-
-                    <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                      <div className="flex items-start gap-2">
-                        <FontAwesomeIcon
-                          icon={faInfoCircle}
-                          className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5"
-                        />
-                        <div className="text-sm text-yellow-800 dark:text-yellow-300">
-                          <p className="font-semibold mb-1">Perhatian:</p>
-                          <p>
-                            Setelah menyimpan settings, halaman akan otomatis
-                            di-reload untuk menerapkan perubahan. Pastikan token
-                            dan secret key sudah benar.
-                          </p>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 )}
