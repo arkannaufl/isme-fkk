@@ -11331,7 +11331,7 @@ export default function DetailBlok() {
               <tbody>
                 {jadwalKuliahBesar.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="text-center py-6 text-gray-400">
+                    <td colSpan={10} className="text-center py-6 text-gray-400">
                       Tidak ada data Kuliah Besar
                     </td>
                   </tr>
@@ -11411,10 +11411,6 @@ export default function DetailBlok() {
 
                         <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                           {getPengampuName(row)}
-                        </td>
-
-                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                          {getDosenPenggantiName(row)}
                         </td>
 
                         <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
@@ -11926,10 +11922,6 @@ export default function DetailBlok() {
                   </th>
 
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                    Dosen Pengganti
-                  </th>
-
-                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                     Topik
                   </th>
 
@@ -11946,7 +11938,7 @@ export default function DetailBlok() {
               <tbody>
                 {jadwalPraktikum.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="text-center py-6 text-gray-400">
+                    <td colSpan={11} className="text-center py-6 text-gray-400">
                       Tidak ada data Praktikum
                     </td>
                   </tr>
@@ -12021,10 +12013,6 @@ export default function DetailBlok() {
 
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {getPengampuName(row)}
-                      </td>
-
-                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                        {getDosenPenggantiName(row)}
                       </td>
 
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
