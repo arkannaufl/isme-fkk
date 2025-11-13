@@ -18,6 +18,7 @@ import {
   faDownload,
   faUpload,
   faExclamationTriangle,
+  faCheckCircle,
 } from "@fortawesome/free-solid-svg-icons";
 
 import { getRuanganOptions } from "../utils/ruanganHelper";
@@ -184,6 +185,7 @@ type DosenType = {
   name: string;
   nid?: string;
   keahlian?: string | string[];
+  role?: string;
 };
 
 type RuanganType = {
@@ -11320,7 +11322,7 @@ export default function DetailBlok() {
                     Lokasi
                   </th>
 
-                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap min-w-[180px]">
                     Aksi
                   </th>
                 </tr>
@@ -11429,46 +11431,57 @@ export default function DetailBlok() {
                           {ruangan?.nama || `Ruangan ${row.ruangan_id}`}
                         </td>
 
-                        <td className="px-4 py-4 text-center whitespace-nowrap">
-                          <button
-                            onClick={() => {
-                              // Cari index berdasarkan ID untuk memastikan data yang benar
-                              const correctIndex = jadwalKuliahBesar.findIndex(
-                                (j) => j.id === row.id
-                              );
-                              handleEditJadwalKuliahBesar(
-                                correctIndex >= 0 ? correctIndex : actualIndex
-                              );
-                            }}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2"
-                            title="Edit Jadwal"
-                          >
-                            <FontAwesomeIcon
-                              icon={faPenToSquare}
-                              className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500"
-                            />
+                        <td className="px-3 py-3 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1.5 flex-nowrap">
+                            {/* Tombol Absensi - tampilkan jika ada dosen yang terdaftar */}
+                            {row.dosen_id && (
+                              <button
+                                onClick={() => navigate(`/absensi-kuliah-besar/${kode}/${row.id}`)}
+                                className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors shrink-0"
+                                title="Buka Absensi"
+                              >
+                                <FontAwesomeIcon icon={faCheckCircle} className="w-3.5 h-3.5 shrink-0" />
+                                <span className="hidden xl:inline whitespace-nowrap">Absensi</span>
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                // Cari index berdasarkan ID untuk memastikan data yang benar
+                                const correctIndex = jadwalKuliahBesar.findIndex(
+                                  (j) => j.id === row.id
+                                );
+                                handleEditJadwalKuliahBesar(
+                                  correctIndex >= 0 ? correctIndex : actualIndex
+                                );
+                              }}
+                              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors shrink-0"
+                              title="Edit Jadwal"
+                            >
+                              <FontAwesomeIcon
+                                icon={faPenToSquare}
+                                className="w-3.5 h-3.5 shrink-0"
+                              />
+                              <span className="hidden xl:inline whitespace-nowrap">Edit</span>
+                            </button>
 
-                            <span className="hidden sm:inline">Edit</span>
-                          </button>
+                            <button
+                              onClick={() => {
+                                setSelectedDeleteIndex(actualIndex);
 
-                          <button
-                            onClick={() => {
-                              setSelectedDeleteIndex(actualIndex);
+                                setSelectedDeleteType("materi");
 
-                              setSelectedDeleteType("materi");
-
-                              setShowDeleteModal(true);
-                            }}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition"
-                            title="Hapus Jadwal"
-                          >
-                            <FontAwesomeIcon
-                              icon={faTrash}
-                              className="w-4 h-4 sm:w-5 sm:h-5 text-red-500"
-                            />
-
-                            <span className="hidden sm:inline">Hapus</span>
-                          </button>
+                                setShowDeleteModal(true);
+                              }}
+                              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors shrink-0"
+                              title="Hapus Jadwal"
+                            >
+                              <FontAwesomeIcon
+                                icon={faTrash}
+                                className="w-3.5 h-3.5 shrink-0"
+                              />
+                              <span className="hidden xl:inline whitespace-nowrap">Hapus</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -11924,7 +11937,7 @@ export default function DetailBlok() {
                     Lokasi
                   </th>
 
-                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap min-w-[180px]">
                     Aksi
                   </th>
                 </tr>
@@ -12022,44 +12035,55 @@ export default function DetailBlok() {
                         {row.ruangan?.nama || "Memuat..."}
                       </td>
 
-                      <td className="px-4 py-4 text-center whitespace-nowrap">
-                        <button
-                          onClick={() => {
-                            // Cari index berdasarkan ID untuk memastikan data yang benar
-                            const actualPraktikumIndex =
-                              (praktikumPage - 1) * praktikumPageSize + i;
-                            const correctIndex = jadwalPraktikum.findIndex(
-                              (j) => j.id === row.id
-                            );
-                            handleEditJadwalPraktikum(
-                              correctIndex >= 0
-                                ? correctIndex
-                                : actualPraktikumIndex
-                            );
-                          }}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2"
-                          title="Edit Jadwal"
-                        >
-                          <FontAwesomeIcon
-                            icon={faPenToSquare}
-                            className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500"
-                          />
+                      <td className="px-3 py-3 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5 flex-nowrap">
+                          {/* Tombol Absensi - tampilkan jika ada dosen yang terdaftar */}
+                          {(row.dosen_id || (row.dosen && row.dosen.length > 0)) && (
+                            <button
+                              onClick={() => navigate(`/absensi-praktikum/${kode}/${row.id}`)}
+                              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors shrink-0"
+                              title="Buka Absensi"
+                            >
+                              <FontAwesomeIcon icon={faCheckCircle} className="w-3.5 h-3.5 shrink-0" />
+                              <span className="hidden xl:inline whitespace-nowrap">Absensi</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              // Cari index berdasarkan ID untuk memastikan data yang benar
+                              const actualPraktikumIndex =
+                                (praktikumPage - 1) * praktikumPageSize + i;
+                              const correctIndex = jadwalPraktikum.findIndex(
+                                (j) => j.id === row.id
+                              );
+                              handleEditJadwalPraktikum(
+                                correctIndex >= 0
+                                  ? correctIndex
+                                  : actualPraktikumIndex
+                              );
+                            }}
+                            className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors shrink-0"
+                            title="Edit Jadwal"
+                          >
+                            <FontAwesomeIcon
+                              icon={faPenToSquare}
+                              className="w-3.5 h-3.5 shrink-0"
+                            />
+                            <span className="hidden xl:inline whitespace-nowrap">Edit</span>
+                          </button>
 
-                          <span className="hidden sm:inline">Edit</span>
-                        </button>
-
-                        <button
-                          onClick={() => handleDeleteJadwalPraktikum(i)}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition"
-                          title="Hapus Jadwal"
-                        >
-                          <FontAwesomeIcon
-                            icon={faTrash}
-                            className="w-4 h-4 sm:w-5 sm:h-5 text-red-500"
-                          />
-
-                          <span className="hidden sm:inline">Hapus</span>
-                        </button>
+                          <button
+                            onClick={() => handleDeleteJadwalPraktikum(i)}
+                            className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors shrink-0"
+                            title="Hapus Jadwal"
+                          >
+                            <FontAwesomeIcon
+                              icon={faTrash}
+                              className="w-3.5 h-3.5 shrink-0"
+                            />
+                            <span className="hidden xl:inline whitespace-nowrap">Hapus</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))

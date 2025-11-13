@@ -1688,7 +1688,7 @@ class JadwalKuliahBesarController extends Controller
                     }
                 } else {
                     // Fallback: jika tidak ada di kedua kondisi, tetap coba ambil dari dosen_id jika ada
-                    if ($item->dosen_id) {
+                if ($item->dosen_id) {
                         $dosenModel = \App\Models\User::find($item->dosen_id);
                         if ($dosenModel) {
                             $dosen = [
