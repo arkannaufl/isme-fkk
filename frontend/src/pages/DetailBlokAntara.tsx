@@ -2434,30 +2434,30 @@ export default function DetailBlokAntara() {
                         </td>
                         <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.topik || row.materi}</td>
                           <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{ruangan?.nama || `Ruangan ${row.ruangan_id}`}</td>
-                        <td className="px-4 py-4 text-center whitespace-nowrap">
-                          <div className="flex items-center justify-center gap-1 flex-wrap">
+                        <td className="px-3 py-3 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1.5 flex-nowrap">
                             {/* Tombol Absensi - tampilkan jika ada dosen yang terdaftar */}
                             {row.dosen_ids && row.dosen_ids.length > 0 && (
                               <button
                                 onClick={() => navigate(`/absensi-kuliah-besar-antara/${kode}/${row.id}`)}
-                                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-500 hover:text-green-700 dark:hover:text-green-300 transition mr-1"
+                                className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors shrink-0"
                                 title="Buka Absensi"
                               >
-                                <FontAwesomeIcon icon={faCheckCircle} className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
-                                <span className="hidden sm:inline">Absensi</span>
+                                <FontAwesomeIcon icon={faCheckCircle} className="w-3.5 h-3.5 shrink-0" />
+                                <span className="hidden xl:inline whitespace-nowrap">Absensi</span>
                               </button>
                             )}
-                            <button onClick={() => handleEditJadwalKuliahBesar(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-1" title="Edit Jadwal">
-                              <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
-                              <span className="hidden sm:inline">Edit</span>
+                            <button onClick={() => handleEditJadwalKuliahBesar(i)} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors shrink-0" title="Edit Jadwal">
+                              <FontAwesomeIcon icon={faPenToSquare} className="w-3.5 h-3.5 shrink-0" />
+                              <span className="hidden xl:inline whitespace-nowrap">Edit</span>
                             </button>
                             <button onClick={() => { 
                               setSelectedDeleteIndex(i); 
                               setSelectedDeleteType('materi');
                               setShowDeleteModal(true); 
-                            }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition" title="Hapus Jadwal">
-                              <FontAwesomeIcon icon={faTrash} className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
-                              <span className="hidden sm:inline">Hapus</span>
+                            }} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors shrink-0" title="Hapus Jadwal">
+                              <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5 shrink-0" />
+                              <span className="hidden xl:inline whitespace-nowrap">Hapus</span>
                             </button>
                           </div>
                         </td>
@@ -2701,26 +2701,50 @@ export default function DetailBlokAntara() {
                     <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                       {row.ruangan?.nama || 'Memuat...'}
                     </td>
-                    <td className="px-4 py-4 text-center whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-1 flex-wrap">
+                    <td className="px-3 py-3 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1.5 flex-nowrap">
                         {/* Tombol Absensi - tampilkan jika ada dosen yang terdaftar */}
-                        {row.dosen && row.dosen.length > 0 && (
+                        {(row.dosen_id || (row.dosen && row.dosen.length > 0)) && (
                           <button
                             onClick={() => navigate(`/absensi-praktikum-antara/${kode}/${row.id}`)}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-500 hover:text-green-700 dark:hover:text-green-300 transition mr-1"
+                            className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors shrink-0"
                             title="Buka Absensi"
                           >
-                            <FontAwesomeIcon icon={faCheckCircle} className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
-                            <span className="hidden sm:inline">Absensi</span>
+                            <FontAwesomeIcon icon={faCheckCircle} className="w-3.5 h-3.5 shrink-0" />
+                            <span className="hidden xl:inline whitespace-nowrap">Absensi</span>
                           </button>
                         )}
-                        <button onClick={() => handleEditJadwalPraktikum(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-1" title="Edit Jadwal">
-                          <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
-                          <span className="hidden sm:inline">Edit</span>
+                        <button
+                          onClick={() => {
+                            // Cari index berdasarkan ID untuk memastikan data yang benar
+                            const correctIndex = jadwalPraktikum.findIndex(
+                              (j) => j.id === row.id
+                            );
+                            handleEditJadwalPraktikum(
+                              correctIndex >= 0 ? correctIndex : i
+                            );
+                          }}
+                          className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors shrink-0"
+                          title="Edit Jadwal"
+                        >
+                          <FontAwesomeIcon icon={faPenToSquare} className="w-3.5 h-3.5 shrink-0" />
+                          <span className="hidden xl:inline whitespace-nowrap">Edit</span>
                         </button>
-                        <button onClick={() => handleDeleteJadwalPraktikum(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition" title="Hapus Jadwal">
-                          <FontAwesomeIcon icon={faTrash} className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
-                          <span className="hidden sm:inline">Hapus</span>
+                        <button
+                          onClick={() => {
+                            // Cari index berdasarkan ID untuk memastikan data yang benar
+                            const correctIndex = jadwalPraktikum.findIndex(
+                              (j) => j.id === row.id
+                            );
+                            handleDeleteJadwalPraktikum(
+                              correctIndex >= 0 ? correctIndex : i
+                            );
+                          }}
+                          className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors shrink-0"
+                          title="Hapus Jadwal"
+                        >
+                          <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5 shrink-0" />
+                          <span className="hidden xl:inline whitespace-nowrap">Hapus</span>
                         </button>
                       </div>
                     </td>
@@ -2853,15 +2877,17 @@ export default function DetailBlokAntara() {
                     <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {row.use_ruangan ? (allRuanganList.find(r => r.id === row.ruangan_id)?.nama || `Ruangan ${row.ruangan_id}`) : '-'}
                     </td>
-                    <td className="px-4 py-4 text-center whitespace-nowrap">
-                        <button onClick={() => handleEditJadwalAgendaKhusus(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
-                        <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
-                        <span className="hidden sm:inline">Edit</span>
+                    <td className="px-3 py-3 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1.5 flex-nowrap">
+                        <button onClick={() => handleEditJadwalAgendaKhusus(i)} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors shrink-0" title="Edit Jadwal">
+                          <FontAwesomeIcon icon={faPenToSquare} className="w-3.5 h-3.5 shrink-0" />
+                          <span className="hidden xl:inline whitespace-nowrap">Edit</span>
                       </button>
-                        <button onClick={() => handleDeleteJadwalAgendaKhusus(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition" title="Hapus Jadwal">
-                        <FontAwesomeIcon icon={faTrash} className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
-                        <span className="hidden sm:inline">Hapus</span>
+                        <button onClick={() => handleDeleteJadwalAgendaKhusus(i)} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors shrink-0" title="Hapus Jadwal">
+                          <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5 shrink-0" />
+                          <span className="hidden xl:inline whitespace-nowrap">Hapus</span>
                       </button>
+                      </div>
                     </td>
                   </tr>
                     ))
@@ -4416,12 +4442,16 @@ export default function DetailBlokAntara() {
                         <input type="text" name="jamSelesai" value={form.jamSelesai} readOnly className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm cursor-not-allowed" />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Keterangan Agenda</label>
-                        <select name="agenda" value={form.agenda} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                          <option value="">Pilih Keterangan Agenda</option>
-                          <option value="Persamaan Persepsi">Persamaan Persepsi</option>
-                          <option value="Pleno">Pleno</option>
-                        </select>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Agenda
+                        </label>
+                        <input
+                          type="text"
+                          name="agenda"
+                          value={form.agenda}
+                          onChange={handleFormChange}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kelompok Besar</label>
@@ -6026,27 +6056,29 @@ export default function DetailBlokAntara() {
                         <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                           {allRuanganList.find(r => r.id === Number(row.ruangan_id))?.nama || (loadingDosenRuangan ? 'Memuat...' : `Ruangan ${row.ruangan_id}`)}
                         </td>
-                        <td className="px-4 py-4 text-center whitespace-nowrap">
+                        <td className="px-3 py-3 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1.5 flex-nowrap">
                           <button
                             onClick={() => navigate(`/penilaian-pbl-antara/${kode}/${row.kelompok_kecil_antara?.nama_kelompok || ''}/${row.pbl_tipe || ''}?rowIndex=${i}&jadwal_id=${row.id || ''}`)}
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-yellow-500 hover:text-yellow-600 dark:hover:text-yellow-400 transition mr-2"
+                              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-yellow-600 hover:text-yellow-700 dark:text-yellow-400 dark:hover:text-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded transition-colors shrink-0"
                             title="Nilai"
                           >
-                            <FontAwesomeIcon icon={faStar} className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400" />
-                            <span className="hidden sm:inline">Nilai</span>
+                              <FontAwesomeIcon icon={faStar} className="w-3.5 h-3.5 shrink-0" />
+                              <span className="hidden xl:inline whitespace-nowrap">Nilai</span>
                           </button>
-                          <button onClick={() => handleEditJadwal(jadwalPBL.findIndex((j: JadwalPBLType) => j.id === row.id), 'pbl')} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
-                            <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
-                            <span className="hidden sm:inline">Edit</span>
+                            <button onClick={() => handleEditJadwal(jadwalPBL.findIndex((j: JadwalPBLType) => j.id === row.id), 'pbl')} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors shrink-0" title="Edit Jadwal">
+                              <FontAwesomeIcon icon={faPenToSquare} className="w-3.5 h-3.5 shrink-0" />
+                              <span className="hidden xl:inline whitespace-nowrap">Edit</span>
                           </button>
                           <button onClick={() => { 
                             setSelectedDeleteIndex(i); 
                             setSelectedDeleteType('pbl');
                             setShowDeleteModal(true); 
-                          }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition" title="Hapus Jadwal">
-                            <FontAwesomeIcon icon={faTrash} className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
-                            <span className="hidden sm:inline">Hapus</span>
+                            }} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors shrink-0" title="Hapus Jadwal">
+                              <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5 shrink-0" />
+                              <span className="hidden xl:inline whitespace-nowrap">Hapus</span>
                           </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -6402,7 +6434,8 @@ export default function DetailBlokAntara() {
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {allRuanganList.find(r => r.id === Number(row.ruangan_id))?.nama || (loadingDosenRuangan ? 'Memuat...' : `Ruangan ${row.ruangan_id}`)}
                       </td>
-                      <td className="px-4 py-4 text-center whitespace-nowrap">
+                      <td className="px-3 py-3 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5 flex-nowrap">
                         <button
                           onClick={() => {
                             // Validasi data sebelum navigasi
@@ -6424,20 +6457,21 @@ export default function DetailBlokAntara() {
                             // Navigasi ke halaman penilaian dengan jurnal_id
                             navigate(`/penilaian-jurnal-antara/${data!.kode}/${(row as any).kelompok_kecil_antara.nama_kelompok}/${row.id}`);
                           }}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-yellow-500 hover:text-yellow-600 dark:hover:text-yellow-400 transition mr-2"
+                            className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-yellow-600 hover:text-yellow-700 dark:text-yellow-400 dark:hover:text-yellow-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded transition-colors shrink-0"
                           title="Nilai"
                         >
-                          <FontAwesomeIcon icon={faStar} className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-400" />
-                          <span className="hidden sm:inline">Nilai</span>
+                            <FontAwesomeIcon icon={faStar} className="w-3.5 h-3.5 shrink-0" />
+                            <span className="hidden xl:inline whitespace-nowrap">Nilai</span>
                         </button>
-                        <button onClick={() => handleEditJadwalJurnalReading(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
-                          <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
-                          <span className="hidden sm:inline">Edit</span>
+                          <button onClick={() => handleEditJadwalJurnalReading(i)} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors shrink-0" title="Edit Jadwal">
+                            <FontAwesomeIcon icon={faPenToSquare} className="w-3.5 h-3.5 shrink-0" />
+                            <span className="hidden xl:inline whitespace-nowrap">Edit</span>
                         </button>
-                        <button onClick={() => handleDeleteJadwalJurnalReading(i)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition" title="Hapus Jadwal">
-                          <FontAwesomeIcon icon={faTrash} className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
-                          <span className="hidden sm:inline">Hapus</span>
+                          <button onClick={() => handleDeleteJadwalJurnalReading(i)} className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors shrink-0" title="Hapus Jadwal">
+                            <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5 shrink-0" />
+                            <span className="hidden xl:inline whitespace-nowrap">Hapus</span>
                         </button>
+                        </div>
                       </td>
                     </tr>
                   ))

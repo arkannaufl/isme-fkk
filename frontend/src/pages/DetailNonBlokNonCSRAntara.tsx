@@ -922,16 +922,16 @@ export default function DetailNonBlokNonCSR() {
                         {row.jenis_baris === 'agenda' && !row.use_ruangan ? '-' : (row.ruangan?.nama || '')}
                       </td>
                     <td className="px-4 py-4 text-center whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-1 flex-wrap">
-                        {/* Tombol Absensi - hanya untuk jenis_baris === 'materi' dan status_konfirmasi === 'bisa' */}
-                        {row.jenis_baris === 'materi' && row.status_konfirmasi === 'bisa' && (
-                          <button 
-                            onClick={() => navigate(`/absensi-non-blok-non-csr-antara/${kode}/${row.id}`)} 
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-500 hover:text-green-700 dark:hover:text-green-300 transition mr-1" 
+                      <div className="flex items-center justify-center gap-1.5 flex-nowrap">
+                        {/* Tombol Absensi - tampilkan jika ada dosen yang terdaftar */}
+                        {row.jenis_baris === 'materi' && (row.dosen_id || row.dosen_ids?.length || row.dosen) && (
+                          <button
+                            onClick={() => navigate(`/absensi-non-blok-non-csr-antara/${kode}/${row.id}`)}
+                            className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors shrink-0"
                             title="Buka Absensi"
                           >
-                            <FontAwesomeIcon icon={faCheckCircle} className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
-                            <span className="hidden sm:inline">Absensi</span>
+                            <FontAwesomeIcon icon={faCheckCircle} className="w-3.5 h-3.5 shrink-0" />
+                            <span className="hidden xl:inline whitespace-nowrap">Absensi</span>
                           </button>
                         )}
                         <button onClick={() => handleEditJadwal(idx)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-1" title="Edit Jadwal">
@@ -1144,145 +1144,6 @@ export default function DetailNonBlokNonCSR() {
                   <input type="date" name="hariTanggal" value={form.hariTanggal} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
                   {errorForm && <div className="text-sm text-red-500 mt-2">{errorForm}</div>}
                 </div>
-               {form.jenisBaris === 'agenda' && (
-                 <>
-                   <div>
-                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Keterangan Agenda</label>
-                     <select name="agenda" value={form.agenda} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                       <option value="">Pilih Keterangan Agenda</option>
-                       <option value="Persamaan Persepsi">Persamaan Persepsi</option>
-                       <option value="Pleno">Pleno</option>
-                     </select>
-                   </div>
-                   <div>
-                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kelompok Besar</label>
-                     {kelompokBesarAgendaOptions.length === 0 ? (
-                       <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
-                         <div className="flex items-center gap-2">
-                           <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
-                             <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                           </svg>
-                           <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                             Belum ada kelompok besar yang ditambahkan untuk mata kuliah ini
-                           </span>
-                         </div>
-                         <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                           Silakan tambahkan kelompok besar terlebih dahulu di halaman Kelompok Detail
-                         </p>
-                       </div>
-                     ) : (
-                       <Select
-                                                 options={kelompokBesarAgendaOptions.map(k => ({ value: Number(k.id), label: k.label }))}
-                        value={kelompokBesarAgendaOptions.map(k => ({ value: Number(k.id), label: k.label })).find(opt => opt.value === form.kelompokBesarAntara) || null}
-                        onChange={opt => setForm(f => ({ ...f, kelompokBesarAntara: opt ? Number(opt.value) : null }))}
-                         placeholder="Pilih Kelompok Besar"
-                         isClearable
-                         isSearchable={false}
-                         classNamePrefix="react-select"
-                         className="react-select-container"
-                         styles={{
-                           control: (base, state) => ({
-                             ...base,
-                             backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#f9fafb',
-                             borderColor: state.isFocused
-                               ? '#3b82f6'
-                               : (document.documentElement.classList.contains('dark') ? '#334155' : '#d1d5db'),
-                             color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                             boxShadow: state.isFocused ? '0 0 0 2px #3b82f633' : undefined,
-                             borderRadius: '0.75rem',
-                             minHeight: '2.5rem',
-                             fontSize: '1rem',
-                             paddingLeft: '0.75rem',
-                             paddingRight: '0.75rem',
-                             '&:hover': { borderColor: '#3b82f6' },
-                           }),
-                           menu: base => ({
-                             ...base,
-                             zIndex: 9999,
-                             fontSize: '1rem',
-                             backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff',
-                             color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                           }),
-                           option: (base, state) => ({
-                             ...base,
-                             backgroundColor: state.isSelected
-                               ? '#3b82f6'
-                               : state.isFocused
-                               ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                               : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
-                             color: state.isSelected
-                               ? '#fff'
-                               : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
-                             fontSize: '1rem',
-                           }),
-                           singleValue: base => ({
-                             ...base,
-                             color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                           }),
-                           placeholder: base => ({
-                             ...base,
-                             color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                           }),
-                           input: base => ({
-                             ...base,
-                             color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                           }),
-                           dropdownIndicator: base => ({
-                             ...base,
-                             color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                             '&:hover': { color: '#3b82f6' },
-                           }),
-                           indicatorSeparator: base => ({
-                             ...base,
-                             backgroundColor: 'transparent',
-                           }),
-                         }}
-                       />
-                     )}
-                   </div>
-                   <div>
-                     <label className="flex items-center gap-2 cursor-pointer select-none text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                       <span className="relative flex items-center">
-                         <input
-                           type="checkbox"
-                           checked={form.useRuangan}
-                           onChange={(e) => setForm(f => ({ ...f, useRuangan: e.target.checked }))}
-                           className={`
-                             w-5 h-5
-                             appearance-none
-                             rounded-md
-                             border-2
-                             ${form.useRuangan
-                               ? "border-brand-500 bg-brand-500"
-                               : "border-brand-500 bg-transparent"
-                             }
-                             transition-colors
-                             duration-150
-                             focus:ring-2 focus:ring-brand-300
-                             dark:focus:ring-brand-600
-                             relative
-                           `}
-                           style={{ outline: "none" }}
-                         />
-                         {form.useRuangan && (
-                           <svg
-                             className="absolute left-0 top-0 w-5 h-5 pointer-events-none"
-                             viewBox="0 0 20 20"
-                             fill="none"
-                             stroke="white"
-                             strokeWidth="2.5"
-                           >
-                             <polyline points="5 11 9 15 15 7" />
-                           </svg>
-                         )}
-                       </span>
-                       <span className="select-none transition-colors duration-200 hover:text-brand-600 dark:hover:text-brand-400">
-                         Gunakan Ruangan
-                       </span>
-                     </label>
-                   </div>
-                 </>
-               )}
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Jam Mulai</label>
@@ -1371,6 +1232,397 @@ export default function DetailNonBlokNonCSR() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Jam Selesai</label>
                   <input type="text" name="jamSelesai" value={form.jamSelesai} readOnly className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm cursor-not-allowed" />
                 </div>
+                {form.jenisBaris === 'agenda' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Agenda
+                      </label>
+                      <input
+                        type="text"
+                        name="agenda"
+                        value={form.agenda}
+                        onChange={handleFormChange}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Kelompok Besar
+                      </label>
+                      {kelompokBesarAgendaOptions.length === 0 ? (
+                        <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+                          <div className="flex items-center gap-2">
+                            <svg
+                              className="w-5 h-5 text-orange-500"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                            <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
+                              Belum ada kelompok besar yang ditambahkan untuk
+                              mata kuliah ini
+                            </span>
+                          </div>
+                          <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
+                            Silakan tambahkan kelompok besar terlebih dahulu
+                            di halaman Kelompok Detail
+                          </p>
+                        </div>
+                      ) : (
+                        <Select
+                          options={kelompokBesarAgendaOptions.map((k) => ({
+                            value: Number(k.id),
+                            label: k.label,
+                          }))}
+                          value={
+                            kelompokBesarAgendaOptions
+                              .map((k) => ({
+                                value: Number(k.id),
+                                label: k.label,
+                              }))
+                              .find(
+                                (opt) => opt.value === form.kelompokBesarAntara
+                              ) || null
+                          }
+                          onChange={(opt) =>
+                            setForm((f) => ({
+                              ...f,
+                              kelompokBesarAntara: opt ? Number(opt.value) : null,
+                            }))
+                          }
+                          placeholder="Pilih Kelompok Besar"
+                          isClearable
+                          isSearchable={false}
+                          classNamePrefix="react-select"
+                          className="react-select-container"
+                          styles={{
+                            control: (base, state) => ({
+                              ...base,
+                              backgroundColor:
+                                document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#1e293b"
+                                  : "#f9fafb",
+                              borderColor: state.isFocused
+                                ? "#3b82f6"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#334155"
+                                : "#d1d5db",
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                              boxShadow: state.isFocused
+                                ? "0 0 0 2px #3b82f633"
+                                : undefined,
+                              borderRadius: "0.75rem",
+                              minHeight: "2.5rem",
+                              fontSize: "1rem",
+                              paddingLeft: "0.75rem",
+                              paddingRight: "0.75rem",
+                              "&:hover": { borderColor: "#3b82f6" },
+                            }),
+                            menu: (base) => ({
+                              ...base,
+                              zIndex: 9999,
+                              fontSize: "1rem",
+                              backgroundColor:
+                                document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#1e293b"
+                                  : "#fff",
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                            }),
+                            option: (base, state) => ({
+                              ...base,
+                              backgroundColor: state.isSelected
+                                ? "#3b82f6"
+                                : state.isFocused
+                                ? document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                  ? "#334155"
+                                  : "#e0e7ff"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#1e293b"
+                                : "#fff",
+                              color: state.isSelected
+                                ? "#fff"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#fff"
+                                : "#1f2937",
+                              fontSize: "1rem",
+                            }),
+                            singleValue: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                            }),
+                            placeholder: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#64748b"
+                                : "#6b7280",
+                            }),
+                            input: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                            }),
+                            dropdownIndicator: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#64748b"
+                                : "#6b7280",
+                              "&:hover": { color: "#3b82f6" },
+                            }),
+                            indicatorSeparator: (base) => ({
+                              ...base,
+                              backgroundColor: "transparent",
+                            }),
+                          }}
+                        />
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="flex items-center gap-2 cursor-pointer select-none text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <span className="relative flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={form.useRuangan}
+                            onChange={(e) =>
+                              setForm((f) => ({
+                                ...f,
+                                useRuangan: e.target.checked,
+                              }))
+                            }
+                            className={`
+                              w-5 h-5
+                              appearance-none
+                              rounded-md
+                              border-2
+                              ${
+                                form.useRuangan
+                                  ? "border-brand-500 bg-brand-500"
+                                  : "border-brand-500 bg-transparent"
+                              }
+                              transition-colors
+                              duration-150
+                              focus:ring-2 focus:ring-brand-300
+                              dark:focus:ring-brand-600
+                              relative
+                            `}
+                            style={{ outline: "none" }}
+                          />
+                          {form.useRuangan && (
+                            <svg
+                              className="absolute left-0 top-0 w-5 h-5 pointer-events-none"
+                              viewBox="0 0 20 20"
+                              fill="none"
+                              stroke="white"
+                              strokeWidth="2.5"
+                            >
+                              <polyline points="5 11 9 15 15 7" />
+                            </svg>
+                          )}
+                        </span>
+                        <span className="select-none transition-colors duration-200 hover:text-brand-600 dark:hover:text-brand-400">
+                          Gunakan Ruangan
+                        </span>
+                      </label>
+                    </div>
+
+                    {form.useRuangan && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Ruangan
+                        </label>
+                        {ruanganList.length === 0 ? (
+                          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+                            <div className="flex items-center gap-2">
+                              <svg
+                                className="w-5 h-5 text-orange-500"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
+                                Belum ada ruangan yang ditambahkan untuk mata
+                                kuliah ini
+                              </span>
+                            </div>
+                            <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
+                              Silakan tambahkan ruangan terlebih dahulu di
+                              halaman Ruangan Detail
+                            </p>
+                          </div>
+                        ) : (
+                          <Select
+                            options={getRuanganOptions(ruanganList || [])}
+                            value={
+                              getRuanganOptions(ruanganList || []).find(
+                                (opt: any) => opt.value === form.lokasi
+                              ) || null
+                            }
+                            onChange={(opt: any) => {
+                              setForm({ ...form, lokasi: opt?.value || null });
+                              setErrorForm("");
+                            }}
+                            placeholder="Pilih Ruangan"
+                            isClearable
+                            classNamePrefix="react-select"
+                            className="react-select-container"
+                            styles={{
+                              control: (base, state) => ({
+                                ...base,
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#f9fafb",
+                                borderColor: state.isFocused
+                                  ? "#3b82f6"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#334155"
+                                  : "#d1d5db",
+                                color: document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#fff"
+                                  : "#1f2937",
+                                boxShadow: state.isFocused
+                                  ? "0 0 0 2px #3b82f633"
+                                  : undefined,
+                                borderRadius: "0.75rem",
+                                minHeight: "2.5rem",
+                                fontSize: "1rem",
+                                paddingLeft: "0.75rem",
+                                paddingRight: "0.75rem",
+                                "&:hover": { borderColor: "#3b82f6" },
+                              }),
+                              menu: (base) => ({
+                                ...base,
+                                zIndex: 9999,
+                                fontSize: "1rem",
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#fff",
+                                color: document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#fff"
+                                  : "#1f2937",
+                              }),
+                              option: (base, state) => ({
+                                ...base,
+                                backgroundColor: state.isSelected
+                                  ? "#3b82f6"
+                                  : state.isFocused
+                                  ? document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                    ? "#334155"
+                                    : "#e0e7ff"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#1e293b"
+                                  : "#fff",
+                                color: state.isSelected
+                                  ? "#fff"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#fff"
+                                  : "#1f2937",
+                                fontSize: "1rem",
+                              }),
+                              singleValue: (base) => ({
+                                ...base,
+                                color: document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#fff"
+                                  : "#1f2937",
+                              }),
+                              placeholder: (base) => ({
+                                ...base,
+                                color: document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#64748b"
+                                  : "#6b7280",
+                              }),
+                              input: (base) => ({
+                                ...base,
+                                color: document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#fff"
+                                  : "#1f2937",
+                              }),
+                              dropdownIndicator: (base) => ({
+                                ...base,
+                                color: document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#64748b"
+                                  : "#6b7280",
+                                "&:hover": { color: "#3b82f6" },
+                              }),
+                              indicatorSeparator: (base) => ({
+                                ...base,
+                                backgroundColor: "transparent",
+                              }),
+                            }}
+                          />
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
                 {form.jenisBaris === 'materi' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1580,7 +1832,7 @@ export default function DetailNonBlokNonCSR() {
                     )}
                   </div>
                 )}
-                {(form.jenisBaris === 'materi' || (form.jenisBaris === 'agenda' && form.useRuangan)) && (
+                {form.jenisBaris === 'materi' && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ruangan</label>
                     {ruanganList.length === 0 ? (

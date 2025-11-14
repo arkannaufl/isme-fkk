@@ -270,7 +270,7 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
         text: string,
         x: number,
         y: number,
-        options?: { align?: string }
+        options?: { align?: "center" | "left" | "right" | "justify" }
       ) => {
         if (y > maxPageHeight) {
           addNewPage();
@@ -557,7 +557,7 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
       });
 
       // Footer halaman
-      const totalPages = doc.internal.getNumberOfPages();
+      const totalPages = (doc as any).internal.pages.length;
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
         doc.setFontSize(8);

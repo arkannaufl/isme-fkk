@@ -713,36 +713,40 @@ class JadwalNonBlokNonCSRController extends Controller
             // Debug: Log mata kuliah info
             Log::info("Import Excel - Mata Kuliah: {$kode}, Semester: {$mataKuliah->semester}");
 
-            $importedCount = 0;
             $errors = [];
+            $excelData = $request->data;
 
-            DB::beginTransaction();
-
-            foreach ($request->data as $index => $row) {
+            // Validasi semua data terlebih dahulu (all-or-nothing approach)
+            foreach ($excelData as $index => $row) {
                 try {
                     // Validasi tanggal dalam rentang mata kuliah
                     $tanggal = Carbon::parse($row['tanggal']);
                     if ($tanggal < Carbon::parse($mataKuliah->tanggal_mulai) || $tanggal > Carbon::parse($mataKuliah->tanggal_akhir)) {
-                        throw new \Exception("Tanggal di luar rentang mata kuliah (Baris " . ($index + 1) . ")");
+                        $errors[] = "Baris " . ($index + 1) . ": Tanggal di luar rentang mata kuliah";
+                        continue;
                     }
 
                     // Validasi khusus untuk jenis materi
                     if ($row['jenis_baris'] === 'materi') {
                         if (!$row['dosen_id']) {
-                            throw new \Exception("Dosen wajib diisi untuk jenis materi (Baris " . ($index + 1) . ")");
+                            $errors[] = "Baris " . ($index + 1) . ": Dosen wajib diisi untuk jenis materi";
+                            continue;
                         }
                         if (!$row['materi']) {
-                            throw new \Exception("Materi wajib diisi untuk jenis materi (Baris " . ($index + 1) . ")");
+                            $errors[] = "Baris " . ($index + 1) . ": Materi wajib diisi untuk jenis materi";
+                            continue;
                         }
                         if (!$row['ruangan_id']) {
-                            throw new \Exception("Ruangan wajib diisi untuk jenis materi (Baris " . ($index + 1) . ")");
+                            $errors[] = "Baris " . ($index + 1) . ": Ruangan wajib diisi untuk jenis materi";
+                            continue;
                         }
                     }
 
                     // Validasi khusus untuk jenis agenda
                     if ($row['jenis_baris'] === 'agenda') {
                         if (!$row['agenda']) {
-                            throw new \Exception("Keterangan agenda wajib diisi untuk jenis agenda (Baris " . ($index + 1) . ")");
+                            $errors[] = "Baris " . ($index + 1) . ": Agenda wajib diisi untuk jenis agenda";
+                            continue;
                         }
                     }
 
@@ -754,17 +758,16 @@ class JadwalNonBlokNonCSRController extends Controller
                         // Cek apakah ada kelompok besar untuk semester tersebut
                         $kelompokBesarExists = KelompokBesar::where('semester', $semesterKelompokBesar)->exists();
                         if (!$kelompokBesarExists) {
-                            throw new \Exception("Kelompok besar semester {$semesterKelompokBesar} tidak ditemukan (Baris " . ($index + 1) . ")");
+                            $errors[] = "Baris " . ($index + 1) . ": Kelompok besar semester {$semesterKelompokBesar} tidak ditemukan";
+                            continue;
                         }
 
                         // Cek apakah semester kelompok besar sesuai dengan semester mata kuliah
                         if ($semesterKelompokBesar != $mataKuliah->semester) {
-
                             // Debug: Log detail validasi
                             Log::info("Import Excel - Validasi Kelompok Besar: Row " . ($index + 1) . ", Kelompok Besar Semester: {$semesterKelompokBesar}, Mata Kuliah Semester: {$mataKuliah->semester}");
-
-
-                            throw new \Exception("Kelompok besar semester {$semesterKelompokBesar} tidak sesuai dengan semester mata kuliah ({$mataKuliah->semester}) (Baris " . ($index + 1) . ")");
+                            $errors[] = "Baris " . ($index + 1) . ": Kelompok besar semester {$semesterKelompokBesar} tidak sesuai dengan semester mata kuliah ({$mataKuliah->semester}). Hanya boleh menggunakan kelompok besar semester {$mataKuliah->semester}.";
+                            continue;
                         }
                     }
 
@@ -772,17 +775,58 @@ class JadwalNonBlokNonCSRController extends Controller
                     $row['mata_kuliah_kode'] = $kode;
                     $bentrokMessage = $this->checkBentrokWithDetail($row, null);
                     if ($bentrokMessage) {
-                        throw new \Exception($bentrokMessage . " (Baris " . ($index + 1) . ")");
+                        $errors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;
+                        continue;
                     }
 
                     // Validasi kapasitas ruangan
                     if ($row['ruangan_id'] && $row['kelompok_besar_id']) {
-                        $capacityError = $this->validateRuanganCapacity($row['ruangan_id'], $row['kelompok_besar_id']);
-                        if ($capacityError) {
-                            throw new \Exception($capacityError . " (Baris " . ($index + 1) . ")");
+                        // kelompok_besar_id yang dikirim dari frontend adalah semester
+                        $semesterKelompokBesar = $row['kelompok_besar_id'];
+                        
+                        // Cari ID kelompok besar berdasarkan semester
+                        $kelompokBesar = KelompokBesar::where('semester', $semesterKelompokBesar)->first();
+                        if ($kelompokBesar) {
+                            $capacityError = $this->validateRuanganCapacity($row['ruangan_id'], $kelompokBesar->id);
+                            if ($capacityError) {
+                                $errors[] = "Baris " . ($index + 1) . ": " . $capacityError;
+                                continue;
+                            }
                         }
                     }
 
+                    // Validasi bentrok antar data yang sedang di-import
+                    for ($j = 0; $j < $index; $j++) {
+                        $previousData = $excelData[$j];
+                        if ($this->isDataBentrok($row, $previousData)) {
+                            $dosenName = $row['dosen_id'] ? \App\Models\User::find($row['dosen_id'])->name ?? 'N/A' : 'N/A';
+                            $ruanganName = $row['ruangan_id'] ? (\App\Models\Ruangan::find($row['ruangan_id'])->nama ?? 'N/A') : 'N/A';
+                            $errors[] = "Baris " . ($index + 1) . ": Jadwal bentrok dengan data pada baris " . ($j + 1) . " (Dosen: {$dosenName}, Ruangan: {$ruanganName})";
+                            break;
+                        }
+                    }
+
+                    // Jika semua validasi berhasil, data akan diimport setelah loop selesai
+                } catch (\Exception $e) {
+                    $errors[] = "Baris " . ($index + 1) . ": " . $e->getMessage();
+                }
+            }
+
+            // Jika ada error validasi, return status 422 dan tidak import data sama sekali (all-or-nothing)
+            if (count($errors) > 0) {
+                return response()->json([
+                    'success' => false,
+                    'total' => count($excelData),
+                    'errors' => $errors,
+                    'message' => "Gagal mengimport data. Semua data harus valid untuk dapat diimport."
+                ], 422);
+            }
+
+            // Jika tidak ada error, import semua data menggunakan database transaction
+            DB::beginTransaction();
+            try {
+                $importedCount = 0;
+                foreach ($excelData as $index => $row) {
                     // Create jadwal
                     $jadwal = JadwalNonBlokNonCSR::create([
                         'mata_kuliah_kode' => $kode,
@@ -802,33 +846,32 @@ class JadwalNonBlokNonCSRController extends Controller
 
                     $this->sendJadwalNotifications($jadwal);
                     $importedCount++;
-                } catch (\Exception $e) {
-                    $errors[] = $e->getMessage();
                 }
-            }
 
-            if (!empty($errors)) {
+                DB::commit();
+
+                // Log activity
+                activity()
+                    ->log("Imported {$importedCount} jadwal Non Blok Non CSR for mata kuliah {$kode}");
+
+                return response()->json([
+                    'success' => true,
+                    'message' => "Berhasil mengimport {$importedCount} jadwal Non Blok Non CSR",
+                    'imported_count' => $importedCount
+                ]);
+            } catch (\Exception $e) {
                 DB::rollBack();
+                Log::error('Error importing jadwal Non Blok Non CSR: ' . $e->getMessage());
+
                 return response()->json([
                     'success' => false,
-                    'message' => 'Terjadi kesalahan saat mengimport data: ' . implode(', ', $errors)
-                ], 422);
+                    'message' => 'Terjadi kesalahan saat mengimport data: ' . $e->getMessage()
+                ], 500);
             }
-
-            DB::commit();
-
-            // Log activity
-            activity()
-                ->log("Imported {$importedCount} jadwal Non Blok Non CSR for mata kuliah {$kode}");
-
-            return response()->json([
-                'success' => true,
-                'message' => "Berhasil mengimport {$importedCount} jadwal Non Blok Non CSR",
-                'imported_count' => $importedCount
-            ]);
         } catch (\Exception $e) {
-
-            DB::rollBack();
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
             Log::error('Error importing jadwal Non Blok Non CSR: ' . $e->getMessage());
 
             return response()->json([
@@ -909,26 +952,39 @@ class JadwalNonBlokNonCSRController extends Controller
         $semester = $mataKuliah ? $mataKuliah->semester : null;
 
         // Cek bentrok dengan jadwal Non Blok Non CSR (dengan filter semester)
-        $nonBlokNonCSRBentrok = JadwalNonBlokNonCSR::where('tanggal', $data['tanggal'])
+        // Cek bentrok ruangan
+        $nonBlokNonCSRBentrokRuangan = JadwalNonBlokNonCSR::where('tanggal', $data['tanggal'])
             ->whereHas('mataKuliah', function ($q) use ($semester) {
                 if ($semester) {
                     $q->where('semester', $semester);
                 }
             })
-            ->where(function ($q) use ($data) {
-                $q->where('ruangan_id', $data['ruangan_id']);
-
-                // Cek bentrok dosen jika ada
-                if (isset($data['dosen_id']) && $data['dosen_id']) {
-                    $q->orWhere('dosen_id', $data['dosen_id']);
-                }
-            })
+            ->where('ruangan_id', $data['ruangan_id'])
             ->where(function ($q) use ($data) {
                 $q->where('jam_mulai', '<', $data['jam_selesai'])
                     ->where('jam_selesai', '>', $data['jam_mulai']);
             });
         if ($ignoreId) {
-            $nonBlokNonCSRBentrok->where('id', '!=', $ignoreId);
+            $nonBlokNonCSRBentrokRuangan->where('id', '!=', $ignoreId);
+        }
+
+        // Cek bentrok dosen jika ada
+        $nonBlokNonCSRBentrokDosen = null;
+        if (isset($data['dosen_id']) && $data['dosen_id']) {
+            $nonBlokNonCSRBentrokDosen = JadwalNonBlokNonCSR::where('tanggal', $data['tanggal'])
+                ->whereHas('mataKuliah', function ($q) use ($semester) {
+                    if ($semester) {
+                        $q->where('semester', $semester);
+                    }
+                })
+                ->where('dosen_id', $data['dosen_id'])
+                ->where(function ($q) use ($data) {
+                    $q->where('jam_mulai', '<', $data['jam_selesai'])
+                        ->where('jam_selesai', '>', $data['jam_mulai']);
+                });
+            if ($ignoreId) {
+                $nonBlokNonCSRBentrokDosen->where('id', '!=', $ignoreId);
+            }
         }
 
         // Cek bentrok dengan jadwal PBL (dengan filter semester)
@@ -1012,10 +1068,60 @@ class JadwalNonBlokNonCSRController extends Controller
         // Cek bentrok dengan kelompok besar (jika ada kelompok_besar_id di jadwal lain)
         $kelompokBesarBentrok = $this->checkKelompokBesarBentrok($data, $ignoreId);
 
-        return $nonBlokNonCSRBentrok->exists() || $pblBentrok->exists() ||
-            $kuliahBesarBentrok->exists() || $agendaKhususBentrok->exists() ||
-            $praktikumBentrok->exists() || $jurnalBentrok->exists() ||
-            $csrBentrok->exists() || $kelompokBesarBentrok;
+        // Kembalikan pesan error yang jelas untuk setiap jenis bentrok
+        if ($nonBlokNonCSRBentrokDosen && $nonBlokNonCSRBentrokDosen->exists()) {
+            $conflict = $nonBlokNonCSRBentrokDosen->first();
+            $dosenName = $conflict->dosen ? $conflict->dosen->name : 'N/A';
+            return "Dosen sudah memiliki jadwal Non-Blok Non-CSR lain pada waktu tersebut (Dosen: {$dosenName})";
+        }
+        
+        if ($nonBlokNonCSRBentrokRuangan->exists()) {
+            $conflict = $nonBlokNonCSRBentrokRuangan->first();
+            $ruanganName = $conflict->ruangan ? $conflict->ruangan->nama : 'N/A';
+            return "Ruangan sudah digunakan pada jadwal Non-Blok Non-CSR lain pada waktu tersebut (Ruangan: {$ruanganName})";
+        }
+        
+        if ($pblBentrok->exists()) {
+            $conflict = $pblBentrok->first();
+            $ruanganName = $conflict->ruangan ? $conflict->ruangan->nama : 'N/A';
+            return "Jadwal bentrok dengan jadwal PBL (Ruangan: {$ruanganName})";
+        }
+        
+        if ($kuliahBesarBentrok->exists()) {
+            $conflict = $kuliahBesarBentrok->first();
+            $ruanganName = $conflict->ruangan ? $conflict->ruangan->nama : 'N/A';
+            return "Jadwal bentrok dengan jadwal Kuliah Besar (Ruangan: {$ruanganName})";
+        }
+        
+        if ($agendaKhususBentrok->exists()) {
+            $conflict = $agendaKhususBentrok->first();
+            $ruanganName = $conflict->ruangan ? $conflict->ruangan->nama : 'N/A';
+            return "Jadwal bentrok dengan jadwal Agenda Khusus (Ruangan: {$ruanganName})";
+        }
+        
+        if ($praktikumBentrok->exists()) {
+            $conflict = $praktikumBentrok->first();
+            $ruanganName = $conflict->ruangan ? $conflict->ruangan->nama : 'N/A';
+            return "Jadwal bentrok dengan jadwal Praktikum (Ruangan: {$ruanganName})";
+        }
+        
+        if ($jurnalBentrok->exists()) {
+            $conflict = $jurnalBentrok->first();
+            $ruanganName = $conflict->ruangan ? $conflict->ruangan->nama : 'N/A';
+            return "Jadwal bentrok dengan jadwal Jurnal Reading (Ruangan: {$ruanganName})";
+        }
+        
+        if ($csrBentrok->exists()) {
+            $conflict = $csrBentrok->first();
+            $ruanganName = $conflict->ruangan ? $conflict->ruangan->nama : 'N/A';
+            return "Jadwal bentrok dengan jadwal CSR (Ruangan: {$ruanganName})";
+        }
+        
+        if ($kelompokBesarBentrok) {
+            return "Jadwal bentrok dengan jadwal lain yang menggunakan kelompok besar yang sama";
+        }
+
+        return null;
     }
 
     private function checkKelompokBesarBentrok($data, $ignoreId = null)
@@ -1053,6 +1159,50 @@ class JadwalNonBlokNonCSRController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * Cek apakah dua data bentrok (untuk validasi import)
+     */
+    private function isDataBentrok($data1, $data2): bool
+    {
+        // Cek apakah tanggal sama
+        if ($data1['tanggal'] !== $data2['tanggal']) {
+            return false;
+        }
+
+        // Cek apakah jam bentrok
+        $jamMulai1 = $data1['jam_mulai'];
+        $jamSelesai1 = $data1['jam_selesai'];
+        $jamMulai2 = $data2['jam_mulai'];
+        $jamSelesai2 = $data2['jam_selesai'];
+
+        // Konversi jam ke format yang bisa dibandingkan
+        $jamMulai1Formatted = str_replace('.', ':', $jamMulai1);
+        $jamSelesai1Formatted = str_replace('.', ':', $jamSelesai1);
+        $jamMulai2Formatted = str_replace('.', ':', $jamMulai2);
+        $jamSelesai2Formatted = str_replace('.', ':', $jamSelesai2);
+
+        // Cek apakah jam bentrok
+        $jamBentrok = ($jamMulai1Formatted < $jamSelesai2Formatted && $jamSelesai1Formatted > $jamMulai2Formatted);
+
+        if (!$jamBentrok) {
+            return false;
+        }
+
+        // Cek bentrok dosen
+        $dosenBentrok = false;
+        if (isset($data1['dosen_id']) && isset($data2['dosen_id']) && $data1['dosen_id'] && $data2['dosen_id'] && $data1['dosen_id'] == $data2['dosen_id']) {
+            $dosenBentrok = true;
+        }
+
+        // Cek bentrok ruangan
+        $ruanganBentrok = false;
+        if (isset($data1['ruangan_id']) && isset($data2['ruangan_id']) && $data1['ruangan_id'] && $data2['ruangan_id'] && $data1['ruangan_id'] == $data2['ruangan_id']) {
+            $ruanganBentrok = true;
+        }
+
+        return $dosenBentrok || $ruanganBentrok;
     }
 
     // Get jadwal Non Blok Non CSR for mahasiswa

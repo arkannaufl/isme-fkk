@@ -295,12 +295,23 @@ export default function DetailNonBlokNonCSR() {
           exampleDate2.toISOString().split('T')[0],
           '08.20',
           'agenda',
+          '2',
           '1',
+          '',
+          '',
+          ruanganList[0]?.nama || 'Ruang 1',
+          'Ujian Tengah Semester'
+        ],
+        [
+          exampleDate2.toISOString().split('T')[0],
+          '10.40',
+          'agenda',
+          '2',
           '1',
           '',
           '',
           '',
-          'Persamaan Persepsi'
+          'Seminar Kesehatan Online'
         ]
       ];
 
@@ -386,12 +397,10 @@ export default function DetailNonBlokNonCSR() {
         ['• materi: Untuk jadwal materi kuliah (wajib isi Dosen, Materi, Ruangan)'],
         ['• agenda: Untuk agenda khusus (wajib isi Keterangan Agenda, Ruangan opsional)'],
         [''],
-        ['📋 VALIDASI KETERANGAN AGENDA:'],
-        ['• Keterangan Agenda wajib diisi untuk jenis baris "agenda"'],
-        ['• Hanya boleh menggunakan salah satu dari opsi berikut:'],
-        ['  - Persamaan Persepsi'],
-        ['  - Pleno'],
-        ['• Tidak boleh menggunakan nilai lain selain kedua opsi di atas'],
+        ['📝 VALIDASI AGENDA:'],
+        ['• Agenda wajib diisi untuk jenis baris "agenda"'],
+        ['• Isi dengan deskripsi agenda yang jelas'],
+        ['• Agenda dapat diisi dengan teks bebas'],
         [''],
         ['🔢 VALIDASI SESI:'],
         [`• Jumlah sesi: ${MIN_SESSIONS}-${MAX_SESSIONS}`],
@@ -405,9 +414,9 @@ export default function DetailNonBlokNonCSR() {
         [''],
         ['🏢 VALIDASI RUANGAN:'],
         ['• Ruangan wajib diisi untuk jenis baris "materi"'],
-        ['• Ruangan opsional untuk jenis baris "agenda"'],
-        ['• Nama ruangan harus ada di database'],
-        ['• Kapasitas ruangan harus mencukupi jumlah mahasiswa'],
+        ['• Ruangan boleh dikosongkan untuk agenda online/tidak memerlukan ruangan'],
+        ['• Jika diisi, nama ruangan harus ada di database'],
+        ['• Pastikan ruangan tersedia untuk jadwal tersebut'],
         [''],
         ['👥 VALIDASI KELOMPOK BESAR:'],
         ['• Kelompok besar wajib diisi'],
@@ -596,11 +605,6 @@ export default function DetailNonBlokNonCSR() {
         // Validasi keterangan agenda
         if (!row.agenda || row.agenda.trim() === '') {
           errors.push({ row: rowNum, field: 'agenda', message: `Keterangan agenda wajib diisi untuk jenis agenda (Baris ${rowNum}, Kolom Keterangan Agenda)` });
-        } else {
-          const agendaValue = row.agenda.trim();
-          if (agendaValue !== 'Persamaan Persepsi' && agendaValue !== 'Pleno') {
-            errors.push({ row: rowNum, field: 'agenda', message: `Keterangan agenda harus "Persamaan Persepsi" atau "Pleno" (Baris ${rowNum}, Kolom Keterangan Agenda). Nilai yang diinput: "${agendaValue}"` });
-          }
         }
 
         // Validasi ruangan (opsional untuk agenda)
@@ -788,11 +792,17 @@ export default function DetailNonBlokNonCSR() {
       if (error.response?.status === 422) {
         const errorData = error.response.data;
         if (errorData.errors && Array.isArray(errorData.errors)) {
-          const cellErrors = errorData.errors.map((err: string, idx: number) => ({
-            row: idx + 1,
+          // Parse error messages yang sudah dalam format "Baris X: [pesan]"
+          const cellErrors = errorData.errors.map((err: string) => {
+            // Extract row number dari error message
+            const rowMatch = err.match(/Baris\s+(\d+):/);
+            const row = rowMatch ? parseInt(rowMatch[1]) : 0;
+            return {
+              row: row,
             field: 'api',
             message: err
-          }));
+            };
+          });
           setNonBlokCellErrors(cellErrors);
         } else {
           setNonBlokImportErrors([errorData.message || 'Terjadi kesalahan validasi']);
@@ -1068,7 +1078,7 @@ export default function DetailNonBlokNonCSR() {
         ['• Format jam: HH.MM atau HH:MM'],
         ['• Sesi: 1-6 (1 sesi = 50 menit)'],
         ['• Jenis: Jadwal Materi atau Agenda Khusus'],
-        ['• Keterangan Agenda hanya boleh: "Persamaan Persepsi" atau "Pleno"'],
+        ['• Keterangan Agenda dapat diisi dengan teks bebas'],
         ['• Ruangan dapat dikosongkan jika tidak menggunakan ruangan'],
         ['• Pastikan data dosen, ruangan, dan kelompok besar valid sebelum import']
       ];
@@ -1514,43 +1524,37 @@ export default function DetailNonBlokNonCSR() {
                         {row.jenis_baris === 'agenda' && !row.use_ruangan ? '-' : (row.ruangan?.nama || '')}
                       </td>
                     <td className="px-4 py-4 text-center whitespace-nowrap">
-
-                      <div className="flex items-center justify-center gap-1 flex-wrap">
-                        {/* Tombol Absensi - hanya untuk jenis_baris === 'materi' dan status_konfirmasi === 'bisa' */}
-                        {row.jenis_baris === 'materi' && row.status_konfirmasi === 'bisa' && (
+                      <div className="flex items-center justify-center gap-1.5 flex-nowrap">
+                        {/* Tombol Absensi - tampilkan jika ada dosen yang terdaftar */}
+                        {row.jenis_baris === 'materi' && (row.dosen_id || row.dosen) && (
                           <button 
                             onClick={() => navigate(`/absensi-non-blok-non-csr/${kode}/${row.id}`)} 
-                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-500 hover:text-green-700 dark:hover:text-green-300 transition mr-1" 
+                            className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors shrink-0"
                             title="Buka Absensi"
                           >
-                            <FontAwesomeIcon icon={faCheckCircle} className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
-                            <span className="hidden sm:inline">Absensi</span>
+                            <FontAwesomeIcon icon={faCheckCircle} className="w-3.5 h-3.5 shrink-0" />
+                            <span className="hidden xl:inline whitespace-nowrap">Absensi</span>
                           </button>
                         )}
-                        <button onClick={() => handleEditJadwal(idx)} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-1" title="Edit Jadwal">
-                          <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
-                          <span className="hidden sm:inline">Edit</span>
-                        </button>
-                        <button onClick={() => { setSelectedDeleteIndex(idx); setShowDeleteModal(true); }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition" title="Hapus Jadwal">
-                          <FontAwesomeIcon icon={faTrash} className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
-                          <span className="hidden sm:inline">Hapus</span>
-                        </button>
-                      </div>
-
                       <button onClick={() => {
                         // Cari index berdasarkan ID untuk memastikan data yang benar
                         // Karena data di-sort sebelum di-paginate, kita perlu mencari dari array asli
                         const correctIndex = jadwalMateri.findIndex(j => j.id === row.id);
                         handleEditJadwal(correctIndex >= 0 ? correctIndex : idx);
-                      }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-2" title="Edit Jadwal">
+                        }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-1" title="Edit Jadwal">
                         <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
                         <span className="hidden sm:inline">Edit</span>
                       </button>
-                      <button onClick={() => { setSelectedDeleteIndex(idx); setShowDeleteModal(true); }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition" title="Hapus Jadwal">
+                        <button onClick={() => {
+                          // Cari index berdasarkan ID untuk memastikan data yang benar
+                          const correctIndex = jadwalMateri.findIndex(j => j.id === row.id);
+                          setSelectedDeleteIndex(correctIndex >= 0 ? correctIndex : idx);
+                          setShowDeleteModal(true);
+                        }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition" title="Hapus Jadwal">
                         <FontAwesomeIcon icon={faTrash} className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
                         <span className="hidden sm:inline">Hapus</span>
                       </button>
-
+                      </div>
                     </td>
                   </tr>
                   ))
@@ -1747,42 +1751,265 @@ export default function DetailNonBlokNonCSR() {
                 </select>
               </div>
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hari/Tanggal</label>
-                  <input type="date" name="hariTanggal" value={form.hariTanggal} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-                  {errorForm && <div className="text-sm text-red-500 mt-2">{errorForm}</div>}
-                </div>
-               {form.jenisBaris === 'agenda' && (
+                {form.jenisBaris === 'agenda' ? (
                  <>
                    <div>
-                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Keterangan Agenda</label>
-                     <select name="agenda" value={form.agenda} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                       <option value="">Pilih Keterangan Agenda</option>
-                       <option value="Persamaan Persepsi">Persamaan Persepsi</option>
-                       <option value="Pleno">Pleno</option>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Hari/Tanggal
+                      </label>
+                      <input
+                        type="date"
+                        name="hariTanggal"
+                        value={form.hariTanggal || ""}
+                        onChange={handleFormChange}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      />
+                      {errorForm && (
+                        <div className="text-sm text-red-500 mt-2">
+                          {errorForm}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Jam Mulai
+                        </label>
+                        <Select
+                          options={jamOptions.map((j: string) => ({
+                            value: j,
+                            label: j,
+                          }))}
+                          value={
+                            jamOptions
+                              .map((j: string) => ({ value: j, label: j }))
+                              .find(
+                                (opt: any) => opt.value === form.jamMulai
+                              ) || null
+                          }
+                          onChange={(opt: any) => {
+                            const value = opt?.value || "";
+                            setForm((f) => ({
+                              ...f,
+                              jamMulai: value,
+                              jamSelesai: hitungJamSelesai(
+                                value,
+                                f.jumlahKali
+                              ),
+                            }));
+                          }}
+                          classNamePrefix="react-select"
+                          className="react-select-container"
+                          isClearable
+                          placeholder="Pilih Jam Mulai"
+                          styles={{
+                            control: (base, state) => ({
+                              ...base,
+                              backgroundColor:
+                                document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#1e293b"
+                                  : "#f9fafb",
+                              borderColor: state.isFocused
+                                ? "#3b82f6"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#334155"
+                                : "#d1d5db",
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                              boxShadow: state.isFocused
+                                ? "0 0 0 2px #3b82f633"
+                                : undefined,
+                              borderRadius: "0.75rem",
+                              minHeight: "2.5rem",
+                              fontSize: "1rem",
+                              paddingLeft: "0.75rem",
+                              paddingRight: "0.75rem",
+                              "&:hover": { borderColor: "#3b82f6" },
+                            }),
+                            menu: (base) => ({
+                              ...base,
+                              zIndex: 9999,
+                              fontSize: "1rem",
+                              backgroundColor:
+                                document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#1e293b"
+                                  : "#fff",
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                            }),
+                            option: (base, state) => ({
+                              ...base,
+                              backgroundColor: state.isSelected
+                                ? "#3b82f6"
+                                : state.isFocused
+                                ? document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                  ? "#334155"
+                                  : "#e0e7ff"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#1e293b"
+                                : "#fff",
+                              color: state.isSelected
+                                ? "#fff"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#fff"
+                                : "#1f2937",
+                              fontSize: "1rem",
+                            }),
+                            singleValue: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                            }),
+                            placeholder: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#64748b"
+                                : "#6b7280",
+                            }),
+                            input: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                            }),
+                            dropdownIndicator: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#64748b"
+                                : "#6b7280",
+                              "&:hover": { color: "#3b82f6" },
+                            }),
+                            indicatorSeparator: (base) => ({
+                              ...base,
+                              backgroundColor: "transparent",
+                            }),
+                          }}
+                        />
+                      </div>
+
+                      <div className="w-32">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          x 50 menit
+                        </label>
+                        <select
+                          name="jumlahKali"
+                          value={form.jumlahKali}
+                          onChange={handleFormChange}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        >
+                          {[1, 2, 3, 4, 5, 6].map((n) => (
+                            <option key={n} value={n}>
+                              {n} x 50'
+                            </option>
+                          ))}
                      </select>
                    </div>
+                    </div>
+
+                    <div className="mt-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Jam Selesai
+                      </label>
+                      <input
+                        type="text"
+                        name="jamSelesai"
+                        value={form.jamSelesai}
+                        readOnly
+                        className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm cursor-not-allowed"
+                      />
+                    </div>
+
                    <div>
-                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kelompok Besar</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Agenda
+                      </label>
+                      <input
+                        type="text"
+                        name="agenda"
+                        value={form.agenda}
+                        onChange={handleFormChange}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Kelompok Besar
+                      </label>
                      {kelompokBesarAgendaOptions.length === 0 ? (
                        <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
                          <div className="flex items-center gap-2">
-                           <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
-                             <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                            <svg
+                              className="w-5 h-5 text-orange-500"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                clipRule="evenodd"
+                              />
                            </svg>
                            <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                             Belum ada kelompok besar yang ditambahkan untuk mata kuliah ini
+                              Belum ada kelompok besar yang ditambahkan untuk
+                              mata kuliah ini
                            </span>
                          </div>
                          <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                           Silakan tambahkan kelompok besar terlebih dahulu di halaman Kelompok Detail
+                            Silakan tambahkan kelompok besar terlebih dahulu
+                            di halaman Kelompok Detail
                          </p>
                        </div>
                      ) : (
                        <Select
-                         options={kelompokBesarAgendaOptions.map(k => ({ value: Number(k.id), label: k.label }))}
-                         value={kelompokBesarAgendaOptions.map(k => ({ value: Number(k.id), label: k.label })).find(opt => opt.value === form.kelompokBesar) || null}
-                         onChange={opt => setForm(f => ({ ...f, kelompokBesar: opt ? Number(opt.value) : null }))}
+                          options={kelompokBesarAgendaOptions.map((k) => ({
+                            value: Number(k.id),
+                            label: k.label,
+                          }))}
+                          value={
+                            kelompokBesarAgendaOptions
+                              .map((k) => ({
+                                value: Number(k.id),
+                                label: k.label,
+                              }))
+                              .find(
+                                (opt) => opt.value === form.kelompokBesar
+                              ) || null
+                          }
+                          onChange={(opt) =>
+                            setForm((f) => ({
+                              ...f,
+                              kelompokBesar: opt ? Number(opt.value) : null,
+                            }))
+                          }
                          placeholder="Pilih Kelompok Besar"
                          isClearable
                          isSearchable={false}
@@ -1791,76 +2018,135 @@ export default function DetailNonBlokNonCSR() {
                          styles={{
                            control: (base, state) => ({
                              ...base,
-                             backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#f9fafb',
+                              backgroundColor:
+                                document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#1e293b"
+                                  : "#f9fafb",
                              borderColor: state.isFocused
-                               ? '#3b82f6'
-                               : (document.documentElement.classList.contains('dark') ? '#334155' : '#d1d5db'),
-                             color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                             boxShadow: state.isFocused ? '0 0 0 2px #3b82f633' : undefined,
-                             borderRadius: '0.75rem',
-                             minHeight: '2.5rem',
-                             fontSize: '1rem',
-                             paddingLeft: '0.75rem',
-                             paddingRight: '0.75rem',
-                             '&:hover': { borderColor: '#3b82f6' },
-                           }),
-                           menu: base => ({
+                                ? "#3b82f6"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#334155"
+                                : "#d1d5db",
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                              boxShadow: state.isFocused
+                                ? "0 0 0 2px #3b82f633"
+                                : undefined,
+                              borderRadius: "0.75rem",
+                              minHeight: "2.5rem",
+                              fontSize: "1rem",
+                              paddingLeft: "0.75rem",
+                              paddingRight: "0.75rem",
+                              "&:hover": { borderColor: "#3b82f6" },
+                            }),
+                            menu: (base) => ({
                              ...base,
                              zIndex: 9999,
-                             fontSize: '1rem',
-                             backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff',
-                             color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
+                              fontSize: "1rem",
+                              backgroundColor:
+                                document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#1e293b"
+                                  : "#fff",
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
                            }),
                            option: (base, state) => ({
                              ...base,
                              backgroundColor: state.isSelected
-                               ? '#3b82f6'
+                                ? "#3b82f6"
                                : state.isFocused
-                               ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                               : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
+                                ? document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                  ? "#334155"
+                                  : "#e0e7ff"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#1e293b"
+                                : "#fff",
                              color: state.isSelected
-                               ? '#fff'
-                               : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
-                             fontSize: '1rem',
-                           }),
-                           singleValue: base => ({
+                                ? "#fff"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#fff"
+                                : "#1f2937",
+                              fontSize: "1rem",
+                            }),
+                            singleValue: (base) => ({
                              ...base,
-                             color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                           }),
-                           placeholder: base => ({
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                            }),
+                            placeholder: (base) => ({
                              ...base,
-                             color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                           }),
-                           input: base => ({
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#64748b"
+                                : "#6b7280",
+                            }),
+                            input: (base) => ({
                              ...base,
-                             color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                           }),
-                           dropdownIndicator: base => ({
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                            }),
+                            dropdownIndicator: (base) => ({
                              ...base,
-                             color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                             '&:hover': { color: '#3b82f6' },
-                           }),
-                           indicatorSeparator: base => ({
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#64748b"
+                                : "#6b7280",
+                              "&:hover": { color: "#3b82f6" },
+                            }),
+                            indicatorSeparator: (base) => ({
                              ...base,
-                             backgroundColor: 'transparent',
+                              backgroundColor: "transparent",
                            }),
                          }}
                        />
                      )}
                    </div>
+
                    <div>
                      <label className="flex items-center gap-2 cursor-pointer select-none text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                        <span className="relative flex items-center">
                          <input
                            type="checkbox"
                            checked={form.useRuangan}
-                           onChange={(e) => setForm(f => ({ ...f, useRuangan: e.target.checked }))}
+                            onChange={(e) =>
+                              setForm((f) => ({
+                                ...f,
+                                useRuangan: e.target.checked,
+                              }))
+                            }
                            className={`
                              w-5 h-5
                              appearance-none
                              rounded-md
                              border-2
-                             ${form.useRuangan
+                              ${
+                                form.useRuangan
                                ? "border-brand-500 bg-brand-500"
                                : "border-brand-500 bg-transparent"
                              }
@@ -1889,8 +2175,178 @@ export default function DetailNonBlokNonCSR() {
                        </span>
                      </label>
                    </div>
-                 </>
-               )}
+
+                    {form.useRuangan && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Ruangan
+                        </label>
+                        {ruanganList.length === 0 ? (
+                          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+                            <div className="flex items-center gap-2">
+                              <svg
+                                className="w-5 h-5 text-orange-500"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
+                                Belum ada ruangan yang ditambahkan untuk mata
+                                kuliah ini
+                              </span>
+                            </div>
+                            <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
+                              Silakan tambahkan ruangan terlebih dahulu di
+                              halaman Ruangan Detail
+                            </p>
+                          </div>
+                        ) : (
+                          <Select
+                            options={getRuanganOptions(ruanganList || [])}
+                            value={
+                              getRuanganOptions(ruanganList || []).find(
+                                (opt: any) => opt.value === form.lokasi
+                              ) || null
+                            }
+                            onChange={(opt: any) => {
+                              setForm({ ...form, lokasi: opt?.value || null });
+                              setErrorForm("");
+                            }}
+                            placeholder="Pilih Ruangan"
+                            isClearable
+                            classNamePrefix="react-select"
+                            className="react-select-container"
+                            styles={{
+                              control: (base, state) => ({
+                                ...base,
+                                backgroundColor: state.isDisabled
+                                  ? document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                    ? "#1e293b"
+                                    : "#f3f4f6"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#1e293b"
+                                  : "#f9fafb",
+                                borderColor: state.isFocused
+                                  ? "#3b82f6"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#334155"
+                                  : "#d1d5db",
+                                boxShadow: state.isFocused
+                                  ? "0 0 0 2px #3b82f633"
+                                  : undefined,
+                                borderRadius: "0.75rem",
+                                minHeight: "2.5rem",
+                                fontSize: "1rem",
+                                color: document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#fff"
+                                  : "#1f2937",
+                                paddingLeft: "0.75rem",
+                                paddingRight: "0.75rem",
+                                "&:hover": { borderColor: "#3b82f6" },
+                              }),
+                              menu: (base) => ({
+                                ...base,
+                                zIndex: 9999,
+                                fontSize: "1rem",
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#fff",
+                                color: document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#fff"
+                                  : "#1f2937",
+                              }),
+                              option: (base, state) => ({
+                                ...base,
+                                backgroundColor: state.isSelected
+                                  ? "#3b82f6"
+                                  : state.isFocused
+                                  ? document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                    ? "#334155"
+                                    : "#e0e7ff"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#1e293b"
+                                  : "#fff",
+                                color: state.isSelected
+                                  ? "#fff"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#fff"
+                                  : "#1f2937",
+                                fontSize: "1rem",
+                              }),
+                              singleValue: (base) => ({
+                                ...base,
+                                color: document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#fff"
+                                  : "#1f2937",
+                              }),
+                              placeholder: (base) => ({
+                                ...base,
+                                color: document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#64748b"
+                                  : "#6b7280",
+                              }),
+                              input: (base) => ({
+                                ...base,
+                                color: document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#fff"
+                                  : "#1f2937",
+                              }),
+                              dropdownIndicator: (base) => ({
+                                ...base,
+                                color: document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#64748b"
+                                  : "#6b7280",
+                                "&:hover": { color: "#3b82f6" },
+                              }),
+                              indicatorSeparator: (base) => ({
+                                ...base,
+                                backgroundColor: "transparent",
+                              }),
+                            }}
+                          />
+                        )}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hari/Tanggal</label>
+                      <input type="date" name="hariTanggal" value={form.hariTanggal} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                      {errorForm && <div className="text-sm text-red-500 mt-2">{errorForm}</div>}
+                    </div>
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Jam Mulai</label>
@@ -1979,6 +2435,8 @@ export default function DetailNonBlokNonCSR() {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Jam Selesai</label>
                   <input type="text" name="jamSelesai" value={form.jamSelesai} readOnly className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm cursor-not-allowed" />
                 </div>
+                  </>
+                )}
                 {form.jenisBaris === 'materi' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pengampu</label>
@@ -2165,7 +2623,7 @@ export default function DetailNonBlokNonCSR() {
                     )}
                   </div>
                 )}
-                {(form.jenisBaris === 'materi' || (form.jenisBaris === 'agenda' && form.useRuangan)) && (
+                {form.jenisBaris === 'materi' && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ruangan</label>
                     {ruanganList.length === 0 ? (

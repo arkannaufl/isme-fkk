@@ -24,6 +24,8 @@ interface AbsensiData {
   };
 }
 
+const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
+
 export default function AbsensiKuliahBesarPage() {
   const { kode, jadwalId } = useParams<{ kode: string; jadwalId: string }>();
   const navigate = useNavigate();
@@ -40,6 +42,8 @@ export default function AbsensiKuliahBesarPage() {
   const [pendingChange, setPendingChange] = useState<{ nim: string; desired: boolean } | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
   const [qrEnabled, setQrEnabled] = useState<boolean>(false);
   const [togglingQR, setTogglingQR] = useState(false);
   const [qrToken, setQrToken] = useState<string>('');
@@ -1468,10 +1472,96 @@ export default function AbsensiKuliahBesarPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Memuat data...</p>
+      <div className="w-full mx-auto">
+        {/* Header Skeleton */}
+        <div className="mb-8">
+          <div className="h-8 w-80 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
+          <div className="h-4 w-96 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+        </div>
+
+        {/* Info Card Skeleton */}
+        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6 mb-8">
+          <div className="h-6 w-48 bg-gray-200 dark:bg-gray-700 rounded mb-4 animate-pulse" />
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
+                <div className="h-3 w-20 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
+                <div className="h-5 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Stats Cards Skeleton */}
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-4">
+              <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
+              <div className="h-8 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
+
+        {/* Section Aksi Utama Skeleton */}
+        <div className="mb-6 p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex-1">
+              <div className="h-5 w-24 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
+              <div className="space-y-2">
+                <div className="h-4 w-full max-w-md bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                <div className="h-4 w-full max-w-md bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <div className="h-10 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+              <div className="h-10 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs Skeleton */}
+        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-t-2xl shadow-sm">
+          <div className="flex border-b border-gray-200 dark:border-gray-700">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} className="h-12 w-32 bg-gray-200 dark:bg-gray-700 rounded-t-lg animate-pulse mx-2" />
+            ))}
+          </div>
+        </div>
+
+        {/* Table Skeleton */}
+        <div className="bg-white dark:bg-white/[0.03] rounded-b-xl shadow-md border border-t-0 border-gray-200 dark:border-gray-800">
+          <div className="p-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-3 gap-3">
+              <div className="h-6 w-0" />
+              <div className="h-10 w-64 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            </div>
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+              <div className="max-w-full overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                  <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900">
+                    <tr>
+                      {Array.from({ length: 4 }).map((_, i) => (
+                        <th key={i} className="px-6 py-4">
+                          <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <tr key={i} className={i % 2 === 1 ? "bg-gray-50 dark:bg-white/[0.02]" : ""}>
+                        {Array.from({ length: 4 }).map((_, j) => (
+                          <td key={j} className="px-6 py-4">
+                            <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -1502,580 +1592,832 @@ export default function AbsensiKuliahBesarPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="w-full mx-auto">
+      {/* Header */}
+      <div className="mb-8">
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-4"
+          className="flex items-center gap-2 text-brand-500 hover:text-brand-600 transition-all duration-300 ease-out hover:scale-105 transform mb-4"
         >
-          <ChevronLeftIcon className="w-5 h-5 mr-1" />
+          <ChevronLeftIcon className="w-5 h-5" />
           Kembali
         </button>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90 mb-2">
+          Absensi Kuliah Besar
+        </h1>
+        <p className="text-gray-600 dark:text-gray-400">
+          Kelola absensi mahasiswa untuk kuliah besar
+        </p>
+      </div>
 
-        {/* Success Message dihapus - auto-save per perubahan */}
+      {/* Info Card */}
+      {jadwalDetail && (
+        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6 mb-8 shadow-sm">
+          <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">Informasi Kelas</div>
+          {/* Layout 2 baris: baris 1 untuk informasi konten (span lebih lebar), baris 2 untuk meta */}
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-6">
+            {/* Row 1 */}
+            <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
+              <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Mata Kuliah</div>
+              <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
+                {jadwalDetail?.mata_kuliah?.nama || jadwalDetail?.mata_kuliah_kode}
+              </div>
+            </div>
+            <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
+              <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Materi</div>
+              <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
+                {jadwalDetail?.materi || '-'}
+              </div>
+            </div>
+            <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
+              <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Topik</div>
+              <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
+                {jadwalDetail?.topik || '-'}
+              </div>
+            </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            <FontAwesomeIcon icon={faUsers} className="text-green-500" />
-            Absensi Kuliah Besar
-          </h1>
-          {jadwalDetail && (
-            <div className="mt-5">
-              <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">Informasi Kelas</div>
-              {/* Layout 2 baris: baris 1 untuk informasi konten (span lebih lebar), baris 2 untuk meta */}
-              <div className="grid gap-4 grid-cols-1 md:grid-cols-6">
-                {/* Row 1 */}
-                <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
-                  <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Mata Kuliah</div>
-                  <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
-                    {jadwalDetail?.mata_kuliah?.nama || jadwalDetail?.mata_kuliah_kode}
-                  </div>
-                </div>
-                <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
-                  <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Materi</div>
-                  <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
-                    {jadwalDetail?.materi || '-'}
-                  </div>
-                </div>
-                <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
-                  <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Topik</div>
-                  <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
-                    {jadwalDetail?.topik || '-'}
-                  </div>
-                </div>
+            {/* Row 2 */}
+            <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
+              <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Tanggal</div>
+              <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
+                {new Date(jadwalDetail.tanggal).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+              </div>
+            </div>
+            <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
+              <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Waktu</div>
+              <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
+                {jadwalDetail.jam_mulai} - {jadwalDetail.jam_selesai}
+              </div>
+            </div>
+            <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
+              <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Ruangan</div>
+              <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
+                {jadwalDetail?.ruangan?.nama || '-'}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
-                {/* Row 2 */}
-                <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
-                  <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Tanggal</div>
-                  <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
-                    {new Date(jadwalDetail.tanggal).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                  </div>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl shadow-sm p-4">
+          <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total Mahasiswa</div>
+          <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</div>
+        </div>
+        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl shadow-sm p-4">
+          <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Hadir</div>
+          <div className="text-2xl font-bold text-green-600">{stats.hadir}</div>
+        </div>
+        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl shadow-sm p-4">
+          <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Persentase</div>
+          <div className="text-2xl font-bold text-purple-600">{stats.persentase}%</div>
+        </div>
+      </div>
+
+      {/* Section Aksi Utama */}
+      <div className="mb-6 p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex-1">
+            <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">
+              Aksi Utama
+            </h4>
+            <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
+              <div className="flex items-start gap-2">
+                <FontAwesomeIcon icon={faFileExcel} className="w-4 h-4 text-purple-600 dark:text-purple-400 mt-0.5" />
+                <div>
+                  <span className="font-medium text-gray-700 dark:text-gray-300">Export Excel:</span> Ekspor data absensi kuliah besar ke file Excel dengan format terstruktur dan informasi lengkap.
                 </div>
-                <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
-                  <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Waktu</div>
-                  <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
-                    {jadwalDetail.jam_mulai} - {jadwalDetail.jam_selesai}
-                  </div>
-                </div>
-                <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
-                  <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Ruangan</div>
-                  <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
-                    {jadwalDetail?.ruangan?.nama || '-'}
-                  </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <FontAwesomeIcon icon={faFilePdf} className="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5" />
+                <div>
+                  <span className="font-medium text-gray-700 dark:text-gray-300">Export PDF:</span> Ekspor data absensi kuliah besar ke file PDF dengan format laporan resmi dan tanda tangan dosen.
                 </div>
               </div>
             </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
-            <div className="text-sm text-gray-600 dark:text-gray-400">Total Mahasiswa</div>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
-            <div className="text-sm text-gray-600 dark:text-gray-400">Hadir</div>
-            <div className="text-2xl font-bold text-green-600">{stats.hadir}</div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-4">
-            <div className="text-sm text-gray-600 dark:text-gray-400">Persentase</div>
-            <div className="text-2xl font-bold text-purple-600">{stats.persentase}%</div>
-          </div>
-        </div>
-
-        {/* Tombol Export */}
-        <div className="flex flex-wrap gap-3 mb-6">
-          <button
-            onClick={exportToExcel}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 text-sm font-medium shadow-theme-xs hover:bg-purple-200 dark:hover:bg-purple-800 transition"
-          >
-            <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5" />
-            Export Excel
-          </button>
-          <button
-            onClick={exportToPDF}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 text-sm font-medium shadow-theme-xs hover:bg-red-200 dark:hover:bg-red-800 transition"
-          >
-            <FontAwesomeIcon icon={faFilePdf} className="w-5 h-5" />
-            Export PDF
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="bg-white dark:bg-gray-800 rounded-t-2xl shadow-sm border border-gray-200 dark:border-gray-700">
-          <div className="flex border-b border-gray-200 dark:border-gray-700">
+          <div className="flex gap-2 flex-shrink-0">
             <button
-              onClick={() => setActiveTab('manual')}
-              className={`px-6 py-3 font-semibold transition-colors ${
-                activeTab === 'manual'
-                  ? 'text-green-600 border-b-2 border-green-600 dark:text-green-400'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
+              onClick={exportToExcel}
+              className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors duration-200 flex items-center gap-2 shadow-theme-xs"
+              title="Export Absensi ke Excel"
             >
-              Manual
+              <FontAwesomeIcon icon={faFileExcel} className="w-4 h-4" />
+              Export Excel
             </button>
             <button
-              onClick={() => setActiveTab('qr')}
-              className={`px-6 py-3 font-semibold transition-colors flex items-center gap-2 ${
-                activeTab === 'qr'
-                  ? 'text-green-600 border-b-2 border-green-600 dark:text-green-400'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
+              onClick={exportToPDF}
+              className="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors duration-200 flex items-center gap-2 shadow-theme-xs"
+              title="Export Absensi ke PDF"
             >
-              <FontAwesomeIcon icon={faDesktop} />
-              Presentasi QR
+              <FontAwesomeIcon icon={faFilePdf} className="w-4 h-4" />
+              Export PDF
             </button>
           </div>
         </div>
+      </div>
 
-        {/* Content */}
-        {activeTab === 'manual' ? (
-          <div className="bg-white dark:bg-gray-800 rounded-b-xl shadow-md border border-t-0 border-gray-200 dark:border-gray-700">
-            <div className="p-6">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-3 gap-3">
-                <div className="font-semibold text-lg text-brand-700 dark:text-white/80 mb-2 md:mb-0">&nbsp;</div>
-                <div className="relative w-full max-w-xs ml-auto">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                  </span>
-                  <input
-                    type="text"
-                    className="pl-10 pr-4 py-2 w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-brand-400 focus:border-brand-500 text-gray-700 dark:text-white text-sm placeholder:text-gray-400 dark:placeholder:text-gray-300 outline-none"
-                    placeholder="Cari nama atau NIM ..."
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                  />
-                </div>
+      {/* Tabs */}
+      <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-t-2xl shadow-sm">
+        <div className="flex border-b border-gray-200 dark:border-gray-700">
+          <button
+            onClick={() => setActiveTab('manual')}
+            className={`px-6 py-3 font-semibold transition-colors ${
+              activeTab === 'manual'
+                ? 'text-green-600 border-b-2 border-green-600 dark:text-green-400'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+            }`}
+          >
+            Manual
+          </button>
+          <button
+            onClick={() => setActiveTab('qr')}
+            className={`px-6 py-3 font-semibold transition-colors flex items-center gap-2 ${
+              activeTab === 'qr'
+                ? 'text-green-600 border-b-2 border-green-600 dark:text-green-400'
+                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+            }`}
+          >
+            <FontAwesomeIcon icon={faDesktop} />
+            Presentasi QR
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      {activeTab === 'manual' ? (
+        <div className="bg-white dark:bg-white/[0.03] rounded-b-xl shadow-md border border-t-0 border-gray-200 dark:border-gray-800">
+          <div className="p-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-3 gap-3">
+              <div className="font-semibold text-lg text-brand-700 dark:text-white/80 mb-2 md:mb-0">&nbsp;</div>
+              <div className="relative w-full max-w-xs ml-auto">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                </span>
+                <input
+                  type="text"
+                  className="pl-10 pr-4 py-2 w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-brand-400 focus:border-brand-500 text-gray-700 dark:text-white text-sm placeholder:text-gray-400 dark:placeholder:text-gray-300 outline-none"
+                  placeholder="Cari nama atau NIM ..."
+                  value={searchQuery}
+                  onChange={e => {
+                    setSearchQuery(e.target.value);
+                    setPage(1); // Reset to first page when search changes
+                  }}
+                />
               </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full font-inter text-[15px] rounded-b-xl overflow-hidden">
-                  <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800/80 backdrop-blur-md">
+            </div>
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+              <div
+                className="max-w-full overflow-x-auto hide-scroll"
+                style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+              >
+                <style>{`
+                  .max-w-full::-webkit-scrollbar { display: none; }
+                  .hide-scroll { 
+                    -ms-overflow-style: none; /* IE and Edge */
+                    scrollbar-width: none; /* Firefox */
+                  }
+                  .hide-scroll::-webkit-scrollbar { /* Chrome, Safari, Opera */
+                    display: none;
+                  }
+                `}</style>
+                <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                  <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                     <tr>
-                      <th className="px-4 py-3 text-xs font-bold tracking-wider text-brand-700 dark:text-white/80 text-center border-b border-gray-200 dark:border-gray-700 uppercase">#</th>
-                      <th className="px-4 py-3 text-xs font-bold tracking-wider text-brand-700 dark:text-white/80 text-left border-b border-gray-200 dark:border-gray-700 uppercase">NIM</th>
-                      <th className="px-4 py-3 text-xs font-bold tracking-wider text-brand-700 dark:text-white/80 text-left border-b border-gray-200 dark:border-gray-700 uppercase">Nama</th>
-                      <th className="px-4 py-3 text-xs font-bold tracking-wider text-brand-700 dark:text-white/80 text-center border-b border-gray-200 dark:border-gray-700 uppercase">Hadir</th>
+                      <th className="px-6 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">#</th>
+                      <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">NIM</th>
+                      <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Nama</th>
+                      <th className="px-6 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Hadir</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {(mahasiswaList.filter(m => {
-                      const q = searchQuery.trim().toLowerCase();
-                      return q === '' || m.nama.toLowerCase().includes(q) || m.nim.toLowerCase().includes(q);
-                    })).length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="py-16 text-center">
-                          <div className="flex flex-col items-center gap-3 text-gray-400 dark:text-gray-500">
-                            <svg className="w-10 h-10" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1 4h.01M12 9h.01" />
-                              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
-                            </svg>
-                            <span className="bg-gray-100 dark:bg-gray-800/60 rounded-full px-5 py-2 mt-1 font-medium">Tidak ada data mahasiswa...</span>
-                          </div>
-                        </td>
-                      </tr>
-                    ) : mahasiswaList.filter(m => {
-                      const q = searchQuery.trim().toLowerCase();
-                      return q === '' || m.nama.toLowerCase().includes(q) || m.nim.toLowerCase().includes(q);
-                    }).map((m, i) => {
-                      const hadir = absensi[m.nim]?.hadir || false;
-                      return (
-                        <tr
-                          key={m.id}
-                          className={`transition group ${i % 2 === 1 ? 'bg-gray-50 dark:bg-gray-900/60' : 'bg-white dark:bg-gray-800'} hover:bg-brand-50 dark:hover:bg-brand-900/20 border-b border-gray-100 dark:border-gray-800`}
-                        >
-                          <td className="align-middle text-center text-xs text-gray-400 px-4 py-3">{i + 1}</td>
-                          <td className="align-middle px-4 py-3 font-mono tracking-wide text-gray-700 dark:text-gray-200 text-left text-[15px]">{m.nim}</td>
-                          <td className="align-middle px-4 py-3 text-gray-900 dark:text-white text-[15px] font-medium text-left">{m.nama}</td>
-                          <td className="align-middle text-center px-4 py-3">
-                            <div className="relative flex items-center justify-center select-none mx-auto" style={{ width: 24, height: 24 }}>
-                              <input
-                                type="checkbox"
-                                checked={hadir}
-                                onChange={(e) => handleAbsensiToggle(m.nim, e.target.checked)}
-                                disabled={isSyncing || loading}
-                                className={`w-6 h-6 appearance-none rounded-md border-2 transition-colors duration-150 focus:ring-2 focus:ring-brand-300 dark:focus:ring-brand-600 relative
-                                  ${hadir ? 'border-brand-500 bg-brand-500' : 'border-brand-500 bg-transparent'} disabled:opacity-50 disabled:cursor-not-allowed`}
-                                style={{ outline: 'none' }}
-                              />
-                              {hadir && (
-                                <span style={{ position: 'absolute', left: 0, top: 0, width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-                                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="white" strokeWidth="2.5" style={{ display: 'block' }}>
-                                    <polyline points="5 11 9 15 15 7" fill="none" stroke="white" strokeWidth="2.5" />
-                                  </svg>
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
+                  <tbody>
+                    {(() => {
+                      // Filter data berdasarkan search query
+                      const filteredData = mahasiswaList.filter(m => {
+                        const q = searchQuery.trim().toLowerCase();
+                        return q === '' || m.nama.toLowerCase().includes(q) || m.nim.toLowerCase().includes(q);
+                      });
+
+                      // Pagination
+                      const totalPages = Math.ceil(filteredData.length / pageSize);
+                      const paginatedData = filteredData.slice(
+                        (page - 1) * pageSize,
+                        page * pageSize
                       );
-                    })}
+
+                      if (filteredData.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={4} className="px-6 py-16 text-center">
+                              <div className="flex flex-col items-center gap-3 text-gray-400 dark:text-gray-500">
+                                <svg className="w-10 h-10" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1 4h.01M12 9h.01" />
+                                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+                                </svg>
+                                <span className="bg-gray-100 dark:bg-gray-800/60 rounded-full px-5 py-2 mt-1 font-medium">Tidak ada data mahasiswa...</span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return paginatedData.map((m, i) => {
+                        const hadir = absensi[m.nim]?.hadir || false;
+                        const globalIndex = (page - 1) * pageSize + i + 1;
+                        return (
+                          <tr
+                            key={m.id}
+                            className={i % 2 === 1 ? "bg-gray-50 dark:bg-white/[0.02]" : ""}
+                          >
+                            <td className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{globalIndex}</td>
+                            <td className="px-6 py-4 font-mono tracking-wide text-gray-700 dark:text-gray-200">{m.nim}</td>
+                            <td className="px-6 py-4 text-gray-900 dark:text-white font-medium">{m.nama}</td>
+                            <td className="px-6 py-4 text-center">
+                              <div className="relative flex items-center justify-center select-none mx-auto" style={{ width: 24, height: 24 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={hadir}
+                                  onChange={(e) => handleAbsensiToggle(m.nim, e.target.checked)}
+                                  disabled={isSyncing || loading}
+                                  className={`w-6 h-6 appearance-none rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 relative
+                                    ${hadir ? 'border-brand-500 bg-brand-500' : 'border-gray-300 bg-white dark:bg-gray-900 dark:border-gray-700'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                                  style={{ outline: 'none' }}
+                                />
+                                {hadir && (
+                                  <span style={{ position: 'absolute', left: 0, top: 0, width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="white" strokeWidth="2.5" style={{ display: 'block' }}>
+                                      <polyline points="5 11 9 15 15 7" fill="none" stroke="white" strokeWidth="2.5" />
+                                    </svg>
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
                   </tbody>
                 </table>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-b-2xl shadow-sm border border-t-0 border-gray-200 dark:border-gray-700 p-4 sm:p-6">
-            <div className="max-w-3xl mx-auto">
-              {/* Header Section */}
-              <div className="text-center mb-4 sm:mb-6">
-                <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-brand-500 rounded-xl mb-2 sm:mb-3">
-                  <FontAwesomeIcon icon={faDesktop} className="text-white text-lg sm:text-xl" />
-                </div>
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2 px-2">
-                  Presentasi QR Code untuk Absensi
-                </h2>
-                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 px-2">
-                  Tampilkan QR code ini di layar proyektor agar mahasiswa dapat scan dengan HP mereka
-                </p>
-              </div>
-              
-              {/* Status & Control Card */}
-              <div className={`rounded-xl border p-3 sm:p-4 mb-4 sm:mb-6 transition-colors ${
-                qrEnabled
-                  ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-                  : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-700'
-              }`}>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
-                  <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
-                    <div className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full flex-shrink-0 ${
-                      qrEnabled ? 'bg-green-500' : 'bg-gray-400'
-                    }`}></div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-xs sm:text-sm font-semibold ${
-                        qrEnabled 
-                          ? 'text-green-700 dark:text-green-400' 
-                          : 'text-gray-700 dark:text-gray-300'
-                      }`}>
-                        {qrEnabled ? 'QR Code Aktif' : 'QR Code Tidak Aktif'}
-                      </p>
-                      <p className="text-xs text-gray-600 dark:text-gray-400">
-                        {qrEnabled ? 'Mahasiswa dapat melakukan scan sekarang' : 'Aktifkan QR code untuk memulai sesi absensi'}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      if (!kode || !jadwalId) return;
-                      setTogglingQR(true);
-                      try {
-                        const response = await api.put(`/kuliah-besar/${kode}/jadwal/${jadwalId}/toggle-qr`);
-                        setQrEnabled(response.data.qr_enabled);
-                      } catch (err: any) {
-                        console.error('Error toggling QR:', err);
-                        setError(handleApiError(err, 'Gagal mengubah status QR code'));
-                      } finally {
-                        setTogglingQR(false);
-                      }
-                    }}
-                    disabled={togglingQR}
-                    className={`w-full sm:w-auto px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${
-                      qrEnabled
-                        ? 'bg-red-500 hover:bg-red-600 text-white'
-                        : 'bg-brand-500 hover:bg-brand-600 text-white'
-                    } ${togglingQR ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    {togglingQR ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <FontAwesomeIcon icon={faSpinner} className="animate-spin" />
-                        <span>Memproses...</span>
-                      </span>
-                    ) : qrEnabled ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                        <span>Nonaktifkan</span>
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-center gap-2">
-                        <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-                        </svg>
-                        <span>Aktifkan QR Code</span>
-                      </span>
-                    )}
-                  </button>
-                </div>
-              </div>
 
-              {/* QR Code Display */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-6 mb-4 sm:mb-6">
-                {!qrEnabled ? (
-                  <div className="text-center py-12">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-xl mb-4">
-                      <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
+            {/* Pagination */}
+            {(() => {
+              const filteredData = mahasiswaList.filter(m => {
+                const q = searchQuery.trim().toLowerCase();
+                return q === '' || m.nama.toLowerCase().includes(q) || m.nim.toLowerCase().includes(q);
+              });
+              const totalPages = Math.ceil(filteredData.length / pageSize);
+              const paginatedData = filteredData.slice(
+                (page - 1) * pageSize,
+                page * pageSize
+              );
+
+              if (filteredData.length === 0) return null;
+
+              return (
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 sm:px-6 py-4 mt-4">
+                  <div className="flex items-center gap-4">
+                    <select
+                      id="perPage"
+                      value={pageSize}
+                      onChange={(e) => {
+                        setPageSize(Number(e.target.value));
+                        setPage(1);
+                      }}
+                      className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
+                    >
+                      {PAGE_SIZE_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      Menampilkan {paginatedData.length} dari {filteredData.length} data
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 justify-center sm:justify-end">
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                    >
+                      Prev
+                    </button>
+
+                    {/* Smart Pagination with Scroll */}
+                    <div
+                      className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll"
+                      style={{
+                        scrollbarWidth: "thin",
+                        scrollbarColor: "#cbd5e1 #f1f5f9",
+                      }}
+                    >
+                      <style
+                        dangerouslySetInnerHTML={{
+                          __html: `
+                          .pagination-scroll::-webkit-scrollbar {
+                            height: 6px;
+                          }
+                          .pagination-scroll::-webkit-scrollbar-track {
+                            background: #f1f5f9;
+                            border-radius: 3px;
+                          }
+                          .pagination-scroll::-webkit-scrollbar-thumb {
+                            background: #cbd5e1;
+                            border-radius: 3px;
+                          }
+                          .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                            background: #94a3b8;
+                          }
+                          .dark .pagination-scroll::-webkit-scrollbar-track {
+                            background: #1e293b;
+                          }
+                          .dark .pagination-scroll::-webkit-scrollbar-thumb {
+                            background: #475569;
+                          }
+                          .dark .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                            background: #64748b;
+                          }
+                        `,
+                        }}
+                      />
+
+                      {/* Always show first page */}
+                      <button
+                        onClick={() => setPage(1)}
+                        className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                          page === 1
+                            ? "bg-brand-500 text-white"
+                            : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        }`}
+                      >
+                        1
+                      </button>
+
+                      {/* Show ellipsis if current page is far from start */}
+                      {page > 4 && (
+                        <span className="px-2 text-gray-500 dark:text-gray-400">
+                          ...
+                        </span>
+                      )}
+
+                      {/* Show pages around current page */}
+                      {Array.from({ length: totalPages }, (_, i) => {
+                        const pageNum = i + 1;
+                        // Show pages around current page (2 pages before and after)
+                        const shouldShow =
+                          pageNum > 1 &&
+                          pageNum < totalPages &&
+                          pageNum >= page - 2 &&
+                          pageNum <= page + 2;
+
+                        if (!shouldShow) return null;
+
+                        return (
+                          <button
+                            key={i}
+                            onClick={() => setPage(pageNum)}
+                            className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                              page === pageNum
+                                ? "bg-brand-500 text-white"
+                                : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+
+                      {/* Show ellipsis if current page is far from end */}
+                      {page < totalPages - 3 && (
+                        <span className="px-2 text-gray-500 dark:text-gray-400">
+                          ...
+                        </span>
+                      )}
+
+                      {/* Always show last page if more than 1 page */}
+                      {totalPages > 1 && (
+                        <button
+                          onClick={() => setPage(totalPages)}
+                          className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                            page === totalPages
+                              ? "bg-brand-500 text-white"
+                              : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          }`}
+                        >
+                          {totalPages}
+                        </button>
+                      )}
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">QR Code Belum Diaktifkan</h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      Klik tombol <span className="font-semibold text-brand-600 dark:text-brand-400">"Aktifkan QR Code"</span> di atas untuk menampilkan QR code
+
+                    <button
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages}
+                      className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white dark:bg-white/[0.03] rounded-b-2xl shadow-sm border border-t-0 border-gray-200 dark:border-gray-800 p-4 sm:p-6">
+          <div className="max-w-3xl mx-auto">
+            {/* Header Section */}
+            <div className="text-center mb-4 sm:mb-6">
+              <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-brand-500 rounded-xl mb-2 sm:mb-3">
+                <FontAwesomeIcon icon={faDesktop} className="text-white text-lg sm:text-xl" />
+              </div>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-1 sm:mb-2 px-2">
+                Presentasi QR Code untuk Absensi
+              </h2>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 px-2">
+                Tampilkan QR code ini di layar proyektor agar mahasiswa dapat scan dengan HP mereka
+              </p>
+            </div>
+            
+            {/* Status & Control Card */}
+            <div className={`rounded-xl border p-3 sm:p-4 mb-4 sm:mb-6 transition-colors ${
+              qrEnabled
+                ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-700'
+            }`}>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+                <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                  <div className={`w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full flex-shrink-0 ${
+                    qrEnabled ? 'bg-green-500' : 'bg-gray-400'
+                  }`}></div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs sm:text-sm font-semibold ${
+                      qrEnabled 
+                        ? 'text-green-700 dark:text-green-400' 
+                        : 'text-gray-700 dark:text-gray-300'
+                    }`}>
+                      {qrEnabled ? 'QR Code Aktif' : 'QR Code Tidak Aktif'}
+                    </p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      {qrEnabled ? 'Mahasiswa dapat melakukan scan sekarang' : 'Aktifkan QR code untuk memulai sesi absensi'}
                     </p>
                   </div>
-                ) : qrCodeData ? (
-                  <div className="flex flex-col items-center">
-                    {/* Countdown Timer */}
-                    {timeRemaining > 0 && (
-                      <div className="mb-4 sm:mb-6 w-full flex justify-center">
-                        <div className={`flex items-center justify-center gap-2 sm:gap-3 px-4 py-2.5 sm:px-6 sm:py-4 rounded-xl border transition-colors w-full sm:w-auto ${
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!kode || !jadwalId) return;
+                    setTogglingQR(true);
+                    try {
+                      const response = await api.put(`/kuliah-besar/${kode}/jadwal/${jadwalId}/toggle-qr`);
+                      setQrEnabled(response.data.qr_enabled);
+                    } catch (err: any) {
+                      console.error('Error toggling QR:', err);
+                      setError(handleApiError(err, 'Gagal mengubah status QR code'));
+                    } finally {
+                      setTogglingQR(false);
+                    }
+                  }}
+                  disabled={togglingQR}
+                  className={`w-full sm:w-auto px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${
+                    qrEnabled
+                      ? 'bg-red-500 hover:bg-red-600 text-white'
+                      : 'bg-brand-500 hover:bg-brand-600 text-white'
+                  } ${togglingQR ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {togglingQR ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <FontAwesomeIcon icon={faSpinner} className="animate-spin" />
+                      <span>Memproses...</span>
+                    </span>
+                  ) : qrEnabled ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      <span>Nonaktifkan</span>
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center gap-2">
+                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span>Aktifkan QR Code</span>
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* QR Code Display */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-6 mb-4 sm:mb-6">
+              {!qrEnabled ? (
+                <div className="text-center py-12">
+                  <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-xl mb-4">
+                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">QR Code Belum Diaktifkan</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Klik tombol <span className="font-semibold text-brand-600 dark:text-brand-400">"Aktifkan QR Code"</span> di atas untuk menampilkan QR code
+                  </p>
+                </div>
+              ) : qrCodeData ? (
+                <div className="flex flex-col items-center">
+                  {/* Countdown Timer */}
+                  {timeRemaining > 0 && (
+                    <div className="mb-4 sm:mb-6 w-full flex justify-center">
+                      <div className={`flex items-center justify-center gap-2 sm:gap-3 px-4 py-2.5 sm:px-6 sm:py-4 rounded-xl border transition-colors w-full sm:w-auto ${
+                        timeRemaining <= 10
+                          ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                          : timeRemaining <= 30
+                          ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
+                          : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+                      }`}>
+                        <div className={`flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex-shrink-0 ${
                           timeRemaining <= 10
-                            ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                            ? 'bg-red-500 dark:bg-red-600'
                             : timeRemaining <= 30
-                            ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
-                            : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+                            ? 'bg-orange-500 dark:bg-orange-600'
+                            : 'bg-blue-500 dark:bg-blue-600'
                         }`}>
-                          <div className={`flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex-shrink-0 ${
-                            timeRemaining <= 10
-                              ? 'bg-red-500 dark:bg-red-600'
-                              : timeRemaining <= 30
-                              ? 'bg-orange-500 dark:bg-orange-600'
-                              : 'bg-blue-500 dark:bg-blue-600'
-                          }`}>
-                            <svg className={`w-4 h-4 sm:w-5 sm:h-5 text-white ${timeRemaining <= 10 ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                          </div>
-                          <div className="flex flex-col items-center text-center">
-                            <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-0.5">
-                              QR Code akan berubah dalam
-                            </p>
-                            <p className={`text-xl sm:text-2xl font-bold ${
-                              timeRemaining <= 10
-                                ? 'text-red-600 dark:text-red-400'
-                                : timeRemaining <= 30
-                                ? 'text-orange-600 dark:text-orange-400'
-                                : 'text-blue-600 dark:text-blue-400'
-                            }`}>
-                              {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* QR Code Container */}
-                    <div className="bg-white dark:bg-gray-900 p-3 sm:p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 mb-4 sm:mb-6 relative overflow-hidden flex items-center justify-center">
-                      {/* Loading overlay saat fetch token baru */}
-                      {isFetchingToken && (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-10 flex items-center justify-center rounded-xl"
-                        >
-                          <div className="flex flex-col items-center gap-2">
-                            <FontAwesomeIcon icon={faSpinner} className="animate-spin text-blue-600 dark:text-blue-400 text-xl sm:text-2xl" />
-                            <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">Memperbarui QR code...</p>
-                          </div>
-                        </motion.div>
-                      )}
-                      
-                      {/* QR Code dengan animasi */}
-                      <motion.div
-                        key={qrCodeKey}
-                        className="flex items-center justify-center relative w-full max-w-[280px]"
-                      >
-                        {/* Efek butiran dari QR code */}
-                        {showParticles && (
-                          <div className="absolute inset-0 pointer-events-none z-20 overflow-hidden" style={{ width: '100%', height: '100%', maxWidth: '280px', maxHeight: '280px', left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}>
-                            {[...Array(100)].map((_, i) => {
-                              // Menggunakan ukuran container yang dinamis
-                              const qrSize = 280;
-                              // Posisi random di area QR code
-                              const x = Math.random() * qrSize;
-                              const y = Math.random() * qrSize;
-                              // Warna random hitam atau putih (sesuai QR code)
-                              const isBlack = Math.random() > 0.5;
-                              const angle = Math.random() * Math.PI * 2;
-                              const distance = 40 + Math.random() * 80;
-                              
-                              return (
-                                <motion.div
-                                  key={`particle-${qrCodeKey}-${i}`}
-                                  initial={{ 
-                                    opacity: 1,
-                                    scale: 1,
-                                    x: x,
-                                    y: y,
-                                  }}
-                                  animate={{ 
-                                    opacity: [1, 1, 0.8, 0],
-                                    scale: [1, 1.2, 0.3, 0],
-                                    x: x + Math.cos(angle) * distance,
-                                    y: y + Math.sin(angle) * distance,
-                                  }}
-                                  transition={{
-                                    duration: 1.8,
-                                    delay: Math.random() * 0.4,
-                                    ease: "easeOut"
-                                  }}
-                                  className="absolute rounded-sm"
-                                  style={{
-                                    width: '6px',
-                                    height: '6px',
-                                    backgroundColor: isBlack ? '#000000' : '#ffffff',
-                                    boxShadow: isBlack 
-                                      ? '0 0 4px rgba(0,0,0,0.8), 0 0 8px rgba(0,0,0,0.4)' 
-                                      : '0 0 4px rgba(255,255,255,0.8), 0 0 8px rgba(255,255,255,0.4)',
-                                    left: `${x}px`,
-                                    top: `${y}px`,
-                                  }}
-                                />
-                              );
-                            })}
-                          </div>
-                        )}
-                        
-                        <QRCode 
-                          value={qrCodeData} 
-                          size={280}
-                          level="H"
-                          includeMargin={true}
-                          className="w-full h-auto max-w-full relative z-10"
-                          style={{ maxWidth: '280px', maxHeight: '280px' }}
-                        />
-                      </motion.div>
-                      
-                      {/* Indicator bahwa QR code baru */}
-                      {showNewBadge && !isFetchingToken && (
-                        <AnimatePresence>
-                          <motion.div
-                            initial={{ opacity: 0, y: -10, scale: 0.8 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: -10, scale: 0.8 }}
-                            transition={{ duration: 0.3 }}
-                            className="absolute top-1 right-1 sm:top-2 sm:right-2 bg-green-500 text-white text-xs font-semibold px-2 py-0.5 sm:px-3 sm:py-1 rounded-full shadow-lg flex items-center gap-1 sm:gap-1.5 z-20"
-                          >
-                            <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                            </svg>
-                            <span className="hidden sm:inline">QR Code Baru</span>
-                            <span className="sm:hidden">Baru</span>
-                          </motion.div>
-                        </AnimatePresence>
-                      )}
-                    </div>
-                    
-                    {/* Instruksi */}
-                    <div className="w-full max-w-lg mx-auto">
-                      <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 sm:p-4 border border-blue-200 dark:border-blue-800">
-                        <div className="flex items-center gap-2 mb-2 sm:mb-3">
-                          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          <svg className={`w-4 h-4 sm:w-5 sm:h-5 text-white ${timeRemaining <= 10 ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          <p className="text-xs sm:text-sm font-semibold text-blue-700 dark:text-blue-400">
-                            Instruksi untuk Mahasiswa
+                        </div>
+                        <div className="flex flex-col items-center text-center">
+                          <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-0.5">
+                            QR Code akan berubah dalam
+                          </p>
+                          <p className={`text-xl sm:text-2xl font-bold ${
+                            timeRemaining <= 10
+                              ? 'text-red-600 dark:text-red-400'
+                              : timeRemaining <= 30
+                              ? 'text-orange-600 dark:text-orange-400'
+                              : 'text-blue-600 dark:text-blue-400'
+                          }`}>
+                            {Math.floor(timeRemaining / 60)}:{(timeRemaining % 60).toString().padStart(2, '0')}
                           </p>
                         </div>
-                        <ol className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm text-gray-700 dark:text-gray-300">
-                          <li className="flex items-start gap-2">
-                            <span className="flex-shrink-0 w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
-                            <span>Buka aplikasi scanner QR code di HP Anda</span>
-                          </li>
-                          <li className="flex items-start gap-2">
-                            <span className="flex-shrink-0 w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
-                            <span>Arahkan kamera HP ke QR code yang ditampilkan di layar</span>
-                          </li>
-                          <li className="flex items-start gap-2">
-                            <span className="flex-shrink-0 w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span>
-                            <span>Konfirmasi kehadiran Anda di halaman yang muncul</span>
-                          </li>
-                        </ol>
                       </div>
                     </div>
+                  )}
+                  
+                  {/* QR Code Container */}
+                  <div className="bg-white dark:bg-gray-900 p-3 sm:p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 mb-4 sm:mb-6 relative overflow-hidden flex items-center justify-center">
+                    {/* Loading overlay saat fetch token baru */}
+                    {isFetchingToken && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-10 flex items-center justify-center rounded-xl"
+                      >
+                        <div className="flex flex-col items-center gap-2">
+                          <FontAwesomeIcon icon={faSpinner} className="animate-spin text-blue-600 dark:text-blue-400 text-xl sm:text-2xl" />
+                          <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400">Memperbarui QR code...</p>
+                        </div>
+                      </motion.div>
+                    )}
+                    
+                    {/* QR Code dengan animasi */}
+                    <motion.div
+                      key={qrCodeKey}
+                      className="flex items-center justify-center relative w-full max-w-[280px]"
+                    >
+                      {/* Efek butiran dari QR code */}
+                      {showParticles && (
+                        <div className="absolute inset-0 pointer-events-none z-20 overflow-hidden" style={{ width: '100%', height: '100%', maxWidth: '280px', maxHeight: '280px', left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}>
+                          {[...Array(100)].map((_, i) => {
+                            // Menggunakan ukuran container yang dinamis
+                            const qrSize = 280;
+                            // Posisi random di area QR code
+                            const x = Math.random() * qrSize;
+                            const y = Math.random() * qrSize;
+                            // Warna random hitam atau putih (sesuai QR code)
+                            const isBlack = Math.random() > 0.5;
+                            const angle = Math.random() * Math.PI * 2;
+                            const distance = 40 + Math.random() * 80;
+                            
+                            return (
+                              <motion.div
+                                key={`particle-${qrCodeKey}-${i}`}
+                                initial={{ 
+                                  opacity: 1,
+                                  scale: 1,
+                                  x: x,
+                                  y: y,
+                                }}
+                                animate={{ 
+                                  opacity: [1, 1, 0.8, 0],
+                                  scale: [1, 1.2, 0.3, 0],
+                                  x: x + Math.cos(angle) * distance,
+                                  y: y + Math.sin(angle) * distance,
+                                }}
+                                transition={{
+                                  duration: 1.8,
+                                  delay: Math.random() * 0.4,
+                                  ease: "easeOut"
+                                }}
+                                className="absolute rounded-sm"
+                                style={{
+                                  width: '6px',
+                                  height: '6px',
+                                  backgroundColor: isBlack ? '#000000' : '#ffffff',
+                                  boxShadow: isBlack 
+                                    ? '0 0 4px rgba(0,0,0,0.8), 0 0 8px rgba(0,0,0,0.4)' 
+                                    : '0 0 4px rgba(255,255,255,0.8), 0 0 8px rgba(255,255,255,0.4)',
+                                  left: `${x}px`,
+                                  top: `${y}px`,
+                                }}
+                              />
+                            );
+                          })}
+                        </div>
+                      )}
+                      
+                      <QRCode 
+                        value={qrCodeData} 
+                        size={280}
+                        level="H"
+                        includeMargin={true}
+                        className="w-full h-auto max-w-full relative z-10"
+                        style={{ maxWidth: '280px', maxHeight: '280px' }}
+                      />
+                    </motion.div>
+                    
+                    {/* Indicator bahwa QR code baru */}
+                    {showNewBadge && !isFetchingToken && (
+                      <AnimatePresence>
+                        <motion.div
+                          initial={{ opacity: 0, y: -10, scale: 0.8 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -10, scale: 0.8 }}
+                          transition={{ duration: 0.3 }}
+                          className="absolute top-1 right-1 sm:top-2 sm:right-2 bg-green-500 text-white text-xs font-semibold px-2 py-0.5 sm:px-3 sm:py-1 rounded-full shadow-lg flex items-center gap-1 sm:gap-1.5 z-20"
+                        >
+                          <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                          </svg>
+                          <span className="hidden sm:inline">QR Code Baru</span>
+                          <span className="sm:hidden">Baru</span>
+                        </motion.div>
+                      </AnimatePresence>
+                    )}
                   </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <FontAwesomeIcon icon={faSpinner} className="animate-spin text-brand-600 dark:text-brand-400 text-2xl mb-2" />
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Memuat QR code...</p>
+                  
+                  {/* Instruksi */}
+                  <div className="w-full max-w-lg mx-auto">
+                    <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 sm:p-4 border border-blue-200 dark:border-blue-800">
+                      <div className="flex items-center gap-2 mb-2 sm:mb-3">
+                        <svg className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p className="text-xs sm:text-sm font-semibold text-blue-700 dark:text-blue-400">
+                          Instruksi untuk Mahasiswa
+                        </p>
+                      </div>
+                      <ol className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm text-gray-700 dark:text-gray-300">
+                        <li className="flex items-start gap-2">
+                          <span className="flex-shrink-0 w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
+                          <span>Buka aplikasi scanner QR code di HP Anda</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="flex-shrink-0 w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                          <span>Arahkan kamera HP ke QR code yang ditampilkan di layar</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="flex-shrink-0 w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span>
+                          <span>Konfirmasi kehadiran Anda di halaman yang muncul</span>
+                        </li>
+                      </ol>
+                    </div>
                   </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <FontAwesomeIcon icon={faSpinner} className="animate-spin text-brand-600 dark:text-brand-400 text-2xl mb-2" />
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Memuat QR code...</p>
+                </div>
+              )}
+            </div>
 
-              {/* Manual table untuk referensi */}
-              <div className="mt-6">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3">Daftar Mahasiswa (Referensi)</h3>
-                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-                  <div className="max-h-96 overflow-y-auto">
-                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                      <thead className="bg-gray-50 dark:bg-gray-700/50 sticky top-0">
-                        <tr>
-                          <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">NIM</th>
-                          <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Nama</th>
-                          <th className="px-4 py-2 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Status</th>
+            {/* Manual table untuk referensi */}
+            <div className="mt-6">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3">Daftar Mahasiswa (Referensi)</h3>
+              <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                <div
+                  className="max-w-full overflow-x-auto hide-scroll max-h-96 overflow-y-auto"
+                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                >
+                  <style>{`
+                    .max-w-full::-webkit-scrollbar { display: none; }
+                    .hide-scroll { 
+                      -ms-overflow-style: none; /* IE and Edge */
+                      scrollbar-width: none; /* Firefox */
+                    }
+                    .hide-scroll::-webkit-scrollbar { /* Chrome, Safari, Opera */
+                      display: none;
+                    }
+                    .hide-scroll::-webkit-scrollbar-vertical { display: none; }
+                    .hide-scroll::-webkit-scrollbar-horizontal { display: none; }
+                  `}</style>
+                  <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                    <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                      <tr>
+                        <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">NIM</th>
+                        <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Nama</th>
+                        <th className="px-6 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mahasiswaList.map((m, i) => {
+                        const hadir = absensi[m.nim]?.hadir || false;
+                        return (
+                        <tr
+                          key={m.id}
+                          className={hadir ? 'bg-green-50 dark:bg-green-900/10' : (i % 2 === 1 ? "bg-gray-50 dark:bg-white/[0.02]" : "")}
+                        >
+                          <td className="px-6 py-4 font-mono tracking-wide text-gray-700 dark:text-gray-200">{m.nim}</td>
+                          <td className="px-6 py-4 text-gray-900 dark:text-white font-medium">{m.nama}</td>
+                          <td className="px-6 py-4 text-center">
+                            {hadir ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300 text-xs font-semibold">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 20 20">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L15 7" />
+                                </svg>
+                                Hadir
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400 dark:text-gray-500">-</span>
+                            )}
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-800">
-                        {mahasiswaList.map((m) => (
-                          <tr key={m.id} className={`${absensi[m.nim]?.hadir ? 'bg-green-50 dark:bg-green-900/10' : ''} hover:bg-gray-50 dark:hover:bg-gray-700/50`}>
-                            <td className="px-4 py-2.5 font-mono text-sm text-gray-900 dark:text-white">{m.nim}</td>
-                            <td className="px-4 py-2.5 text-sm text-gray-900 dark:text-white">{m.nama}</td>
-                            <td className="px-4 py-2.5 text-center">
-                              {absensi[m.nim]?.hadir ? (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-300 text-xs font-semibold">
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 20 20">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L15 7" />
-                                  </svg>
-                                  Hadir
-                                </span>
-                              ) : (
-                                <span className="text-xs text-gray-400">-</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Save button dihapus - tidak diperlukan */}
-        {/* Confirmation Modal */}
-        <AnimatePresence>
-          {confirmOpen && (
+      {/* Save button dihapus - tidak diperlukan */}
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {confirmOpen && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            <div
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={cancelUncheck}
+            ></div>
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
             >
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-6 border border-gray-200 dark:border-gray-700"
-              >
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Konfirmasi Ubah Kehadiran</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
+              <div className="flex items-center justify-between pb-6">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                  Konfirmasi Ubah Kehadiran
+                </h2>
+              </div>
+              <div>
+                <p className="mb-6 text-gray-500 dark:text-gray-400">
                   {pendingChange?.desired
                     ? 'Anda akan menandai mahasiswa menjadi Hadir.'
                     : 'Anda akan menandai mahasiswa menjadi Tidak Hadir.'}
                   {' '}Lanjutkan?
                 </p>
-                <div className="flex justify-end gap-3">
+                <div className="flex justify-end gap-2 pt-2">
                   <button
                     onClick={cancelUncheck}
-                    className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
                   >
                     Batal
                   </button>
                   <button
                     onClick={confirmChange}
-                    className={`px-4 py-2 rounded-lg text-white ${pendingChange?.desired ? 'bg-green-600 hover:bg-green-700' : 'bg-red-500 hover:bg-red-600'}`}
+                    className={`px-4 py-2 rounded-lg text-white text-sm font-medium shadow-theme-xs transition flex items-center justify-center ${
+                      pendingChange?.desired
+                        ? 'bg-green-600 hover:bg-green-700'
+                        : 'bg-red-500 hover:bg-red-600'
+                    }`}
                   >
                     {pendingChange?.desired ? 'Ya, Tandai Hadir' : 'Ya, Tandai Tidak Hadir'}
-            </button>
-          </div>
-              </motion.div>
+                  </button>
+                </div>
+              </div>
             </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

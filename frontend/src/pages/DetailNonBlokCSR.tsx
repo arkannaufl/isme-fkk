@@ -680,9 +680,15 @@ export default function DetailNonBlokCSR() {
           const headerStr = headers.join(' ').toLowerCase();
           
           // Deteksi format berdasarkan header
+          // Format export template aplikasi: memiliki 'No' di awal, tanpa 'Jam Selesai' dan 'Sesi'
+          // Format template download: tidak memiliki 'No' di awal
           let format: 'template' | 'export' = 'template';
-          if (headerStr.includes('no') && headerStr.includes('tanggal') && headerStr.includes('jam mulai') && 
-              headerStr.includes('jam selesai') && headerStr.includes('jenis csr') && headerStr.includes('sesi')) {
+          const hasNo = headerStr.includes('no') && headers[0]?.toLowerCase().includes('no');
+          const hasJamSelesai = headerStr.includes('jam selesai');
+          const hasSesi = headerStr.includes('sesi');
+          
+          // Jika ada 'No' di kolom pertama dan tidak ada 'Jam Selesai' dan 'Sesi', maka ini format export template aplikasi
+          if (hasNo && !hasJamSelesai && !hasSesi) {
             format = 'export';
           }
           
@@ -720,7 +726,13 @@ export default function DetailNonBlokCSR() {
         expectedHeaders = ['Tanggal', 'Jam Mulai', 'Jenis CSR', 'Kelompok Kecil', 'Topik', 'Keahlian', 'Dosen', 'Ruangan'];
       }
       
-      const headerMatch = expectedHeaders.every(header => headers.includes(header));
+      // Normalize headers untuk perbandingan (trim spasi dan case insensitive)
+      const normalizedHeaders = headers.map(h => h?.toString().trim().toLowerCase() || '');
+      const normalizedExpected = expectedHeaders.map(h => h.trim().toLowerCase());
+      
+      const headerMatch = normalizedExpected.every(expected => 
+        normalizedHeaders.some(header => header === expected || header.includes(expected))
+      );
       
       if (!headerMatch) {
         setCSRImportErrors(['Format file Excel tidak sesuai dengan template aplikasi. Pastikan kolom sesuai dengan template yang didownload.']);
@@ -1051,11 +1063,17 @@ export default function DetailNonBlokCSR() {
       if (error.response?.status === 422) {
         const errorData = error.response.data;
         if (errorData.errors && Array.isArray(errorData.errors)) {
-          const cellErrors = errorData.errors.map((err: string, idx: number) => ({
-            row: idx + 1,
-            field: 'api',
-            message: err
-          }));
+          // Parse error messages yang sudah dalam format "Baris X: [pesan]"
+          const cellErrors = errorData.errors.map((err: string) => {
+            // Extract row number dari error message
+            const rowMatch = err.match(/Baris\s+(\d+):/);
+            const row = rowMatch ? parseInt(rowMatch[1]) : 0;
+            return {
+              row: row,
+              field: 'api',
+              message: err
+            };
+          });
           setCSRCellErrors(cellErrors);
         } else {
           setCSRImportErrors([errorData.message || 'Terjadi kesalahan validasi']);
@@ -1672,11 +1690,17 @@ export default function DetailNonBlokCSR() {
       if (error.response?.status === 422) {
         const errorData = error.response.data;
         if (errorData.errors && Array.isArray(errorData.errors)) {
-          const cellErrors = errorData.errors.map((err: string, idx: number) => ({
-            row: idx + 1,
-            field: 'api',
-            message: err
-          }));
+          // Parse error messages yang sudah dalam format "Baris X: [pesan]"
+          const cellErrors = errorData.errors.map((err: string) => {
+            // Extract row number dari error message
+            const rowMatch = err.match(/Baris\s+(\d+):/);
+            const row = rowMatch ? parseInt(rowMatch[1]) : 0;
+            return {
+              row: row,
+              field: 'api',
+              message: err
+            };
+          });
           setCSRSiakadCellErrors(cellErrors);
         } else {
           setCSRSiakadImportErrors([errorData.message || 'Terjadi kesalahan validasi']);
@@ -3572,27 +3596,6 @@ export default function DetailNonBlokCSR() {
                 </div>
               )}
 
-              {/* Error Messages dari API */}
-              {csrImportErrors.length > 0 && (
-                <div className="mb-6">
-                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <FontAwesomeIcon icon={faExclamationTriangle} className="w-5 h-5 text-red-500" />
-                      <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
-                        Error Import
-                      </h3>
-                    </div>
-                    <div className="max-h-40 overflow-y-auto">
-                      {csrImportErrors.map((err, idx) => (
-                        <p key={idx} className="text-sm text-red-600 dark:text-red-400 mb-1">
-                          • {err}
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Error Validasi Frontend */}
               {csrCellErrors.length > 0 && (
                 <div className="mb-6">
@@ -3947,27 +3950,6 @@ export default function DetailNonBlokCSR() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
                         </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Error Messages - SIAKAD */}
-                  {csrSiakadImportErrors.length > 0 && (
-                    <div className="mb-6">
-                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                        <div className="flex items-center gap-2 mb-3">
-                          <FontAwesomeIcon icon={faExclamationTriangle} className="w-5 h-5 text-red-500" />
-                          <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
-                            Error Import
-                          </h3>
-                        </div>
-                        <div className="max-h-40 overflow-y-auto">
-                          {csrSiakadImportErrors.map((err, idx) => (
-                            <p key={idx} className="text-sm text-red-600 dark:text-red-400 mb-1">
-                              • {err}
-                            </p>
-                          ))}
-                        </div>
                       </div>
                     </div>
                   )}
