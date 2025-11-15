@@ -586,7 +586,9 @@ export default function AbsensiPersamaanPersepsiPage() {
           <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
             <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Ruangan</div>
             <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
-              {jadwal.ruangan?.nama || "-"}
+              {(jadwal as any).use_ruangan && jadwal.ruangan?.nama
+                ? jadwal.ruangan.nama
+                : "Online"}
             </div>
           </div>
 

@@ -190,7 +190,8 @@ interface JadwalPersamaanPersepsi {
   ruangan: {
     id: number;
     nama: string;
-  };
+  } | null;
+  use_ruangan?: boolean;
   jumlah_sesi: number;
   semester_type?: "reguler" | "antara";
   created_at: string;
@@ -1164,8 +1165,11 @@ export default function DashboardDosen() {
           localStorage.setItem("last_success_action", "whatsapp_sync");
           setShowSuccessModal(true);
         } else {
+          // Jika wablas_synced false, berarti sync gagal dan data tidak tersimpan
+          // Tampilkan error message
           setErrorMessage(
-            "Data berhasil disimpan, namun sinkronisasi ke Wablas gagal. Silakan coba lagi nanti."
+            response.data.message || 
+            "Gagal menyinkronkan data ke Wablas. Data tidak tersimpan. Silakan coba lagi."
           );
           setShowErrorModal(true);
         }
@@ -1217,13 +1221,22 @@ export default function DashboardDosen() {
             "Validasi gagal. Silakan periksa kembali data yang diisi.";
         }
       } else if (error.response?.data?.message) {
+        // Prioritas: ambil message dari backend (termasuk error Wablas sync)
         errorMsg = error.response.data.message;
+      } else if (error.response?.data?.error) {
+        // Jika ada field error terpisah
+        errorMsg = error.response.data.error;
       } else if (error.message) {
         errorMsg = error.message;
       }
 
       setErrorMessage(errorMsg);
       setShowErrorModal(true);
+      
+      // Jika sync gagal, refresh data untuk mendapatkan data terbaru (karena rollback)
+      if (error.response?.status === 422 || error.response?.status === 500) {
+        window.dispatchEvent(new Event("user-updated"));
+      }
     } finally {
       setUpdatingEmail(false);
       setUpdatingWhatsApp(false);
@@ -1738,10 +1751,13 @@ export default function DashboardDosen() {
                         </td>
                       )}
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {jadwalType === "kuliah_besar" ||
-                        jadwalType === "praktikum" ||
-                        jadwalType === "jurnal" ||
-                        jadwalType === "persamaan_persepsi"
+                        {jadwalType === "persamaan_persepsi"
+                          ? (item.use_ruangan && item.ruangan?.nama) 
+                            ? item.ruangan.nama 
+                            : "Online"
+                          : jadwalType === "kuliah_besar" ||
+                            jadwalType === "praktikum" ||
+                            jadwalType === "jurnal"
                           ? item.ruangan?.nama || "N/A"
                           : jadwalType === "pbl"
                           ? item.ruangan || "N/A"

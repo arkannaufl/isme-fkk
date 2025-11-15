@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use App\Models\User;
 use App\Models\Notification;
 use App\Services\WablasService;
@@ -363,19 +364,34 @@ class AuthController extends Controller
             $user->signature_image = $validated['signature_image'];
         }
 
+        // Simpan data basic fields dulu (name, username, email, telp, ket, password, signature)
+        // WhatsApp fields akan disimpan setelah sync berhasil
+        $user->save();
 
-        // Update WhatsApp fields
+        // Simpan nilai lama WhatsApp fields untuk rollback jika sync gagal
+        $oldWhatsAppPhone = $user->whatsapp_phone;
+        $oldWhatsAppEmail = $user->whatsapp_email;
+        $oldWhatsAppAddress = $user->whatsapp_address;
+        $oldWhatsAppBirthDay = $user->whatsapp_birth_day;
+        $oldTelp = $user->telp;
+
+        // Update WhatsApp fields ke temporary (belum disimpan)
+        $hasWhatsAppChanges = false;
         if (array_key_exists('whatsapp_phone', $validated)) {
             $user->whatsapp_phone = $validated['whatsapp_phone'];
+            $hasWhatsAppChanges = true;
         }
         if (array_key_exists('whatsapp_email', $validated)) {
             $user->whatsapp_email = $validated['whatsapp_email'];
+            $hasWhatsAppChanges = true;
         }
         if (array_key_exists('whatsapp_address', $validated)) {
             $user->whatsapp_address = $validated['whatsapp_address'];
+            $hasWhatsAppChanges = true;
         }
         if (array_key_exists('whatsapp_birth_day', $validated)) {
             $user->whatsapp_birth_day = $validated['whatsapp_birth_day'];
+            $hasWhatsAppChanges = true;
         }
 
         // Sinkronisasi telp dengan whatsapp_phone (sama seperti email)
@@ -389,36 +405,65 @@ class AuthController extends Controller
             }
         }
 
-        // Simpan data ke database dulu (meskipun sync gagal, data tetap tersimpan)
-
-        $user->save();
-
-        // Sync ke Wablas untuk dosen (hanya butuh phone dan name sesuai API Wablas)
+        // Sync ke Wablas untuk dosen (hanya jika ada perubahan WhatsApp fields)
         // phone dan name adalah required, email, address, birth_day adalah optional
-        if ($isDosen && $user->whatsapp_phone && $user->name) {
+        if ($isDosen && $hasWhatsAppChanges && $user->whatsapp_phone && $user->name) {
             try {
                 $syncResult = $this->syncToWablas($user);
 
                 if ($syncResult['success']) {
+                    // Sync berhasil, simpan WhatsApp fields ke database
                     $user->wablas_sync_status = 'synced';
                     $user->wablas_synced_at = now();
+                    $user->save();
                 } else {
-                    $user->wablas_sync_status = 'failed';
-                    Log::warning('Wablas sync failed for user', [
+                    // Sync gagal, rollback WhatsApp fields ke nilai lama
+                    $user->whatsapp_phone = $oldWhatsAppPhone;
+                    $user->whatsapp_email = $oldWhatsAppEmail;
+                    $user->whatsapp_address = $oldWhatsAppAddress;
+                    $user->whatsapp_birth_day = $oldWhatsAppBirthDay;
+                    $user->telp = $oldTelp;
+                    $user->wablas_sync_status = null; // Reset status
+                    $user->save();
+
+                    Log::warning('Wablas sync failed for user - data rolled back', [
                         'user_id' => $user->id,
                         'error' => $syncResult['error'] ?? 'Unknown error',
                     ]);
+
+                    // Kembalikan error response
+                    return response()->json([
+                        'message' => 'Gagal menyinkronkan data ke Wablas. Data tidak tersimpan.',
+                        'error' => $syncResult['error'] ?? 'Sync ke Wablas gagal',
+                        'wablas_synced' => false,
+                    ], 422);
                 }
-                $user->save();
             } catch (\Exception $e) {
-                // Jika sync gagal, tetap simpan data di database
-                $user->wablas_sync_status = 'failed';
+                // Exception saat sync, rollback WhatsApp fields
+                $user->whatsapp_phone = $oldWhatsAppPhone;
+                $user->whatsapp_email = $oldWhatsAppEmail;
+                $user->whatsapp_address = $oldWhatsAppAddress;
+                $user->whatsapp_birth_day = $oldWhatsAppBirthDay;
+                $user->telp = $oldTelp;
+                $user->wablas_sync_status = null; // Reset status
                 $user->save();
-                Log::error('Wablas sync exception', [
+
+                Log::error('Wablas sync exception - data rolled back', [
                     'user_id' => $user->id,
                     'error' => $e->getMessage(),
                 ]);
+
+                // Kembalikan error response
+                return response()->json([
+                    'message' => 'Terjadi kesalahan saat menyinkronkan data ke Wablas. Data tidak tersimpan.',
+                    'error' => $e->getMessage(),
+                    'wablas_synced' => false,
+                ], 500);
             }
+        } elseif ($isDosen && !$hasWhatsAppChanges && $user->whatsapp_phone && $user->name) {
+            // Jika tidak ada perubahan WhatsApp fields tapi user sudah punya data WhatsApp,
+            // update status sync jika diperlukan (untuk retry sync)
+            // Tapi untuk sekarang, skip karena tidak ada perubahan
         }
 
         return response()->json([

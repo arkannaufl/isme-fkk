@@ -27,28 +27,28 @@ class JadwalPersamaanPersepsiController extends Controller
         // Tambahkan nama dosen untuk setiap jadwal, pisahkan koordinator dan pengampu
         foreach ($jadwal as $j) {
             $mataKuliah = $j->mataKuliah;
-            
+
             // Koordinator dari koordinator_ids
             $koordinatorIds = $j->koordinator_ids && is_array($j->koordinator_ids) ? $j->koordinator_ids : [];
             $koordinatorList = !empty($koordinatorIds) ? User::whereIn('id', $koordinatorIds)->get() : collect([]);
-            
+
             // Pengampu (non-koordinator) dari dosen_ids yang tidak ada di koordinator_ids
             $dosenIds = $j->dosen_ids && is_array($j->dosen_ids) ? $j->dosen_ids : [];
             $pengampuIds = array_diff($dosenIds, $koordinatorIds);
             $pengampuList = !empty($pengampuIds) ? User::whereIn('id', $pengampuIds)->get() : collect([]);
-            
+
             // Format koordinator (untuk kolom Koordinator)
             $koordinatorNames = $koordinatorList->pluck('name')->toArray();
             $j->koordinator_names = implode(', ', $koordinatorNames);
-            
+
             // Format pengampu (untuk kolom Pengampu - non-koordinator)
             $pengampuNames = $pengampuList->pluck('name')->toArray();
             $j->pengampu_names = implode(', ', $pengampuNames);
-            
+
             // Format dosen_with_roles untuk kompatibilitas (semua dosen, dengan flag is_koordinator)
             $allDosenIds = array_unique(array_merge($koordinatorIds, $pengampuIds));
             $allDosenList = !empty($allDosenIds) ? User::whereIn('id', $allDosenIds)->get() : collect([]);
-            
+
             $dosenWithRoles = [];
             foreach ($allDosenList as $dosen) {
                 $isKoordinator = in_array($dosen->id, $koordinatorIds);
@@ -60,7 +60,7 @@ class JadwalPersamaanPersepsiController extends Controller
                     'is_koordinator' => $isKoordinator,
                 ];
             }
-            
+
             $j->dosen_with_roles = $dosenWithRoles;
             $j->dosen_names = implode(', ', array_column($dosenWithRoles, 'name'));
         }
@@ -88,7 +88,7 @@ class JadwalPersamaanPersepsiController extends Controller
         // Gabungkan koordinator_ids dan dosen_ids untuk validasi kapasitas dan bentrok
         $koordinatorIds = $data['koordinator_ids'] ?? [];
         $pengampuIds = $data['dosen_ids'] ?? [];
-        
+
         // Validasi: Cek apakah ada dosen yang sama di koordinator_ids dan dosen_ids
         $duplicateIds = array_intersect($koordinatorIds, $pengampuIds);
         if (!empty($duplicateIds)) {
@@ -97,17 +97,17 @@ class JadwalPersamaanPersepsiController extends Controller
                 'message' => 'Dosen yang sama tidak boleh dipilih sebagai Koordinator Dosen dan Pengampu: ' . implode(', ', $duplicateNames)
             ], 422);
         }
-        
+
         $allDosenIds = array_unique(array_merge($koordinatorIds, $pengampuIds));
 
         $data['mata_kuliah_kode'] = $kode;
         $data['created_by'] = $request->input('created_by', auth()->id());
-        
+
         // Set topik ke null jika kosong
         if (empty($data['topik'])) {
             $data['topik'] = null;
         }
-        
+
         // Validasi ruangan hanya jika menggunakan ruangan
         if ($data['use_ruangan']) {
             if (!$data['ruangan_id']) {
@@ -117,7 +117,7 @@ class JadwalPersamaanPersepsiController extends Controller
             // Jika tidak menggunakan ruangan, set ruangan_id ke null
             $data['ruangan_id'] = null;
         }
-        
+
         // Untuk validasi kapasitas dan bentrok, gunakan semua dosen (koordinator + pengampu)
         $dataForValidation = $data;
         $dataForValidation['dosen_ids'] = $allDosenIds;
@@ -167,20 +167,59 @@ class JadwalPersamaanPersepsiController extends Controller
             $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) ? $jadwal->koordinator_ids : [],
             $jadwal->dosen_ids && is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : []
         ));
-        
+
         if (!empty($allDosenIdsForNotification)) {
             foreach ($allDosenIdsForNotification as $dosenId) {
                 $dosen = User::find($dosenId);
                 if ($dosen) {
                     $ruanganNama = $jadwal->ruangan ? $jadwal->ruangan->nama : 'Online';
-                    $ruanganInfo = $jadwal->use_ruangan && $jadwal->ruangan 
-                        ? "di ruangan {$ruanganNama}" 
+                    $ruanganInfo = $jadwal->use_ruangan && $jadwal->ruangan
+                        ? "di ruangan {$ruanganNama}"
                         : "secara online";
-                    
+
+                    // Cek apakah dosen adalah koordinator atau pengampu
+                    $isKoordinator = $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) && in_array($dosenId, $jadwal->koordinator_ids);
+
+                    // Ambil daftar pengampu untuk koordinator
+                    $pengampuList = [];
+                    if ($isKoordinator && $jadwal->dosen_ids && is_array($jadwal->dosen_ids)) {
+                        $pengampuIds = array_diff($jadwal->dosen_ids, $jadwal->koordinator_ids ?? []);
+                        if (!empty($pengampuIds)) {
+                            $pengampuList = User::whereIn('id', $pengampuIds)
+                                ->pluck('name')
+                                ->toArray();
+                        }
+                    }
+
+                    // Ambil daftar koordinator untuk pengampu
+                    $koordinatorList = [];
+                    if (!$isKoordinator && $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) && !empty($jadwal->koordinator_ids)) {
+                        $koordinatorList = User::whereIn('id', $jadwal->koordinator_ids)
+                            ->pluck('name')
+                            ->toArray();
+                    }
+
+                    // Buat pesan berbeda untuk koordinator dan pengampu
+                    if ($isKoordinator) {
+                        $title = 'Jadwal Persamaan Persepsi Baru - Koordinator';
+                        $message = "Anda telah menjadi koordinator dosen untuk Persamaan Persepsi {$jadwal->mataKuliah->nama} pada tanggal {$jadwal->tanggal} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai} {$ruanganInfo}.";
+                        if (!empty($pengampuList)) {
+                            $message .= " Dosen pengampu: " . implode(', ', $pengampuList) . ".";
+                        }
+                        $message .= " Silakan persiapkan diri untuk mengajar.";
+                    } else {
+                        $title = 'Jadwal Persamaan Persepsi Baru';
+                        $message = "Anda telah di-assign untuk Persamaan Persepsi {$jadwal->mataKuliah->nama} pada tanggal {$jadwal->tanggal} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai} {$ruanganInfo}.";
+                        if (!empty($koordinatorList)) {
+                            $message .= " Koordinator dosen: " . implode(', ', $koordinatorList) . ".";
+                        }
+                        $message .= " Silakan persiapkan diri untuk mengajar.";
+                    }
+
                     Notification::create([
                         'user_id' => $dosenId,
-                        'title' => 'Jadwal Persamaan Persepsi Baru',
-                        'message' => "Anda telah di-assign untuk Persamaan Persepsi {$jadwal->mataKuliah->nama} pada tanggal {$jadwal->tanggal} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai} {$ruanganInfo}. Silakan konfirmasi ketersediaan Anda.",
+                        'title' => $title,
+                        'message' => $message,
                         'type' => 'info',
                         'data' => [
                             'topik' => $jadwal->topik,
@@ -230,7 +269,7 @@ class JadwalPersamaanPersepsiController extends Controller
         // Gabungkan koordinator_ids dan dosen_ids untuk validasi kapasitas dan bentrok
         $koordinatorIds = $data['koordinator_ids'] ?? [];
         $pengampuIds = $data['dosen_ids'] ?? [];
-        
+
         // Validasi: Cek apakah ada dosen yang sama di koordinator_ids dan dosen_ids
         $duplicateIds = array_intersect($koordinatorIds, $pengampuIds);
         if (!empty($duplicateIds)) {
@@ -239,16 +278,16 @@ class JadwalPersamaanPersepsiController extends Controller
                 'message' => 'Dosen yang sama tidak boleh dipilih sebagai Koordinator Dosen dan Pengampu: ' . implode(', ', $duplicateNames)
             ], 422);
         }
-        
+
         $allDosenIds = array_unique(array_merge($koordinatorIds, $pengampuIds));
 
         $data['mata_kuliah_kode'] = $kode;
-        
+
         // Set topik ke null jika kosong
         if (empty($data['topik'])) {
             $data['topik'] = null;
         }
-        
+
         // Validasi ruangan hanya jika menggunakan ruangan
         if ($data['use_ruangan']) {
             if (!$data['ruangan_id']) {
@@ -258,7 +297,7 @@ class JadwalPersamaanPersepsiController extends Controller
             // Jika tidak menggunakan ruangan, set ruangan_id ke null
             $data['ruangan_id'] = null;
         }
-        
+
         // Untuk validasi kapasitas dan bentrok, gunakan semua dosen (koordinator + pengampu)
         $dataForValidation = $data;
         $dataForValidation['dosen_ids'] = $allDosenIds;
@@ -378,14 +417,14 @@ class JadwalPersamaanPersepsiController extends Controller
                             // Validasi kapasitas ruangan (koordinator + pengampu)
                             $koordinatorIds = $row['koordinator_ids'] ?? [];
                             $pengampuIds = $row['dosen_ids'] ?? [];
-                            
+
                             // Validasi: Cek apakah ada dosen yang sama di koordinator_ids dan dosen_ids
                             $duplicateIds = array_intersect($koordinatorIds, $pengampuIds);
                             if (!empty($duplicateIds)) {
                                 $duplicateNames = \App\Models\User::whereIn('id', $duplicateIds)->pluck('name')->toArray();
                                 $rowErrors[] = "Baris " . ($index + 1) . ": Dosen yang sama tidak boleh dipilih sebagai Koordinator Dosen dan Pengampu: " . implode(', ', $duplicateNames);
                             }
-                            
+
                             $allDosenIds = array_unique(array_merge($koordinatorIds, $pengampuIds));
                             $jumlahDosen = count($allDosenIds);
                             if ($jumlahDosen > $ruangan->kapasitas) {
@@ -445,7 +484,7 @@ class JadwalPersamaanPersepsiController extends Controller
                     $prevKoordinatorIds = $previousData['koordinator_ids'] ?? [];
                     $prevPengampuIds = $previousData['dosen_ids'] ?? [];
                     $prevAllDosenIds = array_unique(array_merge($prevKoordinatorIds, $prevPengampuIds));
-                    
+
                     $previousRowData = [
                         'mata_kuliah_kode' => $kode,
                         'tanggal' => $previousData['tanggal'],
@@ -539,7 +578,7 @@ class JadwalPersamaanPersepsiController extends Controller
                         $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) ? $jadwal->koordinator_ids : [],
                         $jadwal->dosen_ids && is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : []
                     ));
-                    
+
                     if (!empty($allDosenIdsForNotification)) {
                         // Load relasi untuk notifikasi (hanya load ruangan jika ada)
                         $loadRelations = ['mataKuliah'];
@@ -547,15 +586,15 @@ class JadwalPersamaanPersepsiController extends Controller
                             $loadRelations[] = 'ruangan';
                         }
                         $jadwal->load($loadRelations);
-                        
+
                         foreach ($allDosenIdsForNotification as $dosenId) {
                             $dosen = User::find($dosenId);
                             if ($dosen) {
                                 $ruanganNama = $jadwal->ruangan ? $jadwal->ruangan->nama : 'Online';
-                                $ruanganInfo = $jadwal->use_ruangan && $jadwal->ruangan 
-                                    ? "di ruangan {$ruanganNama}" 
+                                $ruanganInfo = $jadwal->use_ruangan && $jadwal->ruangan
+                                    ? "di ruangan {$ruanganNama}"
                                     : "secara online";
-                                
+
                                 Notification::create([
                                     'user_id' => $dosenId,
                                     'title' => 'Jadwal Persamaan Persepsi Baru',
@@ -638,8 +677,10 @@ class JadwalPersamaanPersepsiController extends Controller
 
         // Cek bentrok dosen (multi-select)
         $dosenBentrok = false;
-        if (isset($data1['dosen_ids']) && is_array($data1['dosen_ids']) && 
-            isset($data2['dosen_ids']) && is_array($data2['dosen_ids'])) {
+        if (
+            isset($data1['dosen_ids']) && is_array($data1['dosen_ids']) &&
+            isset($data2['dosen_ids']) && is_array($data2['dosen_ids'])
+        ) {
             $intersectingDosen = array_intersect($data1['dosen_ids'], $data2['dosen_ids']);
             if (!empty($intersectingDosen)) {
                 $dosenBentrok = true;
@@ -648,8 +689,10 @@ class JadwalPersamaanPersepsiController extends Controller
 
         // Cek bentrok ruangan
         $ruanganBentrok = false;
-        if (isset($data1['ruangan_id']) && isset($data2['ruangan_id']) && 
-            $data1['ruangan_id'] == $data2['ruangan_id']) {
+        if (
+            isset($data1['ruangan_id']) && isset($data2['ruangan_id']) &&
+            $data1['ruangan_id'] == $data2['ruangan_id']
+        ) {
             $ruanganBentrok = true;
         }
 
@@ -664,7 +707,7 @@ class JadwalPersamaanPersepsiController extends Controller
     {
         // Jika tidak menggunakan ruangan, hanya cek bentrok berdasarkan dosen
         $useRuangan = isset($data['use_ruangan']) ? $data['use_ruangan'] : true;
-        
+
         // Ambil data mata kuliah untuk mendapatkan semester
         $mataKuliah = \App\Models\MataKuliah::where('kode', $data['mata_kuliah_kode'])->first();
         $semester = $mataKuliah ? $mataKuliah->semester : null;
@@ -727,7 +770,7 @@ class JadwalPersamaanPersepsiController extends Controller
                 // Cek bentrok dosen (multiple dosen_ids)
                 if (isset($data['dosen_ids']) && is_array($data['dosen_ids']) && !empty($data['dosen_ids'])) {
                     $q->orWhereIn('dosen_id', $data['dosen_ids']);
-                    
+
                     // Cek jika jadwal PBL juga menggunakan multiple dosen
                     $q->orWhere(function ($subQ) use ($data) {
                         foreach ($data['dosen_ids'] as $dosenId) {
@@ -767,7 +810,7 @@ class JadwalPersamaanPersepsiController extends Controller
                 // Cek bentrok dosen (multiple dosen_ids)
                 if (isset($data['dosen_ids']) && is_array($data['dosen_ids']) && !empty($data['dosen_ids'])) {
                     $q->orWhereIn('dosen_id', $data['dosen_ids']);
-                    
+
                     // Cek jika jadwal Jurnal juga menggunakan multiple dosen
                     $q->orWhere(function ($subQ) use ($data) {
                         foreach ($data['dosen_ids'] as $dosenId) {
@@ -807,7 +850,7 @@ class JadwalPersamaanPersepsiController extends Controller
                 // Cek bentrok dosen (single dosen_id)
                 if (isset($data['dosen_ids']) && is_array($data['dosen_ids']) && !empty($data['dosen_ids'])) {
                     $q->orWhereIn('dosen_id', $data['dosen_ids']);
-                    
+
                     // Cek jika jadwal Kuliah Besar juga menggunakan multiple dosen
                     $q->orWhere(function ($subQ) use ($data) {
                         foreach ($data['dosen_ids'] as $dosenId) {
@@ -838,12 +881,12 @@ class JadwalPersamaanPersepsiController extends Controller
                     $q->where('semester', $semester);
                 }
             });
-        
+
         // Cek bentrok ruangan hanya jika menggunakan ruangan
         if ($useRuangan && isset($data['ruangan_id']) && $data['ruangan_id']) {
             $agendaKhususQuery->where('ruangan_id', $data['ruangan_id']);
         }
-        
+
         $agendaKhususBentrok = $agendaKhususQuery
             ->where(function ($q) use ($data) {
                 $q->where('jam_mulai', '<', $data['jam_selesai'])
@@ -907,7 +950,7 @@ class JadwalPersamaanPersepsiController extends Controller
         // Cek bentrok dosen (multiple dosen_ids)
         if (isset($data['dosen_ids']) && is_array($data['dosen_ids']) && !empty($data['dosen_ids'])) {
             $otherDosenIds = [];
-            
+
             // Handle different models that might have dosen_ids
             if (isset($jadwalBentrok->dosen_ids)) {
                 $otherDosenIds = is_array($jadwalBentrok->dosen_ids)
@@ -940,9 +983,11 @@ class JadwalPersamaanPersepsiController extends Controller
         }
 
         // Cek bentrok ruangan (hanya jika menggunakan ruangan)
-        if (isset($data['ruangan_id']) && $data['ruangan_id'] && 
-            isset($jadwalBentrok->ruangan_id) && $jadwalBentrok->ruangan_id && 
-            $data['ruangan_id'] == $jadwalBentrok->ruangan_id) {
+        if (
+            isset($data['ruangan_id']) && $data['ruangan_id'] &&
+            isset($jadwalBentrok->ruangan_id) && $jadwalBentrok->ruangan_id &&
+            $data['ruangan_id'] == $jadwalBentrok->ruangan_id
+        ) {
             $ruangan = Ruangan::find($data['ruangan_id']);
             $reasons[] = "Ruangan: " . ($ruangan ? $ruangan->nama : 'Tidak diketahui');
         }
@@ -1017,7 +1062,7 @@ class JadwalPersamaanPersepsiController extends Controller
                                 ->orWhereRaw('CAST(jadwal_persamaan_persepsi.koordinator_ids AS CHAR) LIKE ?', ['%"' . $dosenId . '"%'])
                                 ->orWhereRaw('CAST(jadwal_persamaan_persepsi.koordinator_ids AS CHAR) LIKE ?', ['%' . $dosenId . '%']);
                         });
-                    
+
                     // Filter semester_type untuk kondisi 1
                     if ($semesterType && $semesterType !== 'all') {
                         if ($semesterType === 'antara') {
@@ -1036,7 +1081,7 @@ class JadwalPersamaanPersepsiController extends Controller
                                 ->orWhereRaw('CAST(jadwal_persamaan_persepsi.dosen_ids AS CHAR) LIKE ?', ['%"' . $dosenId . '"%'])
                                 ->orWhereRaw('CAST(jadwal_persamaan_persepsi.dosen_ids AS CHAR) LIKE ?', ['%' . $dosenId . '%']);
                         });
-                    
+
                     // Filter semester_type untuk kondisi 2
                     if ($semesterType && $semesterType !== 'all') {
                         if ($semesterType === 'antara') {
@@ -1113,7 +1158,7 @@ class JadwalPersamaanPersepsiController extends Controller
                 $koordinatorList = !empty($koordinatorIds) ? User::whereIn('id', $koordinatorIds)->get() : collect([]);
                 $pengampuIds = array_diff($dosenIds, $koordinatorIds);
                 $pengampuList = !empty($pengampuIds) ? User::whereIn('id', $pengampuIds)->get() : collect([]);
-                
+
                 $koordinatorNames = $koordinatorList->pluck('name')->toArray();
                 $pengampuNames = $pengampuList->pluck('name')->toArray();
 
@@ -1410,7 +1455,7 @@ class JadwalPersamaanPersepsiController extends Controller
             // Cek apakah user adalah koordinator
             $user = auth()->user();
             $koordinatorIds = $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) ? $jadwal->koordinator_ids : [];
-            
+
             if (!in_array($user->id, $koordinatorIds)) {
                 return response()->json(['message' => 'Anda tidak memiliki akses untuk melihat absensi ini'], 403);
             }
@@ -1452,7 +1497,7 @@ class JadwalPersamaanPersepsiController extends Controller
             // Cek apakah user adalah koordinator
             $user = auth()->user();
             $koordinatorIds = $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) ? $jadwal->koordinator_ids : [];
-            
+
             if (!in_array($user->id, $koordinatorIds)) {
                 return response()->json(['message' => 'Anda tidak memiliki akses untuk menyimpan absensi ini'], 403);
             }
@@ -1491,4 +1536,3 @@ class JadwalPersamaanPersepsiController extends Controller
         }
     }
 }
-

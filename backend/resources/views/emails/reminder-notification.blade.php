@@ -279,9 +279,26 @@
                 </div>
                 @endif
 
+                @if(isset($isKoordinator) && !$isKoordinator && isset($koordinatorList) && !empty($koordinatorList))
+                <div class="detail-row">
+                    <div class="detail-label">Koordinator Dosen:</div>
+                    <div class="detail-value">
+                        @foreach($koordinatorList as $index => $koordinatorName)
+                            {{ $koordinatorName }}@if($index < count($koordinatorList) - 1), @endif
+                        @endforeach
+                    </div>
+                </div>
+                @endif
+
                 <div class="detail-row">
                     <div class="detail-label">Ruangan:</div>
-                    <div class="detail-value">{{ $jadwal->ruangan->nama ?? 'TBD' }}</div>
+                    <div class="detail-value">
+                        @if(isset($jadwal->use_ruangan) && $jadwal->use_ruangan && $jadwal->ruangan)
+                            {{ $jadwal->ruangan->nama }} (Offline)
+                        @else
+                            Online
+                        @endif
+                    </div>
                 </div>
 
                 @if(isset($jadwal->topik) && $jadwal->topik)
@@ -302,6 +319,18 @@
                 <div class="detail-row">
                     <div class="detail-label">Agenda:</div>
                     <div class="detail-value">{{ $jadwal->agenda }}</div>
+                </div>
+                @endif
+
+                @if(isset($isKoordinator) && $isKoordinator && isset($pengampuList) && !empty($pengampuList))
+                <div class="divider"></div>
+                <div class="detail-row">
+                    <div class="detail-label">Dosen Pengampu:</div>
+                    <div class="detail-value">
+                        @foreach($pengampuList as $index => $pengampuName)
+                            {{ $pengampuName }}@if($index < count($pengampuList) - 1), @endif
+                        @endforeach
+                    </div>
                 </div>
                 @endif
 

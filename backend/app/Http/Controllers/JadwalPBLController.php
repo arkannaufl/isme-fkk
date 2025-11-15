@@ -574,7 +574,7 @@ class JadwalPBLController extends Controller
             ])
             ->where(function ($query) use ($dosenId, $semesterType) {
                 // Kondisi 1: Dosen aktif (dosen_id = $dosenId)
-                $query->where('dosen_id', $dosenId);
+                    $query->where('dosen_id', $dosenId);
                 
                 // Filter semester_type untuk kondisi 1
                 if ($semesterType && $semesterType !== 'all') {
@@ -600,15 +600,15 @@ class JadwalPBLController extends Controller
                     });
                 
                 // Filter semester_type untuk kondisi 2
-                if ($semesterType && $semesterType !== 'all') {
-                    if ($semesterType === 'reguler') {
-                        $query->whereNull('kelompok_kecil_antara_id');
-                    } elseif ($semesterType === 'antara') {
-                        $query->whereNotNull('kelompok_kecil_antara_id');
-                    }
+            if ($semesterType && $semesterType !== 'all') {
+                if ($semesterType === 'reguler') {
+                    $query->whereNull('kelompok_kecil_antara_id');
+                } elseif ($semesterType === 'antara') {
+                    $query->whereNotNull('kelompok_kecil_antara_id');
                 }
-            })
-            ->orderBy('tanggal')
+            }
+                })
+                ->orderBy('tanggal')
             ->orderBy('jam_mulai');
 
             // Get all jadwal
@@ -618,11 +618,11 @@ class JadwalPBLController extends Controller
             if ($jadwal->isEmpty()) {
                 Log::warning("No jadwal found with query, trying fallback method for dosen ID: {$dosenId}");
                 $allJadwal = JadwalPBL::with([
-                    'modulPBL.mataKuliah',
-                    'kelompokKecil',
-                    'kelompokKecilAntara',
-                    'dosen',
-                    'ruangan'
+                'modulPBL.mataKuliah',
+                'kelompokKecil',
+                'kelompokKecilAntara',
+                'dosen',
+                'ruangan'
                 ])->get();
                 
                 $jadwal = $allJadwal->filter(function ($item) use ($dosenId, $semesterType) {
@@ -975,7 +975,7 @@ class JadwalPBLController extends Controller
 
             // Update jadwal with new dosen_ids (hanya jika ada perubahan untuk status 'bisa')
             if ($status === 'bisa') {
-                $jadwal->update(['dosen_ids' => $currentDosenIds]);
+            $jadwal->update(['dosen_ids' => $currentDosenIds]);
             }
 
             \Illuminate\Support\Facades\Log::info("Updated dosen_ids for jadwal {$jadwal->id}: " . json_encode($currentDosenIds));

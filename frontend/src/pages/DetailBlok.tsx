@@ -10356,7 +10356,7 @@ export default function DetailBlok() {
           Topik: row.topik || "",
           "Koordinator Dosen": koordinatorNames,
           Pengampu: pengampuNames,
-          Ruangan: useRuangan ? (ruangan?.nama || "") : "",
+          Ruangan: useRuangan && ruangan?.nama ? ruangan.nama : "Online",
         };
       });
 
@@ -22644,7 +22644,10 @@ export default function DetailBlok() {
                         {row.pengampu_names || "-"}
                       </td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                        {allRuanganList.find((r) => r.id === row.ruangan_id)?.nama || "-"}
+                        {(() => {
+                          const ruangan = allRuanganList.find((r) => r.id === row.ruangan_id);
+                          return (row.use_ruangan && ruangan?.nama) ? ruangan.nama : "Online";
+                        })()}
                       </td>
                       <td className="px-4 py-4 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-2">

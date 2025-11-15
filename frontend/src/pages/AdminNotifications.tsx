@@ -311,6 +311,10 @@ const AdminNotifications: React.FC = () => {
         label: "Non Blok Non CSR",
         cls: "bg-teal-100 text-teal-800 dark:bg-teal-900/20 dark:text-teal-200 border-teal-200 dark:border-teal-700",
       },
+      persamaan_persepsi: {
+        label: "Persamaan Persepsi",
+        cls: "bg-pink-100 text-pink-800 dark:bg-pink-900/20 dark:text-pink-200 border-pink-200 dark:border-pink-700",
+      },
     };
     const info = map[t];
     if (!info) return null;
@@ -473,6 +477,9 @@ const AdminNotifications: React.FC = () => {
         case "non_blok_non_csr":
           url = `/jadwal-non-blok-non-csr/${jadwalId}`;
           break;
+        case "persamaan_persepsi":
+          url = `/jadwal-persamaan-persepsi/${jadwalId}`;
+          break;
         default:
           return null;
       }
@@ -497,6 +504,7 @@ const AdminNotifications: React.FC = () => {
               jurnal: "jurnal_reading",
               csr: "csr",
               non_blok_non_csr: "non_blok_non_csr",
+              persamaan_persepsi: "persamaan_persepsi",
             };
             const targetJenis = jenisKeyMap[normType] || normType;
             const found = items.find(
@@ -618,6 +626,9 @@ const AdminNotifications: React.FC = () => {
             case "non_blok_non_csr":
               url = `/jadwal-non-blok-non-csr/${id}`;
               break;
+            case "persamaan_persepsi":
+              url = `/jadwal-persamaan-persepsi/${id}`;
+              break;
             default:
               return;
           }
@@ -675,6 +686,7 @@ const AdminNotifications: React.FC = () => {
                 jurnal_reading: "jurnal_reading",
                 csr: "csr",
                 non_blok_non_csr: "non_blok_non_csr",
+                persamaan_persepsi: "persamaan_persepsi",
               };
               const normType = normTypeMap[type] || type;
               const found = items.find(
@@ -744,7 +756,11 @@ const AdminNotifications: React.FC = () => {
       const response = await api.get(
         `/notifications/pending-dosen?${params.toString()}`
       );
-      setPendingDosenList(response.data.pending_dosen || []);
+      // Backend sudah melakukan deduplication berdasarkan dosen_id + jadwal_type + jadwal_id
+      // Jadi semua jadwal akan muncul terpisah meskipun dosennya sama
+      const pendingDosenList = response.data.pending_dosen || [];
+
+      setPendingDosenList(pendingDosenList);
       setPendingDosenTotal(response.data.total || 0);
     } catch (error: any) {
       console.error("Error loading pending dosen:", error);
@@ -757,12 +773,18 @@ const AdminNotifications: React.FC = () => {
 
   // Handle toggle dosen selection for reminder
   const handleToggleReminderDosen = (dosen: any) => {
-    // Create unique key: `${jadwal_id}_${dosen_id}`
+    // Create unique key: `${jadwal_type}_${jadwal_id}_${dosen_id}`
+    // Tambahkan jadwal_type untuk memastikan setiap jadwal unik meskipun dosen sama
     const cleanJadwalId =
       typeof dosen.jadwal_id === "string" && dosen.jadwal_id.includes(":")
         ? dosen.jadwal_id.split(":")[0]
-        : dosen.jadwal_id;
-    const key = `${cleanJadwalId}_${dosen.dosen_id}`;
+        : String(dosen.jadwal_id || "");
+    const jadwalType = String(dosen.jadwal_type || "")
+      .toLowerCase()
+      .replace(/\s+/g, "_");
+    const dosenId = String(dosen.dosen_id || "");
+    // Key harus unik: jadwal_type + jadwal_id + dosen_id
+    const key = `${jadwalType}_${cleanJadwalId}_${dosenId}`;
     const newSet = new Set(selectedReminderDosen);
 
     if (newSet.has(key)) {
@@ -780,8 +802,13 @@ const AdminNotifications: React.FC = () => {
       const cleanJadwalId =
         typeof dosen.jadwal_id === "string" && dosen.jadwal_id.includes(":")
           ? dosen.jadwal_id.split(":")[0]
-          : dosen.jadwal_id;
-      return `${cleanJadwalId}_${dosen.dosen_id}`;
+          : String(dosen.jadwal_id || "");
+      const jadwalType = String(dosen.jadwal_type || "")
+        .toLowerCase()
+        .replace(/\s+/g, "_");
+      const dosenId = String(dosen.dosen_id || "");
+      // Key harus unik: jadwal_type + jadwal_id + dosen_id
+      return `${jadwalType}_${cleanJadwalId}_${dosenId}`;
     });
 
     // If all are selected, deselect all. Otherwise, select all.
@@ -804,33 +831,52 @@ const AdminNotifications: React.FC = () => {
       // 1. Jika ada selected dosen → kirim HANYA ke selected dosen (TIDAK pakai filter)
       // 2. Jika TIDAK ada selected dosen → kirim berdasarkan filter
       if (selectedReminderDosen.size > 0) {
-        // MODE: Selected Dosen (prioritas)
+        // MODE: Selected Jadwal (prioritas) - setiap jadwal dihitung terpisah
         // Find the actual dosen data from pendingDosenList
-        const dosenToSend = pendingDosenList.filter((dosen) => {
+        const jadwalToSend = pendingDosenList.filter((dosen) => {
           const cleanJadwalId =
             typeof dosen.jadwal_id === "string" && dosen.jadwal_id.includes(":")
               ? dosen.jadwal_id.split(":")[0]
-              : dosen.jadwal_id;
-          const key = `${cleanJadwalId}_${dosen.dosen_id}`;
+              : String(dosen.jadwal_id || "");
+          const jadwalType = String(dosen.jadwal_type || "")
+            .toLowerCase()
+            .replace(/\s+/g, "_");
+          const dosenId = String(dosen.dosen_id || "");
+          const key = `${jadwalType}_${cleanJadwalId}_${dosenId}`;
           return selectedReminderDosen.has(key);
         });
 
-        if (dosenToSend.length === 0) {
+        if (jadwalToSend.length === 0) {
           throw new Error(
-            "Tidak ada dosen yang dipilih untuk dikirim pengingat"
+            "Tidak ada jadwal yang dipilih untuk dikirim pengingat"
           );
         }
 
-        // Extract unique dosen_ids (bisa ada multiple jadwal untuk 1 dosen)
-        const uniqueDosenIds = [...new Set(dosenToSend.map((d) => d.dosen_id))];
+        // Extract unique dosen_ids (untuk backward compatibility dengan backend)
+        // Tapi juga kirim jadwal_dosen_pairs untuk membedakan jadwal yang berbeda
+        const uniqueDosenIds = [
+          ...new Set(jadwalToSend.map((d) => d.dosen_id)),
+        ];
+
+        // Kirim dengan dosen_ids dan jadwal_dosen_pairs (jika backend support)
+        // Format: jadwal_dosen_pairs dalam format "jadwal_id1:dosen_id1,jadwal_id2:dosen_id2"
+        const jadwalDosenPairs = jadwalToSend.map((d) => {
+          const cleanJadwalId =
+            typeof d.jadwal_id === "string" && d.jadwal_id.includes(":")
+              ? d.jadwal_id.split(":")[0]
+              : d.jadwal_id;
+          return `${cleanJadwalId}:${d.dosen_id}`;
+        });
 
         // Kirim HANYA dengan dosen_ids (TIDAK pakai filter semester/blok/reminder_type)
         params.append("dosen_ids", uniqueDosenIds.join(","));
+        // Tambahkan jadwal_dosen_pairs untuk membedakan jadwal yang berbeda
+        params.append("jadwal_dosen_pairs", jadwalDosenPairs.join(","));
 
         await api.post(`/notifications/send-reminder?${params.toString()}`);
 
         setReminderSuccessMessage(
-          `Notifikasi pengingat berhasil dikirim ke ${uniqueDosenIds.length} dosen yang dipilih`
+          `Notifikasi pengingat berhasil dikirim untuk ${jadwalToSend.length} jadwal yang dipilih`
         );
       } else {
         // MODE: Filter-based (jika tidak ada selected)
@@ -1342,6 +1388,8 @@ const AdminNotifications: React.FC = () => {
             endpoint = `/jadwal-csr/${cleanJadwalId}/konfirmasi`;
           } else if (normalizedType === "non_blok_non_csr") {
             endpoint = `/jadwal-non-blok-non-csr/${cleanJadwalId}/konfirmasi`;
+          } else if (normalizedType === "persamaan_persepsi") {
+            endpoint = `/jadwal-persamaan-persepsi/${cleanJadwalId}/konfirmasi`;
           } else {
             console.error(
               "Invalid jadwal_type:",
@@ -1418,6 +1466,8 @@ const AdminNotifications: React.FC = () => {
             backendType = "csr";
           } else if (normalizedType === "non_blok_non_csr") {
             backendType = "non_blok_non_csr";
+          } else if (normalizedType === "persamaan_persepsi") {
+            backendType = "persamaan_persepsi";
           }
 
           // Send notification
@@ -2096,6 +2146,36 @@ const AdminNotifications: React.FC = () => {
       }
     }
 
+    // PENTING: Persamaan Persepsi langsung "Bisa Mengajar" tanpa menunggu konfirmasi
+    // Jika ini adalah assignment notification untuk persamaan persepsi dan tidak ada status "tidak_bisa",
+    // langsung tampilkan status "bisa"
+    if (type === "persamaan_persepsi" && !statusField) {
+      const title = String(notification.title || "").toLowerCase();
+      const message = String(notification.message || "").toLowerCase();
+
+      // Cek apakah ini assignment notification (bukan status change atau replacement)
+      const isAssignmentNotification =
+        (title.includes("jadwal persamaan persepsi") ||
+          title.includes("persamaan persepsi baru") ||
+          message.includes("persamaan persepsi")) &&
+        !title.includes("status konfirmasi diubah") &&
+        !title.includes("tidak bisa") &&
+        !message.includes("status konfirmasi diubah") &&
+        !message.includes("tidak bisa") &&
+        notification.data?.admin_action !== "replacement_success";
+
+      if (isAssignmentNotification) {
+        return {
+          status: "bisa",
+          color: "text-green-500",
+          bgColor: "bg-green-100 dark:bg-green-900/20",
+          textColor: "text-green-800 dark:text-green-200",
+          icon: faCheckCircle,
+          adminInfo: null,
+        };
+      }
+    }
+
     // Check if this is a replacement success notification (only if status is not "tidak_bisa")
     if (notification.data?.admin_action === "replacement_success") {
       return {
@@ -2678,7 +2758,7 @@ const AdminNotifications: React.FC = () => {
               )}
               <span>Refresh</span>
             </button>
-            
+
             {/* Dosen-specific Action Buttons */}
             {userTypeFilter === "dosen" && (
               <>
@@ -2697,7 +2777,9 @@ const AdminNotifications: React.FC = () => {
                   className="h-11 flex items-center justify-center gap-2 px-4 text-sm bg-orange-500 text-white rounded-lg shadow hover:bg-orange-600 transition-colors font-semibold whitespace-nowrap"
                 >
                   <FontAwesomeIcon icon={faRedo} className="w-4 h-4" />
-                  <span className="hidden sm:inline">Kirim Ulang Notifikasi</span>
+                  <span className="hidden sm:inline">
+                    Kirim Ulang Notifikasi
+                  </span>
                   <span className="sm:hidden">Kirim Ulang</span>
                 </button>
                 <button
@@ -2714,12 +2796,14 @@ const AdminNotifications: React.FC = () => {
                   className="h-11 flex items-center justify-center gap-2 px-4 text-sm bg-blue-500 text-white rounded-lg shadow hover:bg-blue-600 transition-colors font-semibold whitespace-nowrap"
                 >
                   <FontAwesomeIcon icon={faCog} className="w-4 h-4" />
-                  <span className="hidden sm:inline">Ubah Status Konfirmasi</span>
+                  <span className="hidden sm:inline">
+                    Ubah Status Konfirmasi
+                  </span>
                   <span className="sm:hidden">Ubah Status</span>
                 </button>
               </>
             )}
-            
+
             {/* Reset Button */}
             <button
               onClick={() => {
@@ -4210,8 +4294,14 @@ const AdminNotifications: React.FC = () => {
                                     typeof dosen.jadwal_id === "string" &&
                                     dosen.jadwal_id.includes(":")
                                       ? dosen.jadwal_id.split(":")[0]
-                                      : dosen.jadwal_id;
-                                  const key = `${cleanJadwalId}_${dosen.dosen_id}`;
+                                      : String(dosen.jadwal_id || "");
+                                  const jadwalType = String(
+                                    dosen.jadwal_type || ""
+                                  )
+                                    .toLowerCase()
+                                    .replace(/\s+/g, "_");
+                                  const dosenId = String(dosen.dosen_id || "");
+                                  const key = `${jadwalType}_${cleanJadwalId}_${dosenId}`;
                                   return selectedReminderDosen.has(key);
                                 })
                                   ? "bg-orange-500 border-orange-500"
@@ -4224,8 +4314,14 @@ const AdminNotifications: React.FC = () => {
                                     typeof dosen.jadwal_id === "string" &&
                                     dosen.jadwal_id.includes(":")
                                       ? dosen.jadwal_id.split(":")[0]
-                                      : dosen.jadwal_id;
-                                  const key = `${cleanJadwalId}_${dosen.dosen_id}`;
+                                      : String(dosen.jadwal_id || "");
+                                  const jadwalType = String(
+                                    dosen.jadwal_type || ""
+                                  )
+                                    .toLowerCase()
+                                    .replace(/\s+/g, "_");
+                                  const dosenId = String(dosen.dosen_id || "");
+                                  const key = `${jadwalType}_${cleanJadwalId}_${dosenId}`;
                                   return selectedReminderDosen.has(key);
                                 }) && (
                                   <svg
@@ -4250,8 +4346,14 @@ const AdminNotifications: React.FC = () => {
                                     typeof dosen.jadwal_id === "string" &&
                                     dosen.jadwal_id.includes(":")
                                       ? dosen.jadwal_id.split(":")[0]
-                                      : dosen.jadwal_id;
-                                  const key = `${cleanJadwalId}_${dosen.dosen_id}`;
+                                      : String(dosen.jadwal_id || "");
+                                  const jadwalType = String(
+                                    dosen.jadwal_type || ""
+                                  )
+                                    .toLowerCase()
+                                    .replace(/\s+/g, "_");
+                                  const dosenId = String(dosen.dosen_id || "");
+                                  const key = `${jadwalType}_${cleanJadwalId}_${dosenId}`;
                                   return selectedReminderDosen.has(key);
                                 })
                               }
@@ -4264,7 +4366,7 @@ const AdminNotifications: React.FC = () => {
                             </span>
                           </label>
                         </div>
-                        {pendingDosenList.map((dosen, index) => {
+                        {pendingDosenList.map((dosen) => {
                           const isEmailValid =
                             dosen.email &&
                             dosen.email.trim() !== "" &&
@@ -4283,18 +4385,36 @@ const AdminNotifications: React.FC = () => {
                             isWhatsAppValid;
 
                           // Check if this dosen is selected
+                          // Key harus unik: jadwal_type + jadwal_id + dosen_id
                           const cleanJadwalId =
                             typeof dosen.jadwal_id === "string" &&
                             dosen.jadwal_id.includes(":")
                               ? dosen.jadwal_id.split(":")[0]
-                              : dosen.jadwal_id;
-                          const dosenKey = `${cleanJadwalId}_${dosen.dosen_id}`;
+                              : String(dosen.jadwal_id || "");
+                          const jadwalTypeForKey = String(
+                            dosen.jadwal_type || ""
+                          )
+                            .toLowerCase()
+                            .replace(/\s+/g, "_");
+                          const dosenId = String(dosen.dosen_id || "");
+                          const dosenKey = `${jadwalTypeForKey}_${cleanJadwalId}_${dosenId}`;
                           const isSelected =
                             selectedReminderDosen.has(dosenKey);
 
+                          // PENTING: Persamaan Persepsi langsung "Bisa Mengajar" tanpa menunggu konfirmasi
+                          const jadwalType = String(
+                            dosen.jadwal_type || ""
+                          ).toLowerCase();
+                          const isPersamaanPersepsi =
+                            jadwalType === "persamaan_persepsi" ||
+                            jadwalType === "persamaan persepsi" ||
+                            String(dosen.mata_kuliah || "")
+                              .toLowerCase()
+                              .includes("persamaan persepsi");
+
                           return (
                             <div
-                              key={index}
+                              key={dosenKey}
                               className={`flex items-start justify-between p-4 rounded-lg border cursor-pointer transition-all ${
                                 isSelected
                                   ? "bg-orange-50 dark:bg-orange-900/20 border-orange-400 dark:border-orange-600"
@@ -4372,13 +4492,18 @@ const AdminNotifications: React.FC = () => {
                                       {dosen.reminder_type && (
                                         <span
                                           className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                                            dosen.reminder_type ===
-                                            "unconfirmed"
+                                            isPersamaanPersepsi
+                                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300"
+                                              : dosen.reminder_type ===
+                                                "unconfirmed"
                                               ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300"
                                               : "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300"
                                           }`}
                                         >
-                                          {dosen.reminder_type === "unconfirmed"
+                                          {isPersamaanPersepsi
+                                            ? "Persiapan Mengajar"
+                                            : dosen.reminder_type ===
+                                              "unconfirmed"
                                             ? "Belum Konfirmasi"
                                             : "Persiapan Mengajar"}
                                         </span>
@@ -4460,12 +4585,30 @@ const AdminNotifications: React.FC = () => {
                               <div className="text-right">
                                 <span
                                   className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                    willReceiveReminder
+                                    // Sinkronkan dengan badge reminder_type di kiri
+                                    // Persamaan Persepsi = "Persiapan Mengajar" (biru), sama seperti jadwal lain
+                                    isPersamaanPersepsi && willReceiveReminder
+                                      ? "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300"
+                                      : dosen.reminder_type === "upcoming" &&
+                                        willReceiveReminder
+                                      ? "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300"
+                                      : dosen.reminder_type === "unconfirmed" &&
+                                        willReceiveReminder
+                                      ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300"
+                                      : willReceiveReminder
                                       ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300"
                                       : "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300"
                                   }`}
                                 >
-                                  {willReceiveReminder
+                                  {isPersamaanPersepsi && willReceiveReminder
+                                    ? "Persiapan Mengajar"
+                                    : dosen.reminder_type === "upcoming" &&
+                                      willReceiveReminder
+                                    ? "Persiapan Mengajar"
+                                    : dosen.reminder_type === "unconfirmed" &&
+                                      willReceiveReminder
+                                    ? "Belum Konfirmasi"
+                                    : willReceiveReminder
                                     ? "Belum Konfirmasi"
                                     : "Tidak Akan Dikirim"}
                                 </span>
@@ -4501,14 +4644,14 @@ const AdminNotifications: React.FC = () => {
                           {selectedReminderDosen.size > 0 ? (
                             <>
                               <span className="font-semibold">
-                                {selectedReminderDosen.size} dosen dipilih
+                                {selectedReminderDosen.size} jadwal dipilih
                               </span>{" "}
-                              dari {pendingDosenTotal} dosen akan menerima
+                              dari {pendingDosenTotal} jadwal akan menerima
                               pengingat
                             </>
                           ) : (
                             <>
-                              Total: {pendingDosenTotal} dosen akan menerima
+                              Total: {pendingDosenTotal} jadwal akan menerima
                               pengingat
                             </>
                           )}
@@ -4617,7 +4760,7 @@ const AdminNotifications: React.FC = () => {
                         <FontAwesomeIcon icon={faRedo} className="w-4 h-4" />
                         <span>
                           {selectedReminderDosen.size > 0
-                            ? `Kirim Pengingat (${selectedReminderDosen.size})`
+                            ? `Kirim Pengingat (${selectedReminderDosen.size} jadwal)`
                             : "Kirim Pengingat"}
                         </span>
                       </>
@@ -4782,7 +4925,7 @@ const AdminNotifications: React.FC = () => {
                       </div>
                     ) : pendingDosenList.length > 0 ? (
                       <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                        {pendingDosenList.map((dosen: any, index: number) => {
+                        {pendingDosenList.map((dosen: any) => {
                           // Ensure jadwal_id is clean (remove colon if present)
                           const cleanJadwalId =
                             typeof dosen.jadwal_id === "string" &&
@@ -4795,9 +4938,26 @@ const AdminNotifications: React.FC = () => {
                           const selectedData = selectedDosenList.get(key);
                           const currentStatus = selectedData?.status || null;
 
+                          // PENTING: Persamaan Persepsi langsung "Bisa Mengajar" tanpa menunggu konfirmasi
+                          const jadwalType = String(
+                            dosen.jadwal_type || ""
+                          ).toLowerCase();
+                          const isPersamaanPersepsi =
+                            jadwalType === "persamaan_persepsi" ||
+                            jadwalType === "persamaan persepsi" ||
+                            String(dosen.mata_kuliah || "")
+                              .toLowerCase()
+                              .includes("persamaan persepsi");
+
+                          // Untuk persamaan persepsi, jika belum dipilih status, default ke "bisa"
+                          const displayStatus =
+                            isPersamaanPersepsi && !currentStatus
+                              ? "bisa"
+                              : currentStatus;
+
                           return (
                             <div
-                              key={index}
+                              key={key}
                               className={`p-4 border rounded-lg cursor-pointer transition-all ${
                                 isSelected
                                   ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
@@ -4851,17 +5011,21 @@ const AdminNotifications: React.FC = () => {
                                   </div>
                                 </div>
                                 <div className="text-right">
-                                  {isSelected && currentStatus ? (
+                                  {isSelected && displayStatus ? (
                                     <span
                                       className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                        currentStatus === "bisa"
+                                        displayStatus === "bisa"
                                           ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300"
                                           : "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300"
                                       }`}
                                     >
-                                      {currentStatus === "bisa"
+                                      {displayStatus === "bisa"
                                         ? "Bisa Mengajar"
                                         : "Tidak Bisa Mengajar"}
+                                    </span>
+                                  ) : isPersamaanPersepsi ? (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">
+                                      Bisa Mengajar
                                     </span>
                                   ) : (
                                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">
@@ -4890,7 +5054,7 @@ const AdminNotifications: React.FC = () => {
                                         );
                                       }}
                                       className={`p-3 border-2 rounded-lg transition-all ${
-                                        currentStatus === "bisa"
+                                        displayStatus === "bisa"
                                           ? "border-green-500 bg-green-50 dark:bg-green-900/20"
                                           : "border-gray-200 dark:border-gray-700 hover:border-green-300 dark:hover:border-green-600"
                                       }`}
@@ -4898,12 +5062,12 @@ const AdminNotifications: React.FC = () => {
                                       <div className="flex items-center gap-2">
                                         <div
                                           className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                                            currentStatus === "bisa"
+                                            displayStatus === "bisa"
                                               ? "bg-green-500 border-green-500"
                                               : "border-gray-300 dark:border-gray-600"
                                           }`}
                                         >
-                                          {currentStatus === "bisa" && (
+                                          {displayStatus === "bisa" && (
                                             <svg
                                               className="w-2.5 h-2.5 text-white"
                                               fill="currentColor"
@@ -4937,7 +5101,7 @@ const AdminNotifications: React.FC = () => {
                                         );
                                       }}
                                       className={`p-3 border-2 rounded-lg transition-all ${
-                                        currentStatus === "tidak_bisa"
+                                        displayStatus === "tidak_bisa"
                                           ? "border-red-500 bg-red-50 dark:bg-red-900/20"
                                           : "border-gray-200 dark:border-gray-700 hover:border-red-300 dark:hover:border-red-600"
                                       }`}
@@ -4945,12 +5109,12 @@ const AdminNotifications: React.FC = () => {
                                       <div className="flex items-center gap-2">
                                         <div
                                           className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                                            currentStatus === "tidak_bisa"
+                                            displayStatus === "tidak_bisa"
                                               ? "bg-red-500 border-red-500"
                                               : "border-gray-300 dark:border-gray-600"
                                           }`}
                                         >
-                                          {currentStatus === "tidak_bisa" && (
+                                          {displayStatus === "tidak_bisa" && (
                                             <svg
                                               className="w-2.5 h-2.5 text-white"
                                               fill="currentColor"
