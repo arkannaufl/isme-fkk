@@ -183,6 +183,12 @@ interface JadwalPersamaanPersepsi {
   status_reschedule?: "waiting" | "approved" | "rejected";
   mata_kuliah_kode: string;
   mata_kuliah_nama: string;
+  mata_kuliah?: {
+    kode: string;
+    nama: string;
+    semester: number | string;
+    blok: number | null;
+  } | null;
   dosen_ids: number[];
   koordinator_ids?: number[];
   koordinator_names?: string;
@@ -1638,9 +1644,32 @@ export default function DashboardDosen() {
                           {item.topik || "N/A"}
                         </td>
                       ) : jadwalType === "persamaan_persepsi" ? (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {item.topik || "N/A"}
-                        </td>
+                        <>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {item.topik || "N/A"}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {(() => {
+                              // Cek apakah ada mata_kuliah object dengan semester dan blok
+                              const mataKuliah = item.mata_kuliah;
+                              const semester = mataKuliah?.semester || "";
+                              const blok = mataKuliah?.blok !== null && mataKuliah?.blok !== undefined 
+                                ? `Blok ${mataKuliah.blok}` 
+                                : "";
+                              
+                              // Gabungkan semester dan blok
+                              const parts = [];
+                              if (semester) {
+                                parts.push(`Semester ${semester}`);
+                              }
+                              if (blok) {
+                                parts.push(blok);
+                              }
+                              
+                              return parts.length > 0 ? parts.join(" / ") : "N/A";
+                            })()}
+                          </td>
+                        </>
                       ) : jadwalType === "csr" ? (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {item.topik || "N/A"}
@@ -3542,6 +3571,7 @@ export default function DashboardDosen() {
                     "PUKUL",
                     "WAKTU",
                     "TOPIK",
+                    "SEMESTER/BLOK",
                     "KOORDINATOR DOSEN",
                     "PENGAMPU",
                     "LOKASI",

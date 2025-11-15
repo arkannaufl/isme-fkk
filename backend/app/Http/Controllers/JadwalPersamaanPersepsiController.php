@@ -1100,7 +1100,7 @@ class JadwalPersamaanPersepsiController extends Controller
 
             // Convert to Eloquent models for relationships
             $jadwal = JadwalPersamaanPersepsi::with([
-                'mataKuliah:kode,nama,semester',
+                'mataKuliah:kode,nama,semester,blok',
                 'ruangan:id,nama,gedung'
             ])
                 ->whereIn('id', $rawJadwal->pluck('id'))
@@ -1166,6 +1166,12 @@ class JadwalPersamaanPersepsiController extends Controller
                     'id' => $jadwal->id,
                     'mata_kuliah_kode' => $jadwal->mata_kuliah_kode,
                     'mata_kuliah_nama' => $jadwal->mataKuliah->nama ?? 'Unknown',
+                    'mata_kuliah' => $jadwal->mataKuliah ? (object) [
+                        'kode' => $jadwal->mataKuliah->kode,
+                        'nama' => $jadwal->mataKuliah->nama,
+                        'semester' => $jadwal->mataKuliah->semester,
+                        'blok' => $jadwal->mataKuliah->blok,
+                    ] : null,
                     'tanggal' => $jadwal->tanggal,
                     'jam_mulai' => $jadwal->jam_mulai,
                     'jam_selesai' => $jadwal->jam_selesai,
@@ -1187,6 +1193,7 @@ class JadwalPersamaanPersepsiController extends Controller
                     'jumlah_sesi' => $jadwal->jumlah_sesi ?? 1,
                     'semester_type' => $semesterType,
                     'created_at' => $jadwal->created_at,
+                    'use_ruangan' => $jadwal->use_ruangan ?? true,
                 ];
             });
 

@@ -64,6 +64,7 @@ export default function AbsensiPersamaanPersepsiPage() {
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [isReportSubmitted, setIsReportSubmitted] = useState(false);
   const [showCatatanModal, setShowCatatanModal] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [selectedDosen, setSelectedDosen] = useState<Dosen | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -226,34 +227,36 @@ export default function AbsensiPersamaanPersepsiPage() {
               );
             }
           }
-          setAbsensi(existingAbsensi);
+          // Auto-check koordinator sebagai hadir
+          const updatedAbsensi: AbsensiPersamaanPersepsi = { ...existingAbsensi };
+          allDosen.forEach((dosen) => {
+            if (dosen.is_koordinator) {
+              // Jika koordinator belum ada di absensi atau belum di-set sebagai hadir, set otomatis hadir
+              if (!updatedAbsensi[dosen.id.toString()] || !updatedAbsensi[dosen.id.toString()].hadir) {
+                updatedAbsensi[dosen.id.toString()] = {
+                  hadir: true,
+                  catatan: updatedAbsensi[dosen.id.toString()]?.catatan || "",
+                };
+              }
+            }
+          });
+
+          setAbsensi(updatedAbsensi);
 
           // Cek apakah laporan sudah pernah disubmit
-          let isSubmitted =
-            absensiResponse.data.penilaian_submitted ||
-            absensiResponse.data.report_submitted ||
-            absensiResponse.data.submitted ||
-            false;
+          // Hanya percaya pada flag dari backend, jangan gunakan fallback berdasarkan data absensi
+          // karena auto-check koordinator bisa membuat false positive
+          // Backend selalu memberikan flag (true/false), jadi hanya percaya pada backend
+          const penilaianSubmitted = absensiResponse.data.penilaian_submitted === true;
+          const reportSubmitted = absensiResponse.data.report_submitted === true;
+          const submitted = absensiResponse.data.submitted === true;
+          
+          // Hanya set submitted jika backend secara eksplisit mengembalikan true
+          // Jika false/null/undefined, berarti belum submitted
+          const isSubmitted = penilaianSubmitted || reportSubmitted || submitted;
 
-          // Fallback: jika tidak ada flag submitted, cek apakah ada data absensi
-          if (!isSubmitted && Object.keys(existingAbsensi).length > 0) {
-            const hasAttendanceData = Object.values(existingAbsensi).some(
-              (absen) => absen.hadir === true || absen.catatan !== ""
-            );
-
-            if (hasAttendanceData) {
-              isSubmitted = true;
-            }
-          }
-
-          // Backup: simpan ke localStorage juga
-          const storageKey = `persamaan_persepsi_absensi_submitted_${kode}_${jadwalId}`;
-          const storedSubmitted = localStorage.getItem(storageKey) === "true";
-
-          const finalSubmitted = isSubmitted || storedSubmitted;
-
-          setIsReportSubmitted(finalSubmitted);
-          setIncludeInReport(finalSubmitted);
+          setIsReportSubmitted(isSubmitted);
+          setIncludeInReport(isSubmitted);
         } else {
           throw new Error("Jadwal Persamaan Persepsi tidak ditemukan");
         }
@@ -270,6 +273,16 @@ export default function AbsensiPersamaanPersepsiPage() {
 
   // Fungsi untuk handle perubahan absensi
   const handleAbsensiChange = (dosenId: number, hadir: boolean) => {
+    // Cek apakah dosen adalah koordinator
+    const dosen = dosenList.find((d) => d.id === dosenId);
+    const isKoordinator = dosen?.is_koordinator || false;
+
+    // Jika koordinator dan user mencoba uncheck, jangan izinkan
+    if (isKoordinator && !hadir) {
+      // Koordinator selalu hadir, tidak bisa di-uncheck
+      return;
+    }
+
     setAbsensi((prev) => ({
       ...prev,
       [dosenId.toString()]: {
@@ -310,6 +323,25 @@ export default function AbsensiPersamaanPersepsiPage() {
     handleCloseCatatanModal();
   };
 
+  // Fungsi untuk membuka modal konfirmasi
+  const handleOpenConfirmModal = () => {
+    if (!kode || !jadwalId) return;
+
+    if (!includeInReport) {
+      alert(
+        'Centang "Masukkan ke Laporan" untuk menyimpan dan memasukkan realisasi ke PDF.'
+      );
+      return;
+    }
+
+    setShowConfirmModal(true);
+  };
+
+  // Fungsi untuk menutup modal konfirmasi
+  const handleCloseConfirmModal = () => {
+    setShowConfirmModal(false);
+  };
+
   // Fungsi untuk menyimpan absensi
   const handleSaveAbsensi = async () => {
     if (!kode || !jadwalId) return;
@@ -320,6 +352,9 @@ export default function AbsensiPersamaanPersepsiPage() {
       );
       return;
     }
+
+    // Tutup modal konfirmasi
+    setShowConfirmModal(false);
 
     setSavingAbsensi(true);
     try {
@@ -879,10 +914,11 @@ export default function AbsensiPersamaanPersepsiPage() {
                                   onChange={(e) =>
                                     handleAbsensiChange(d.id, e.target.checked)
                                   }
-                                  disabled={savingAbsensi}
+                                  disabled={savingAbsensi || isReportSubmitted || d.is_koordinator}
                                   className={`w-6 h-6 appearance-none rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 relative
                                     ${hadir ? "border-brand-500 bg-brand-500" : "border-gray-300 bg-white dark:bg-gray-900 dark:border-gray-700"} disabled:opacity-50 disabled:cursor-not-allowed`}
                                   style={{ outline: "none" }}
+                                  title={d.is_koordinator ? "Koordinator otomatis hadir" : ""}
                                 />
                                 {hadir && (
                                   <span style={{ position: "absolute", left: 0, top: 0, width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
@@ -894,8 +930,11 @@ export default function AbsensiPersamaanPersepsiPage() {
                               </div>
                               <button
                                 onClick={() => handleOpenCatatanModal(d)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-lg transition-all duration-200"
-                                title="Tambah/Edit Catatan"
+                                disabled={isReportSubmitted}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-lg transition-all duration-200 ${
+                                  isReportSubmitted ? "opacity-50 cursor-not-allowed" : ""
+                                }`}
+                                title={isReportSubmitted ? "Tidak bisa diubah setelah submit" : "Tambah/Edit Catatan"}
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -1086,7 +1125,7 @@ export default function AbsensiPersamaanPersepsiPage() {
           Batal
         </button>
         <button
-          onClick={handleSaveAbsensi}
+          onClick={handleOpenConfirmModal}
           disabled={
             savingAbsensi ||
             dosenList.length === 0 ||
@@ -1129,6 +1168,115 @@ export default function AbsensiPersamaanPersepsiPage() {
             : "Simpan Absensi"}
         </button>
       </div>
+
+      {/* Modal Konfirmasi Submit */}
+      <AnimatePresence>
+        {showConfirmModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => handleCloseConfirmModal()}
+            ></motion.div>
+            {/* Modal Content */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => handleCloseConfirmModal()}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+              
+              <div className="text-center">
+                <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-amber-100 dark:bg-amber-900/20 mb-4">
+                  <svg
+                    className="h-8 w-8 text-amber-600 dark:text-amber-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
+                  Konfirmasi Submit Absensi
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                  Apakah Anda yakin ingin menyimpan absensi ini?
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-500 mb-6">
+                  Setelah disubmit, data absensi tidak dapat diubah lagi. Pastikan semua data sudah benar.
+                </p>
+
+                <div className="flex justify-center gap-3">
+                  <button
+                    onClick={() => handleCloseConfirmModal()}
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-200"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={handleSaveAbsensi}
+                    disabled={savingAbsensi}
+                    className="px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {savingAbsensi && (
+                      <svg
+                        className="w-4 h-4 animate-spin"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                    )}
+                    Ya, Simpan
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Modal Catatan */}
       <AnimatePresence>
@@ -1200,10 +1348,13 @@ export default function AbsensiPersamaanPersepsiPage() {
                           },
                         }));
                       }}
+                      disabled={isReportSubmitted}
                       placeholder="Masukkan catatan untuk dosen ini..."
-                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl dark:bg-gray-700 dark:text-white resize-none"
+                      className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl dark:bg-gray-700 dark:text-white resize-none ${
+                        isReportSubmitted ? "opacity-50 cursor-not-allowed" : ""
+                      }`}
                       rows={4}
-                      autoFocus
+                      autoFocus={!isReportSubmitted}
                     />
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                       Catatan ini akan tersimpan bersama data absensi
