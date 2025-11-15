@@ -1866,13 +1866,7 @@ export default function DashboardDosen() {
                                 <>
                                   <button
                                     onClick={() => {
-                                      // Cek apakah praktikum antara berdasarkan semester_type atau semester
-                                      const isAntara = item.semester_type === 'antara' || 
-                                                       (item.mata_kuliah && item.mata_kuliah.semester === 'Antara');
-                                      const routePath = isAntara 
-                                        ? `/absensi-praktikum-antara/${item.mata_kuliah_kode}/${item.id}`
-                                        : `/absensi-praktikum/${item.mata_kuliah_kode}/${item.id}`;
-                                      navigate(routePath);
+                                      navigate(`/absensi-praktikum/${item.mata_kuliah_kode}/${item.id}`);
                                     }}
                                     className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors mr-1"
                                     title="Absensi Praktikum"

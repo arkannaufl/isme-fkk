@@ -62,7 +62,6 @@ import DetailAbSenMahasiswa from "./pages/DetailAbSenMahasiswa";
 import DetailAbSenMahasiswaNonBlokNonCSR from "./pages/DetailAbSenMahasiswaNonBlokNonCSR";
 import DetailAbSenMahasiswaNonBlokNonCSRAntara from "./pages/DetailAbSenMahasiswaNonBlokNonCSRAntara";
 import DetailAbSenMahasiswaPraktikum from "./pages/DetailAbSenMahasiswaPraktikum";
-import DetailAbSenMahasiswaPraktikumAntara from "./pages/DetailAbSenMahasiswaPraktikumAntara";
 import DetailAbSenMahasiswaKuliahBesarAntara from "./pages/DetailAbSenMahasiswaKuliahBesarAntara";
 import KuliahBesarDetail from "./pages/KuliahBesarDetail";
 import DosenAbsensiKuliahBesar from "./pages/DosenAbsensiKuliahBesar";
@@ -70,7 +69,6 @@ import DosenAbsensiKuliahBesarAntara from "./pages/DosenAbsensiKuliahBesarAntara
 import DosenAbsensiNonBlokNonCSR from "./pages/DosenAbsensiNonBlokNonCSR";
 import DosenAbsensiNonBlokNonCSRAntara from "./pages/DosenAbsensiNonBlokNonCSRAntara";
 import DosenAbsensiPraktikum from "./pages/DosenAbsensiPraktikum";
-import DosenAbsensiPraktikumAntara from "./pages/DosenAbsensiPraktikumAntara";
 
 import WhatsAppTest from "./pages/WhatsAppTest";
 
@@ -206,14 +204,6 @@ function AppContent() {
                 }
               />
               <Route
-                path="/mahasiswa/absensi-praktikum-antara/:kode/:jadwalId"
-                element={
-                  <RequireDosenRole allowedRoles={["mahasiswa"]}>
-                    <DetailAbSenMahasiswaPraktikumAntara />
-                  </RequireDosenRole>
-                }
-              />
-              <Route
                 path="/mahasiswa/absensi-kuliah-besar-antara/:kode/:jadwalId"
                 element={
                   <RequireDosenRole allowedRoles={["mahasiswa"]}>
@@ -290,14 +280,6 @@ function AppContent() {
                 element={
                   <RequireDosenRole allowedRoles={["dosen", "super_admin", "tim_akademik"]}>
                     <DosenAbsensiPraktikum />
-                  </RequireDosenRole>
-                }
-              />
-              <Route
-                path="/absensi-praktikum-antara/:kode/:jadwalId"
-                element={
-                  <RequireDosenRole allowedRoles={["dosen", "super_admin", "tim_akademik"]}>
-                    <DosenAbsensiPraktikumAntara />
                   </RequireDosenRole>
                 }
               />

@@ -274,16 +274,15 @@ export default function AbSenQRMahasiswa() {
         return;
       }
       
-      // Validasi format path: support untuk kuliah besar, kuliah besar antara, non-blok non-CSR, praktikum, dan praktikum antara
+      // Validasi format path: support untuk kuliah besar, kuliah besar antara, non-blok non-CSR, dan praktikum
       // Path harus persis seperti format yang dihasilkan dari QR Code dosen
       const kuliahBesarPattern = /^\/mahasiswa\/absensi-kuliah-besar\/[A-Z0-9]+\/\d+(\?.*)?$/;
       const kuliahBesarAntaraPattern = /^\/mahasiswa\/absensi-kuliah-besar-antara\/[A-Z0-9]+\/\d+(\?.*)?$/;
       const nonBlokNonCSRPattern = /^\/mahasiswa\/absensi-non-blok-non-csr\/[A-Z0-9]+\/\d+(\?.*)?$/;
       const nonBlokNonCSRAntaraPattern = /^\/mahasiswa\/absensi-non-blok-non-csr-antara\/[A-Z0-9]+\/\d+(\?.*)?$/;
       const praktikumPattern = /^\/mahasiswa\/absensi-praktikum\/[A-Z0-9]+\/\d+(\?.*)?$/;
-      const praktikumAntaraPattern = /^\/mahasiswa\/absensi-praktikum-antara\/[A-Z0-9]+\/\d+(\?.*)?$/;
       
-      if (!kuliahBesarPattern.test(url.pathname) && !kuliahBesarAntaraPattern.test(url.pathname) && !nonBlokNonCSRPattern.test(url.pathname) && !nonBlokNonCSRAntaraPattern.test(url.pathname) && !praktikumPattern.test(url.pathname) && !praktikumAntaraPattern.test(url.pathname)) {
+      if (!kuliahBesarPattern.test(url.pathname) && !kuliahBesarAntaraPattern.test(url.pathname) && !nonBlokNonCSRPattern.test(url.pathname) && !nonBlokNonCSRAntaraPattern.test(url.pathname) && !praktikumPattern.test(url.pathname)) {
         setError('QR Code tidak valid - path tidak sesuai format jadwal');
         setTimeout(() => {
           setError(null);
@@ -292,8 +291,8 @@ export default function AbSenQRMahasiswa() {
         return;
       }
       
-      // Cek apakah URL sesuai dengan format absensi kuliah besar, kuliah besar antara, non-blok non-CSR, non-blok non-CSR antara, praktikum, atau praktikum antara
-      let jadwalType: 'kuliah-besar' | 'kuliah-besar-antara' | 'non-blok-non-csr' | 'non-blok-non-csr-antara' | 'praktikum' | 'praktikum-antara' | null = null;
+      // Cek apakah URL sesuai dengan format absensi kuliah besar, kuliah besar antara, non-blok non-CSR, non-blok non-CSR antara, atau praktikum
+      let jadwalType: 'kuliah-besar' | 'kuliah-besar-antara' | 'non-blok-non-csr' | 'non-blok-non-csr-antara' | 'praktikum' | null = null;
       let kode: string | undefined;
       let jadwalId: string | undefined;
       
@@ -321,12 +320,6 @@ export default function AbSenQRMahasiswa() {
         const jadwalIdIndex = kodeIndex + 1;
         kode = pathParts[kodeIndex];
         jadwalId = pathParts[jadwalIdIndex];
-      } else if (pathParts.includes('absensi-praktikum-antara')) {
-        jadwalType = 'praktikum-antara';
-        const kodeIndex = pathParts.indexOf('absensi-praktikum-antara') + 1;
-        const jadwalIdIndex = kodeIndex + 1;
-        kode = pathParts[kodeIndex];
-        jadwalId = pathParts[jadwalIdIndex];
       } else if (pathParts.includes('absensi-praktikum')) {
         jadwalType = 'praktikum';
         const kodeIndex = pathParts.indexOf('absensi-praktikum') + 1;
@@ -344,7 +337,7 @@ export default function AbSenQRMahasiswa() {
           } else if (jadwalType === 'non-blok-non-csr' || jadwalType === 'non-blok-non-csr-antara') {
             response = await api.get(`/non-blok-non-csr/jadwal/${kode}`);
           } else {
-            // Praktikum dan praktikum antara menggunakan endpoint yang sama
+            // Praktikum menggunakan endpoint ini
             response = await api.get(`/praktikum/jadwal/${kode}`);
           }
           
@@ -373,10 +366,6 @@ export default function AbSenQRMahasiswa() {
               redirectUrl = token 
                 ? `/mahasiswa/absensi-non-blok-non-csr/${kode}/${jadwalId}?from_qr=true&token=${token}`
                 : `/mahasiswa/absensi-non-blok-non-csr/${kode}/${jadwalId}?from_qr=true`;
-            } else if (jadwalType === 'praktikum-antara') {
-              redirectUrl = token 
-                ? `/mahasiswa/absensi-praktikum-antara/${kode}/${jadwalId}?from_qr=true&token=${token}`
-                : `/mahasiswa/absensi-praktikum-antara/${kode}/${jadwalId}?from_qr=true`;
             } else {
               redirectUrl = token 
                 ? `/mahasiswa/absensi-praktikum/${kode}/${jadwalId}?from_qr=true&token=${token}`

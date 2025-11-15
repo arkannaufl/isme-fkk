@@ -261,7 +261,10 @@ class DetailBlokController extends Controller
                 if (!$jadwal->dosen_id && $jadwal->dosen_ids && is_array($jadwal->dosen_ids) && count($jadwal->dosen_ids) > 0) {
                     $jadwal->dosen_id = $jadwal->dosen_ids[0];
                 } elseif (!$jadwal->dosen_id && $jadwal->dosen) {
-                    $dosen = is_array($jadwal->dosen) ? $jadwal->dosen->first() : $jadwal->dosen;
+                    // $jadwal->dosen is a Collection from relationship, use first() to get single model
+                    $dosen = $jadwal->dosen instanceof \Illuminate\Database\Eloquent\Collection
+                        ? $jadwal->dosen->first()
+                        : $jadwal->dosen;
                     if ($dosen) {
                         $jadwal->dosen_id = $dosen->id;
                     }
