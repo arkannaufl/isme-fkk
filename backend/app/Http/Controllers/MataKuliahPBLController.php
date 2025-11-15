@@ -325,7 +325,7 @@ class MataKuliahPBLController extends Controller
         ]);
         $result = [];
         $pbls = PBL::with(['dosen' => function ($query) {
-            $query->withPivot('role');
+            $query->withPivot('role')->with('dosenPeran');
         }])->whereIn('id', $validated['pbl_ids'])->get();
         foreach ($pbls as $pbl) {
             // Pastikan pbl_assignment_count di-load untuk setiap dosen
@@ -333,6 +333,20 @@ class MataKuliahPBLController extends Controller
                 $dosen->pbl_assignment_count = $dosen->pbl_assignment_count ?? 0;
                 // Tambahkan role dari pivot table
                 $dosen->pbl_role = $dosen->pivot->role ?? 'dosen_mengajar';
+                // Ensure dosen_peran is loaded and accessible
+                if ($dosen->relationLoaded('dosenPeran')) {
+                    $dosen->dosen_peran = $dosen->dosenPeran->map(function ($peran) {
+                        return [
+                            'id' => $peran->id,
+                            'user_id' => $peran->user_id,
+                            'mata_kuliah_kode' => $peran->mata_kuliah_kode,
+                            'tipe_peran' => $peran->tipe_peran,
+                            'peran_kurikulum' => $peran->peran_kurikulum,
+                            'blok' => $peran->blok,
+                            'semester' => $peran->semester,
+                        ];
+                    })->toArray();
+                }
             });
             $result[$pbl->id] = $pbl->dosen;
         }

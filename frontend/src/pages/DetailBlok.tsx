@@ -186,6 +186,7 @@ type DosenType = {
   nid?: string;
   keahlian?: string | string[];
   role?: string;
+  dosen_peran?: any[];
 };
 
 type RuanganType = {
@@ -226,6 +227,29 @@ type JadwalPBLType = {
   [key: string]: any;
 };
 
+type JadwalPersamaanPersepsiType = {
+  id?: number;
+  tanggal: string;
+  jam_mulai: string;
+  jam_selesai: string;
+  jumlah_sesi: number;
+  dosen_ids: number[]; // Pengampu (non-koordinator)
+  koordinator_ids?: number[]; // Koordinator (opsional)
+  ruangan_id: number;
+  topik: string;
+  dosen_names?: string;
+  koordinator_names?: string;
+  pengampu_names?: string;
+  dosen_with_roles?: Array<{
+    id: number;
+    name: string;
+    peran: string;
+    peran_display: string;
+    is_koordinator?: boolean;
+  }>;
+  [key: string]: any;
+};
+
 export default function DetailBlok() {
   const { kode } = useParams();
 
@@ -249,6 +273,9 @@ export default function DetailBlok() {
   const [jurnalReadingSuccess, setJurnalReadingSuccess] = useState<
     string | null
   >(null);
+  const [persamaanPersepsiSuccess, setPersamaanPersepsiSuccess] = useState<
+    string | null
+  >(null);
 
   // Auto-hide pesan sukses bulk delete (refactored dengan custom logic)
   useEffect(() => {
@@ -257,6 +284,7 @@ export default function DetailBlok() {
       { value: praktikumSuccess, setter: setPraktikumSuccess },
       { value: agendaKhususSuccess, setter: setAgendaKhususSuccess },
       { value: jurnalReadingSuccess, setter: setJurnalReadingSuccess },
+      { value: persamaanPersepsiSuccess, setter: setPersamaanPersepsiSuccess },
     ];
 
     const timers = successStates
@@ -269,6 +297,7 @@ export default function DetailBlok() {
     praktikumSuccess,
     agendaKhususSuccess,
     jurnalReadingSuccess,
+    persamaanPersepsiSuccess,
   ]);
 
   // State untuk modal input jadwal materi
@@ -285,13 +314,15 @@ export default function DetailBlok() {
 
     pengampu: number | number[] | null;
 
+    koordinator: number | number[] | null; // Koordinator untuk Persamaan Persepsi
+
     materi: string;
 
     topik: string;
 
     lokasi: number | null;
 
-    jenisBaris: "materi" | "agenda" | "praktikum" | "pbl" | "jurnal";
+    jenisBaris: "materi" | "agenda" | "praktikum" | "pbl" | "jurnal" | "persamaan-persepsi";
 
     agenda: string;
 
@@ -318,6 +349,8 @@ export default function DetailBlok() {
     jamSelesai: "",
 
     pengampu: null,
+
+    koordinator: null,
 
     materi: "",
 
@@ -558,6 +591,10 @@ export default function DetailBlok() {
     JadwalJurnalReadingType[]
   >([]);
 
+  const [jadwalPersamaanPersepsi, setJadwalPersamaanPersepsi] = useState<
+    JadwalPersamaanPersepsiType[]
+  >([]);
+
   const [jamOptions, setJamOptions] = useState<string[]>([]);
 
   // Pagination state for each schedule type
@@ -581,6 +618,11 @@ export default function DetailBlok() {
 
   const [jurnalReadingPage, setJurnalReadingPage] = useState(1);
   const [jurnalReadingPageSize, setJurnalReadingPageSize] = useState(
+    PAGE_SIZE_OPTIONS[0]
+  );
+
+  const [persamaanPersepsiPage, setPersamaanPersepsiPage] = useState(1);
+  const [persamaanPersepsiPageSize, setPersamaanPersepsiPageSize] = useState(
     PAGE_SIZE_OPTIONS[0]
   );
 
@@ -777,6 +819,29 @@ export default function DetailBlok() {
   const [jurnalReadingImportData, setJurnalReadingImportData] = useState<
     JadwalJurnalReadingType[]
   >([]);
+
+  // State untuk import Excel Persamaan Persepsi
+  const [showPersamaanPersepsiImportModal, setShowPersamaanPersepsiImportModal] =
+    useState(false);
+  const [persamaanPersepsiImportFile, setPersamaanPersepsiImportFile] =
+    useState<File | null>(null);
+  const [persamaanPersepsiImportData, setPersamaanPersepsiImportData] = useState<
+    any[]
+  >([]);
+  const [persamaanPersepsiImportErrors, setPersamaanPersepsiImportErrors] = useState<
+    string[]
+  >([]);
+  const [persamaanPersepsiCellErrors, setPersamaanPersepsiCellErrors] = useState<
+    { row: number; field: string; message: string }[]
+  >([]);
+  const [persamaanPersepsiEditingCell, setPersamaanPersepsiEditingCell] = useState<{
+    row: number;
+    key: string;
+  } | null>(null);
+  const [isPersamaanPersepsiImporting, setIsPersamaanPersepsiImporting] =
+    useState(false);
+  const [persamaanPersepsiImportedCount, setPersamaanPersepsiImportedCount] =
+    useState(0);
   const [jurnalReadingImportErrors, setJurnalReadingImportErrors] = useState<
     string[]
   >([]);
@@ -826,9 +891,12 @@ export default function DetailBlok() {
   const [selectedJurnalReadingItems, setSelectedJurnalReadingItems] = useState<
     number[]
   >([]);
+  const [selectedPersamaanPersepsiItems, setSelectedPersamaanPersepsiItems] = useState<
+    number[]
+  >([]);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [bulkDeleteType, setBulkDeleteType] = useState<
-    "kuliah-besar" | "praktikum" | "agenda-khusus" | "pbl" | "jurnal-reading"
+    "kuliah-besar" | "praktikum" | "agenda-khusus" | "pbl" | "jurnal-reading" | "persamaan-persepsi"
   >("kuliah-besar");
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
@@ -887,6 +955,7 @@ export default function DetailBlok() {
 
   const agendaKhususFileInputRef = useRef<HTMLInputElement>(null);
   const jurnalReadingFileInputRef = useRef<HTMLInputElement>(null);
+  const persamaanPersepsiFileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch materi (keahlian) dari mata kuliah yang sedang dipilih
 
@@ -1258,6 +1327,8 @@ export default function DetailBlok() {
 
       pengampu: jenisBaris === "praktikum" ? [] : null,
 
+      koordinator: null,
+
       materi: "",
 
       topik: "",
@@ -1444,6 +1515,8 @@ export default function DetailBlok() {
 
         pengampu: Number(row.pengampu || row.dosen_id || 0),
 
+        koordinator: null,
+
         materi: String(row.materi || ""),
 
         topik: String(row.topik || ""),
@@ -1481,6 +1554,8 @@ export default function DetailBlok() {
         jamSelesai: String(row.jamSelesai || row.pukul?.split("-")[1] || ""),
 
         pengampu: Number(row.pengampu || row.dosen_id || 0),
+
+        koordinator: null,
 
         materi: String(row.materi || row.topik || ""),
 
@@ -1522,6 +1597,8 @@ export default function DetailBlok() {
 
         pengampu: Number(row.dosen_id || 0),
 
+        koordinator: null,
+
         materi: "",
 
         topik: "",
@@ -1560,6 +1637,8 @@ export default function DetailBlok() {
 
         pengampu: Number(row.pengampu || row.dosen_id || 0),
 
+        koordinator: null,
+
         materi: "",
 
         topik: "",
@@ -1595,6 +1674,8 @@ export default function DetailBlok() {
         jamSelesai: String(row.pukul?.split("-")[1] || ""),
 
         pengampu: 0,
+
+        koordinator: null,
 
         materi: String(row.materi || row.topik || ""),
 
@@ -1821,6 +1902,12 @@ export default function DetailBlok() {
   const [showDeletePraktikumModal, setShowDeletePraktikumModal] =
     useState(false);
 
+  // State untuk modal konfirmasi hapus Persamaan Persepsi
+  const [showDeletePersamaanPersepsiModal, setShowDeletePersamaanPersepsiModal] =
+    useState(false);
+  const [selectedDeletePersamaanPersepsiIndex, setSelectedDeletePersamaanPersepsiIndex] =
+    useState<number | null>(null);
+
   const [selectedDeletePraktikumIndex, setSelectedDeletePraktikumIndex] =
     useState<number | null>(null);
 
@@ -1888,6 +1975,16 @@ export default function DetailBlok() {
           ? batchData.jadwal_jurnal_reading
           : []
       );
+
+      // Fetch jadwal Persamaan Persepsi
+      try {
+        const persepsiRes = await api.get(`/persamaan-persepsi/jadwal/${kode}`);
+        setJadwalPersamaanPersepsi(
+          Array.isArray(persepsiRes.data) ? persepsiRes.data : []
+        );
+      } catch (err) {
+        setJadwalPersamaanPersepsi([]);
+      }
 
       // Set reference data
 
@@ -2896,6 +2993,52 @@ export default function DetailBlok() {
     setIsSaving(false);
   }
 
+  // Fungsi tambah jadwal Persamaan Persepsi
+  async function handleTambahJadwalPersamaanPersepsi(formPersepsi: JadwalPersamaanPersepsiType) {
+    setErrorBackend("");
+    try {
+      await api.post(`/persamaan-persepsi/jadwal/${kode}`, formPersepsi);
+      await fetchBatchData();
+    } catch (err: any) {
+      if (err.response && err.response.data && err.response.data.message) {
+        setErrorBackend(err.response.data.message);
+      } else {
+        setErrorBackend("Gagal menambah jadwal Persamaan Persepsi");
+      }
+      throw err;
+    }
+  }
+
+  // Fungsi edit jadwal Persamaan Persepsi
+  async function handleEditJadwalPersamaanPersepsi(id: number, formPersepsi: JadwalPersamaanPersepsiType) {
+    setErrorBackend("");
+    try {
+      await api.put(`/persamaan-persepsi/jadwal/${kode}/${id}`, formPersepsi);
+      await fetchBatchData();
+    } catch (err: any) {
+      if (err.response && err.response.data && err.response.data.message) {
+        setErrorBackend(err.response.data.message);
+      } else {
+        setErrorBackend("Gagal mengedit jadwal Persamaan Persepsi");
+      }
+      throw err;
+    }
+  }
+
+  // Fungsi hapus jadwal Persamaan Persepsi
+  async function handleDeleteJadwalPersamaanPersepsi(idx: number) {
+    const jadwal = jadwalPersamaanPersepsi[idx];
+    if (!jadwal || !jadwal.id) {
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await api.delete(`/persamaan-persepsi/jadwal/${kode}/${jadwal.id}`);
+      await fetchBatchData();
+    } catch (err) {}
+    setIsSaving(false);
+  }
+
   // Ambil unique nama kelompok dari kelompokKecilList
 
   const uniqueKelompok = Array.from(
@@ -2978,6 +3121,7 @@ export default function DetailBlok() {
         jumlahKali: 2,
         jamSelesai: "",
         pengampu: null,
+        koordinator: null,
         materi: "",
         topik: "",
         lokasi: null,
@@ -3030,6 +3174,7 @@ export default function DetailBlok() {
       jumlahKali: actualRow.jumlah_sesi || 2,
       jamSelesai: actualRow.jam_selesai || "",
       pengampu: actualRow.dosen_id || null,
+      koordinator: null,
       materi: actualRow.materi || "",
       topik: actualRow.topik || "",
       lokasi: actualRow.ruangan_id || null,
@@ -3148,6 +3293,7 @@ export default function DetailBlok() {
         jumlahKali: 2,
         jamSelesai: "",
         pengampu: null,
+        koordinator: null,
         materi: "",
         topik: "",
         lokasi: null,
@@ -3200,6 +3346,7 @@ export default function DetailBlok() {
       jumlahKali: actualRow.jumlah_sesi || 2,
       jamSelesai: actualRow.jam_selesai || "",
       pengampu: null,
+      koordinator: null,
       materi: "",
       topik: "",
       lokasi: actualRow.use_ruangan ? actualRow.ruangan_id || null : null,
@@ -3329,6 +3476,7 @@ export default function DetailBlok() {
         jumlahKali: 2,
         jamSelesai: "",
         pengampu: [],
+        koordinator: null,
         materi: "",
         topik: "",
         lokasi: null,
@@ -3401,6 +3549,7 @@ export default function DetailBlok() {
       jumlahKali: Number(actualRow.jumlah_sesi || 2),
       jamSelesai: actualRow.jam_selesai || "",
       pengampu: pengampuValue,
+      koordinator: null,
       materi: actualRow.materi || "",
       topik: actualRow.topik || "",
       lokasi: actualRow.ruangan_id || null,
@@ -3630,6 +3779,7 @@ export default function DetailBlok() {
         jumlahKali: 2,
         jamSelesai: "",
         pengampu: null,
+        koordinator: null,
         materi: "",
         topik: "",
         lokasi: null,
@@ -3706,6 +3856,7 @@ export default function DetailBlok() {
       jumlahKali: Number(actualRow.jumlah_sesi || 1),
       jamSelesai: actualRow.jam_selesai || "",
       pengampu: pengampuValue,
+      koordinator: null,
       materi: "",
       topik: actualRow.topik || "",
       lokasi: actualRow.ruangan_id || null,
@@ -3780,6 +3931,7 @@ export default function DetailBlok() {
       | "agenda-khusus"
       | "pbl"
       | "jurnal-reading"
+      | "persamaan-persepsi"
   ) => {
     setBulkDeleteType(type);
     setShowBulkDeleteModal(true);
@@ -3821,6 +3973,11 @@ export default function DetailBlok() {
           endpoint = `/jurnal-reading/jadwal/${kode}`;
           successMessage = `${selectedItems.length} jadwal jurnal reading berhasil dihapus.`;
           break;
+        case "persamaan-persepsi":
+          selectedItems = selectedPersamaanPersepsiItems;
+          endpoint = `/persamaan-persepsi/jadwal/${kode}`;
+          successMessage = `${selectedItems.length} jadwal persamaan persepsi berhasil dihapus.`;
+          break;
       }
 
       // Delete all selected items
@@ -3845,6 +4002,9 @@ export default function DetailBlok() {
         case "jurnal-reading":
           setJurnalReadingSuccess(successMessage);
           break;
+        case "persamaan-persepsi":
+          setPersamaanPersepsiSuccess(successMessage);
+          break;
       }
 
       // Clear selected items
@@ -3863,6 +4023,9 @@ export default function DetailBlok() {
           break;
         case "jurnal-reading":
           setSelectedJurnalReadingItems([]);
+          break;
+        case "persamaan-persepsi":
+          setSelectedPersamaanPersepsiItems([]);
           break;
       }
 
@@ -3885,7 +4048,8 @@ export default function DetailBlok() {
       | "praktikum"
       | "agenda-khusus"
       | "pbl"
-      | "jurnal-reading",
+      | "jurnal-reading"
+      | "persamaan-persepsi",
     allItems: any[]
   ) => {
     const allIds = allItems
@@ -3928,6 +4092,13 @@ export default function DetailBlok() {
           setSelectedJurnalReadingItems(allIds);
         }
         break;
+      case "persamaan-persepsi":
+        if (selectedPersamaanPersepsiItems.length === allIds.length) {
+          setSelectedPersamaanPersepsiItems([]);
+        } else {
+          setSelectedPersamaanPersepsiItems(allIds);
+        }
+        break;
     }
   };
 
@@ -3937,7 +4108,8 @@ export default function DetailBlok() {
       | "praktikum"
       | "agenda-khusus"
       | "pbl"
-      | "jurnal-reading",
+      | "jurnal-reading"
+      | "persamaan-persepsi",
     itemId: number
   ) => {
     switch (type) {
@@ -3983,6 +4155,18 @@ export default function DetailBlok() {
         } else {
           setSelectedJurnalReadingItems([
             ...selectedJurnalReadingItems,
+            itemId,
+          ]);
+        }
+        break;
+      case "persamaan-persepsi":
+        if (selectedPersamaanPersepsiItems.includes(itemId)) {
+          setSelectedPersamaanPersepsiItems(
+            selectedPersamaanPersepsiItems.filter((id) => id !== itemId)
+          );
+        } else {
+          setSelectedPersamaanPersepsiItems([
+            ...selectedPersamaanPersepsiItems,
             itemId,
           ]);
         }
@@ -9401,6 +9585,879 @@ export default function DetailBlok() {
     setJurnalReadingEditingCell(null);
   };
 
+  // ========== FUNGSI IMPORT/EXPORT EXCEL PERSAMAAN PERSEPSI ==========
+  
+  // Download template Excel untuk Persamaan Persepsi
+  const downloadPersamaanPersepsiTemplate = async () => {
+    if (!data) return;
+
+    try {
+      // Ambil data yang diperlukan untuk template
+      const startDate = data?.tanggal_mulai
+        ? new Date(data.tanggal_mulai)
+        : new Date();
+      const endDate = data?.tanggal_akhir
+        ? new Date(data.tanggal_akhir)
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+      // Generate contoh tanggal
+      const generateContohTanggal = () => {
+        const selisihHari = Math.floor(
+          (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        const hari1 = Math.floor(selisihHari * 0.25);
+        const hari2 = Math.floor(selisihHari * 0.75);
+
+        const tanggal1 = new Date(
+          startDate.getTime() + hari1 * 24 * 60 * 60 * 1000
+        );
+        const tanggal2 = new Date(
+          startDate.getTime() + hari2 * 24 * 60 * 60 * 1000
+        );
+
+        return [
+          tanggal1.toISOString().split("T")[0],
+          tanggal2.toISOString().split("T")[0],
+        ];
+      };
+
+      const [contohTanggal1, contohTanggal2] = generateContohTanggal();
+
+      // Ambil contoh dosen (minimal 2 untuk multi-select)
+      const contohDosen1 = assignedDosenPBL[0]?.name || "Dr. John Doe";
+      const contohDosen2 = assignedDosenPBL[1]?.name || "Dr. Jane Smith";
+      const contohDosen3 = assignedDosenPBL[2]?.name || "Dr. Bob Wilson";
+      const contohKoordinator = contohDosen1; // Contoh koordinator
+      const contohPengampu = contohDosen2 ? `${contohDosen2}, ${contohDosen3 || "Dr. Alice"}` : contohDosen2;
+
+      // Data template - 1 dengan ruangan, 1 tanpa ruangan (online)
+      const rawTemplateData = [
+        {
+          tanggal: contohTanggal1,
+          jam_mulai: "07.20",
+          jumlah_sesi: 1,
+          topik: "Hematologi-IPD",
+          koordinator: contohKoordinator,
+          pengampu: contohPengampu,
+          ruangan: ruanganList[0]?.nama || "Ruang 1",
+        },
+        {
+          tanggal: contohTanggal2,
+          jam_mulai: "10.40",
+          jumlah_sesi: 2,
+          topik: "Contoh Topik 2",
+          koordinator: contohDosen1,
+          pengampu: contohDosen2 || "",
+          ruangan: "", // Tidak menggunakan ruangan (online)
+        },
+      ];
+
+      // Transform rawTemplateData to match headers
+      const templateData = rawTemplateData.map((row) => ({
+        Tanggal: row.tanggal,
+        "Jam Mulai": row.jam_mulai,
+        "Jumlah Sesi": row.jumlah_sesi,
+        Topik: row.topik,
+        "Koordinator Dosen": row.koordinator,
+        Pengampu: row.pengampu,
+        Ruangan: row.ruangan,
+      }));
+
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+
+      // Sheet template dengan header yang eksplisit
+      const ws = XLSX.utils.json_to_sheet(templateData, {
+        header: [
+          "Tanggal",
+          "Jam Mulai",
+          "Jumlah Sesi",
+          "Topik",
+          "Koordinator Dosen",
+          "Pengampu",
+          "Ruangan",
+        ],
+      });
+
+      // Set column widths
+      const colWidths = [
+        { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
+        { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
+        { wch: 12 },
+        { wch: EXCEL_COLUMN_WIDTHS.TOPIK },
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
+        { wch: EXCEL_COLUMN_WIDTHS.RUANGAN },
+      ];
+      ws["!cols"] = colWidths;
+
+      XLSX.utils.book_append_sheet(wb, ws, "Template Persamaan Persepsi");
+
+      // Sheet Tips dan Info
+      const infoData: string[][] = [
+        ["TIPS DAN INFORMASI IMPORT JADWAL PERSAMAAN PERSEPSI"],
+        [""],
+        ["📋 CARA UPLOAD FILE:"],
+        ["1. Download template ini dan isi dengan data jadwal persamaan persepsi"],
+        ["2. Pastikan semua kolom wajib diisi dengan benar"],
+        ["3. Upload file Excel yang sudah diisi ke sistem"],
+        ["4. Periksa preview data dan perbaiki error jika ada"],
+        ['5. Klik "Import Data" untuk menyimpan jadwal'],
+        [""],
+        ["✏️ CARA EDIT DATA:"],
+        ["1. Klik pada kolom yang ingin diedit di tabel preview"],
+        ["2. Ketik atau paste data yang benar"],
+        ["3. Sistem akan otomatis validasi dan update error"],
+        ["4. Pastikan tidak ada error sebelum import"],
+        [""],
+        ["📊 KETERSEDIAAN DATA:"],
+        [""],
+        ["🏢 RUANGAN YANG TERSEDIA:"],
+        ...ruanganList.map((ruangan) => [`• ${ruangan.nama}`]),
+        [""],
+        ["👨‍🏫 DOSEN YANG TERSEDIA:"],
+        [
+          "• Dosen yang tersedia adalah dosen yang sudah di-assign untuk PBL mata kuliah ini",
+        ],
+        ["• Kolom Koordinator Dosen: Isi dengan nama koordinator dosen (opsional)"],
+        ["• Kolom Pengampu: Isi dengan nama dosen pengampu (wajib, minimal 1 dosen)"],
+        ["• Untuk multi-select, pisahkan nama dosen dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)"],
+        ["• Kolom Pengampu: Minimal 1 dosen harus dipilih"],
+        ["• ⚠️ PENTING: Dosen yang sama TIDAK BOLEH dipilih sebagai Koordinator Dosen dan Pengampu sekaligus"],
+        ...assignedDosenPBL
+          .filter(
+            (dosen, index, self) =>
+              index ===
+              self.findIndex(
+                (d) =>
+                  (dosen.id && d.id === dosen.id) ||
+                  (dosen.name && d.name === dosen.name)
+              )
+          )
+          .map((dosen) => {
+            const namaDosen = dosen.name || `Dosen ${dosen.id || "Unknown"}`;
+            return [`• ${namaDosen}`];
+          }),
+        [""],
+        ["⚠️ VALIDASI SISTEM:"],
+        [""],
+        ["📅 VALIDASI TANGGAL:"],
+        ["• Format: YYYY-MM-DD (contoh: 2024-01-15)"],
+        ["• Wajib dalam rentang mata kuliah:"],
+        [`  - Mulai: ${startDate.toLocaleDateString("id-ID")}`],
+        [`  - Akhir: ${endDate.toLocaleDateString("id-ID")}`],
+        [""],
+        ["⏰ VALIDASI JAM:"],
+        ["• Format: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)"],
+        ["• Jam mulai harus sesuai opsi yang tersedia:"],
+        [
+          "  07:20, 08:10, 09:00, 09:50, 10:40, 11:30, 12:35, 13:25, 14:15, 15:05, 15:35, 16:25, 17:15",
+        ],
+        ["• Jam selesai akan divalidasi berdasarkan perhitungan:"],
+        ["  Jam selesai = Jam mulai + (Jumlah sesi x 50 menit)"],
+        ["  Contoh: 07:20 + (2 x 50 menit) = 09:00"],
+        [""],
+        ["📝 VALIDASI TOPIK:"],
+        ["• Topik opsional (boleh dikosongkan)"],
+        ["• Jika diisi, topik akan disimpan"],
+        [""],
+        ["👨‍🏫 VALIDASI KOORDINATOR DOSEN:"],
+        ["• Koordinator Dosen opsional (boleh dikosongkan)"],
+        ["• Untuk multi-select, pisahkan dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)"],
+        [
+          "• Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini",
+        ],
+        ["• Nama koordinator harus sesuai dengan yang ada di database"],
+        ["• ⚠️ Dosen yang sudah dipilih sebagai Pengampu TIDAK BOLEH dipilih sebagai Koordinator Dosen"],
+        [""],
+        ["👨‍🏫 VALIDASI PENGAMPU:"],
+        ["• Pengampu wajib diisi (minimal 1 dosen)"],
+        ["• Untuk multi-select, pisahkan dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)"],
+        [
+          "• Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini",
+        ],
+        ["• Nama dosen harus sesuai dengan yang ada di database"],
+        ["• ⚠️ Dosen yang sudah dipilih sebagai Koordinator Dosen TIDAK BOLEH dipilih sebagai Pengampu"],
+        [""],
+        ["🏢 VALIDASI RUANGAN:"],
+        ["• Ruangan boleh dikosongkan untuk jadwal online/tidak memerlukan ruangan"],
+        ["• Jika diisi, nama ruangan harus ada di database"],
+        ["• Pastikan ruangan tersedia untuk jadwal tersebut"],
+        ["• Kapasitas ruangan harus mencukupi untuk jumlah dosen yang dipilih"],
+        ["• Jika ruangan dikosongkan, jadwal akan dianggap sebagai jadwal online"],
+        [""],
+        ["🔢 VALIDASI JUMLAH SESI:"],
+        ["• Jumlah sesi: 1-6 (1 x 50 menit sampai 6 x 50 menit)"],
+        ["• Digunakan untuk menghitung jam selesai otomatis"],
+        ["• 1 sesi = 50 menit"],
+        [""],
+        ["💡 TIPS PENTING:"],
+        ["• Gunakan data yang ada di list ketersediaan di atas"],
+        ["• Periksa preview sebelum import"],
+        ["• Edit langsung di tabel preview jika ada error"],
+        ["• Sistem akan highlight error dengan warna merah"],
+        ["• Tooltip akan menampilkan pesan error detail"],
+        ["• Untuk multi-select dosen, pastikan semua nama dosen valid"],
+        ["• ⚠️ Pastikan tidak ada dosen yang sama di kolom Koordinator Dosen dan Pengampu"],
+      ];
+
+      const infoWs = XLSX.utils.aoa_to_sheet(infoData);
+      infoWs["!cols"] = [{ wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN }];
+      XLSX.utils.book_append_sheet(wb, infoWs, "Tips dan Info");
+
+      // Download file
+      const fileName = `Template_Import_PersamaanPersepsi_${
+        data?.nama || "MataKuliah"
+      }_${new Date().toISOString().split("T")[0]}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (error) {
+      console.error("Error downloading Persamaan Persepsi template:", error);
+      alert("Gagal mendownload template Persamaan Persepsi. Silakan coba lagi.");
+    }
+  };
+
+  // Validasi data Excel Persamaan Persepsi
+  const validatePersamaanPersepsiExcelData = (
+    convertedData: any[]
+  ) => {
+    const cellErrors: { row: number; field: string; message: string }[] = [];
+
+    if (!convertedData) return { cellErrors };
+
+    convertedData.forEach((row, index) => {
+      const rowNumber = index + 1;
+
+      // Pastikan use_ruangan selalu di-set berdasarkan ruangan
+      if (row.use_ruangan === undefined || row.use_ruangan === null) {
+        row.use_ruangan = row.nama_ruangan && row.nama_ruangan.trim() !== "" ? true : false;
+      }
+
+      // Validasi tanggal
+      const dateError = validateDate(row.tanggal, rowNumber);
+      if (dateError) {
+        cellErrors.push({
+          row: rowNumber,
+          field: "tanggal",
+          message: dateError,
+        });
+      }
+
+      // Validasi jam mulai
+      const jamMulaiError = validateTime(
+        row.jam_mulai,
+        rowNumber,
+        "jam mulai",
+        jamOptions
+      );
+      if (jamMulaiError) {
+        cellErrors.push({
+          row: rowNumber,
+          field: "jam_mulai",
+          message: jamMulaiError,
+        });
+      }
+
+      // Validasi jumlah sesi
+      if (!row.jumlah_sesi || row.jumlah_sesi < 1 || row.jumlah_sesi > 6) {
+        cellErrors.push({
+          row: rowNumber,
+          field: "jumlah_sesi",
+          message: `Jumlah sesi harus 1-6 (Baris ${rowNumber}, Kolom Jumlah Sesi)`,
+        });
+      }
+
+      // Validasi topik (opsional, tidak perlu validasi)
+
+      // Validasi koordinator (opsional, multi-select)
+      if (row.nama_koordinator && row.nama_koordinator.trim() !== "") {
+        // Parse nama koordinator yang dipisahkan koma
+        const koordinatorNames = row.nama_koordinator
+          .split(",")
+          .map((name: string) => name.trim())
+          .filter((name: string) => name.length > 0);
+
+        if (koordinatorNames.length > 0) {
+          // Validasi setiap nama koordinator
+          const invalidKoordinatorNames: string[] = [];
+          koordinatorNames.forEach((namaDosen: string) => {
+            const dosen = assignedDosenPBL.find(
+              (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
+            );
+            if (!dosen) {
+              invalidKoordinatorNames.push(namaDosen);
+            }
+          });
+
+          if (invalidKoordinatorNames.length > 0) {
+            cellErrors.push({
+              row: rowNumber,
+              field: "koordinator_ids",
+              message: `Koordinator Dosen tidak valid: "${invalidKoordinatorNames.join(", ")}". Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini (Baris ${rowNumber}, Kolom Koordinator Dosen)`,
+            });
+          }
+        }
+      }
+
+      // Validasi pengampu (wajib, multi-select, minimal 1 dosen)
+      if (!row.nama_dosen || row.nama_dosen.trim() === "") {
+        cellErrors.push({
+          row: rowNumber,
+          field: "dosen_ids",
+          message: `Pengampu wajib diisi, minimal 1 dosen (Baris ${rowNumber}, Kolom Pengampu)`,
+        });
+      } else {
+        // Parse nama dosen pengampu yang dipisahkan koma
+        const pengampuNames = row.nama_dosen
+          .split(",")
+          .map((name: string) => name.trim())
+          .filter((name: string) => name.length > 0);
+
+        if (pengampuNames.length === 0) {
+          cellErrors.push({
+            row: rowNumber,
+            field: "dosen_ids",
+            message: `Pengampu wajib diisi, minimal 1 dosen (Baris ${rowNumber}, Kolom Pengampu)`,
+          });
+        } else {
+          // Validasi setiap nama dosen pengampu
+          const invalidPengampuNames: string[] = [];
+          pengampuNames.forEach((namaDosen: string) => {
+            const dosen = assignedDosenPBL.find(
+              (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
+            );
+            if (!dosen) {
+              invalidPengampuNames.push(namaDosen);
+            }
+          });
+
+          if (invalidPengampuNames.length > 0) {
+            cellErrors.push({
+              row: rowNumber,
+              field: "dosen_ids",
+              message: `Pengampu tidak valid: "${invalidPengampuNames.join(", ")}". Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini (Baris ${rowNumber}, Kolom Pengampu)`,
+            });
+          }
+
+          // Validasi minimal 1 dosen valid
+          if (!row.dosen_ids || row.dosen_ids.length === 0) {
+            cellErrors.push({
+              row: rowNumber,
+              field: "dosen_ids",
+              message: `Tidak ada pengampu yang valid. Minimal 1 dosen harus valid (Baris ${rowNumber}, Kolom Pengampu)`,
+            });
+          }
+        }
+      }
+
+      // Validasi: Cek apakah ada dosen yang sama di koordinator_ids dan dosen_ids
+      if (row.koordinator_ids && Array.isArray(row.koordinator_ids) && row.koordinator_ids.length > 0 &&
+          row.dosen_ids && Array.isArray(row.dosen_ids) && row.dosen_ids.length > 0) {
+        const duplicateIds = row.koordinator_ids.filter((id: number) => row.dosen_ids.includes(id));
+        if (duplicateIds.length > 0) {
+          const duplicateNames = assignedDosenPBL
+            .filter((d) => duplicateIds.includes(d.id))
+            .map((d) => d.name);
+          cellErrors.push({
+            row: rowNumber,
+            field: "koordinator_ids",
+            message: `Dosen yang sama tidak boleh dipilih sebagai Koordinator Dosen dan Pengampu: "${duplicateNames.join(", ")}" (Baris ${rowNumber})`,
+          });
+        }
+      }
+
+      // Validasi ruangan (jika diisi, harus valid; jika kosong, berarti online)
+      const namaRuangan = row.nama_ruangan;
+      if (namaRuangan && namaRuangan.trim() !== "") {
+        const ruangan = allRuanganList?.find(
+          (r) =>
+            r.nama.toLowerCase() === namaRuangan.toLowerCase() ||
+            (r.id_ruangan &&
+              r.id_ruangan.toLowerCase() === namaRuangan.toLowerCase())
+        );
+        if (!ruangan) {
+          cellErrors.push({
+            row: rowNumber,
+            field: "ruangan_id",
+            message: `Ruangan "${namaRuangan}" tidak ditemukan (Baris ${rowNumber}, Kolom Ruangan)`,
+          });
+        } else {
+          // Validasi kapasitas ruangan (koordinator + pengampu)
+          const jumlahKoordinator = row.koordinator_ids?.length || 0;
+          const jumlahPengampu = row.dosen_ids?.length || 0;
+          const totalDosen = jumlahKoordinator + jumlahPengampu;
+          if (totalDosen > 0 && ruangan.kapasitas && totalDosen > ruangan.kapasitas) {
+            cellErrors.push({
+              row: rowNumber,
+              field: "ruangan_id",
+              message: `Kapasitas ruangan tidak mencukupi. Ruangan ${ruangan.nama} hanya dapat menampung ${ruangan.kapasitas} orang, sedangkan diperlukan ${totalDosen} dosen (Baris ${rowNumber}, Kolom Ruangan)`,
+            });
+          }
+        }
+      }
+    });
+
+    return { cellErrors };
+  };
+
+  // Handle file upload untuk Persamaan Persepsi
+  const handlePersamaanPersepsiFileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setPersamaanPersepsiImportFile(file);
+    setPersamaanPersepsiImportData([]);
+    setPersamaanPersepsiImportErrors([]);
+    setPersamaanPersepsiCellErrors([]);
+
+    try {
+      const { data: rows, headers } = await readExcelFile(file);
+
+      // Helper function untuk konversi format jam
+      const convertTimeFormat = (timeStr: string) => {
+        if (!timeStr || timeStr.trim() === "") return "";
+        const time = timeStr.toString().trim();
+        if (time.match(/^\d{2}[:.]\d{2}$/)) {
+          return time.replace(".", ":");
+        }
+        if (time.match(/^\d{1}[:.]\d{2}$/)) {
+          return "0" + time.replace(".", ":");
+        }
+        return time;
+      };
+
+      // Helper function untuk parse multi-select dosen
+      const parseDosenNames = (dosenStr: string) => {
+        if (!dosenStr || dosenStr.trim() === "") return [];
+        return dosenStr
+          .split(",")
+          .map((name) => name.trim())
+          .filter((name) => name.length > 0);
+      };
+
+      // Convert data Excel ke format Persamaan Persepsi
+      const convertedData = rows.map((row: any[]) => {
+        const namaRuangan = row[6]?.toString() || ""; // Kolom Ruangan di index 6
+        const useRuangan = namaRuangan && namaRuangan.trim() !== ""; // Jika ruangan diisi, berarti menggunakan ruangan
+        const koordinatorStr = row[4]?.toString() || ""; // Kolom Koordinator Dosen di index 4
+        const pengampuStr = row[5]?.toString() || ""; // Kolom Pengampu di index 5
+        const koordinatorNames = parseDosenNames(koordinatorStr);
+        const pengampuNames = parseDosenNames(pengampuStr);
+
+        // Find ruangan
+        const ruangan = allRuanganList?.find(
+          (r) =>
+            r.nama.toLowerCase() === namaRuangan.toLowerCase() ||
+            (r.id_ruangan &&
+              r.id_ruangan.toLowerCase() === namaRuangan.toLowerCase())
+        );
+
+        // Find koordinator IDs
+        const koordinatorIds: number[] = [];
+        koordinatorNames.forEach((namaDosen) => {
+          const dosen = assignedDosenPBL.find(
+            (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
+          );
+          if (dosen) {
+            koordinatorIds.push(dosen.id);
+          }
+        });
+
+        // Find pengampu IDs (non-koordinator)
+        const pengampuIds: number[] = [];
+        pengampuNames.forEach((namaDosen) => {
+          const dosen = assignedDosenPBL.find(
+            (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
+          );
+          if (dosen) {
+            pengampuIds.push(dosen.id);
+          }
+        });
+
+        // Konversi format jam
+        const jamMulaiRaw = row[1]?.toString() || "";
+        const jamMulai = convertTimeFormat(jamMulaiRaw);
+
+        // Hitung jam selesai otomatis
+        const jumlahSesi = parseInt(row[2]?.toString() || "1");
+        const jamSelesai = hitungJamSelesai(jamMulai, jumlahSesi);
+
+        return {
+          tanggal: row[0]?.toString() || "",
+          jam_mulai: jamMulai,
+          jam_selesai: jamSelesai,
+          jumlah_sesi: jumlahSesi,
+          topik: row[3]?.toString() || "",
+          nama_koordinator: koordinatorStr,
+          koordinator_ids: koordinatorIds,
+          nama_dosen: pengampuStr,
+          dosen_ids: pengampuIds, // Pengampu (non-koordinator)
+          use_ruangan: Boolean(useRuangan), // Pastikan selalu boolean
+          nama_ruangan: namaRuangan,
+          ruangan_id: useRuangan ? (ruangan?.id || null) : null,
+        };
+      });
+
+      setPersamaanPersepsiImportData(convertedData);
+
+      // Validasi data
+      const { cellErrors } = validatePersamaanPersepsiExcelData(convertedData);
+      setPersamaanPersepsiCellErrors(cellErrors);
+
+      // Buka modal
+      setShowPersamaanPersepsiImportModal(true);
+    } catch (error) {
+      setPersamaanPersepsiImportErrors([
+        "Gagal membaca file Excel. Pastikan format file sudah benar.",
+      ]);
+    }
+
+    // Reset input file
+    e.target.value = "";
+  };
+
+  // Handle edit cell untuk Persamaan Persepsi
+  const handlePersamaanPersepsiCellEdit = (
+    rowIndex: number,
+    key: string,
+    value: any
+  ) => {
+    const updatedData = [...persamaanPersepsiImportData];
+    const row = updatedData[rowIndex];
+
+    // Handle mapping untuk ruangan
+    if (key === "ruangan_id" || key === "nama_ruangan") {
+      if (value && value.trim() !== "") {
+        const ruangan = allRuanganList?.find(
+          (r) => r.nama.toLowerCase() === value.toLowerCase()
+        );
+        if (ruangan) {
+          row.ruangan_id = ruangan.id;
+          row.nama_ruangan = ruangan.nama;
+          row.use_ruangan = true;
+        } else {
+          row.ruangan_id = null;
+          row.nama_ruangan = value;
+          row.use_ruangan = true; // Tetap true karena user mengisi ruangan
+        }
+      } else {
+        row.ruangan_id = null;
+        row.nama_ruangan = "";
+        row.use_ruangan = false; // Jika ruangan dikosongkan, berarti online
+      }
+    } else if (key === "koordinator_ids" || key === "nama_koordinator") {
+      // Handle edit koordinator (multi-select, opsional)
+      if (value && value.trim() !== "") {
+        const koordinatorNames = value
+          .split(",")
+          .map((name: string) => name.trim())
+          .filter((name: string) => name.length > 0);
+        
+        const koordinatorIds: number[] = [];
+        koordinatorNames.forEach((namaDosen: string) => {
+          const dosen = assignedDosenPBL.find(
+            (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
+          );
+          if (dosen) {
+            koordinatorIds.push(dosen.id);
+          }
+        });
+
+        row.koordinator_ids = koordinatorIds;
+        row.nama_koordinator = value;
+      } else {
+        row.koordinator_ids = [];
+        row.nama_koordinator = "";
+      }
+    } else if (key === "dosen_ids" || key === "nama_dosen") {
+      // Handle edit pengampu (multi-select, wajib)
+      if (value && value.trim() !== "") {
+        const pengampuNames = value
+          .split(",")
+          .map((name: string) => name.trim())
+          .filter((name: string) => name.length > 0);
+        
+        const pengampuIds: number[] = [];
+        pengampuNames.forEach((namaDosen: string) => {
+          const dosen = assignedDosenPBL.find(
+            (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
+          );
+          if (dosen) {
+            pengampuIds.push(dosen.id);
+          }
+        });
+
+        row.dosen_ids = pengampuIds;
+        row.nama_dosen = value;
+      } else {
+        row.dosen_ids = [];
+        row.nama_dosen = "";
+      }
+    } else {
+      (row as any)[key] = value;
+    }
+
+    // Jika mengedit jam_mulai atau jumlah_sesi, hitung ulang jam selesai
+    if (key === "jam_mulai" || key === "jumlah_sesi") {
+      const jamMulai = key === "jam_mulai" ? value : row.jam_mulai;
+      const jumlahSesi = key === "jumlah_sesi" ? value : row.jumlah_sesi;
+      const jamSelesai = hitungJamSelesai(jamMulai || "08:00", jumlahSesi || 1);
+      row.jam_selesai = jamSelesai;
+    }
+
+    setPersamaanPersepsiImportData(updatedData);
+
+    // Re-validasi data
+    const { cellErrors } = validatePersamaanPersepsiExcelData(updatedData);
+    setPersamaanPersepsiCellErrors(cellErrors);
+  };
+
+  // Submit import Excel untuk Persamaan Persepsi
+  const handlePersamaanPersepsiSubmitImport = async () => {
+    if (!kode || persamaanPersepsiImportData.length === 0) return;
+
+    setIsPersamaanPersepsiImporting(true);
+    setPersamaanPersepsiImportErrors([]);
+
+    try {
+      // Final validation
+      const { cellErrors } = validatePersamaanPersepsiExcelData(
+        persamaanPersepsiImportData
+      );
+      if (cellErrors.length > 0) {
+        setPersamaanPersepsiCellErrors(cellErrors);
+        setIsPersamaanPersepsiImporting(false);
+        return;
+      }
+
+      // Transform data for API
+      const apiData = persamaanPersepsiImportData.map((row) => {
+        // Pastikan use_ruangan selalu boolean
+        // Jika use_ruangan tidak ada, tentukan berdasarkan ruangan_id atau nama_ruangan
+        let useRuangan: boolean;
+        if (row.use_ruangan !== undefined && row.use_ruangan !== null) {
+          useRuangan = Boolean(row.use_ruangan);
+        } else if (row.ruangan_id) {
+          useRuangan = true;
+        } else if (row.nama_ruangan && row.nama_ruangan.trim() !== "") {
+          useRuangan = true;
+        } else {
+          useRuangan = false;
+        }
+        
+        return {
+          tanggal: row.tanggal,
+          jam_mulai: row.jam_mulai,
+          jam_selesai: row.jam_selesai,
+          jumlah_sesi: row.jumlah_sesi,
+          topik: row.topik && row.topik.trim() ? row.topik.trim() : null,
+          koordinator_ids: row.koordinator_ids || [],
+          dosen_ids: row.dosen_ids || [],
+          ruangan_id: useRuangan ? (row.ruangan_id || null) : null,
+          use_ruangan: useRuangan,
+        };
+      });
+
+      // Send to API
+      const response = await api.post(`/persamaan-persepsi/jadwal/${kode}/import`, {
+        data: apiData,
+      });
+
+      if (response.data.success) {
+        const importedCount = persamaanPersepsiImportData.length;
+        setPersamaanPersepsiImportedCount(importedCount);
+        setPersamaanPersepsiSuccess(
+          `${importedCount} jadwal persamaan persepsi berhasil diimport.`
+        );
+        setShowPersamaanPersepsiImportModal(false);
+        // Cleanup data setelah import berhasil
+        setPersamaanPersepsiImportData([]);
+        setPersamaanPersepsiImportFile(null);
+        setPersamaanPersepsiImportErrors([]);
+        setPersamaanPersepsiCellErrors([]);
+        setPersamaanPersepsiEditingCell(null);
+        await fetchBatchData(); // Refresh data
+      } else {
+        setPersamaanPersepsiImportErrors([
+          response.data.message || "Terjadi kesalahan saat mengimport data",
+        ]);
+      }
+    } catch (error: any) {
+      if (error.response?.status === 422) {
+        const errorData = error.response.data;
+        if (errorData.errors && Array.isArray(errorData.errors)) {
+          const cellErrors = errorData.errors.map(
+            (err: string, idx: number) => ({
+              row: idx + 1,
+              field: "general",
+              message: err,
+            })
+          );
+          setPersamaanPersepsiCellErrors(cellErrors);
+        } else {
+          setPersamaanPersepsiImportErrors([
+            errorData.message || "Terjadi kesalahan validasi",
+          ]);
+        }
+      } else {
+        setPersamaanPersepsiImportErrors([
+          error.response?.data?.message ||
+            "Terjadi kesalahan saat mengimport data",
+        ]);
+      }
+    } finally {
+      setIsPersamaanPersepsiImporting(false);
+    }
+  };
+
+  // Close import modal untuk Persamaan Persepsi
+  const handlePersamaanPersepsiCloseImportModal = () => {
+    setShowPersamaanPersepsiImportModal(false);
+  };
+
+  // Handler untuk hapus file Persamaan Persepsi
+  const handlePersamaanPersepsiRemoveFile = () => {
+    setPersamaanPersepsiImportFile(null);
+    setPersamaanPersepsiImportData([]);
+    setPersamaanPersepsiImportErrors([]);
+    setPersamaanPersepsiCellErrors([]);
+    setPersamaanPersepsiEditingCell(null);
+    if (persamaanPersepsiFileInputRef.current) {
+      persamaanPersepsiFileInputRef.current.value = "";
+    }
+  };
+
+  // Finish editing cell untuk Persamaan Persepsi
+  const handlePersamaanPersepsiFinishEdit = () => {
+    setPersamaanPersepsiEditingCell(null);
+  };
+
+  // Export Excel untuk Persamaan Persepsi
+  const handleExportPersamaanPersepsi = () => {
+    if (!data || jadwalPersamaanPersepsi.length === 0) {
+      alert("Tidak ada data untuk diekspor");
+      return;
+    }
+
+    try {
+      const wb = XLSX.utils.book_new();
+
+      const exportData = jadwalPersamaanPersepsi.map((row) => {
+        const koordinatorNames = row.koordinator_names || "";
+        const pengampuNames = row.pengampu_names || "";
+        const ruangan = allRuanganList.find((r) => r.id === row.ruangan_id);
+        const useRuangan = row.use_ruangan !== undefined ? row.use_ruangan : (row.ruangan_id ? true : false);
+
+        return {
+          Tanggal: row.tanggal,
+          "Jam Mulai": row.jam_mulai,
+          "Jumlah Sesi": row.jumlah_sesi || 1,
+          Topik: row.topik || "",
+          "Koordinator Dosen": koordinatorNames,
+          Pengampu: pengampuNames,
+          Ruangan: useRuangan ? (ruangan?.nama || "") : "",
+        };
+      });
+
+      const ws = XLSX.utils.json_to_sheet(exportData, {
+        header: [
+          "Tanggal",
+          "Jam Mulai",
+          "Jumlah Sesi",
+          "Topik",
+          "Koordinator Dosen",
+          "Pengampu",
+          "Ruangan",
+        ],
+      });
+
+      const colWidths = [
+        { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
+        { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
+        { wch: 12 },
+        { wch: EXCEL_COLUMN_WIDTHS.TOPIK },
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN }, // For Koordinator
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN }, // For Pengampu
+        { wch: EXCEL_COLUMN_WIDTHS.RUANGAN },
+      ];
+      ws["!cols"] = colWidths;
+
+      XLSX.utils.book_append_sheet(wb, ws, "Jadwal Persamaan Persepsi");
+
+      // Sheet Info Mata Kuliah
+      const infoData = [
+        ["INFORMASI MATA KULIAH"],
+        [""],
+        ["Kode Mata Kuliah", data?.kode || ""],
+        ["Nama Mata Kuliah", data?.nama || ""],
+        ["Semester", String(data?.semester || "")],
+        ["Periode", String(data?.periode || "")],
+        ["Kurikulum", String(data?.kurikulum || "")],
+        ["Jenis", data?.jenis || ""],
+        ["Blok", String(data?.blok || "")],
+        [
+          "Tanggal Mulai",
+          data?.tanggal_mulai
+            ? new Date(data.tanggal_mulai).toISOString().split("T")[0]
+            : "",
+        ],
+        [
+          "Tanggal Akhir",
+          data?.tanggal_akhir
+            ? new Date(data.tanggal_akhir).toISOString().split("T")[0]
+            : "",
+        ],
+        ["Durasi Minggu", String(data?.durasi_minggu || "")],
+        [""],
+        ["TOTAL JADWAL PERSAMAAN PERSEPSI", jadwalPersamaanPersepsi.length],
+        [""],
+        ["CATATAN:"],
+        [
+          "• File ini berisi data jadwal persamaan persepsi yang dapat di-import kembali ke aplikasi",
+        ],
+        ["• Format tanggal: YYYY-MM-DD"],
+        ["• Format jam: HH.MM atau HH:MM"],
+        ["• Sesi: 1-6 (1 sesi = 50 menit)"],
+        ["• Jam Selesai dihitung otomatis dari Jam Mulai + (Jumlah Sesi x 50 menit)"],
+        ["• Topik opsional (boleh dikosongkan)"],
+        [
+          "• Pastikan data dosen dan ruangan valid sebelum import",
+        ],
+        [
+          "• Kolom Koordinator Dosen opsional (boleh dikosongkan). Untuk multi-select, pisahkan nama dosen dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)",
+        ],
+        [
+          "• Kolom Pengampu wajib diisi (minimal 1 dosen). Untuk multi-select, pisahkan nama dosen dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)",
+        ],
+        [
+          "• ⚠️ PENTING: Dosen yang sama TIDAK BOLEH dipilih sebagai Koordinator Dosen dan Pengampu sekaligus",
+        ],
+        [
+          "• Ruangan boleh dikosongkan untuk jadwal online/tidak memerlukan ruangan",
+        ],
+        [
+          "• Jika ruangan diisi, kapasitas ruangan harus mencukupi untuk jumlah total dosen (koordinator + pengampu)",
+        ],
+        [
+          "• Jika ruangan dikosongkan, jadwal akan dianggap sebagai jadwal online (tidak menggunakan ruangan)",
+        ],
+      ];
+
+      const infoWs = XLSX.utils.aoa_to_sheet(infoData);
+      infoWs["!cols"] = [{ wch: 30 }, { wch: 50 }];
+      XLSX.utils.book_append_sheet(wb, infoWs, "Info Mata Kuliah");
+
+      const fileName = `Export_Persamaan_Persepsi_${data?.kode || "MataKuliah"}_${
+        new Date().toISOString().split("T")[0]
+      }.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (error) {
+      console.error("Error exporting Persamaan Persepsi:", error);
+      alert("Gagal mengekspor data Persamaan Persepsi. Silakan coba lagi.");
+    }
+  };
+
   // Handle file upload untuk Agenda Khusus
   const handleAgendaKhususFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>
@@ -11171,6 +12228,8 @@ export default function DetailBlok() {
 
                   pengampu: null,
 
+                  koordinator: null,
+
                   materi: "",
 
                   topik: "",
@@ -11774,6 +12833,8 @@ export default function DetailBlok() {
 
                   pengampu: [],
 
+                  koordinator: null,
+
                   materi: "",
 
                   topik: "",
@@ -12334,6 +13395,8 @@ export default function DetailBlok() {
 
                   pengampu: null,
 
+                  koordinator: null,
+
                   materi: "",
 
                   topik: "",
@@ -12886,6 +13949,8 @@ export default function DetailBlok() {
                     {form.jenisBaris === "pbl" && "PBL"}
 
                     {form.jenisBaris === "jurnal" && "Jurnal Reading"}
+
+                    {form.jenisBaris === "persamaan-persepsi" && "Persamaan Persepsi"}
                   </div>
                 </div>
 
@@ -16008,7 +17073,7 @@ export default function DetailBlok() {
                           </span>
 
                           <span className="select-none transition-colors duration-200 hover:text-brand-600 dark:hover:text-brand-400">
-                            Gunakan Ruangan
+                            Gunakan Ruangan (Offline)
                           </span>
                         </label>
                       </div>
@@ -17346,6 +18411,929 @@ export default function DetailBlok() {
                           />
                         )}
                       </div>
+                    </>
+                  )}
+
+                  {form.jenisBaris === "persamaan-persepsi" && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Hari/Tanggal
+                        </label>
+                        <input
+                          type="date"
+                          name="hariTanggal"
+                          value={form.hariTanggal || ""}
+                          onChange={handleFormChange}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        />
+                        {errorForm && (
+                          <div className="text-sm text-red-500 mt-2">
+                            {errorForm}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Jam Mulai
+                          </label>
+                          <Select
+                            options={jamOptions.map((j: string) => ({
+                              value: j,
+                              label: j,
+                            }))}
+                            value={
+                              jamOptions
+                                .map((j: string) => ({ value: j, label: j }))
+                                .find(
+                                  (opt: any) => opt.value === form.jamMulai
+                                ) || null
+                            }
+                            onChange={(opt) => {
+                              const value = opt?.value || "";
+                              setForm((f) => ({
+                                ...f,
+                                jamMulai: value,
+                                jamSelesai: hitungJamSelesai(
+                                  value,
+                                  f.jumlahKali
+                                ),
+                              }));
+                            }}
+                            classNamePrefix="react-select"
+                            className="react-select-container"
+                            isClearable
+                            placeholder="Pilih Jam Mulai"
+                            styles={{
+                              control: (base, state) => ({
+                                ...base,
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#f9fafb",
+                                borderColor: state.isFocused
+                                  ? "#3b82f6"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#334155"
+                                  : "#d1d5db",
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                                boxShadow: state.isFocused
+                                  ? "0 0 0 2px #3b82f633"
+                                  : undefined,
+                                borderRadius: "0.75rem",
+                                minHeight: "2.5rem",
+                                fontSize: "1rem",
+                                paddingLeft: "0.75rem",
+                                paddingRight: "0.75rem",
+                                "&:hover": { borderColor: "#3b82f6" },
+                              }),
+                              menu: (base) => ({
+                                ...base,
+                                zIndex: 9999,
+                                fontSize: "1rem",
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#fff",
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              option: (base, state) => ({
+                                ...base,
+                                backgroundColor: state.isSelected
+                                  ? "#3b82f6"
+                                  : state.isFocused
+                                  ? document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                    ? "#334155"
+                                    : "#e0e7ff"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#1e293b"
+                                  : "#fff",
+                                color: state.isSelected
+                                  ? "#fff"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#fff"
+                                  : "#1f2937",
+                                fontSize: "1rem",
+                              }),
+                              singleValue: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              placeholder: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#64748b"
+                                    : "#6b7280",
+                              }),
+                              input: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              dropdownIndicator: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#64748b"
+                                    : "#6b7280",
+                                "&:hover": { color: "#3b82f6" },
+                              }),
+                              indicatorSeparator: (base) => ({
+                                ...base,
+                                backgroundColor: "transparent",
+                              }),
+                            }}
+                          />
+                        </div>
+                        <div className="w-32">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            x 50 menit
+                          </label>
+                          <select
+                            name="jumlahKali"
+                            value={form.jumlahKali}
+                            onChange={handleFormChange}
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          >
+                            {[1, 2, 3, 4, 5, 6].map((n) => (
+                              <option key={n} value={n}>
+                                {n} x 50'
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="mt-2">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Jam Selesai
+                        </label>
+                        <input
+                          type="text"
+                          name="jamSelesai"
+                          value={form.jamSelesai}
+                          readOnly
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm cursor-not-allowed"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Topik
+                        </label>
+                        <input
+                          type="text"
+                          name="topik"
+                          value={form.topik || ""}
+                          onChange={handleFormChange}
+                          placeholder="Masukkan topik (opsional)"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Koordinator Dosen
+                        </label>
+                        {loadingAssignedPBL ? (
+                          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                            <div className="flex items-center gap-2">
+                              <svg
+                                className="w-5 h-5 text-blue-500 animate-spin"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                              >
+                                <circle
+                                  className="opacity-25"
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                ></circle>
+                                <path
+                                  className="opacity-75"
+                                  fill="currentColor"
+                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                ></path>
+                              </svg>
+                              <span className="text-blue-700 dark:text-blue-300 text-sm font-medium">
+                                Memuat data assigned dosen...
+                              </span>
+                            </div>
+                          </div>
+                        ) : !hasAssignedPBL || assignedDosenPBL.length === 0 ? (
+                          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+                            <div className="flex items-center gap-2">
+                              <svg
+                                className="w-5 h-5 text-orange-500"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
+                                Belum ada dosen yang di-assign untuk blok ini
+                              </span>
+                            </div>
+                            <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
+                              Silakan generate dosen PBL terlebih dahulu di
+                              halaman PBL Generate
+                            </p>
+                          </div>
+                        ) : (
+                          <Select
+                            isMulti
+                            options={assignedDosenPBL.map((d) => {
+                              // Disable dosen yang sudah dipilih sebagai Pengampu
+                              const isDisabled = Array.isArray(form.pengampu) && (form.pengampu as number[]).includes(d.id);
+                              return {
+                                value: d.id,
+                                label: d.name,
+                                isDisabled: isDisabled,
+                              };
+                            })}
+                            value={
+                              Array.isArray(form.koordinator) && form.koordinator.length > 0
+                                ? assignedDosenPBL
+                                    .filter((d) =>
+                                      (form.koordinator as number[]).includes(d.id)
+                                    )
+                                    .map((d) => ({
+                                      value: d.id,
+                                      label: d.name,
+                                      isDisabled: false,
+                                    }))
+                                : []
+                            }
+                            onChange={(selected) => {
+                              const selectedIds = Array.isArray(selected)
+                                ? selected.map((s) => s.value)
+                                : [];
+                              setForm((f) => ({
+                                ...f,
+                                koordinator: selectedIds,
+                              }));
+                            }}
+                            placeholder="Pilih Koordinator Dosen (bisa lebih dari 1)"
+                            isOptionDisabled={(option: any) => option.isDisabled}
+                            classNamePrefix="react-select"
+                            className="react-select-container"
+                            styles={{
+                              control: (base, state) => ({
+                                ...base,
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#f9fafb",
+                                borderColor: state.isFocused
+                                  ? "#3b82f6"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#334155"
+                                  : "#d1d5db",
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                                boxShadow: state.isFocused
+                                  ? "0 0 0 2px #3b82f633"
+                                  : undefined,
+                                borderRadius: "0.75rem",
+                                minHeight: "2.5rem",
+                                fontSize: "1rem",
+                                paddingLeft: "0.75rem",
+                                paddingRight: "0.75rem",
+                                "&:hover": { borderColor: "#3b82f6" },
+                              }),
+                              menu: (base) => ({
+                                ...base,
+                                zIndex: 9999,
+                                fontSize: "1rem",
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#fff",
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              option: (base, state) => ({
+                                ...base,
+                                backgroundColor: state.isDisabled
+                                  ? "#f3f4f6"
+                                  : state.isSelected
+                                  ? "#bfdbfe"
+                                  : state.isFocused
+                                  ? document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                    ? "#334155"
+                                    : "#e0e7ff"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#1e293b"
+                                  : "#fff",
+                                color: state.isDisabled
+                                  ? "#9ca3af"
+                                  : state.isSelected
+                                  ? "#1e40af"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#fff"
+                                  : "#1f2937",
+                                cursor: state.isDisabled ? "not-allowed" : "default",
+                                fontSize: "1rem",
+                              }),
+                              multiValue: (base) => ({
+                                ...base,
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e3a8a"
+                                    : "#bfdbfe",
+                              }),
+                              multiValueLabel: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#dbeafe"
+                                    : "#1e40af",
+                              }),
+                              multiValueRemove: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#dbeafe"
+                                    : "#1e40af",
+                                "&:hover": {
+                                  backgroundColor:
+                                    document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#1e40af"
+                                      : "#93c5fd",
+                                  color: "#fff",
+                                },
+                              }),
+                              singleValue: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              placeholder: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#64748b"
+                                    : "#6b7280",
+                              }),
+                              input: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              dropdownIndicator: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#64748b"
+                                    : "#6b7280",
+                                "&:hover": { color: "#3b82f6" },
+                              }),
+                              indicatorSeparator: (base) => ({
+                                ...base,
+                                backgroundColor: "transparent",
+                              }),
+                            }}
+                          />
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Pengampu
+                        </label>
+                        {loadingAssignedPBL ? (
+                          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                            <div className="flex items-center gap-2">
+                              <svg
+                                className="w-5 h-5 text-blue-500 animate-spin"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                              >
+                                <circle
+                                  className="opacity-25"
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                ></circle>
+                                <path
+                                  className="opacity-75"
+                                  fill="currentColor"
+                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                ></path>
+                              </svg>
+                              <span className="text-blue-700 dark:text-blue-300 text-sm font-medium">
+                                Memuat data assigned dosen...
+                              </span>
+                            </div>
+                          </div>
+                        ) : !hasAssignedPBL || assignedDosenPBL.length === 0 ? (
+                          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+                            <div className="flex items-center gap-2">
+                              <svg
+                                className="w-5 h-5 text-orange-500"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
+                                Belum ada dosen yang di-assign untuk blok ini
+                              </span>
+                            </div>
+                            <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
+                              Silakan generate dosen PBL terlebih dahulu di
+                              halaman PBL Generate
+                            </p>
+                          </div>
+                        ) : (
+                          <Select
+                            isMulti
+                            options={assignedDosenPBL.map((d) => {
+                              // Disable dosen yang sudah dipilih sebagai Koordinator Dosen
+                              const isDisabled = Array.isArray(form.koordinator) && (form.koordinator as number[]).includes(d.id);
+                              return {
+                                value: d.id,
+                                label: d.name,
+                                peran: "", // Not displayed, but required for type compatibility
+                                isDisabled: isDisabled,
+                              };
+                            })}
+                            value={
+                              Array.isArray(form.pengampu) && form.pengampu.length > 0
+                                ? assignedDosenPBL
+                                    .filter((d) =>
+                                      (form.pengampu as number[]).includes(d.id)
+                                    )
+                                    .map((d) => ({
+                                      value: d.id,
+                                      label: d.name,
+                                      peran: "", // Not displayed, but required for type compatibility
+                                      isDisabled: false,
+                                    }))
+                                : []
+                            }
+                            onChange={(selected) => {
+                              const selectedIds = Array.isArray(selected)
+                                ? selected.map((s) => s.value)
+                                : [];
+                              setForm((f) => ({
+                                ...f,
+                                pengampu: selectedIds,
+                              }));
+                            }}
+                            placeholder="Pilih Dosen (bisa lebih dari 1)"
+                            isOptionDisabled={(option: any) => option.isDisabled}
+                            classNamePrefix="react-select"
+                            className="react-select-container"
+                            styles={{
+                              control: (base, state) => ({
+                                ...base,
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#f9fafb",
+                                borderColor: state.isFocused
+                                  ? "#3b82f6"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#334155"
+                                  : "#d1d5db",
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                                boxShadow: state.isFocused
+                                  ? "0 0 0 2px #3b82f633"
+                                  : undefined,
+                                borderRadius: "0.75rem",
+                                minHeight: "2.5rem",
+                                fontSize: "1rem",
+                                paddingLeft: "0.75rem",
+                                paddingRight: "0.75rem",
+                                "&:hover": { borderColor: "#3b82f6" },
+                              }),
+                              menu: (base) => ({
+                                ...base,
+                                zIndex: 9999,
+                                fontSize: "1rem",
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#fff",
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              option: (base, state) => ({
+                                ...base,
+                                backgroundColor: state.isDisabled
+                                  ? "#f3f4f6"
+                                  : state.isSelected
+                                  ? "#bfdbfe"
+                                  : state.isFocused
+                                  ? document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                    ? "#334155"
+                                    : "#e0e7ff"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#1e293b"
+                                  : "#fff",
+                                color: state.isDisabled
+                                  ? "#9ca3af"
+                                  : state.isSelected
+                                  ? "#1e40af"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#fff"
+                                  : "#1f2937",
+                                cursor: state.isDisabled ? "not-allowed" : "default",
+                                fontSize: "1rem",
+                              }),
+                              multiValue: (base) => ({
+                                ...base,
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e3a8a"
+                                    : "#bfdbfe",
+                              }),
+                              multiValueLabel: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#dbeafe"
+                                    : "#1e40af",
+                              }),
+                              multiValueRemove: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                                "&:hover": {
+                                  backgroundColor: "#ef4444",
+                                  color: "#fff",
+                                },
+                              }),
+                              placeholder: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#64748b"
+                                    : "#6b7280",
+                              }),
+                              input: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              dropdownIndicator: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#64748b"
+                                    : "#6b7280",
+                                "&:hover": { color: "#3b82f6" },
+                              }),
+                              indicatorSeparator: (base) => ({
+                                ...base,
+                                backgroundColor: "transparent",
+                              }),
+                            }}
+                          />
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="flex items-center gap-2 cursor-pointer select-none text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          <span className="relative flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={form.useRuangan}
+                              onChange={(e) =>
+                                setForm((f) => ({
+                                  ...f,
+                                  useRuangan: e.target.checked,
+                                }))
+                              }
+                              className={`
+                                w-5 h-5
+                                appearance-none
+                                rounded-md
+                                border-2
+                                ${
+                                  form.useRuangan
+                                    ? "border-brand-500 bg-brand-500"
+                                    : "border-brand-500 bg-transparent"
+                                }
+                                transition-colors
+                                duration-150
+                                focus:ring-2 focus:ring-brand-300
+                                dark:focus:ring-brand-600
+                                relative
+                              `}
+                            />
+                            {form.useRuangan && (
+                              <svg
+                                className="absolute left-0 top-0 w-5 h-5 pointer-events-none"
+                                viewBox="0 0 20 20"
+                                fill="none"
+                                stroke="white"
+                                strokeWidth="2.5"
+                              >
+                                <polyline points="5 11 9 15 15 7" />
+                              </svg>
+                            )}
+                          </span>
+                          <span className="select-none transition-colors duration-200 hover:text-brand-600 dark:hover:text-brand-400">
+                            Gunakan Ruangan (Offline)
+                          </span>
+                        </label>
+                      </div>
+
+                      {form.useRuangan && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Ruangan
+                          </label>
+                          {ruanganList.length === 0 ? (
+                          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+                            <div className="flex items-center gap-2">
+                              <svg
+                                className="w-5 h-5 text-orange-500"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
+                                Belum ada ruangan yang ditambahkan untuk mata
+                                kuliah ini
+                              </span>
+                            </div>
+                            <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
+                              Silakan tambahkan ruangan terlebih dahulu di
+                              halaman Ruangan Detail
+                            </p>
+                          </div>
+                        ) : (
+                          <Select
+                            options={getRuanganOptionsLocal()}
+                            value={
+                              getRuanganOptionsLocal().find(
+                                (opt) => opt.value === form.lokasi
+                              ) || null
+                            }
+                            onChange={(opt) =>
+                              setForm((f) => ({
+                                ...f,
+                                lokasi: opt ? Number(opt.value) : null,
+                              }))
+                            }
+                            placeholder="Pilih Ruangan"
+                            isClearable
+                            classNamePrefix="react-select"
+                            className="react-select-container"
+                            styles={{
+                              control: (base, state) => ({
+                                ...base,
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#f9fafb",
+                                borderColor: state.isFocused
+                                  ? "#3b82f6"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#334155"
+                                  : "#d1d5db",
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                                boxShadow: state.isFocused
+                                  ? "0 0 0 2px #3b82f633"
+                                  : undefined,
+                                borderRadius: "0.75rem",
+                                minHeight: "2.5rem",
+                                fontSize: "1rem",
+                                paddingLeft: "0.75rem",
+                                paddingRight: "0.75rem",
+                                "&:hover": { borderColor: "#3b82f6" },
+                              }),
+                              menu: (base) => ({
+                                ...base,
+                                zIndex: 9999,
+                                fontSize: "1rem",
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#fff",
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              option: (base, state) => ({
+                                ...base,
+                                backgroundColor: state.isSelected
+                                  ? "#3b82f6"
+                                  : state.isFocused
+                                  ? document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                    ? "#334155"
+                                    : "#e0e7ff"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#1e293b"
+                                  : "#fff",
+                                color: state.isSelected
+                                  ? "#fff"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#fff"
+                                  : "#1f2937",
+                                fontSize: "1rem",
+                              }),
+                              singleValue: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              placeholder: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#64748b"
+                                    : "#6b7280",
+                              }),
+                              input: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              dropdownIndicator: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#64748b"
+                                    : "#6b7280",
+                                "&:hover": { color: "#3b82f6" },
+                              }),
+                              indicatorSeparator: (base) => ({
+                                ...base,
+                                backgroundColor: "transparent",
+                              }),
+                            }}
+                          />
+                          )}
+                        </div>
+                      )}
                     </>
                   )}
 
@@ -18715,6 +20703,27 @@ export default function DetailBlok() {
                             // Handle edit untuk jurnal reading
 
                             await handleTambahJadwalJurnalReading();
+                          } else if (
+                            form.jenisBaris === "persamaan-persepsi" &&
+                            jadwalPersamaanPersepsi[editIndex] &&
+                            jadwalPersamaanPersepsi[editIndex].id
+                          ) {
+                            // Handle edit untuk persamaan persepsi
+                            const payload = {
+                              tanggal: tanggalFormatted,
+                              jam_mulai: form.jamMulai,
+                              jam_selesai: form.jamSelesai,
+                              jumlah_sesi: form.jumlahKali,
+                              topik: form.topik && form.topik.trim() ? form.topik.trim() : null,
+                              dosen_ids: Array.isArray(form.pengampu) ? form.pengampu : [], // Pengampu (non-koordinator)
+                              koordinator_ids: Array.isArray(form.koordinator) ? form.koordinator : [], // Koordinator (opsional)
+                              ruangan_id: form.useRuangan ? Number(form.lokasi) : null,
+                              use_ruangan: form.useRuangan,
+                            };
+                            await handleEditJadwalPersamaanPersepsi(
+                              jadwalPersamaanPersepsi[editIndex].id!,
+                              payload
+                            );
                           } else {
                             // Handle edit untuk jenis baris lain
 
@@ -18725,6 +20734,20 @@ export default function DetailBlok() {
 
                           if (form.jenisBaris === "jurnal") {
                             await handleTambahJadwalJurnalReading();
+                          } else if (form.jenisBaris === "persamaan-persepsi") {
+                            // Handle tambah untuk persamaan persepsi
+                            const payload = {
+                              tanggal: tanggalFormatted,
+                              jam_mulai: form.jamMulai,
+                              jam_selesai: form.jamSelesai,
+                              jumlah_sesi: form.jumlahKali,
+                              topik: form.topik && form.topik.trim() ? form.topik.trim() : null,
+                              dosen_ids: Array.isArray(form.pengampu) ? form.pengampu : [], // Pengampu (non-koordinator)
+                              koordinator_ids: Array.isArray(form.koordinator) ? form.koordinator : [], // Koordinator (opsional)
+                              ruangan_id: form.useRuangan ? Number(form.lokasi) : null,
+                              use_ruangan: form.useRuangan,
+                            };
+                            await handleTambahJadwalPersamaanPersepsi(payload);
                           } else {
                             await handleTambahJadwal();
                           }
@@ -18784,7 +20807,14 @@ export default function DetailBlok() {
                           !form.kelompok ||
                           !form.topik ||
                           !form.pengampu ||
-                          !form.lokasi))
+                          !form.lokasi)) ||
+                      (form.jenisBaris === "persamaan-persepsi" &&
+                        (!form.hariTanggal ||
+                          !form.jamMulai ||
+                          !form.jamSelesai ||
+                          !Array.isArray(form.pengampu) ||
+                          form.pengampu.length === 0 ||
+                          (form.useRuangan && !form.lokasi)))
                     }
                   >
                     {isSaving ? (
@@ -18921,6 +20951,8 @@ export default function DetailBlok() {
                   jamSelesai: "",
 
                   pengampu: null,
+
+                  koordinator: null,
 
                   materi: "",
 
@@ -20376,6 +22408,449 @@ export default function DetailBlok() {
         )}
       </div>
 
+      {/* Section Persamaan Persepsi */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white">
+            Persamaan Persepsi
+          </h2>
+          <div className="flex items-center gap-2">
+            {/* Import Excel Button */}
+            <button
+              onClick={() => setShowPersamaanPersepsiImportModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform cursor-pointer"
+            >
+              <FontAwesomeIcon
+                icon={faFileExcel}
+                className="w-5 h-5 text-brand-700 dark:text-brand-200"
+              />
+              Import Excel
+            </button>
+            {/* Download Template Button */}
+            <button
+              onClick={downloadPersamaanPersepsiTemplate}
+              className="px-4 py-2 rounded-lg bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 text-sm font-medium shadow-theme-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition flex items-center gap-2"
+            >
+              <FontAwesomeIcon icon={faDownload} className="w-5 h-5" />
+              Download Template Excel
+            </button>
+            {/* Export Excel Button */}
+            <button
+              onClick={handleExportPersamaanPersepsi}
+              disabled={jadwalPersamaanPersepsi.length === 0}
+              className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
+                jadwalPersamaanPersepsi.length === 0
+                  ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
+                  : "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
+              }`}
+              title={
+                jadwalPersamaanPersepsi.length === 0
+                  ? "Tidak ada data persamaan persepsi. Silakan tambahkan data jadwal terlebih dahulu untuk melakukan export."
+                  : "Export data persamaan persepsi ke Excel"
+              }
+            >
+              <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5" />
+              Export ke Excel
+            </button>
+            {/* Tambah Jadwal Button */}
+            <button
+              onClick={() => {
+                setForm({
+                  hariTanggal: "",
+                  jamMulai: "",
+                  jumlahKali: 1,
+                  jamSelesai: "",
+                  pengampu: null, // Pengampu (non-koordinator) - dipilih manual oleh user
+                  koordinator: null, // Koordinator - dipilih manual oleh user
+                  materi: "",
+                  topik: "",
+                  lokasi: null,
+                  jenisBaris: "persamaan-persepsi",
+                  agenda: "",
+                  kelasPraktikum: "",
+                  pblTipe: "",
+                  modul: null,
+                  kelompok: "",
+                  kelompokBesar: null,
+                  useRuangan: true,
+                  fileJurnal: null,
+                });
+                setExistingFileJurnal(null);
+                setEditIndex(null);
+                setShowModal(true);
+                resetErrorForm();
+                fetchRuanganForModal();
+              }}
+              className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition"
+            >
+              Tambah Jadwal
+            </button>
+          </div>
+        </div>
+
+        <AnimatePresence>
+          {persamaanPersepsiSuccess && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
+            >
+              {persamaanPersepsiSuccess}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+          <div className="max-w-full overflow-x-auto hide-scroll">
+            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+              <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                <tr>
+                  <th className="px-4 py-4 text-center">
+                    <button
+                      aria-checked={
+                        jadwalPersamaanPersepsi.length > 0 &&
+                        jadwalPersamaanPersepsi.every((item) =>
+                          selectedPersamaanPersepsiItems.includes(item.id!)
+                        )
+                      }
+                      role="checkbox"
+                      onClick={() => handleSelectAll("persamaan-persepsi", jadwalPersamaanPersepsi)}
+                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
+                        jadwalPersamaanPersepsi.length > 0 &&
+                        jadwalPersamaanPersepsi.every((item) =>
+                          selectedPersamaanPersepsiItems.includes(item.id!)
+                        )
+                          ? "bg-brand-500 border-brand-500"
+                          : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                      } cursor-pointer`}
+                    >
+                      {jadwalPersamaanPersepsi.length > 0 &&
+                        jadwalPersamaanPersepsi.every((item) =>
+                          selectedPersamaanPersepsiItems.includes(item.id!)
+                        ) && (
+                          <svg
+                            className="w-3 h-3 text-white"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth={3}
+                            viewBox="0 0 24 24"
+                          >
+                            <polyline points="20 7 11 17 4 10" />
+                          </svg>
+                        )}
+                    </button>
+                  </th>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    No
+                  </th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    Hari/Tanggal
+                  </th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    Pukul
+                  </th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    Waktu
+                  </th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    Topik
+                  </th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    Koordinator Dosen
+                  </th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    Pengampu
+                  </th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    Ruangan
+                  </th>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    Aksi
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {jadwalPersamaanPersepsi.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="text-center py-6 text-gray-400">
+                      Tidak ada data Persamaan Persepsi
+                    </td>
+                  </tr>
+                ) : (
+                  getPaginatedData(
+                    jadwalPersamaanPersepsi
+                      .slice()
+                      .sort((a: JadwalPersamaanPersepsiType, b: JadwalPersamaanPersepsiType) => {
+                        const dateA = new Date(a.tanggal);
+                        const dateB = new Date(b.tanggal);
+                        return dateA.getTime() - dateB.getTime();
+                      }),
+                    persamaanPersepsiPage,
+                    persamaanPersepsiPageSize
+                  ).map((row: JadwalPersamaanPersepsiType, i: number) => (
+                    <tr
+                      key={row.id}
+                      className={
+                        i % 2 === 1 ? "bg-gray-50 dark:bg-white/[0.02]" : ""
+                      }
+                    >
+                      <td className="px-4 py-4 text-center">
+                        <button
+                          aria-checked={selectedPersamaanPersepsiItems.includes(row.id!)}
+                          role="checkbox"
+                          onClick={() => handleSelectItem("persamaan-persepsi", row.id!)}
+                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
+                            selectedPersamaanPersepsiItems.includes(row.id!)
+                              ? "bg-brand-500 border-brand-500"
+                              : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                          } cursor-pointer`}
+                        >
+                          {selectedPersamaanPersepsiItems.includes(row.id!) && (
+                            <svg
+                              className="w-3 h-3 text-white"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={3}
+                              viewBox="0 0 24 24"
+                            >
+                              <polyline points="20 7 11 17 4 10" />
+                            </svg>
+                          )}
+                        </button>
+                      </td>
+                      <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {(persamaanPersepsiPage - 1) * persamaanPersepsiPageSize + i + 1}
+                      </td>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {row.tanggal ? formatTanggalKonsisten(row.tanggal) : ""}
+                      </td>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {formatJamTanpaDetik(row.jam_mulai)}–{formatJamTanpaDetik(row.jam_selesai)}
+                      </td>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {row.jumlah_sesi || 1} x 50 menit
+                      </td>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {row.topik || "-"}
+                      </td>
+                      {/* Kolom Koordinator Dosen */}
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {row.koordinator_names || "-"}
+                      </td>
+                      {/* Kolom Pengampu (non-koordinator) */}
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {row.pengampu_names || "-"}
+                      </td>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {allRuanganList.find((r) => r.id === row.ruangan_id)?.nama || "-"}
+                      </td>
+                      <td className="px-4 py-4 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => {
+                              const idx = jadwalPersamaanPersepsi.findIndex((j) => j.id === row.id);
+                              if (idx >= 0) {
+                                const actualRow = jadwalPersamaanPersepsi[idx];
+                                
+                                // Extract koordinator_ids from koordinator_ids or dosen_with_roles
+                                let koordinatorIds: number[] = [];
+                                if (actualRow.koordinator_ids && Array.isArray(actualRow.koordinator_ids)) {
+                                  koordinatorIds = actualRow.koordinator_ids;
+                                } else if (actualRow.dosen_with_roles && Array.isArray(actualRow.dosen_with_roles)) {
+                                  koordinatorIds = actualRow.dosen_with_roles
+                                    .filter((d: any) => d.peran === "koordinator" || d.peran_display === "Koordinator" || d.is_koordinator)
+                                    .map((d: any) => d.id);
+                                }
+                                
+                                // Extract pengampu_ids (non-koordinator) from dosen_ids
+                                const allDosenIds = Array.isArray(actualRow.dosen_ids) ? actualRow.dosen_ids : [];
+                                const pengampuIds = allDosenIds.filter((id: number) => !koordinatorIds.includes(id));
+                                
+                                setForm({
+                                  hariTanggal: actualRow.tanggal || "",
+                                  jamMulai: actualRow.jam_mulai || "",
+                                  jumlahKali: Number(actualRow.jumlah_sesi || 1),
+                                  jamSelesai: actualRow.jam_selesai || "",
+                                  pengampu: pengampuIds, // Pengampu (non-koordinator)
+                                  koordinator: koordinatorIds, // Koordinator
+                                  materi: "",
+                                  topik: actualRow.topik || "",
+                                  lokasi: actualRow.ruangan_id || null,
+                                  jenisBaris: "persamaan-persepsi",
+                                  agenda: "",
+                                  kelasPraktikum: "",
+                                  pblTipe: "",
+                                  modul: null,
+                                  kelompok: "",
+                                  kelompokBesar: null,
+                                  useRuangan: actualRow.use_ruangan !== undefined ? actualRow.use_ruangan : (actualRow.ruangan_id ? true : false),
+                                  fileJurnal: null,
+                                });
+                                setEditIndex(idx);
+                                setShowModal(true);
+                                resetErrorForm();
+                                fetchRuanganForModal();
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition"
+                            title="Edit Jadwal"
+                          >
+                            <FontAwesomeIcon
+                              icon={faPenToSquare}
+                              className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500"
+                            />
+                            <span className="hidden sm:inline">Edit</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              const idx = jadwalPersamaanPersepsi.findIndex((j) => j.id === row.id);
+                              if (idx >= 0) {
+                                setSelectedDeletePersamaanPersepsiIndex(idx);
+                                setShowDeletePersamaanPersepsiModal(true);
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition"
+                            title="Hapus Jadwal"
+                          >
+                            <FontAwesomeIcon
+                              icon={faTrash}
+                              className="w-4 h-4 sm:w-5 sm:h-5 text-red-500"
+                            />
+                            <span className="hidden sm:inline">Hapus</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Tombol Hapus Terpilih untuk Persamaan Persepsi */}
+        {selectedPersamaanPersepsiItems.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-4">
+            <button
+              disabled={isBulkDeleting}
+              onClick={() => handleBulkDelete("persamaan-persepsi")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${
+                isBulkDeleting
+                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                  : "bg-red-500 text-white shadow-theme-xs hover:bg-red-600"
+              }`}
+            >
+              {isBulkDeleting
+                ? "Menghapus..."
+                : `Hapus Terpilih (${selectedPersamaanPersepsiItems.length})`}
+            </button>
+          </div>
+        )}
+
+        {/* Pagination for Persamaan Persepsi */}
+        {jadwalPersamaanPersepsi.length > 0 && (
+          <div className="flex items-center justify-between mt-6">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Menampilkan {(persamaanPersepsiPage - 1) * persamaanPersepsiPageSize + 1} -{" "}
+                {Math.min(persamaanPersepsiPage * persamaanPersepsiPageSize, jadwalPersamaanPersepsi.length)} dari{" "}
+                {jadwalPersamaanPersepsi.length} data
+              </span>
+              <select
+                value={persamaanPersepsiPageSize}
+                onChange={(e) => {
+                  setPersamaanPersepsiPageSize(Number(e.target.value));
+                  setPersamaanPersepsiPage(1);
+                }}
+                className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
+              >
+                {PAGE_SIZE_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
+              <button
+                onClick={() => setPersamaanPersepsiPage((p) => Math.max(1, p - 1))}
+                disabled={persamaanPersepsiPage === 1}
+                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Previous
+              </button>
+              {getTotalPages(jadwalPersamaanPersepsi.length, persamaanPersepsiPageSize) > 1 && (
+                <button
+                  onClick={() => setPersamaanPersepsiPage(1)}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    persamaanPersepsiPage === 1
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  1
+                </button>
+              )}
+              {Array.from(
+                { length: getTotalPages(jadwalPersamaanPersepsi.length, persamaanPersepsiPageSize) },
+                (_, i) => {
+                  const pageNum = i + 1;
+                  const shouldShow =
+                    pageNum > 1 &&
+                    pageNum < getTotalPages(jadwalPersamaanPersepsi.length, persamaanPersepsiPageSize) &&
+                    pageNum >= persamaanPersepsiPage - 2 &&
+                    pageNum <= persamaanPersepsiPage + 2;
+                  if (!shouldShow) return null;
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setPersamaanPersepsiPage(pageNum)}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                        persamaanPersepsiPage === pageNum
+                          ? "bg-brand-500 text-white"
+                          : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                }
+              )}
+              {persamaanPersepsiPage < getTotalPages(jadwalPersamaanPersepsi.length, persamaanPersepsiPageSize) - 3 && (
+                <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
+              )}
+              {getTotalPages(jadwalPersamaanPersepsi.length, persamaanPersepsiPageSize) > 1 && (
+                <button
+                  onClick={() =>
+                    setPersamaanPersepsiPage(getTotalPages(jadwalPersamaanPersepsi.length, persamaanPersepsiPageSize))
+                  }
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    persamaanPersepsiPage === getTotalPages(jadwalPersamaanPersepsi.length, persamaanPersepsiPageSize)
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  {getTotalPages(jadwalPersamaanPersepsi.length, persamaanPersepsiPageSize)}
+                </button>
+              )}
+              <button
+                onClick={() =>
+                  setPersamaanPersepsiPage((p) =>
+                    Math.min(getTotalPages(jadwalPersamaanPersepsi.length, persamaanPersepsiPageSize), p + 1)
+                  )
+                }
+                disabled={persamaanPersepsiPage === getTotalPages(jadwalPersamaanPersepsi.length, persamaanPersepsiPageSize)}
+                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Section Jurnal Reading */}
 
       <div className="mb-8">
@@ -20430,6 +22905,7 @@ export default function DetailBlok() {
                   jumlahKali: 1,
                   jamSelesai: "",
                   pengampu: null,
+                  koordinator: null,
                   materi: "",
                   topik: "",
                   lokasi: null,
@@ -25301,6 +27777,380 @@ export default function DetailBlok() {
             </motion.div>
           </div>
         )}
+      </AnimatePresence>
+
+      {/* MODAL IMPORT EXCEL PERSAMAAN PERSEPSI */}
+      <AnimatePresence>
+        {showPersamaanPersepsiImportModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={handlePersamaanPersepsiCloseImportModal}
+            />
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={handlePersamaanPersepsiCloseImportModal}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+
+              {/* Header */}
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                  Import Jadwal Persamaan Persepsi
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Preview dan validasi data sebelum import
+                </p>
+              </div>
+
+              {/* Upload File Section */}
+              {!persamaanPersepsiImportFile && (
+                <div className="mb-6">
+                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
+                    <div className="space-y-4">
+                      <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
+                        <FontAwesomeIcon
+                          icon={faFileExcel}
+                          className="w-8 h-8 text-brand-600 dark:text-brand-400"
+                        />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                          Upload File Excel
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          Pilih file Excel dengan format template aplikasi
+                          (.xlsx, .xls)
+                        </p>
+                      </div>
+                      <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
+                        <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                        Pilih File
+                        <input
+                          ref={persamaanPersepsiFileInputRef}
+                          type="file"
+                          accept=".xlsx,.xls"
+                          onChange={handlePersamaanPersepsiFileUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* File Info */}
+              {persamaanPersepsiImportFile && (
+                <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <FontAwesomeIcon
+                      icon={faFileExcel}
+                      className="w-5 h-5 text-blue-500"
+                    />
+                    <div className="flex-1">
+                      <p className="font-medium text-blue-800 dark:text-blue-200">
+                        {persamaanPersepsiImportFile.name}
+                      </p>
+                      <p className="text-sm text-blue-600 dark:text-blue-300">
+                        {(persamaanPersepsiImportFile.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                    <button
+                      onClick={handlePersamaanPersepsiRemoveFile}
+                      className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                      title="Hapus file"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Error Messages */}
+              {(persamaanPersepsiImportErrors.length > 0 ||
+                persamaanPersepsiCellErrors.length > 0) && (
+                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0">
+                      <FontAwesomeIcon
+                        icon={faExclamationTriangle}
+                        className="w-5 h-5 text-red-500"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                        Error Validasi (
+                        {persamaanPersepsiImportErrors.length +
+                          persamaanPersepsiCellErrors.length}{" "}
+                        error)
+                      </h3>
+                      <div className="max-h-40 overflow-y-auto">
+                        {persamaanPersepsiImportErrors.map((err, idx) => (
+                          <p
+                            key={idx}
+                            className="text-sm text-red-600 dark:text-red-400 mb-1"
+                          >
+                            • {err}
+                          </p>
+                        ))}
+                        {persamaanPersepsiCellErrors.map((err, idx) => (
+                          <p
+                            key={idx}
+                            className="text-sm text-red-600 dark:text-red-400 mb-1"
+                          >
+                            • {err.message}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Preview Table */}
+              {persamaanPersepsiImportData.length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                      Preview Data ({persamaanPersepsiImportData.length} jadwal)
+                    </h3>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      File: {persamaanPersepsiImportFile?.name}
+                    </div>
+                  </div>
+
+                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                    <div className="max-w-full overflow-x-auto hide-scroll">
+                      <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                        <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                          <tr>
+                            <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                              No
+                            </th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                              Tanggal
+                            </th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                              Jam Mulai
+                            </th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                              Jumlah Sesi
+                            </th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                              Topik
+                            </th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                              Koordinator Dosen
+                            </th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                              Pengampu
+                            </th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                              Ruangan
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {persamaanPersepsiImportData.map((row, index) => {
+                            const actualIndex = index;
+
+                            const renderEditableCell = (
+                              field: string,
+                              value: any,
+                              isNumeric = false
+                            ) => {
+                              const isEditing =
+                                persamaanPersepsiEditingCell?.row === actualIndex &&
+                                persamaanPersepsiEditingCell?.key === field;
+                              const cellError = persamaanPersepsiCellErrors.find(
+                                (err) =>
+                                  err.row === actualIndex + 1 &&
+                                  err.field === field
+                              );
+
+                              return (
+                                <td
+                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
+                                    isEditing ? "border-2 border-brand-500" : ""
+                                  } ${
+                                    cellError
+                                      ? "bg-red-50 dark:bg-red-900/20"
+                                      : ""
+                                  }`}
+                                  onClick={() =>
+                                    setPersamaanPersepsiEditingCell({
+                                      row: actualIndex,
+                                      key: field,
+                                    })
+                                  }
+                                  title={cellError ? cellError.message : ""}
+                                >
+                                  {isEditing ? (
+                                    <input
+                                      className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
+                                      type={isNumeric ? "number" : "text"}
+                                      value={value || ""}
+                                      onChange={(e) =>
+                                        handlePersamaanPersepsiCellEdit(
+                                          actualIndex,
+                                          field,
+                                          isNumeric
+                                            ? parseInt(e.target.value) || 0
+                                            : e.target.value
+                                        )
+                                      }
+                                      onBlur={handlePersamaanPersepsiFinishEdit}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          handlePersamaanPersepsiFinishEdit();
+                                        }
+                                        if (e.key === "Escape") {
+                                          handlePersamaanPersepsiFinishEdit();
+                                        }
+                                      }}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <span
+                                      className={`${
+                                        cellError
+                                          ? "text-red-500"
+                                          : "text-gray-800 dark:text-white/90"
+                                      }`}
+                                    >
+                                      {value || "-"}
+                                    </span>
+                                  )}
+                                </td>
+                              );
+                            };
+
+                            return (
+                              <tr
+                                key={actualIndex}
+                                className={`${
+                                  index % 2 === 1
+                                    ? "bg-gray-50 dark:bg-white/[0.02]"
+                                    : ""
+                                }`}
+                              >
+                                <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                                  {actualIndex + 1}
+                                </td>
+                                {renderEditableCell("tanggal", row.tanggal)}
+                                {renderEditableCell("jam_mulai", row.jam_mulai)}
+                                {renderEditableCell("jumlah_sesi", row.jumlah_sesi, true)}
+                                {renderEditableCell("topik", row.topik)}
+                                {renderEditableCell("koordinator_ids", row.nama_koordinator)}
+                                {renderEditableCell("dosen_ids", row.nama_dosen)}
+                                {renderEditableCell(
+                                  "ruangan_id",
+                                  row.nama_ruangan
+                                )}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-2 pt-6">
+                <button
+                  onClick={handlePersamaanPersepsiCloseImportModal}
+                  className="px-6 py-3 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                >
+                  Batal
+                </button>
+                {persamaanPersepsiImportData.length > 0 &&
+                  persamaanPersepsiCellErrors.length === 0 && (
+                    <button
+                      onClick={handlePersamaanPersepsiSubmitImport}
+                      disabled={isPersamaanPersepsiImporting}
+                      className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {isPersamaanPersepsiImporting ? (
+                        <>
+                          <svg
+                            className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            ></path>
+                          </svg>
+                          Mengimport...
+                        </>
+                      ) : (
+                        <>
+                          <FontAwesomeIcon
+                            icon={faUpload}
+                            className="w-4 h-4"
+                          />
+                          Import Data ({persamaanPersepsiImportData.length} jadwal)
+                        </>
+                      )}
+                    </button>
+                  )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
         {/* Modal Konfirmasi Bulk Delete */}
         <AnimatePresence>
@@ -25335,13 +28185,17 @@ export default function DetailBlok() {
                       {bulkDeleteType === "pbl" && selectedPBLItems.length}
                       {bulkDeleteType === "jurnal-reading" &&
                         selectedJurnalReadingItems.length}
+                      {bulkDeleteType === "persamaan-persepsi" &&
+                        selectedPersamaanPersepsiItems.length}
                     </span>{" "}
                     jadwal {bulkDeleteType === "kuliah-besar" && "kuliah besar"}
                     {bulkDeleteType === "praktikum" && "praktikum"}
                     {bulkDeleteType === "agenda-khusus" && "agenda khusus"}
                     {bulkDeleteType === "pbl" && "PBL"}
                     {bulkDeleteType === "jurnal-reading" &&
-                      "jurnal reading"}{" "}
+                      "jurnal reading"}
+                    {bulkDeleteType === "persamaan-persepsi" &&
+                      "persamaan persepsi"}{" "}
                     terpilih? Data yang dihapus tidak dapat dikembalikan.
                   </p>
                   <div className="flex justify-end gap-2 pt-2">
@@ -25370,7 +28224,6 @@ export default function DetailBlok() {
               </motion.div>
             </div>
           )}
-        </AnimatePresence>
       </AnimatePresence>
 
       {/* Hidden file input for praktikum import */}
@@ -25406,6 +28259,15 @@ export default function DetailBlok() {
         type="file"
         accept=".xlsx,.xls"
         onChange={handlePBLFileUpload}
+        className="hidden"
+      />
+
+      {/* Hidden file input for Persamaan Persepsi import */}
+      <input
+        ref={persamaanPersepsiFileInputRef}
+        type="file"
+        accept=".xlsx,.xls"
+        onChange={handlePersamaanPersepsiFileUpload}
         className="hidden"
       />
 
@@ -25969,6 +28831,58 @@ export default function DetailBlok() {
                     Export
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Konfirmasi Hapus Persamaan Persepsi */}
+      <AnimatePresence>
+        {showDeletePersamaanPersepsiModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-gray-500/30 dark:bg-gray-700/50 backdrop-blur-sm"
+              onClick={() => setShowDeletePersamaanPersepsiModal(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-50"
+            >
+              <h2 className="text-lg font-bold mb-4 text-gray-800 dark:text-white">
+                Konfirmasi Hapus
+              </h2>
+              <p className="mb-6 text-gray-500 dark:text-gray-300">
+                Apakah Anda yakin ingin menghapus jadwal Persamaan Persepsi ini? Data yang dihapus tidak dapat dikembalikan.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => {
+                    setShowDeletePersamaanPersepsiModal(false);
+                    setSelectedDeletePersamaanPersepsiIndex(null);
+                  }}
+                  className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={() => {
+                    if (selectedDeletePersamaanPersepsiIndex !== null) {
+                      handleDeleteJadwalPersamaanPersepsi(selectedDeletePersamaanPersepsiIndex);
+                      setShowDeletePersamaanPersepsiModal(false);
+                      setSelectedDeletePersamaanPersepsiIndex(null);
+                    }
+                  }}
+                  className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition"
+                >
+                  Hapus
+                </button>
               </div>
             </motion.div>
           </div>

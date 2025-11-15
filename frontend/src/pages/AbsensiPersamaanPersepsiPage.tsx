@@ -1,121 +1,184 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import api, { handleApiError } from "../utils/api";
+import api, { handleApiError, getUser } from "../utils/api";
 import { ChevronLeftIcon } from "../icons";
 import { motion, AnimatePresence } from "framer-motion";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faUsers } from "@fortawesome/free-solid-svg-icons";
 
-interface JadwalCSR {
+interface JadwalPersamaanPersepsi {
   id: number;
   mata_kuliah_kode: string;
   tanggal: string;
   jam_mulai: string;
   jam_selesai: string;
   jumlah_sesi: number;
-  jenis_csr: "reguler" | "responsi";
-  dosen_id: number;
-  ruangan_id: number;
-  kelompok_kecil_id: number;
-  kategori_id: number;
-  topik: string;
-  dosen?: {
+  topik?: string;
+  dosen_ids: number[];
+  koordinator_ids?: number[];
+  koordinator_names?: string;
+  pengampu_names?: string;
+  dosen_with_roles?: Array<{
     id: number;
     name: string;
-    nid: string;
-  };
+    peran: string;
+    peran_display: string;
+    is_koordinator: boolean;
+  }>;
   ruangan?: {
     id: number;
     nama: string;
     kapasitas?: number;
     gedung?: string;
   };
-  kelompok_kecil?: {
-    id: number;
-    nama_kelompok: string;
-  };
-  kategori?: {
-    id: number;
-    nama: string;
-    keahlian_required?: string[];
-  };
 }
 
-interface AbsensiCSR {
-  [npm: string]: {
+interface AbsensiPersamaanPersepsi {
+  [dosenId: string]: {
     hadir: boolean;
     catatan: string;
   };
 }
 
-// Removed JadwalCSRData interface as it's not used
-
-interface Mahasiswa {
-  npm: string;
-  nama: string;
-  nim: string;
-  gender: "L" | "P";
-  ipk: number;
+interface Dosen {
+  id: number;
+  name: string;
+  nid?: string;
+  peran: string;
+  peran_display: string;
+  is_koordinator: boolean;
 }
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
 
-export default function AbsensiCSRPage() {
+export default function AbsensiPersamaanPersepsiPage() {
   const { kode, jadwalId } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [jadwalCSR, setJadwalCSR] = useState<JadwalCSR | null>(null);
-  const [mahasiswaList, setMahasiswaList] = useState<Mahasiswa[]>([]);
-  const [absensi, setAbsensi] = useState<AbsensiCSR>({});
+  const [jadwal, setJadwal] = useState<JadwalPersamaanPersepsi | null>(null);
+  const [dosenList, setDosenList] = useState<Dosen[]>([]);
+  const [absensi, setAbsensi] = useState<AbsensiPersamaanPersepsi>({});
   const [savingAbsensi, setSavingAbsensi] = useState(false);
   const [includeInReport, setIncludeInReport] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [isReportSubmitted, setIsReportSubmitted] = useState(false);
   const [showCatatanModal, setShowCatatanModal] = useState(false);
-  const [selectedMahasiswa, setSelectedMahasiswa] = useState<Mahasiswa | null>(null);
+  const [selectedDosen, setSelectedDosen] = useState<Dosen | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
 
-  // Fetch jadwal CSR dan data mahasiswa
+  // Fetch jadwal Persamaan Persepsi dan data dosen
   useEffect(() => {
     const fetchData = async () => {
       if (!kode || !jadwalId) return;
 
       setLoading(true);
       try {
-        // Fetch jadwal CSR detail - perlu menggunakan endpoint yang benar
-        // Karena tidak ada endpoint GET untuk single jadwal CSR, kita akan ambil dari list
-        const jadwalResponse = await api.get(`/csr/jadwal/${kode}`);
+        // Fetch jadwal Persamaan Persepsi detail
+        const jadwalResponse = await api.get(`/persamaan-persepsi/jadwal/${kode}`);
         const jadwalData = jadwalResponse.data.find(
-          (j: JadwalCSR) => j.id === parseInt(jadwalId)
+          (j: JadwalPersamaanPersepsi) => j.id === parseInt(jadwalId)
         );
         if (jadwalData) {
-          setJadwalCSR(jadwalData);
-        } else {
-          throw new Error("Jadwal CSR tidak ditemukan");
-        }
+          setJadwal(jadwalData);
 
-        // Fetch mahasiswa berdasarkan kelompok kecil
-        if (jadwalData.kelompok_kecil_id) {
-          const mahasiswaResponse = await api.get(
-            `/kelompok-kecil/${jadwalData.kelompok_kecil_id}/mahasiswa`
-          );
-          const mahasiswa = mahasiswaResponse.data.map((m: Mahasiswa) => ({
-            npm: m.nim,
-            nama: m.nama || "",
-            nim: m.nim || "",
-            gender: m.gender || "L",
-            ipk: m.ipk || 0.0,
-          }));
-          setMahasiswaList(mahasiswa);
+          // Buat list dosen dari dosen_with_roles jika ada, atau dari koordinator_ids + dosen_ids
+          let allDosen: Dosen[] = [];
+          let allDosenData: any[] = []; // Untuk menyimpan hasil fetch agar bisa digunakan ulang
+          
+          // Jika ada dosen_with_roles dari response, gunakan itu
+          if (jadwalData.dosen_with_roles && jadwalData.dosen_with_roles.length > 0) {
+            // Ambil detail dosen untuk mendapatkan nid
+            const allDosenIds = jadwalData.dosen_with_roles.map((d: any) => d.id);
+            const dosenResponse = await api.get(`/users?role=dosen`);
+            allDosenData = Array.isArray(dosenResponse.data) 
+              ? dosenResponse.data 
+              : dosenResponse.data.data || dosenResponse.data || [];
+            
+            allDosen = jadwalData.dosen_with_roles.map((d: any) => {
+              const dosenDetail = allDosenData.find((dd: any) => dd.id === d.id);
+              return {
+                id: d.id,
+                name: d.name,
+                nid: dosenDetail?.nid || dosenDetail?.username || "",
+                peran: d.peran || (d.is_koordinator ? "koordinator" : "dosen_mengajar"),
+                peran_display: d.peran_display || (d.is_koordinator ? "Koordinator" : "Dosen Mengajar"),
+                is_koordinator: d.is_koordinator || false,
+              };
+            });
+          } else {
+            // Fallback: buat dari koordinator_ids + dosen_ids
+            const allDosenIds = [
+              ...(jadwalData.koordinator_ids || []),
+              ...(jadwalData.dosen_ids || [])
+            ].filter((id, index, self) => self.indexOf(id) === index); // Remove duplicates
+            
+            if (allDosenIds.length > 0) {
+              const dosenResponse = await api.get(`/users?role=dosen`);
+              allDosenData = Array.isArray(dosenResponse.data) 
+                ? dosenResponse.data 
+                : dosenResponse.data.data || dosenResponse.data || [];
+              
+              const koordinatorIds = jadwalData.koordinator_ids || [];
+              
+              allDosen = allDosenIds.map((id: number) => {
+                const dosenDetail = allDosenData.find((d: any) => d.id === id);
+                const isKoordinator = koordinatorIds.includes(id);
+                
+                return {
+                  id: id,
+                  name: dosenDetail?.name || "",
+                  nid: dosenDetail?.nid || dosenDetail?.username || "",
+                  peran: isKoordinator ? "koordinator" : "dosen_mengajar",
+                  peran_display: isKoordinator ? "Koordinator" : "Dosen Mengajar",
+                  is_koordinator: isKoordinator,
+                };
+              });
+            }
+          }
+
+          // Pastikan dosen yang sedang login (koordinator) selalu ada di daftar
+          const currentUser = getUser();
+          if (currentUser && currentUser.id) {
+            const currentUserId = Number(currentUser.id);
+            const isCurrentUserInList = allDosen.some(d => d.id === currentUserId);
+            
+            if (!isCurrentUserInList) {
+              // Jika user yang sedang login belum ada di daftar, tambahkan
+              // Gunakan data yang sudah di-fetch sebelumnya, atau fetch baru jika belum ada
+              if (allDosenData.length === 0) {
+                const dosenResponse = await api.get(`/users?role=dosen`);
+                allDosenData = Array.isArray(dosenResponse.data) 
+                  ? dosenResponse.data 
+                  : dosenResponse.data.data || dosenResponse.data || [];
+              }
+              
+              const currentUserDetail = allDosenData.find((d: any) => d.id === currentUserId);
+              const koordinatorIds = jadwalData.koordinator_ids || [];
+              const isKoordinator = koordinatorIds.includes(currentUserId);
+              
+              if (currentUserDetail) {
+                allDosen.push({
+                  id: currentUserId,
+                  name: currentUserDetail.name || "",
+                  nid: currentUserDetail.nid || currentUserDetail.username || "",
+                  peran: isKoordinator ? "koordinator" : "dosen_mengajar",
+                  peran_display: isKoordinator ? "Koordinator" : "Dosen Mengajar",
+                  is_koordinator: isKoordinator,
+                });
+              }
+            }
+          }
+
+          setDosenList(allDosen);
 
           // Fetch data absensi yang sudah ada
           const absensiResponse = await api.get(
-            `/csr/${kode}/jadwal/${jadwalId}/absensi`
+            `/persamaan-persepsi/${kode}/jadwal/${jadwalId}/absensi`
           );
-          const existingAbsensi: AbsensiCSR = {};
+          const existingAbsensi: AbsensiPersamaanPersepsi = {};
 
           // Handle response yang berbentuk object (keyBy) atau array
           if (absensiResponse.data.absensi) {
@@ -123,33 +186,49 @@ export default function AbsensiCSRPage() {
               // Jika response berupa array
               absensiResponse.data.absensi.forEach(
                 (absen: {
-                  mahasiswa_npm: string;
+                  dosen_id: number;
                   hadir: boolean;
                   catatan?: string;
                 }) => {
-                  existingAbsensi[absen.mahasiswa_npm] = {
+                  existingAbsensi[absen.dosen_id.toString()] = {
                     hadir: absen.hadir || false,
                     catatan: absen.catatan || "",
                   };
                 }
               );
             } else {
-              // Jika response berupa object (keyBy)
-              Object.keys(absensiResponse.data.absensi).forEach((npm) => {
-                const absen = absensiResponse.data.absensi[npm];
-                existingAbsensi[npm] = {
+              // Jika response berupa object (keyBy) - key adalah dosen_id
+              Object.keys(absensiResponse.data.absensi).forEach((dosenId) => {
+                const absen = absensiResponse.data.absensi[dosenId];
+                existingAbsensi[dosenId] = {
                   hadir: absen.hadir || false,
                   catatan: absen.catatan || "",
                 };
               });
             }
           }
+          
+          // Jika response langsung berupa Collection (Laravel Collection), convert ke array dulu
+          if (!absensiResponse.data.absensi && absensiResponse.data) {
+            const absensiData = absensiResponse.data;
+            if (Array.isArray(absensiData)) {
+              absensiData.forEach(
+                (absen: {
+                  dosen_id: number;
+                  hadir: boolean;
+                  catatan?: string;
+                }) => {
+                  existingAbsensi[absen.dosen_id.toString()] = {
+                    hadir: absen.hadir || false,
+                    catatan: absen.catatan || "",
+                  };
+                }
+              );
+            }
+          }
           setAbsensi(existingAbsensi);
 
           // Cek apakah laporan sudah pernah disubmit
-          // Debug: log response untuk melihat struktur data
-          console.log("Absensi response:", absensiResponse.data);
-
           let isSubmitted =
             absensiResponse.data.penilaian_submitted ||
             absensiResponse.data.report_submitted ||
@@ -157,40 +236,30 @@ export default function AbsensiCSRPage() {
             false;
 
           // Fallback: jika tidak ada flag submitted, cek apakah ada data absensi
-          // yang menunjukkan bahwa laporan sudah pernah disubmit
           if (!isSubmitted && Object.keys(existingAbsensi).length > 0) {
-            // Cek apakah ada mahasiswa yang sudah di-mark hadir
             const hasAttendanceData = Object.values(existingAbsensi).some(
               (absen) => absen.hadir === true || absen.catatan !== ""
             );
 
             if (hasAttendanceData) {
-              // Jika ada data absensi, anggap sudah disubmit
               isSubmitted = true;
-              console.log(
-                "Fallback: Detected attendance data, marking as submitted"
-              );
             }
           }
 
-          console.log("Final is submitted:", isSubmitted);
-
           // Backup: simpan ke localStorage juga
-          const storageKey = `csr_absensi_submitted_${kode}_${jadwalId}`;
+          const storageKey = `persamaan_persepsi_absensi_submitted_${kode}_${jadwalId}`;
           const storedSubmitted = localStorage.getItem(storageKey) === "true";
 
-          // Gunakan data dari server atau dari localStorage
           const finalSubmitted = isSubmitted || storedSubmitted;
-
-          console.log("Stored submitted:", storedSubmitted);
-          console.log("Final submitted (with localStorage):", finalSubmitted);
 
           setIsReportSubmitted(finalSubmitted);
           setIncludeInReport(finalSubmitted);
+        } else {
+          throw new Error("Jadwal Persamaan Persepsi tidak ditemukan");
         }
       } catch (error: unknown) {
         console.error("Error fetching data:", error);
-        setError(handleApiError(error, "Memuat data absensi CSR"));
+        setError(handleApiError(error, "Memuat data absensi Persamaan Persepsi"));
       } finally {
         setLoading(false);
       }
@@ -200,43 +269,43 @@ export default function AbsensiCSRPage() {
   }, [kode, jadwalId]);
 
   // Fungsi untuk handle perubahan absensi
-  const handleAbsensiChange = (npm: string, hadir: boolean) => {
+  const handleAbsensiChange = (dosenId: number, hadir: boolean) => {
     setAbsensi((prev) => ({
       ...prev,
-      [npm]: {
+      [dosenId.toString()]: {
         hadir: hadir,
-        catatan: prev[npm]?.catatan || "",
+        catatan: prev[dosenId.toString()]?.catatan || "",
       },
     }));
   };
 
   // Fungsi untuk handle perubahan catatan
-  const handleCatatanChange = (npm: string, catatan: string) => {
+  const handleCatatanChange = (dosenId: number, catatan: string) => {
     setAbsensi((prev) => ({
       ...prev,
-      [npm]: {
-        hadir: prev[npm]?.hadir || false,
+      [dosenId.toString()]: {
+        hadir: prev[dosenId.toString()]?.hadir || false,
         catatan: catatan,
       },
     }));
   };
 
   // Fungsi untuk membuka modal catatan
-  const handleOpenCatatanModal = (mahasiswa: Mahasiswa) => {
-    setSelectedMahasiswa(mahasiswa);
+  const handleOpenCatatanModal = (dosen: Dosen) => {
+    setSelectedDosen(dosen);
     setShowCatatanModal(true);
   };
 
   // Fungsi untuk menutup modal catatan
   const handleCloseCatatanModal = () => {
     setShowCatatanModal(false);
-    setSelectedMahasiswa(null);
+    setSelectedDosen(null);
   };
 
   // Fungsi untuk menyimpan catatan dari modal
   const handleSaveCatatan = (catatan: string) => {
-    if (selectedMahasiswa) {
-      handleCatatanChange(selectedMahasiswa.npm, catatan);
+    if (selectedDosen) {
+      handleCatatanChange(selectedDosen.id, catatan);
     }
     handleCloseCatatanModal();
   };
@@ -255,44 +324,41 @@ export default function AbsensiCSRPage() {
     setSavingAbsensi(true);
     try {
       const payload = {
-        absensi: mahasiswaList.map((m) => ({
-          mahasiswa_npm: m.npm,
-          hadir: absensi[m.npm]?.hadir || false,
-          catatan: absensi[m.npm]?.catatan || "",
+        absensi: dosenList.map((d) => ({
+          dosen_id: d.id,
+          hadir: absensi[d.id.toString()]?.hadir || false,
+          catatan: absensi[d.id.toString()]?.catatan || "",
         })),
-        // Flag agar backend bisa menandai jadwal terhitung ke laporan
         penilaian_submitted: true,
       };
 
-      await api.post(`/csr/${kode}/jadwal/${jadwalId}/absensi`, payload);
+      await api.post(`/persamaan-persepsi/${kode}/jadwal/${jadwalId}/absensi`, payload);
 
       // Refresh data absensi dari server setelah berhasil disimpan
       const absensiResponse = await api.get(
-        `/csr/${kode}/jadwal/${jadwalId}/absensi`
+        `/persamaan-persepsi/${kode}/jadwal/${jadwalId}/absensi`
       );
-      const existingAbsensi: AbsensiCSR = {};
+      const existingAbsensi: AbsensiPersamaanPersepsi = {};
 
       // Handle response yang berbentuk object (keyBy) atau array
       if (absensiResponse.data.absensi) {
         if (Array.isArray(absensiResponse.data.absensi)) {
-          // Jika response berupa array
           absensiResponse.data.absensi.forEach(
             (absen: {
-              mahasiswa_npm: string;
+              dosen_id: number;
               hadir: boolean;
               catatan?: string;
             }) => {
-              existingAbsensi[absen.mahasiswa_npm] = {
+              existingAbsensi[absen.dosen_id.toString()] = {
                 hadir: absen.hadir || false,
                 catatan: absen.catatan || "",
               };
             }
           );
         } else {
-          // Jika response berupa object (keyBy)
-          Object.keys(absensiResponse.data.absensi).forEach((npm) => {
-            const absen = absensiResponse.data.absensi[npm];
-            existingAbsensi[npm] = {
+          Object.keys(absensiResponse.data.absensi).forEach((dosenId) => {
+            const absen = absensiResponse.data.absensi[dosenId];
+            existingAbsensi[dosenId] = {
               hadir: absen.hadir || false,
               catatan: absen.catatan || "",
             };
@@ -306,10 +372,10 @@ export default function AbsensiCSRPage() {
       setIncludeInReport(true);
 
       // Simpan ke localStorage sebagai backup
-      const storageKey = `csr_absensi_submitted_${kode}_${jadwalId}`;
+      const storageKey = `persamaan_persepsi_absensi_submitted_${kode}_${jadwalId}`;
       localStorage.setItem(storageKey, "true");
 
-      // Tampilkan pesan sukses dan stay di halaman ini
+      // Tampilkan pesan sukses
       setShowSuccessMessage(true);
 
       // Auto-hide pesan sukses setelah 3 detik
@@ -431,7 +497,7 @@ export default function AbsensiCSRPage() {
     );
   }
 
-  if (!jadwalCSR) {
+  if (!jadwal) {
     return (
       <div className="w-full mx-auto">
         <div className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-8 text-center">
@@ -486,41 +552,41 @@ export default function AbsensiCSRPage() {
       {/* Header */}
       <div className="mb-8">
         <button
-          onClick={() => navigate(`/mata-kuliah/non-blok-csr/${kode}`)}
+          onClick={() => navigate(`/dashboard-dosen`)}
           className="flex items-center gap-2 text-brand-500 hover:text-brand-600 transition-all duration-300 ease-out hover:scale-105 transform mb-4"
         >
           <ChevronLeftIcon className="w-5 h-5" />
           Kembali
         </button>
         <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90 mb-2">
-          Absensi CSR - {jadwalCSR.jenis_csr === "reguler" ? "CSR Reguler" : "CSR Responsi"}
+          Absensi Persamaan Persepsi
         </h1>
         <p className="text-gray-600 dark:text-gray-400">
-          Kelola absensi mahasiswa untuk CSR
+          Kelola absensi dosen untuk Persamaan Persepsi
         </p>
       </div>
 
       {/* Info Card */}
       <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6 mb-8 shadow-sm">
-        <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">Informasi Kelas</div>
+        <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">Informasi Jadwal</div>
         <div className="grid gap-4 grid-cols-1 md:grid-cols-6">
           {/* Row 1 */}
           <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
             <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Mata Kuliah</div>
             <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
-              {jadwalCSR.mata_kuliah_kode || "-"}
+              {jadwal.mata_kuliah_kode || "-"}
             </div>
           </div>
           <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
             <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Topik</div>
             <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
-              {jadwalCSR.topik || "-"}
+              {jadwal.topik || "-"}
             </div>
           </div>
           <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
-            <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Kategori</div>
+            <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Ruangan</div>
             <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
-              {jadwalCSR.kategori?.nama || "-"}
+              {jadwal.ruangan?.nama || "-"}
             </div>
           </div>
 
@@ -528,7 +594,7 @@ export default function AbsensiCSRPage() {
           <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
             <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Tanggal</div>
             <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
-              {new Date(jadwalCSR.tanggal).toLocaleDateString("id-ID", {
+              {new Date(jadwal.tanggal).toLocaleDateString("id-ID", {
                 weekday: "long",
                 year: "numeric",
                 month: "long",
@@ -539,35 +605,13 @@ export default function AbsensiCSRPage() {
           <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
             <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Waktu</div>
             <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
-              {jadwalCSR.jam_mulai?.replace(".", ":")} - {jadwalCSR.jam_selesai?.replace(".", ":")}
-            </div>
-          </div>
-          <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
-            <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Ruangan</div>
-            <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
-              {jadwalCSR.ruangan?.nama || "-"}
-            </div>
-          </div>
-
-          {/* Row 3 */}
-          <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
-            <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Pengampu</div>
-            <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
-              {jadwalCSR.dosen?.name || "-"}
-            </div>
-          </div>
-          <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
-            <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Kelompok</div>
-            <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
-              {jadwalCSR.kelompok_kecil?.nama_kelompok
-                ? `Kelompok ${jadwalCSR.kelompok_kecil.nama_kelompok}`
-                : "-"}
+              {jadwal.jam_mulai?.replace(".", ":")} - {jadwal.jam_selesai?.replace(".", ":")}
             </div>
           </div>
           <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
             <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Durasi</div>
             <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
-              {jadwalCSR.jumlah_sesi}x50 menit
+              {jadwal.jumlah_sesi}x50 menit
             </div>
           </div>
         </div>
@@ -576,8 +620,8 @@ export default function AbsensiCSRPage() {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl shadow-sm p-4">
-          <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total Mahasiswa</div>
-          <div className="text-2xl font-bold text-gray-900 dark:text-white">{mahasiswaList.length}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total Dosen</div>
+          <div className="text-2xl font-bold text-gray-900 dark:text-white">{dosenList.length}</div>
         </div>
         <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl shadow-sm p-4">
           <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Hadir</div>
@@ -588,10 +632,10 @@ export default function AbsensiCSRPage() {
         <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl shadow-sm p-4">
           <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Persentase</div>
           <div className="text-2xl font-bold text-purple-600">
-            {mahasiswaList.length > 0
+            {dosenList.length > 0
               ? Math.round(
                   (Object.values(absensi).filter((a) => a.hadir).length /
-                    mahasiswaList.length) *
+                    dosenList.length) *
                     100
                 )
               : 0}
@@ -671,7 +715,35 @@ export default function AbsensiCSRPage() {
         </div>
       </div>
 
-      {/* Student List Table */}
+      {/* Warning untuk mengingatkan user mengabsen diri sendiri */}
+      {(() => {
+        const currentUser = getUser();
+        const currentUserId = currentUser ? Number(currentUser.id) : null;
+        const currentUserAbsensi = currentUserId ? absensi[currentUserId.toString()] : null;
+        const currentUserHadir = currentUserAbsensi?.hadir || false;
+        const showWarning = currentUserId && !isReportSubmitted && !currentUserHadir && dosenList.some(d => d.id === currentUserId);
+        
+        if (showWarning) {
+          return (
+            <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
+              <div className="flex items-start gap-3">
+                <span className="text-xl leading-none">⚠️</span>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                    Jangan lupa untuk mengabsen diri Anda sendiri!
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                    Pastikan Anda telah mencentang checkbox hadir untuk nama Anda sendiri sebelum menyimpan laporan. Absensi Anda diperlukan agar masuk ke dalam laporan.
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        }
+        return null;
+      })()}
+
+      {/* Dosen List Table */}
       <div className="bg-white dark:bg-white/[0.03] rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
         <div className="p-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-3 gap-3">
@@ -680,7 +752,7 @@ export default function AbsensiCSRPage() {
                 <FontAwesomeIcon icon={faUsers} className="w-5 h-5 text-white" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Daftar Mahasiswa ({mahasiswaList.length} orang)
+                Daftar Dosen ({dosenList.length} orang)
               </h3>
             </div>
             <div className="relative w-full max-w-xs ml-auto">
@@ -693,7 +765,7 @@ export default function AbsensiCSRPage() {
               <input
                 type="text"
                 className="pl-10 pr-4 py-2 w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-brand-400 focus:border-brand-500 text-gray-700 dark:text-white text-sm placeholder:text-gray-400 dark:placeholder:text-gray-300 outline-none"
-                placeholder="Cari nama atau NIM ..."
+                placeholder="Cari nama atau NID ..."
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
@@ -721,9 +793,9 @@ export default function AbsensiCSRPage() {
                 <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                   <tr>
                     <th className="px-6 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">#</th>
-                    <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">NIM</th>
+                    <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">NID/NIP</th>
                     <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Nama</th>
-                    <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">IPK</th>
+                    <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Peran</th>
                     <th className="px-6 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Status</th>
                     <th className="px-6 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Aksi</th>
                   </tr>
@@ -731,9 +803,9 @@ export default function AbsensiCSRPage() {
                 <tbody>
                   {(() => {
                     // Filter data berdasarkan search query
-                    const filteredData = mahasiswaList.filter((m) => {
+                    const filteredData = dosenList.filter((d) => {
                       const q = searchQuery.trim().toLowerCase();
-                      return q === "" || m.nama.toLowerCase().includes(q) || m.nim.toLowerCase().includes(q);
+                      return q === "" || d.name.toLowerCase().includes(q) || (d.nid && d.nid.toLowerCase().includes(q));
                     });
 
                     // Pagination
@@ -753,7 +825,7 @@ export default function AbsensiCSRPage() {
                                 <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
                               </svg>
                               <span className="bg-gray-100 dark:bg-gray-800/60 rounded-full px-5 py-2 mt-1 font-medium">
-                                {searchQuery ? "Tidak ada data yang cocok dengan pencarian" : "Tidak ada mahasiswa dalam kelompok ini"}
+                                {searchQuery ? "Tidak ada data yang cocok dengan pencarian" : "Tidak ada dosen dalam jadwal ini"}
                               </span>
                             </div>
                           </td>
@@ -761,32 +833,29 @@ export default function AbsensiCSRPage() {
                       );
                     }
 
-                    return paginatedData.map((m, i) => {
-                      const hadir = absensi[m.npm]?.hadir || false;
+                    return paginatedData.map((d, i) => {
+                      const hadir = absensi[d.id.toString()]?.hadir || false;
                       const globalIndex = (page - 1) * pageSize + i + 1;
                       return (
                         <tr
-                          key={m.npm}
+                          key={d.id}
                           className={i % 2 === 1 ? "bg-gray-50 dark:bg-white/[0.02]" : ""}
                         >
                           <td className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">{globalIndex}</td>
-                          <td className="px-6 py-4 font-mono tracking-wide text-gray-700 dark:text-gray-200">{m.nim}</td>
+                          <td className="px-6 py-4 font-mono tracking-wide text-gray-700 dark:text-gray-200">{d.nid || "-"}</td>
                           <td className="px-6 py-4 text-gray-900 dark:text-white font-medium">
-                            <div className="flex items-center gap-2">
-                              <span>{m.nama}</span>
-                              <span
-                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                                  m.gender === "L"
-                                    ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
-                                    : "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300"
-                                }`}
-                              >
-                                {m.gender === "L" ? "👨" : "👩"}
-                              </span>
-                            </div>
+                            {d.name}
                           </td>
-                          <td className="px-6 py-4 text-gray-900 dark:text-white font-medium">
-                            {m.ipk.toFixed(2)}
+                          <td className="px-6 py-4">
+                            <span
+                              className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                                d.is_koordinator
+                                  ? "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300"
+                                  : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                              }`}
+                            >
+                              {d.peran_display}
+                            </span>
                           </td>
                           <td className="px-6 py-4 text-center">
                             <span
@@ -806,7 +875,7 @@ export default function AbsensiCSRPage() {
                                   type="checkbox"
                                   checked={hadir}
                                   onChange={(e) =>
-                                    handleAbsensiChange(m.npm, e.target.checked)
+                                    handleAbsensiChange(d.id, e.target.checked)
                                   }
                                   disabled={savingAbsensi}
                                   className={`w-6 h-6 appearance-none rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 relative
@@ -822,7 +891,7 @@ export default function AbsensiCSRPage() {
                                 )}
                               </div>
                               <button
-                                onClick={() => handleOpenCatatanModal(m)}
+                                onClick={() => handleOpenCatatanModal(d)}
                                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-lg transition-all duration-200"
                                 title="Tambah/Edit Catatan"
                               >
@@ -844,9 +913,9 @@ export default function AbsensiCSRPage() {
 
           {/* Pagination */}
           {(() => {
-            const filteredData = mahasiswaList.filter((m) => {
+            const filteredData = dosenList.filter((d) => {
               const q = searchQuery.trim().toLowerCase();
-              return q === "" || m.nama.toLowerCase().includes(q) || m.nim.toLowerCase().includes(q);
+              return q === "" || d.name.toLowerCase().includes(q) || (d.nid && d.nid.toLowerCase().includes(q));
             });
             const totalPages = Math.ceil(filteredData.length / pageSize);
             const paginatedData = filteredData.slice(
@@ -1009,7 +1078,7 @@ export default function AbsensiCSRPage() {
       {/* Action Buttons */}
       <div className="flex justify-end gap-4 pt-8">
         <button
-          onClick={() => navigate(`/mata-kuliah/non-blok-csr/${kode}`)}
+          onClick={() => navigate(`/dashboard-dosen`)}
           className="px-6 py-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm"
         >
           Batal
@@ -1018,7 +1087,7 @@ export default function AbsensiCSRPage() {
           onClick={handleSaveAbsensi}
           disabled={
             savingAbsensi ||
-            mahasiswaList.length === 0 ||
+            dosenList.length === 0 ||
             !includeInReport ||
             isReportSubmitted
           }
@@ -1061,7 +1130,7 @@ export default function AbsensiCSRPage() {
 
       {/* Modal Catatan */}
       <AnimatePresence>
-        {showCatatanModal && selectedMahasiswa && (
+        {showCatatanModal && selectedDosen && (
           <div className="fixed inset-0 z-[100000] flex items-center justify-center">
             {/* Overlay */}
             <motion.div 
@@ -1104,10 +1173,10 @@ export default function AbsensiCSRPage() {
                 <div className="flex items-center justify-between pb-4 sm:pb-6">
                   <div>
                     <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
-                      Catatan Mahasiswa
+                      Catatan Dosen
                     </h2>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {selectedMahasiswa.nama} ({selectedMahasiswa.nim})
+                      {selectedDosen.name} {selectedDosen.nid && `(${selectedDosen.nid})`}
                     </p>
                   </div>
                 </div>
@@ -1115,21 +1184,21 @@ export default function AbsensiCSRPage() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Catatan untuk {selectedMahasiswa.nama}
+                      Catatan untuk {selectedDosen.name}
                     </label>
                     <textarea
-                      value={absensi[selectedMahasiswa.npm]?.catatan || ""}
+                      value={absensi[selectedDosen.id.toString()]?.catatan || ""}
                       onChange={(e) => {
                         const newCatatan = e.target.value;
                         setAbsensi((prev) => ({
                           ...prev,
-                          [selectedMahasiswa.npm]: {
-                            hadir: prev[selectedMahasiswa.npm]?.hadir || false,
+                          [selectedDosen.id.toString()]: {
+                            hadir: prev[selectedDosen.id.toString()]?.hadir || false,
                             catatan: newCatatan,
                           },
                         }));
                       }}
-                      placeholder="Masukkan catatan untuk mahasiswa ini..."
+                      placeholder="Masukkan catatan untuk dosen ini..."
                       className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl dark:bg-gray-700 dark:text-white resize-none"
                       rows={4}
                       autoFocus
@@ -1148,7 +1217,7 @@ export default function AbsensiCSRPage() {
                     Batal
                   </button>
                   <button
-                    onClick={() => handleSaveCatatan(absensi[selectedMahasiswa.npm]?.catatan || "")}
+                    onClick={() => handleSaveCatatan(absensi[selectedDosen.id.toString()]?.catatan || "")}
                     className="px-3 sm:px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-xs sm:text-sm font-medium transition-all duration-300 ease-in-out"
                   >
                     Simpan Catatan
@@ -1162,3 +1231,4 @@ export default function AbsensiCSRPage() {
     </div>
   );
 }
+

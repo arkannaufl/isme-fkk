@@ -35,6 +35,7 @@ use App\Http\Controllers\MahasiswaController;
 use App\Http\Controllers\JadwalPBLController;
 use App\Http\Controllers\JadwalPraktikumController;
 use App\Http\Controllers\JadwalJurnalReadingController;
+use App\Http\Controllers\JadwalPersamaanPersepsiController;
 use App\Http\Controllers\JadwalHarianController;
 use App\Http\Controllers\ProportionalDistributionController;
 use App\Http\Controllers\WhatsAppController;
@@ -418,6 +419,25 @@ Route::middleware('auth:sanctum')->prefix('jurnal-reading')->group(function () {
 
 // Route download tanpa auth untuk memudahkan akses file
 Route::get('/jurnal-reading/download/{kode}/{id}', [App\Http\Controllers\JadwalJurnalReadingController::class, 'downloadFile'])->name('jurnal.download');
+
+Route::middleware('auth:sanctum')->prefix('persamaan-persepsi')->group(function () {
+    Route::get('/jadwal/{kode}', [App\Http\Controllers\JadwalPersamaanPersepsiController::class, 'index']);
+    Route::post('/jadwal/{kode}', [App\Http\Controllers\JadwalPersamaanPersepsiController::class, 'store']);
+    Route::post('/jadwal/{kode}/import', [App\Http\Controllers\JadwalPersamaanPersepsiController::class, 'import']);
+    Route::put('/jadwal/{kode}/{id}', [App\Http\Controllers\JadwalPersamaanPersepsiController::class, 'update']);
+    Route::delete('/jadwal/{kode}/{id}', [App\Http\Controllers\JadwalPersamaanPersepsiController::class, 'destroy']);
+});
+
+// Jadwal Persamaan Persepsi untuk dosen
+Route::middleware('auth:sanctum')->get('/jadwal-persamaan-persepsi/dosen/{dosenId}', [App\Http\Controllers\JadwalPersamaanPersepsiController::class, 'getJadwalForDosen']);
+Route::middleware('auth:sanctum')->put('/jadwal-persamaan-persepsi/{id}/konfirmasi', [App\Http\Controllers\JadwalPersamaanPersepsiController::class, 'konfirmasi']);
+Route::middleware('auth:sanctum')->post('/jadwal-persamaan-persepsi/{id}/reschedule', [App\Http\Controllers\JadwalPersamaanPersepsiController::class, 'reschedule']);
+
+// Routes untuk absensi Persamaan Persepsi
+Route::middleware('auth:sanctum')->prefix('persamaan-persepsi')->group(function () {
+    Route::get('/{kode}/jadwal/{jadwalId}/absensi', [App\Http\Controllers\JadwalPersamaanPersepsiController::class, 'getAbsensi']);
+    Route::post('/{kode}/jadwal/{jadwalId}/absensi', [App\Http\Controllers\JadwalPersamaanPersepsiController::class, 'storeAbsensi']);
+});
 
 
 // Reference data endpoints untuk CSR

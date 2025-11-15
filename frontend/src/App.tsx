@@ -49,6 +49,7 @@ import MataKuliahDosenDetail from "./pages/MataKuliahDosenDetail";
 import MataKuliahMahasiswa from "./pages/MataKuliahMahasiswa";
 import DetailMahasiswaKeabsenan from "./pages/DetailMahasiswaKeabsenan";
 import AbsensiCSRPage from "./pages/AbsensiCSRPage";
+import AbsensiPersamaanPersepsiPage from "./pages/AbsensiPersamaanPersepsiPage";
 import AdminNotifications from "./pages/AdminNotifications";
 import DashboardTimAkademik from "./pages/DashboardTimAkademik";
 import ForumDiskusi from "./pages/ForumDiskusi";
@@ -218,6 +219,26 @@ function AppContent() {
                     allowedRoles={["super_admin", "tim_akademik"]}
                   >
                     <AbsensiCSRPage />
+                  </RequireDosenRole>
+                }
+              />
+              <Route
+                path="/absensi-persamaan-persepsi/:kode/:jadwalId"
+                element={
+                  <RequireDosenRole
+                    allowedRoles={["dosen", "super_admin", "tim_akademik"]}
+                  >
+                    <AbsensiPersamaanPersepsiPage />
+                  </RequireDosenRole>
+                }
+              />
+              <Route
+                path="/absensi-persamaan-persepsi-antara/:kode/:jadwalId"
+                element={
+                  <RequireDosenRole
+                    allowedRoles={["dosen", "super_admin", "tim_akademik"]}
+                  >
+                    <AbsensiPersamaanPersepsiPage />
                   </RequireDosenRole>
                 }
               />

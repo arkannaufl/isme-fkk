@@ -2282,15 +2282,35 @@ const AdminNotifications: React.FC = () => {
         </div>
 
         {/* Filter Section Skeleton */}
-        <div className="bg-white dark:bg-white/[0.03] rounded-2xl border border-gray-200 dark:border-white/[0.05] px-6 py-6 mb-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 w-full">
-            <div className="w-full md:w-72">
-              <div className="h-11 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
+        <div className="bg-white dark:bg-white/[0.03] rounded-2xl border border-gray-200 dark:border-white/[0.05] px-6 py-5 mb-8">
+          {/* Row 1: Search Bar Skeleton */}
+          <div className="mb-4">
+            <div className="relative max-w-md">
+              <div className="h-11 bg-gray-200 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 animate-pulse"></div>
             </div>
-            <div className="flex flex-col md:flex-row md:items-center gap-2 w-full md:w-auto justify-end">
-              <div className="w-full md:w-44 h-11 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
-              <div className="w-full md:w-44 h-11 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
-              <div className="w-full md:w-auto h-11 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
+          </div>
+
+          {/* Row 2: Filter Dropdowns and Action Buttons Skeleton */}
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+            {/* Filter Dropdowns Group Skeleton - 3 dropdowns */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+              {/* Dropdown 1: Punya Saya / Notifikasi ke Dosen / Notifikasi ke Mahasiswa */}
+              <div className="h-11 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-700 animate-pulse w-full sm:w-48"></div>
+              {/* Dropdown 2: Semua Jenis / Konfirmasi Jadwal / Assignment / Lainnya */}
+              <div className="h-11 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-700 animate-pulse w-full sm:w-48"></div>
+              {/* Dropdown 3: Semua Status / Belum Dibaca / Sudah Dibaca */}
+              <div className="h-11 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-700 animate-pulse w-full sm:w-48"></div>
+            </div>
+
+            {/* Action Buttons Group Skeleton */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-shrink-0">
+              {/* Refresh Button */}
+              <div className="h-11 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse w-full sm:w-24"></div>
+              {/* Conditional buttons (only show when userTypeFilter === "dosen") */}
+              <div className="h-11 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse w-full sm:w-40"></div>
+              <div className="h-11 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse w-full sm:w-36"></div>
+              {/* Reset Button */}
+              <div className="h-11 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse w-full sm:w-32"></div>
             </div>
           </div>
         </div>
@@ -2537,10 +2557,10 @@ const AdminNotifications: React.FC = () => {
       )}
 
       {/* Filter Section */}
-      <div className="bg-white dark:bg-white/[0.03] rounded-2xl border border-gray-200 dark:border-white/[0.05] px-6 py-6 mb-8">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 w-full">
-          {/* Search Bar */}
-          <div className="w-full md:w-72 relative">
+      <div className="bg-white dark:bg-white/[0.03] rounded-2xl border border-gray-200 dark:border-white/[0.05] px-6 py-5 mb-8">
+        {/* Row 1: Search Bar */}
+        <div className="mb-4">
+          <div className="relative max-w-md">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
               <svg
                 className="w-5 h-5 text-gray-400"
@@ -2561,37 +2581,15 @@ const AdminNotifications: React.FC = () => {
               placeholder="Cari notifikasi..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-11 w-full rounded-lg border border-gray-200 bg-transparent py-2.5 pl-12 pr-12 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-white/[0.03] dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+              className="h-11 w-full rounded-lg border border-gray-200 bg-transparent py-2.5 pl-12 pr-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-white/[0.03] dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
             />
-            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  cx="11"
-                  cy="11"
-                  r="8"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                />
-                <line
-                  x1="21"
-                  y1="21"
-                  x2="16.65"
-                  y2="16.65"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </span>
           </div>
-          {/* Filter Group */}
-          <div className="flex flex-col md:flex-row md:items-center gap-2 w-full md:w-auto justify-end">
+        </div>
+
+        {/* Row 2: Filter Dropdowns and Action Buttons */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          {/* Filter Dropdowns Group */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
             <select
               value={userTypeFilter}
               onChange={(e) =>
@@ -2599,7 +2597,7 @@ const AdminNotifications: React.FC = () => {
                   e.target.value as "my_notifications" | "dosen" | "mahasiswa"
                 )
               }
-              className="w-full md:w-44 h-11 text-sm px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="h-11 text-sm px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors"
             >
               <option value="my_notifications">Punya Saya</option>
               <option value="dosen">Notifikasi ke Dosen</option>
@@ -2616,7 +2614,7 @@ const AdminNotifications: React.FC = () => {
                     | "other"
                 )
               }
-              className="w-full md:w-44 h-11 text-sm px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="h-11 text-sm px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors"
             >
               <option value="all">Semua Jenis</option>
               <option value="confirmation">Konfirmasi Jadwal</option>
@@ -2628,16 +2626,20 @@ const AdminNotifications: React.FC = () => {
               onChange={(e) =>
                 setFilter(e.target.value as "all" | "read" | "unread")
               }
-              className="w-full md:w-44 h-11 text-sm px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="h-11 text-sm px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors"
             >
               <option value="all">Semua Status</option>
               <option value="unread">Belum Dibaca</option>
               <option value="read">Sudah Dibaca</option>
             </select>
+          </div>
+
+          {/* Action Buttons Group */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-shrink-0">
             <button
               onClick={handleRefresh}
               disabled={isRefreshing}
-              className="w-full md:w-auto flex items-center justify-center gap-2 px-5 text-sm py-2 bg-brand-500 text-white rounded-lg shadow hover:bg-brand-600 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-11 flex items-center justify-center gap-2 px-4 text-sm bg-brand-500 text-white rounded-lg shadow hover:bg-brand-600 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isRefreshing ? (
                 <svg
@@ -2674,9 +2676,10 @@ const AdminNotifications: React.FC = () => {
                   />
                 </svg>
               )}
-              Refresh
+              <span>Refresh</span>
             </button>
-            {/* Kirim Ulang Notifikasi Button - Only show for dosen notifications */}
+            
+            {/* Dosen-specific Action Buttons */}
             {userTypeFilter === "dosen" && (
               <>
                 <button
@@ -2688,19 +2691,17 @@ const AdminNotifications: React.FC = () => {
                       pendingDosenBlok,
                       pendingDosenReminderType
                     );
-                    setSelectedReminderDosen(new Set()); // Reset selection when opening modal
+                    setSelectedReminderDosen(new Set());
                     setShowReminderModal(true);
                   }}
-                  className="w-full md:w-auto flex items-center justify-center gap-2 px-5 text-sm py-2 bg-orange-500 text-white rounded-lg shadow hover:bg-orange-600 transition-colors font-semibold"
+                  className="h-11 flex items-center justify-center gap-2 px-4 text-sm bg-orange-500 text-white rounded-lg shadow hover:bg-orange-600 transition-colors font-semibold whitespace-nowrap"
                 >
                   <FontAwesomeIcon icon={faRedo} className="w-4 h-4" />
-                  Kirim Ulang Notifikasi
+                  <span className="hidden sm:inline">Kirim Ulang Notifikasi</span>
+                  <span className="sm:hidden">Kirim Ulang</span>
                 </button>
                 <button
                   onClick={async () => {
-                    console.log(
-                      "Loading pending dosen before opening change status modal..."
-                    );
                     await loadPendingDosen(
                       pendingDosenPage,
                       pendingDosenPageSize,
@@ -2710,23 +2711,26 @@ const AdminNotifications: React.FC = () => {
                     );
                     setShowChangeStatusModal(true);
                   }}
-                  className="w-full md:w-auto flex items-center justify-center gap-2 px-5 text-sm py-2 bg-blue-500 text-white rounded-lg shadow hover:bg-blue-600 transition-colors font-semibold"
+                  className="h-11 flex items-center justify-center gap-2 px-4 text-sm bg-blue-500 text-white rounded-lg shadow hover:bg-blue-600 transition-colors font-semibold whitespace-nowrap"
                 >
                   <FontAwesomeIcon icon={faCog} className="w-4 h-4" />
-                  Ubah Status Konfirmasi
+                  <span className="hidden sm:inline">Ubah Status Konfirmasi</span>
+                  <span className="sm:hidden">Ubah Status</span>
                 </button>
               </>
             )}
-            {/* Reset Notification Button */}
+            
+            {/* Reset Button */}
             <button
               onClick={() => {
                 setResetScope("all");
                 setShowResetModal(true);
               }}
-              className="w-full md:w-auto flex items-center justify-center gap-2 px-5 text-sm py-2 bg-red-500 text-white rounded-lg shadow hover:bg-red-600 transition-colors font-semibold"
+              className="h-11 flex items-center justify-center gap-2 px-4 text-sm bg-red-500 text-white rounded-lg shadow hover:bg-red-600 transition-colors font-semibold whitespace-nowrap"
             >
               <FontAwesomeIcon icon={faTrash} className="w-4 h-4" />
-              Reset Notification
+              <span className="hidden sm:inline">Reset Notification</span>
+              <span className="sm:hidden">Reset</span>
             </button>
           </div>
         </div>

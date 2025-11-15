@@ -169,6 +169,35 @@ interface JadwalJurnalReading {
   is_in_history?: boolean; // Flag: apakah dosen ini hanya ada di history
 }
 
+interface JadwalPersamaanPersepsi {
+  id: number;
+  tanggal: string;
+  jam_mulai: string;
+  jam_selesai: string;
+  topik?: string;
+  status_konfirmasi:
+    | "belum_konfirmasi"
+    | "bisa"
+    | "tidak_bisa"
+    | "waiting_reschedule";
+  status_reschedule?: "waiting" | "approved" | "rejected";
+  mata_kuliah_kode: string;
+  mata_kuliah_nama: string;
+  dosen_ids: number[];
+  koordinator_ids?: number[];
+  koordinator_names?: string;
+  pengampu_names?: string;
+  ruangan: {
+    id: number;
+    nama: string;
+  };
+  jumlah_sesi: number;
+  semester_type?: "reguler" | "antara";
+  created_at: string;
+  is_active_dosen?: boolean; // Flag: apakah dosen ini adalah dosen aktif
+  is_in_history?: boolean; // Flag: apakah dosen ini hanya ada di history
+}
+
 interface TodayScheduleItem {
   id: number;
   type: string;
@@ -427,6 +456,8 @@ export default function DashboardDosen() {
           return faFlask;
         case "jurnal":
           return faNewspaper;
+        case "persamaan_persepsi":
+          return faUsers;
         case "csr":
           return faUsers;
         case "non_blok_non_csr":
@@ -452,6 +483,9 @@ export default function DashboardDosen() {
   const [jadwalPraktikum, setJadwalPraktikum] = useState<JadwalPraktikum[]>([]);
   const [jadwalJurnalReading, setJadwalJurnalReading] = useState<
     JadwalJurnalReading[]
+  >([]);
+  const [jadwalPersamaanPersepsi, setJadwalPersamaanPersepsi] = useState<
+    JadwalPersamaanPersepsi[]
   >([]);
   const [jadwalCSR, setJadwalCSR] = useState<any[]>([]);
   const [jadwalNonBlokNonCSR, setJadwalNonBlokNonCSR] = useState<any[]>([]);
@@ -709,6 +743,7 @@ export default function DashboardDosen() {
         api.get(`/jadwal-kuliah-besar/dosen/${userData.id}${semesterParams}`),
         api.get(`/jadwal-praktikum/dosen/${userData.id}${semesterParams}`),
         api.get(`/jadwal-jurnal-reading/dosen/${userData.id}${semesterParams}`),
+        api.get(`/jadwal-persamaan-persepsi/dosen/${userData.id}${semesterParams}`),
         api.get(`/notifications/dosen/${userData.id}`),
         api.get(`/dosen/${userData.id}/today-schedule`),
       ];
@@ -735,6 +770,7 @@ export default function DashboardDosen() {
         jadwalKuliahBesarResult,
         jadwalPraktikumResult,
         jadwalJurnalReadingResult,
+        jadwalPersamaanPersepsiResult,
         notifResult,
         todayScheduleResult,
         ...otherResults
@@ -759,6 +795,11 @@ export default function DashboardDosen() {
       setJadwalJurnalReading(
         jadwalJurnalReadingResult.status === "fulfilled"
           ? jadwalJurnalReadingResult.value.data.data || []
+          : []
+      );
+      setJadwalPersamaanPersepsi(
+        jadwalPersamaanPersepsiResult.status === "fulfilled"
+          ? jadwalPersamaanPersepsiResult.value.data.data || []
           : []
       );
       setNotifications(
@@ -907,6 +948,9 @@ export default function DashboardDosen() {
       } else if (selectedJadwal.file_jurnal !== undefined) {
         endpoint = `/jadwal-jurnal-reading/${selectedJadwal.id}/konfirmasi`;
         payload.dosen_id = getUser()?.id;
+      } else if (selectedJadwal.koordinator_ids !== undefined || (selectedJadwal.dosen_ids && !selectedJadwal.modul && !selectedJadwal.kelas_praktikum && !selectedJadwal.file_jurnal && !selectedJadwal.jenis_csr && !selectedJadwal.jenis_baris)) {
+        endpoint = `/jadwal-persamaan-persepsi/${selectedJadwal.id}/konfirmasi`;
+        payload.dosen_id = getUser()?.id;
       } else if (selectedJadwal.jenis_csr !== undefined) {
         endpoint = `/jadwal-csr/${selectedJadwal.id}/konfirmasi`;
         payload.dosen_id = getUser()?.id;
@@ -944,6 +988,8 @@ export default function DashboardDosen() {
         endpoint = `/jadwal-praktikum/${selectedJadwal.id}/reschedule`;
       } else if (selectedJadwal.file_jurnal !== undefined) {
         endpoint = `/jadwal-jurnal-reading/${selectedJadwal.id}/reschedule`;
+      } else if (selectedJadwal.koordinator_ids !== undefined || (selectedJadwal.dosen_ids && !selectedJadwal.modul && !selectedJadwal.kelas_praktikum && !selectedJadwal.file_jurnal && !selectedJadwal.jenis_csr && !selectedJadwal.jenis_baris)) {
+        endpoint = `/jadwal-persamaan-persepsi/${selectedJadwal.id}/reschedule`;
       } else if (selectedJadwal.jenis_csr !== undefined) {
         endpoint = `/jadwal-csr/${selectedJadwal.id}/reschedule`;
       } else if (selectedJadwal.jenis_baris !== undefined) {
@@ -1438,6 +1484,7 @@ export default function DashboardDosen() {
         | "praktikum"
         | "agenda_khusus"
         | "jurnal"
+        | "persamaan_persepsi"
         | "csr"
         | "non_blok_non_csr",
       emptyMessage: string
@@ -1453,6 +1500,8 @@ export default function DashboardDosen() {
             return "bg-purple-500";
           case "jurnal":
             return "bg-indigo-500";
+          case "persamaan_persepsi":
+            return "bg-cyan-500";
           case "csr":
             return "bg-orange-500";
           case "non_blok_non_csr":
@@ -1531,6 +1580,7 @@ export default function DashboardDosen() {
                         jadwalType === "agenda_khusus" ||
                         jadwalType === "pbl" ||
                         jadwalType === "jurnal" ||
+                        jadwalType === "persamaan_persepsi" ||
                         jadwalType === "csr" ||
                         jadwalType === "non_blok_non_csr"
                           ? `${item.jam_mulai} - ${item.jam_selesai}`
@@ -1563,6 +1613,7 @@ export default function DashboardDosen() {
                           jadwalType === "praktikum" ||
                           jadwalType === "agenda_khusus" ||
                           jadwalType === "jurnal" ||
+                          jadwalType === "persamaan_persepsi" ||
                           jadwalType === "csr" ||
                           jadwalType === "non_blok_non_csr"
                             ? `${item.jumlah_sesi || 1} x 50 menit`
@@ -1570,6 +1621,10 @@ export default function DashboardDosen() {
                         </td>
                       )}
                       {jadwalType === "jurnal" ? (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {item.topik || "N/A"}
+                        </td>
+                      ) : jadwalType === "persamaan_persepsi" ? (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {item.topik || "N/A"}
                         </td>
@@ -1623,12 +1678,25 @@ export default function DashboardDosen() {
                           </span>
                         </td>
                       )}
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {getPengampuName(item, jadwalType)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {getDosenPenggantiName(item, jadwalType)}
-                      </td>
+                      {jadwalType === "persamaan_persepsi" ? (
+                        <>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {item.koordinator_names || "-"}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {item.pengampu_names || "-"}
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {getPengampuName(item, jadwalType)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {getDosenPenggantiName(item, jadwalType)}
+                          </td>
+                        </>
+                      )}
                       {jadwalType === "kuliah_besar" && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {item.topik || "N/A"}
@@ -1636,6 +1704,7 @@ export default function DashboardDosen() {
                       )}
                       {jadwalType !== "pbl" &&
                         jadwalType !== "jurnal" &&
+                        jadwalType !== "persamaan_persepsi" &&
                         jadwalType !== "csr" &&
                         jadwalType !== "non_blok_non_csr" &&
                         jadwalType !== "kuliah_besar" && (
@@ -1671,7 +1740,8 @@ export default function DashboardDosen() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {jadwalType === "kuliah_besar" ||
                         jadwalType === "praktikum" ||
-                        jadwalType === "jurnal"
+                        jadwalType === "jurnal" ||
+                        jadwalType === "persamaan_persepsi"
                           ? item.ruangan?.nama || "N/A"
                           : jadwalType === "pbl"
                           ? item.ruangan || "N/A"
@@ -1763,31 +1833,69 @@ export default function DashboardDosen() {
                             item.status_konfirmasi,
                             item.status_reschedule
                           )}
-                          {/* Hanya tampilkan aksi jika dosen ini adalah dosen aktif (bukan hanya di history) */}
-                          {item.is_active_dosen && item.status_konfirmasi === "belum_konfirmasi" && (
-                            <button
-                              onClick={() => openKonfirmasiModal(item)}
-                              className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
-                              title="Konfirmasi Ketersediaan"
-                            >
-                              Konfirmasi
-                            </button>
-                          )}
-                          {item.is_active_dosen && item.status_konfirmasi === "bisa" && (
+                          {/* Persamaan Persepsi tidak ada button konfirmasi (langsung bisa) */}
+                          {jadwalType === "persamaan_persepsi" ? (
                             <>
-                              {jadwalType === "csr" ? (
+                              {/* Button Absensi hanya muncul jika dosen adalah koordinator */}
+                              {(() => {
+                                const user = getUser();
+                                if (!user) return null;
+                                
+                                // Cek apakah dosen ini ada di koordinator_ids
+                                const koordinatorIds = item.koordinator_ids || [];
+                                const isKoordinator = Array.isArray(koordinatorIds) 
+                                  ? koordinatorIds.includes(Number(user.id))
+                                  : false;
+                                
+                                if (isKoordinator) {
+                                  // Cek apakah persamaan persepsi antara berdasarkan semester_type
+                                  const isAntara = item.semester_type === 'antara';
+                                  const routePath = isAntara 
+                                    ? `/absensi-persamaan-persepsi-antara/${item.mata_kuliah_kode}/${item.id}`
+                                    : `/absensi-persamaan-persepsi/${item.mata_kuliah_kode}/${item.id}`;
+                                  
+                                  return (
+                                    <button
+                                      onClick={() => navigate(routePath)}
+                                      className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors shrink-0"
+                                      title="Buka Absensi"
+                                    >
+                                      <FontAwesomeIcon icon={faCheckCircle} className="w-3.5 h-3.5 shrink-0" />
+                                      <span className="hidden xl:inline whitespace-nowrap">Absensi</span>
+                                    </button>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </>
+                          ) : (
+                            <>
+                              {/* Untuk jadwal lain, tampilkan button konfirmasi jika belum konfirmasi */}
+                              {item.is_active_dosen && item.status_konfirmasi === "belum_konfirmasi" && (
                                 <button
-                                  onClick={() =>
-                                    navigate(
-                                      `/absensi-csr/${item.mata_kuliah_kode}/${item.id}`
-                                    )
-                                  }
+                                  onClick={() => openKonfirmasiModal(item)}
                                   className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
-                                  title="Absensi CSR"
+                                  title="Konfirmasi Ketersediaan"
                                 >
-                                  Absensi
+                                  Konfirmasi
                                 </button>
-                              ) : jadwalType === "kuliah_besar" ? (
+                              )}
+                              {/* Tampilkan button aksi jika status sudah "bisa" */}
+                              {item.is_active_dosen && item.status_konfirmasi === "bisa" && (
+                                <>
+                                  {jadwalType === "csr" ? (
+                                    <button
+                                      onClick={() =>
+                                        navigate(
+                                          `/absensi-csr/${item.mata_kuliah_kode}/${item.id}`
+                                        )
+                                      }
+                                      className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
+                                      title="Absensi CSR"
+                                    >
+                                      Absensi
+                                    </button>
+                                  ) : jadwalType === "kuliah_besar" ? (
                                 <>
                                   {/* Cek apakah kuliah besar antara berdasarkan semester_type atau semester */}
                                   {(() => {
@@ -1893,7 +2001,7 @@ export default function DashboardDosen() {
                                       : "Penilaian"}
                                   </button>
                                 </>
-                              ) : (
+                              ) : jadwalType === "jurnal" ? (
                                 <button
                                   onClick={() =>
                                     handlePenilaianClick(item, jadwalType)
@@ -1913,18 +2021,40 @@ export default function DashboardDosen() {
                                     ? "Lihat Penilaian"
                                     : "Penilaian"}
                                 </button>
+                              ) : jadwalType === "pbl" ? (
+                                <button
+                                  onClick={() =>
+                                    handlePenilaianClick(item, jadwalType)
+                                  }
+                                  className={`px-3 py-1 rounded text-xs transition-colors ${
+                                    item.penilaian_submitted
+                                      ? "bg-gray-500 text-white hover:bg-gray-600"
+                                      : "bg-green-500 text-white hover:bg-green-600"
+                                  }`}
+                                  title={
+                                    item.penilaian_submitted
+                                      ? "Lihat Penilaian"
+                                      : "Penilaian"
+                                  }
+                                >
+                                  {item.penilaian_submitted
+                                    ? "Lihat Penilaian"
+                                    : "Penilaian"}
+                                </button>
+                              ) : null}
+                                </>
+                              )}
+                              {/* Persamaan Persepsi tidak ada button reschedule (langsung bisa) */}
+                              {(jadwalType === "pbl" || jadwalType === "kuliah_besar" || jadwalType === "praktikum" || jadwalType === "agenda_khusus" || jadwalType === "jurnal" || jadwalType === "csr" || jadwalType === "non_blok_non_csr") && item.is_active_dosen && item.status_konfirmasi === "belum_konfirmasi" && (
+                                <button
+                                  onClick={() => openRescheduleModal(item)}
+                                  className="px-3 py-1 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 transition-colors"
+                                  title="Ajukan Reschedule"
+                                >
+                                  Reschedule
+                                </button>
                               )}
                             </>
-                          )}
-                          {/* Hanya tampilkan aksi jika dosen ini adalah dosen aktif (bukan hanya di history) */}
-                          {item.is_active_dosen && item.status_konfirmasi === "belum_konfirmasi" && (
-                            <button
-                              onClick={() => openRescheduleModal(item)}
-                              className="px-3 py-1 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 transition-colors"
-                              title="Ajukan Reschedule"
-                            >
-                              Reschedule
-                            </button>
                           )}
                         </div>
                       </td>
@@ -3376,6 +3506,34 @@ export default function DashboardDosen() {
                   ],
                   "jurnal",
                   "Tidak ada data Jurnal Reading"
+                )}
+              </motion.div>
+
+              {/* Persamaan Persepsi */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.75 }}
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+              >
+                {renderJadwalTable(
+                  "Persamaan Persepsi",
+                  faUsers,
+                  jadwalPersamaanPersepsi,
+                  [
+                    "NO",
+                    "HARI/TANGGAL",
+                    "PUKUL",
+                    "WAKTU",
+                    "TOPIK",
+                    "KOORDINATOR DOSEN",
+                    "PENGAMPU",
+                    "LOKASI",
+                    "JENIS SEMESTER",
+                    "AKSI",
+                  ],
+                  "persamaan_persepsi",
+                  "Tidak ada data Persamaan Persepsi"
                 )}
               </motion.div>
 
