@@ -281,8 +281,9 @@ export default function AbSenQRMahasiswa() {
       const nonBlokNonCSRPattern = /^\/mahasiswa\/absensi-non-blok-non-csr\/[A-Z0-9]+\/\d+(\?.*)?$/;
       const nonBlokNonCSRAntaraPattern = /^\/mahasiswa\/absensi-non-blok-non-csr-antara\/[A-Z0-9]+\/\d+(\?.*)?$/;
       const praktikumPattern = /^\/mahasiswa\/absensi-praktikum\/[A-Z0-9]+\/\d+(\?.*)?$/;
+      const seminarPlenoPattern = /^\/mahasiswa\/absensi-seminar-pleno\/[A-Z0-9]+\/\d+(\?.*)?$/;
       
-      if (!kuliahBesarPattern.test(url.pathname) && !kuliahBesarAntaraPattern.test(url.pathname) && !nonBlokNonCSRPattern.test(url.pathname) && !nonBlokNonCSRAntaraPattern.test(url.pathname) && !praktikumPattern.test(url.pathname)) {
+      if (!kuliahBesarPattern.test(url.pathname) && !kuliahBesarAntaraPattern.test(url.pathname) && !nonBlokNonCSRPattern.test(url.pathname) && !nonBlokNonCSRAntaraPattern.test(url.pathname) && !praktikumPattern.test(url.pathname) && !seminarPlenoPattern.test(url.pathname)) {
         setError('QR Code tidak valid - path tidak sesuai format jadwal');
         setTimeout(() => {
           setError(null);
@@ -291,8 +292,8 @@ export default function AbSenQRMahasiswa() {
         return;
       }
       
-      // Cek apakah URL sesuai dengan format absensi kuliah besar, kuliah besar antara, non-blok non-CSR, non-blok non-CSR antara, atau praktikum
-      let jadwalType: 'kuliah-besar' | 'kuliah-besar-antara' | 'non-blok-non-csr' | 'non-blok-non-csr-antara' | 'praktikum' | null = null;
+      // Cek apakah URL sesuai dengan format absensi kuliah besar, kuliah besar antara, non-blok non-CSR, non-blok non-CSR antara, praktikum, atau seminar pleno
+      let jadwalType: 'kuliah-besar' | 'kuliah-besar-antara' | 'non-blok-non-csr' | 'non-blok-non-csr-antara' | 'praktikum' | 'seminar-pleno' | null = null;
       let kode: string | undefined;
       let jadwalId: string | undefined;
       
@@ -326,6 +327,12 @@ export default function AbSenQRMahasiswa() {
         const jadwalIdIndex = kodeIndex + 1;
         kode = pathParts[kodeIndex];
         jadwalId = pathParts[jadwalIdIndex];
+      } else if (pathParts.includes('absensi-seminar-pleno')) {
+        jadwalType = 'seminar-pleno';
+        const kodeIndex = pathParts.indexOf('absensi-seminar-pleno') + 1;
+        const jadwalIdIndex = kodeIndex + 1;
+        kode = pathParts[kodeIndex];
+        jadwalId = pathParts[jadwalIdIndex];
       }
       
       if (jadwalType && kode && jadwalId) {
@@ -336,6 +343,8 @@ export default function AbSenQRMahasiswa() {
             response = await api.get(`/kuliah-besar/jadwal/${kode}`);
           } else if (jadwalType === 'non-blok-non-csr' || jadwalType === 'non-blok-non-csr-antara') {
             response = await api.get(`/non-blok-non-csr/jadwal/${kode}`);
+          } else if (jadwalType === 'seminar-pleno') {
+            response = await api.get(`/seminar-pleno/jadwal/${kode}`);
           } else {
             // Praktikum menggunakan endpoint ini
             response = await api.get(`/praktikum/jadwal/${kode}`);
@@ -366,6 +375,10 @@ export default function AbSenQRMahasiswa() {
               redirectUrl = token 
                 ? `/mahasiswa/absensi-non-blok-non-csr/${kode}/${jadwalId}?from_qr=true&token=${token}`
                 : `/mahasiswa/absensi-non-blok-non-csr/${kode}/${jadwalId}?from_qr=true`;
+            } else if (jadwalType === 'seminar-pleno') {
+              redirectUrl = token 
+                ? `/mahasiswa/absensi-seminar-pleno/${kode}/${jadwalId}?from_qr=true&token=${token}`
+                : `/mahasiswa/absensi-seminar-pleno/${kode}/${jadwalId}?from_qr=true`;
             } else {
               redirectUrl = token 
                 ? `/mahasiswa/absensi-praktikum/${kode}/${jadwalId}?from_qr=true&token=${token}`

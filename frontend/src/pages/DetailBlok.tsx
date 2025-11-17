@@ -250,6 +250,29 @@ type JadwalPersamaanPersepsiType = {
   [key: string]: any;
 };
 
+type JadwalSeminarPlenoType = {
+  id?: number;
+  tanggal: string;
+  jam_mulai: string;
+  jam_selesai: string;
+  jumlah_sesi: number;
+  dosen_ids: number[]; // Pengampu (non-koordinator)
+  koordinator_ids?: number[]; // Koordinator (opsional)
+  ruangan_id: number;
+  topik: string;
+  dosen_names?: string;
+  koordinator_names?: string;
+  pengampu_names?: string;
+  dosen_with_roles?: Array<{
+    id: number;
+    name: string;
+    peran: string;
+    peran_display: string;
+    is_koordinator?: boolean;
+  }>;
+  [key: string]: any;
+};
+
 export default function DetailBlok() {
   const { kode } = useParams();
 
@@ -277,6 +300,10 @@ export default function DetailBlok() {
     string | null
   >(null);
 
+  const [seminarPlenoSuccess, setSeminarPlenoSuccess] = useState<
+    string | null
+  >(null);
+
   // Auto-hide pesan sukses bulk delete (refactored dengan custom logic)
   useEffect(() => {
     const successStates = [
@@ -285,6 +312,7 @@ export default function DetailBlok() {
       { value: agendaKhususSuccess, setter: setAgendaKhususSuccess },
       { value: jurnalReadingSuccess, setter: setJurnalReadingSuccess },
       { value: persamaanPersepsiSuccess, setter: setPersamaanPersepsiSuccess },
+      { value: seminarPlenoSuccess, setter: setSeminarPlenoSuccess },
     ];
 
     const timers = successStates
@@ -322,7 +350,7 @@ export default function DetailBlok() {
 
     lokasi: number | null;
 
-    jenisBaris: "materi" | "agenda" | "praktikum" | "pbl" | "jurnal" | "persamaan-persepsi";
+    jenisBaris: "materi" | "agenda" | "praktikum" | "pbl" | "jurnal" | "persamaan-persepsi" | "seminar-pleno";
 
     agenda: string;
 
@@ -595,6 +623,10 @@ export default function DetailBlok() {
     JadwalPersamaanPersepsiType[]
   >([]);
 
+  const [jadwalSeminarPleno, setJadwalSeminarPleno] = useState<
+    JadwalSeminarPlenoType[]
+  >([]);
+
   const [jamOptions, setJamOptions] = useState<string[]>([]);
 
   // Pagination state for each schedule type
@@ -626,6 +658,11 @@ export default function DetailBlok() {
     PAGE_SIZE_OPTIONS[0]
   );
 
+  const [seminarPlenoPage, setSeminarPlenoPage] = useState(1);
+  const [seminarPlenoPageSize, setSeminarPlenoPageSize] = useState(
+    PAGE_SIZE_OPTIONS[0]
+  );
+
   // Pagination logic functions
   const getPaginatedData = (
     data: any[],
@@ -648,6 +685,8 @@ export default function DetailBlok() {
       | "agendaKhusus"
       | "pbl"
       | "jurnalReading"
+      | "persamaanPersepsi"
+      | "seminarPleno"
   ) => {
     switch (scheduleType) {
       case "kuliahBesar":
@@ -664,6 +703,12 @@ export default function DetailBlok() {
         break;
       case "jurnalReading":
         setJurnalReadingPage(1);
+        break;
+      case "persamaanPersepsi":
+        setPersamaanPersepsiPage(1);
+        break;
+      case "seminarPleno":
+        setSeminarPlenoPage(1);
         break;
     }
   };
@@ -842,6 +887,29 @@ export default function DetailBlok() {
     useState(false);
   const [persamaanPersepsiImportedCount, setPersamaanPersepsiImportedCount] =
     useState(0);
+
+  // State untuk import Excel Seminar Pleno
+  const [showSeminarPlenoImportModal, setShowSeminarPlenoImportModal] =
+    useState(false);
+  const [seminarPlenoImportFile, setSeminarPlenoImportFile] =
+    useState<File | null>(null);
+  const [seminarPlenoImportData, setSeminarPlenoImportData] = useState<
+    any[]
+  >([]);
+  const [seminarPlenoImportErrors, setSeminarPlenoImportErrors] = useState<
+    string[]
+  >([]);
+  const [seminarPlenoCellErrors, setSeminarPlenoCellErrors] = useState<
+    { row: number; field: string; message: string }[]
+  >([]);
+  const [seminarPlenoEditingCell, setSeminarPlenoEditingCell] = useState<{
+    row: number;
+    key: string;
+  } | null>(null);
+  const [isSeminarPlenoImporting, setIsSeminarPlenoImporting] =
+    useState(false);
+  const [seminarPlenoImportedCount, setSeminarPlenoImportedCount] =
+    useState(0);
   const [jurnalReadingImportErrors, setJurnalReadingImportErrors] = useState<
     string[]
   >([]);
@@ -894,9 +962,12 @@ export default function DetailBlok() {
   const [selectedPersamaanPersepsiItems, setSelectedPersamaanPersepsiItems] = useState<
     number[]
   >([]);
+  const [selectedSeminarPlenoItems, setSelectedSeminarPlenoItems] = useState<
+    number[]
+  >([]);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [bulkDeleteType, setBulkDeleteType] = useState<
-    "kuliah-besar" | "praktikum" | "agenda-khusus" | "pbl" | "jurnal-reading" | "persamaan-persepsi"
+    "kuliah-besar" | "praktikum" | "agenda-khusus" | "pbl" | "jurnal-reading" | "persamaan-persepsi" | "seminar-pleno"
   >("kuliah-besar");
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
@@ -956,6 +1027,7 @@ export default function DetailBlok() {
   const agendaKhususFileInputRef = useRef<HTMLInputElement>(null);
   const jurnalReadingFileInputRef = useRef<HTMLInputElement>(null);
   const persamaanPersepsiFileInputRef = useRef<HTMLInputElement>(null);
+  const seminarPlenoFileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch materi (keahlian) dari mata kuliah yang sedang dipilih
 
@@ -1160,6 +1232,8 @@ export default function DetailBlok() {
         }
       } else if (form.jenisBaris === "agenda") {
         fetchKelompokBesarAgendaOptions();
+      } else if (form.jenisBaris === "seminar-pleno") {
+        fetchKelompokBesarOptions();
       }
     }
   }, [showModal, form.jenisBaris, form.materi]);
@@ -1908,6 +1982,12 @@ export default function DetailBlok() {
   const [selectedDeletePersamaanPersepsiIndex, setSelectedDeletePersamaanPersepsiIndex] =
     useState<number | null>(null);
 
+  // State untuk modal konfirmasi hapus Seminar Pleno
+  const [showDeleteSeminarPlenoModal, setShowDeleteSeminarPlenoModal] =
+    useState(false);
+  const [selectedDeleteSeminarPlenoIndex, setSelectedDeleteSeminarPlenoIndex] =
+    useState<number | null>(null);
+
   const [selectedDeletePraktikumIndex, setSelectedDeletePraktikumIndex] =
     useState<number | null>(null);
 
@@ -1984,6 +2064,16 @@ export default function DetailBlok() {
         );
       } catch (err) {
         setJadwalPersamaanPersepsi([]);
+      }
+
+      // Fetch jadwal Seminar Pleno
+      try {
+        const seminarPlenoRes = await api.get(`/seminar-pleno/jadwal/${kode}`);
+        setJadwalSeminarPleno(
+          Array.isArray(seminarPlenoRes.data) ? seminarPlenoRes.data : []
+        );
+      } catch (err) {
+        setJadwalSeminarPleno([]);
       }
 
       // Set reference data
@@ -3039,6 +3129,52 @@ export default function DetailBlok() {
     setIsSaving(false);
   }
 
+  // Fungsi tambah jadwal Seminar Pleno
+  async function handleTambahJadwalSeminarPleno(formSeminarPleno: JadwalSeminarPlenoType) {
+    setErrorBackend("");
+    try {
+      await api.post(`/seminar-pleno/jadwal/${kode}`, formSeminarPleno);
+      await fetchBatchData();
+    } catch (err: any) {
+      if (err.response && err.response.data && err.response.data.message) {
+        setErrorBackend(err.response.data.message);
+      } else {
+        setErrorBackend("Gagal menambah jadwal Seminar Pleno");
+      }
+      throw err;
+    }
+  }
+
+  // Fungsi edit jadwal Seminar Pleno
+  async function handleEditJadwalSeminarPleno(id: number, formSeminarPleno: JadwalSeminarPlenoType) {
+    setErrorBackend("");
+    try {
+      await api.put(`/seminar-pleno/jadwal/${kode}/${id}`, formSeminarPleno);
+      await fetchBatchData();
+    } catch (err: any) {
+      if (err.response && err.response.data && err.response.data.message) {
+        setErrorBackend(err.response.data.message);
+      } else {
+        setErrorBackend("Gagal mengedit jadwal Seminar Pleno");
+      }
+      throw err;
+    }
+  }
+
+  // Fungsi hapus jadwal Seminar Pleno
+  async function handleDeleteJadwalSeminarPleno(idx: number) {
+    const jadwal = jadwalSeminarPleno[idx];
+    if (!jadwal || !jadwal.id) {
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await api.delete(`/seminar-pleno/jadwal/${kode}/${jadwal.id}`);
+      await fetchBatchData();
+    } catch (err) {}
+    setIsSaving(false);
+  }
+
   // Ambil unique nama kelompok dari kelompokKecilList
 
   const uniqueKelompok = Array.from(
@@ -3932,6 +4068,7 @@ export default function DetailBlok() {
       | "pbl"
       | "jurnal-reading"
       | "persamaan-persepsi"
+      | "seminar-pleno"
   ) => {
     setBulkDeleteType(type);
     setShowBulkDeleteModal(true);
@@ -3978,6 +4115,11 @@ export default function DetailBlok() {
           endpoint = `/persamaan-persepsi/jadwal/${kode}`;
           successMessage = `${selectedItems.length} jadwal persamaan persepsi berhasil dihapus.`;
           break;
+        case "seminar-pleno":
+          selectedItems = selectedSeminarPlenoItems;
+          endpoint = `/seminar-pleno/jadwal/${kode}`;
+          successMessage = `${selectedItems.length} jadwal seminar pleno berhasil dihapus.`;
+          break;
       }
 
       // Delete all selected items
@@ -4005,6 +4147,9 @@ export default function DetailBlok() {
         case "persamaan-persepsi":
           setPersamaanPersepsiSuccess(successMessage);
           break;
+        case "seminar-pleno":
+          setSeminarPlenoSuccess(successMessage);
+          break;
       }
 
       // Clear selected items
@@ -4026,6 +4171,9 @@ export default function DetailBlok() {
           break;
         case "persamaan-persepsi":
           setSelectedPersamaanPersepsiItems([]);
+          break;
+        case "seminar-pleno":
+          setSelectedSeminarPlenoItems([]);
           break;
       }
 
@@ -4049,7 +4197,8 @@ export default function DetailBlok() {
       | "agenda-khusus"
       | "pbl"
       | "jurnal-reading"
-      | "persamaan-persepsi",
+      | "persamaan-persepsi"
+      | "seminar-pleno",
     allItems: any[]
   ) => {
     const allIds = allItems
@@ -4099,6 +4248,13 @@ export default function DetailBlok() {
           setSelectedPersamaanPersepsiItems(allIds);
         }
         break;
+      case "seminar-pleno":
+        if (selectedSeminarPlenoItems.length === allIds.length) {
+          setSelectedSeminarPlenoItems([]);
+        } else {
+          setSelectedSeminarPlenoItems(allIds);
+        }
+        break;
     }
   };
 
@@ -4109,7 +4265,8 @@ export default function DetailBlok() {
       | "agenda-khusus"
       | "pbl"
       | "jurnal-reading"
-      | "persamaan-persepsi",
+      | "persamaan-persepsi"
+      | "seminar-pleno",
     itemId: number
   ) => {
     switch (type) {
@@ -4167,6 +4324,18 @@ export default function DetailBlok() {
         } else {
           setSelectedPersamaanPersepsiItems([
             ...selectedPersamaanPersepsiItems,
+            itemId,
+          ]);
+        }
+        break;
+      case "seminar-pleno":
+        if (selectedSeminarPlenoItems.includes(itemId)) {
+          setSelectedSeminarPlenoItems(
+            selectedSeminarPlenoItems.filter((id) => id !== itemId)
+          );
+        } else {
+          setSelectedSeminarPlenoItems([
+            ...selectedSeminarPlenoItems,
             itemId,
           ]);
         }
@@ -10328,6 +10497,23 @@ export default function DetailBlok() {
     }
   };
 
+  // Close import modal untuk Seminar Pleno
+  const handleSeminarPlenoCloseImportModal = () => {
+    setShowSeminarPlenoImportModal(false);
+  };
+
+  // Handler untuk hapus file Seminar Pleno
+  const handleSeminarPlenoRemoveFile = () => {
+    setSeminarPlenoImportFile(null);
+    setSeminarPlenoImportData([]);
+    setSeminarPlenoImportErrors([]);
+    setSeminarPlenoCellErrors([]);
+    setSeminarPlenoEditingCell(null);
+    if (seminarPlenoFileInputRef.current) {
+      seminarPlenoFileInputRef.current.value = "";
+    }
+  };
+
   // Finish editing cell untuk Persamaan Persepsi
   const handlePersamaanPersepsiFinishEdit = () => {
     setPersamaanPersepsiEditingCell(null);
@@ -10455,6 +10641,754 @@ export default function DetailBlok() {
     } catch (error) {
       console.error("Error exporting Persamaan Persepsi:", error);
       alert("Gagal mengekspor data Persamaan Persepsi. Silakan coba lagi.");
+    }
+  };
+
+  // Download template Excel untuk Seminar Pleno
+  const downloadSeminarPlenoTemplate = async () => {
+    if (!data) return;
+
+    try {
+      // Ambil data yang diperlukan untuk template
+      const startDate = data?.tanggal_mulai
+        ? new Date(data.tanggal_mulai)
+        : new Date();
+      const endDate = data?.tanggal_akhir
+        ? new Date(data.tanggal_akhir)
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+      // Generate contoh tanggal
+      const generateContohTanggal = () => {
+        const selisihHari = Math.floor(
+          (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        const hari1 = Math.floor(selisihHari * 0.25);
+        const hari2 = Math.floor(selisihHari * 0.75);
+
+        const tanggal1 = new Date(
+          startDate.getTime() + hari1 * 24 * 60 * 60 * 1000
+        );
+        const tanggal2 = new Date(
+          startDate.getTime() + hari2 * 24 * 60 * 60 * 1000
+        );
+
+        return [
+          tanggal1.toISOString().split("T")[0],
+          tanggal2.toISOString().split("T")[0],
+        ];
+      };
+
+      const [contohTanggal1, contohTanggal2] = generateContohTanggal();
+
+      // Ambil contoh dosen (minimal 2 untuk multi-select)
+      const contohDosen1 = assignedDosenPBL[0]?.name || "Dr. John Doe";
+      const contohDosen2 = assignedDosenPBL[1]?.name || "Dr. Jane Smith";
+      const contohDosen3 = assignedDosenPBL[2]?.name || "Dr. Bob Wilson";
+      const contohKoordinator = contohDosen1; // Contoh koordinator
+      const contohPengampu = contohDosen2 ? `${contohDosen2}, ${contohDosen3 || "Dr. Alice"}` : contohDosen2;
+
+      // Data template - 1 dengan ruangan, 1 tanpa ruangan (online)
+      const rawTemplateData = [
+        {
+          tanggal: contohTanggal1,
+          jam_mulai: "07.20",
+          jumlah_sesi: 1,
+          topik: "Hematologi-IPD",
+          koordinator: contohKoordinator,
+          pengampu: contohPengampu,
+          ruangan: ruanganList[0]?.nama || "Ruang 1",
+        },
+        {
+          tanggal: contohTanggal2,
+          jam_mulai: "10.40",
+          jumlah_sesi: 2,
+          topik: "Contoh Topik 2",
+          koordinator: contohDosen1,
+          pengampu: contohDosen2 || "",
+          ruangan: "", // Tidak menggunakan ruangan (online)
+        },
+      ];
+
+      // Transform rawTemplateData to match headers
+      const templateData = rawTemplateData.map((row) => ({
+        Tanggal: row.tanggal,
+        "Jam Mulai": row.jam_mulai,
+        "Jumlah Sesi": row.jumlah_sesi,
+        Topik: row.topik,
+        "Koordinator Dosen": row.koordinator,
+        Pengampu: row.pengampu,
+        Ruangan: row.ruangan,
+      }));
+
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+
+      // Sheet template dengan header yang eksplisit
+      const ws = XLSX.utils.json_to_sheet(templateData, {
+        header: [
+          "Tanggal",
+          "Jam Mulai",
+          "Jumlah Sesi",
+          "Topik",
+          "Koordinator Dosen",
+          "Pengampu",
+          "Ruangan",
+        ],
+      });
+
+      // Set column widths
+      const colWidths = [
+        { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
+        { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
+        { wch: 12 },
+        { wch: EXCEL_COLUMN_WIDTHS.TOPIK },
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
+        { wch: EXCEL_COLUMN_WIDTHS.RUANGAN },
+      ];
+      ws["!cols"] = colWidths;
+
+      XLSX.utils.book_append_sheet(wb, ws, "Template Seminar Pleno");
+
+      // Sheet Tips dan Info
+      const infoData: string[][] = [
+        ["TIPS DAN INFORMASI IMPORT JADWAL SEMINAR PLENO"],
+        [""],
+        ["📋 CARA UPLOAD FILE:"],
+        ["1. Download template ini dan isi dengan data jadwal seminar pleno"],
+        ["2. Pastikan semua kolom wajib diisi dengan benar"],
+        ["3. Upload file Excel yang sudah diisi ke sistem"],
+        ["4. Periksa preview data dan perbaiki error jika ada"],
+        ['5. Klik "Import Data" untuk menyimpan jadwal'],
+        [""],
+        ["✏️ CARA EDIT DATA:"],
+        ["1. Klik pada kolom yang ingin diedit di tabel preview"],
+        ["2. Ketik atau paste data yang benar"],
+        ["3. Sistem akan otomatis validasi dan update error"],
+        ["4. Pastikan tidak ada error sebelum import"],
+        [""],
+        ["📊 KETERSEDIAAN DATA:"],
+        [""],
+        ["🏢 RUANGAN YANG TERSEDIA:"],
+        ...ruanganList.map((ruangan) => [`• ${ruangan.nama}`]),
+        [""],
+        ["👨‍🏫 DOSEN YANG TERSEDIA:"],
+        [
+          "• Dosen yang tersedia adalah dosen yang sudah di-assign untuk PBL mata kuliah ini",
+        ],
+        ["• Kolom Koordinator Dosen: Isi dengan nama koordinator dosen (opsional)"],
+        ["• Kolom Pengampu: Isi dengan nama dosen pengampu (wajib, minimal 1 dosen)"],
+        ["• Untuk multi-select, pisahkan nama dosen dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)"],
+        ["• Kolom Pengampu: Minimal 1 dosen harus dipilih"],
+        ["• ⚠️ PENTING: Dosen yang sama TIDAK BOLEH dipilih sebagai Koordinator Dosen dan Pengampu sekaligus"],
+        ...assignedDosenPBL
+          .filter(
+            (dosen, index, self) =>
+              index ===
+              self.findIndex(
+                (d) =>
+                  (dosen.id && d.id === dosen.id) ||
+                  (dosen.name && d.name === dosen.name)
+              )
+          )
+          .map((dosen) => {
+            const namaDosen = dosen.name || `Dosen ${dosen.id || "Unknown"}`;
+            return [`• ${namaDosen}`];
+          }),
+        [""],
+        ["⚠️ VALIDASI SISTEM:"],
+        [""],
+        ["📅 VALIDASI TANGGAL:"],
+        ["• Format: YYYY-MM-DD (contoh: 2024-01-15)"],
+        ["• Wajib dalam rentang mata kuliah:"],
+        [`  - Mulai: ${startDate.toLocaleDateString("id-ID")}`],
+        [`  - Akhir: ${endDate.toLocaleDateString("id-ID")}`],
+        [""],
+        ["⏰ VALIDASI JAM:"],
+        ["• Format: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)"],
+        ["• Jam mulai harus sesuai opsi yang tersedia:"],
+        [
+          "  07:20, 08:10, 09:00, 09:50, 10:40, 11:30, 12:35, 13:25, 14:15, 15:05, 15:35, 16:25, 17:15",
+        ],
+        ["• Jam selesai akan divalidasi berdasarkan perhitungan:"],
+        ["  Jam selesai = Jam mulai + (Jumlah sesi x 50 menit)"],
+        ["  Contoh: 07:20 + (2 x 50 menit) = 09:00"],
+        [""],
+        ["📝 VALIDASI TOPIK:"],
+        ["• Topik opsional (boleh dikosongkan)"],
+        ["• Jika diisi, topik akan disimpan"],
+        [""],
+        ["👨‍🏫 VALIDASI KOORDINATOR DOSEN:"],
+        ["• Koordinator Dosen opsional (boleh dikosongkan)"],
+        ["• Untuk multi-select, pisahkan dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)"],
+        [
+          "• Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini",
+        ],
+        ["• Nama koordinator harus sesuai dengan yang ada di database"],
+        ["• ⚠️ Dosen yang sudah dipilih sebagai Pengampu TIDAK BOLEH dipilih sebagai Koordinator Dosen"],
+        [""],
+        ["👨‍🏫 VALIDASI PENGAMPU:"],
+        ["• Pengampu wajib diisi (minimal 1 dosen)"],
+        ["• Untuk multi-select, pisahkan dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)"],
+        [
+          "• Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini",
+        ],
+        ["• Nama dosen harus sesuai dengan yang ada di database"],
+        ["• ⚠️ Dosen yang sudah dipilih sebagai Koordinator Dosen TIDAK BOLEH dipilih sebagai Pengampu"],
+        [""],
+        ["🏢 VALIDASI RUANGAN:"],
+        ["• Ruangan boleh dikosongkan untuk jadwal online/tidak memerlukan ruangan"],
+        ["• Jika diisi, nama ruangan harus ada di database"],
+        ["• Pastikan ruangan tersedia untuk jadwal tersebut"],
+        ["• Kapasitas ruangan harus mencukupi untuk jumlah dosen yang dipilih"],
+        ["• Jika ruangan dikosongkan, jadwal akan dianggap sebagai jadwal online"],
+        [""],
+        ["🔢 VALIDASI JUMLAH SESI:"],
+        ["• Jumlah sesi: 1-6 (1 x 50 menit sampai 6 x 50 menit)"],
+        ["• Digunakan untuk menghitung jam selesai otomatis"],
+        ["• 1 sesi = 50 menit"],
+        [""],
+        ["💡 TIPS PENTING:"],
+        ["• Gunakan data yang ada di list ketersediaan di atas"],
+        ["• Periksa preview sebelum import"],
+        ["• Edit langsung di tabel preview jika ada error"],
+        ["• Sistem akan highlight error dengan warna merah"],
+        ["• Tooltip akan menampilkan pesan error detail"],
+        ["• Untuk multi-select dosen, pastikan semua nama dosen valid"],
+        ["• ⚠️ Pastikan tidak ada dosen yang sama di kolom Koordinator Dosen dan Pengampu"],
+      ];
+
+      const infoWs = XLSX.utils.aoa_to_sheet(infoData);
+      infoWs["!cols"] = [{ wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN }];
+      XLSX.utils.book_append_sheet(wb, infoWs, "Tips dan Info");
+
+      // Download file
+      const fileName = `Template_Import_SeminarPleno_${
+        data?.nama || "MataKuliah"
+      }_${new Date().toISOString().split("T")[0]}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (error) {
+      console.error("Error downloading Seminar Pleno template:", error);
+      alert("Gagal mendownload template Seminar Pleno. Silakan coba lagi.");
+    }
+  };
+
+  // Validasi data Excel Seminar Pleno
+  const validateSeminarPlenoExcelData = (
+    convertedData: any[]
+  ) => {
+    const cellErrors: { row: number; field: string; message: string }[] = [];
+
+    if (!convertedData) return { cellErrors };
+
+    convertedData.forEach((row, index) => {
+      const rowNumber = index + 1;
+
+      // Pastikan use_ruangan selalu di-set berdasarkan ruangan
+      if (row.use_ruangan === undefined || row.use_ruangan === null) {
+        row.use_ruangan = row.nama_ruangan && row.nama_ruangan.trim() !== "" ? true : false;
+      }
+
+      // Validasi tanggal
+      const dateError = validateDate(row.tanggal, rowNumber);
+      if (dateError) {
+        cellErrors.push({
+          row: rowNumber,
+          field: "tanggal",
+          message: dateError,
+        });
+      }
+
+      // Validasi jam mulai
+      const jamMulaiError = validateTime(
+        row.jam_mulai,
+        rowNumber,
+        "jam mulai",
+        jamOptions
+      );
+      if (jamMulaiError) {
+        cellErrors.push({
+          row: rowNumber,
+          field: "jam_mulai",
+          message: jamMulaiError,
+        });
+      }
+
+      // Validasi jumlah sesi
+      const jumlahSesi = parseInt(row.jumlah_sesi?.toString() || "0");
+      if (jumlahSesi < MIN_SESSIONS || jumlahSesi > MAX_SESSIONS) {
+        cellErrors.push({
+          row: rowNumber,
+          field: "jumlah_sesi",
+          message: `Jumlah sesi harus antara ${MIN_SESSIONS} dan ${MAX_SESSIONS}`,
+        });
+      }
+
+      // Validasi jam selesai (hitung otomatis)
+      if (row.jam_mulai && jumlahSesi) {
+        const expectedJamSelesai = hitungJamSelesai(row.jam_mulai, jumlahSesi);
+        if (row.jam_selesai && row.jam_selesai !== expectedJamSelesai) {
+          row.jam_selesai = expectedJamSelesai; // Auto-correct
+        } else {
+          row.jam_selesai = expectedJamSelesai;
+        }
+      }
+
+      // Validasi pengampu (wajib, minimal 1 dosen)
+      if (!row.pengampu || row.pengampu.trim() === "") {
+        cellErrors.push({
+          row: rowNumber,
+          field: "pengampu",
+          message: "Pengampu wajib diisi (minimal 1 dosen)",
+        });
+      }
+
+      // Validasi koordinator dan pengampu tidak boleh sama
+      if (row.koordinator && row.pengampu) {
+        const koordinatorNames = row.koordinator.split(",").map((n: string) => n.trim().toLowerCase());
+        const pengampuNames = row.pengampu.split(",").map((n: string) => n.trim().toLowerCase());
+        const hasDuplicate = koordinatorNames.some((koord: string) => pengampuNames.includes(koord));
+        if (hasDuplicate) {
+          cellErrors.push({
+            row: rowNumber,
+            field: "koordinator",
+            message: "Dosen yang sama tidak boleh dipilih sebagai Koordinator Dosen dan Pengampu sekaligus",
+          });
+          cellErrors.push({
+            row: rowNumber,
+            field: "pengampu",
+            message: "Dosen yang sama tidak boleh dipilih sebagai Koordinator Dosen dan Pengampu sekaligus",
+          });
+        }
+      }
+
+      // Validasi ruangan (opsional)
+      if (row.nama_ruangan && row.nama_ruangan.trim() !== "") {
+        const ruangan = allRuanganList?.find(
+          (r) => r.nama.toLowerCase() === row.nama_ruangan.toLowerCase()
+        );
+        if (!ruangan) {
+          cellErrors.push({
+            row: rowNumber,
+            field: "ruangan",
+            message: `Ruangan "${row.nama_ruangan}" tidak ditemukan di database`,
+          });
+        } else {
+          row.ruangan_id = ruangan.id;
+          row.use_ruangan = true;
+        }
+      } else {
+        row.use_ruangan = false;
+        row.ruangan_id = null;
+      }
+    });
+
+    return { cellErrors };
+  };
+
+  // Handle export Excel untuk Seminar Pleno
+  const handleExportSeminarPleno = () => {
+    if (!data || jadwalSeminarPleno.length === 0) {
+      alert("Tidak ada data untuk diekspor");
+      return;
+    }
+
+    try {
+      const wb = XLSX.utils.book_new();
+
+      const exportData = jadwalSeminarPleno.map((row) => {
+        const koordinatorNames = row.koordinator_names || "";
+        const pengampuNames = row.pengampu_names || "";
+        const ruangan = allRuanganList.find((r) => r.id === row.ruangan_id);
+        const useRuangan = row.use_ruangan !== undefined ? row.use_ruangan : (row.ruangan_id ? true : false);
+
+        return {
+          Tanggal: row.tanggal,
+          "Jam Mulai": row.jam_mulai,
+          "Jumlah Sesi": row.jumlah_sesi || 1,
+          Topik: row.topik || "",
+          "Koordinator Dosen": koordinatorNames,
+          Pengampu: pengampuNames,
+          Ruangan: useRuangan ? (ruangan?.nama || "") : "",
+        };
+      });
+
+      const ws = XLSX.utils.json_to_sheet(exportData, {
+        header: [
+          "Tanggal",
+          "Jam Mulai",
+          "Jumlah Sesi",
+          "Topik",
+          "Koordinator Dosen",
+          "Pengampu",
+          "Ruangan",
+        ],
+      });
+
+      const colWidths = [
+        { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
+        { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
+        { wch: 12 },
+        { wch: EXCEL_COLUMN_WIDTHS.TOPIK },
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN }, // For Koordinator
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN }, // For Pengampu
+        { wch: EXCEL_COLUMN_WIDTHS.RUANGAN },
+      ];
+      ws["!cols"] = colWidths;
+
+      XLSX.utils.book_append_sheet(wb, ws, "Jadwal Seminar Pleno");
+
+      // Sheet Info Mata Kuliah
+      const infoData = [
+        ["INFORMASI MATA KULIAH"],
+        [""],
+        ["Kode Mata Kuliah", data?.kode || ""],
+        ["Nama Mata Kuliah", data?.nama || ""],
+        ["Semester", String(data?.semester || "")],
+        ["Periode", String(data?.periode || "")],
+        ["Kurikulum", String(data?.kurikulum || "")],
+        ["Jenis", data?.jenis || ""],
+        ["Blok", String(data?.blok || "")],
+        [
+          "Tanggal Mulai",
+          data?.tanggal_mulai
+            ? new Date(data.tanggal_mulai).toISOString().split("T")[0]
+            : "",
+        ],
+        [
+          "Tanggal Akhir",
+          data?.tanggal_akhir
+            ? new Date(data.tanggal_akhir).toISOString().split("T")[0]
+            : "",
+        ],
+        ["Durasi Minggu", String(data?.durasi_minggu || "")],
+        [""],
+        ["TOTAL JADWAL SEMINAR PLENO", jadwalSeminarPleno.length],
+        [""],
+        ["CATATAN:"],
+        [
+          "• File ini berisi data jadwal seminar pleno yang dapat di-import kembali ke aplikasi",
+        ],
+        ["• Format tanggal: YYYY-MM-DD"],
+        ["• Format jam: HH.MM atau HH:MM"],
+        ["• Sesi: 1-6 (1 sesi = 50 menit)"],
+        ["• Jam Selesai dihitung otomatis dari Jam Mulai + (Jumlah Sesi x 50 menit)"],
+        ["• Topik opsional (boleh dikosongkan)"],
+        [
+          "• Pastikan data dosen dan ruangan valid sebelum import",
+        ],
+        [
+          "• Kolom Koordinator Dosen opsional (boleh dikosongkan). Untuk multi-select, pisahkan nama dosen dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)",
+        ],
+        [
+          "• Kolom Pengampu wajib diisi (minimal 1 dosen). Untuk multi-select, pisahkan nama dosen dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)",
+        ],
+        [
+          "• ⚠️ PENTING: Dosen yang sama TIDAK BOLEH dipilih sebagai Koordinator Dosen dan Pengampu sekaligus",
+        ],
+        [
+          "• Ruangan boleh dikosongkan untuk jadwal online/tidak memerlukan ruangan",
+        ],
+        [
+          "• Jika ruangan diisi, kapasitas ruangan harus mencukupi untuk jumlah total dosen (koordinator + pengampu)",
+        ],
+        [
+          "• Jika ruangan dikosongkan, jadwal akan dianggap sebagai jadwal online (tidak menggunakan ruangan)",
+        ],
+      ];
+
+      const infoWs = XLSX.utils.aoa_to_sheet(infoData);
+      infoWs["!cols"] = [{ wch: 30 }, { wch: 50 }];
+      XLSX.utils.book_append_sheet(wb, infoWs, "Info Mata Kuliah");
+
+      const fileName = `Export_Seminar_Pleno_${data?.kode || "MataKuliah"}_${
+        new Date().toISOString().split("T")[0]
+      }.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (error) {
+      console.error("Error exporting Seminar Pleno:", error);
+      alert("Gagal mengekspor data Seminar Pleno. Silakan coba lagi.");
+    }
+  };
+
+  // Handle file upload untuk Seminar Pleno
+  const handleSeminarPlenoFileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setSeminarPlenoImportFile(file);
+    setSeminarPlenoImportData([]);
+    setSeminarPlenoImportErrors([]);
+    setSeminarPlenoCellErrors([]);
+
+    try {
+      const { data: rows, headers } = await readExcelFile(file);
+
+      // Helper function untuk konversi format jam (menambahkan leading zero)
+      const convertTimeFormat = (timeStr: string) => {
+        if (!timeStr || timeStr.trim() === "") return "";
+
+        // Hapus spasi dan konversi ke string
+        const time = timeStr.toString().trim();
+
+        // Cek apakah sudah dalam format yang benar (HH:MM atau HH.MM)
+        if (time.match(/^\d{2}[:.]\d{2}$/)) {
+          return time.replace(".", ":");
+        }
+
+        // Cek apakah format H:MM atau H.MM (1 digit jam)
+        if (time.match(/^\d{1}[:.]\d{2}$/)) {
+          return "0" + time.replace(".", ":");
+        }
+
+        // Cek apakah format HH:MM atau HH.MM (2 digit jam)
+        if (time.match(/^\d{2}[:.]\d{2}$/)) {
+          return time.replace(".", ":");
+        }
+
+        // Jika tidak sesuai format, return as is
+        return time;
+      };
+
+      // Convert data Excel ke format Seminar Pleno
+      const convertedData = rows.map((row: any[]) => {
+        // Helper function untuk mencari ruangan berdasarkan nama atau kode
+        const findRuangan = (namaRuangan: string) => {
+          return allRuanganList?.find(
+            (r) =>
+              r.nama.toLowerCase() === namaRuangan.toLowerCase() ||
+              (r.id_ruangan &&
+                r.id_ruangan.toLowerCase() === namaRuangan.toLowerCase())
+          );
+        };
+
+        const namaRuangan = row[6]?.toString() || "";
+        const ruangan = findRuangan(namaRuangan);
+
+        // Konversi format jam
+        const jamMulaiRaw = row[1]?.toString() || "";
+        const jamMulai = convertTimeFormat(jamMulaiRaw);
+
+        // Hitung jam selesai otomatis berdasarkan sistem
+        const jumlahSesi = parseInt(row[2]?.toString() || "1");
+        const jamSelesai = hitungJamSelesai(jamMulai, jumlahSesi);
+
+        // Parse koordinator dan pengampu
+        const koordinatorStr = row[4]?.toString() || "";
+        const pengampuStr = row[5]?.toString() || "";
+
+        // Helper untuk parse dosen names ke IDs
+        const parseDosenNames = (dosenStr: string) => {
+          if (!dosenStr || dosenStr.trim() === "") return [];
+          const dosenNames = dosenStr.split(",").map((n: string) => n.trim()).filter((n: string) => n);
+          const dosenIds: number[] = [];
+          dosenNames.forEach((namaDosen: string) => {
+            const dosen = assignedDosenPBL.find(
+              (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
+            );
+            if (dosen) {
+              dosenIds.push(dosen.id);
+            }
+          });
+          return dosenIds;
+        };
+
+        const koordinatorIds = parseDosenNames(koordinatorStr);
+        const pengampuIds = parseDosenNames(pengampuStr);
+
+        return {
+          tanggal: row[0]?.toString() || "",
+          jam_mulai: jamMulai,
+          jam_selesai: jamSelesai,
+          jumlah_sesi: jumlahSesi,
+          topik: row[3]?.toString() || "",
+          koordinator_ids: koordinatorIds,
+          dosen_ids: pengampuIds,
+          nama_ruangan: namaRuangan,
+          ruangan_id: ruangan?.id || null,
+          use_ruangan: !!(
+            namaRuangan &&
+            namaRuangan.trim() !== "" &&
+            ruangan?.id
+          ),
+          koordinator: koordinatorStr,
+          pengampu: pengampuStr,
+        };
+      });
+
+      setSeminarPlenoImportData(convertedData);
+
+      // Validasi data
+      const { cellErrors } = validateSeminarPlenoExcelData(convertedData);
+      setSeminarPlenoCellErrors(cellErrors);
+
+      // Buka modal
+      setShowSeminarPlenoImportModal(true);
+    } catch (error) {
+      setSeminarPlenoImportErrors([
+        "Gagal membaca file Excel. Pastikan format file sudah benar.",
+      ]);
+    }
+
+    // Reset input file
+    e.target.value = "";
+  };
+
+  // Handle edit cell untuk Seminar Pleno
+  const handleSeminarPlenoCellEdit = (
+    rowIndex: number,
+    key: string,
+    value: any
+  ) => {
+    const updatedData = [...seminarPlenoImportData];
+    const row = updatedData[rowIndex];
+
+    // Handle mapping untuk koordinator
+    if (key === "koordinator_ids" || key === "koordinator") {
+      if (value && value.trim() !== "") {
+        const koordinatorNames = value
+          .split(",")
+          .map((name: string) => name.trim())
+          .filter((name: string) => name.length > 0);
+        
+        const koordinatorIds: number[] = [];
+        koordinatorNames.forEach((namaDosen: string) => {
+          const dosen = assignedDosenPBL.find(
+            (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
+          );
+          if (dosen) {
+            koordinatorIds.push(dosen.id);
+          }
+        });
+
+        row.koordinator_ids = koordinatorIds;
+        row.koordinator = value;
+      } else {
+        row.koordinator_ids = [];
+        row.koordinator = "";
+      }
+    } else if (key === "dosen_ids" || key === "pengampu") {
+      // Handle mapping untuk pengampu
+      if (value && value.trim() !== "") {
+        const pengampuNames = value
+          .split(",")
+          .map((name: string) => name.trim())
+          .filter((name: string) => name.length > 0);
+        
+        const pengampuIds: number[] = [];
+        pengampuNames.forEach((namaDosen: string) => {
+          const dosen = assignedDosenPBL.find(
+            (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
+          );
+          if (dosen) {
+            pengampuIds.push(dosen.id);
+          }
+        });
+
+        row.dosen_ids = pengampuIds;
+        row.pengampu = value;
+      } else {
+        row.dosen_ids = [];
+        row.pengampu = "";
+      }
+    } else {
+      (row as any)[key] = value;
+    }
+
+    // Jika mengedit jam_mulai atau jumlah_sesi, hitung ulang jam selesai
+    if (key === "jam_mulai" || key === "jumlah_sesi") {
+      const jamMulai = key === "jam_mulai" ? value : row.jam_mulai;
+      const jumlahSesi = key === "jumlah_sesi" ? value : row.jumlah_sesi;
+      const jamSelesai = hitungJamSelesai(jamMulai || "08:00", jumlahSesi || 1);
+      row.jam_selesai = jamSelesai;
+    }
+
+    setSeminarPlenoImportData(updatedData);
+
+    // Re-validasi data
+    const { cellErrors } = validateSeminarPlenoExcelData(updatedData);
+    setSeminarPlenoCellErrors(cellErrors);
+  };
+
+  // Submit import Excel untuk Seminar Pleno
+  const handleSeminarPlenoSubmitImport = async () => {
+    if (!kode || seminarPlenoImportData.length === 0) return;
+
+    setIsSeminarPlenoImporting(true);
+    setSeminarPlenoImportErrors([]);
+
+    try {
+      // Final validation
+      const { cellErrors } = validateSeminarPlenoExcelData(
+        seminarPlenoImportData
+      );
+      if (cellErrors.length > 0) {
+        setSeminarPlenoCellErrors(cellErrors);
+        setIsSeminarPlenoImporting(false);
+        return;
+      }
+
+      // Transform data for API
+      const apiData = seminarPlenoImportData.map((row) => {
+        // Pastikan use_ruangan selalu boolean
+        // Jika use_ruangan tidak ada, tentukan berdasarkan ruangan_id atau nama_ruangan
+        let useRuangan: boolean;
+        if (row.use_ruangan !== undefined && row.use_ruangan !== null) {
+          useRuangan = Boolean(row.use_ruangan);
+        } else if (row.ruangan_id) {
+          useRuangan = true;
+        } else if (row.nama_ruangan && row.nama_ruangan.trim() !== "") {
+          useRuangan = true;
+        } else {
+          useRuangan = false;
+        }
+        
+        return {
+          tanggal: row.tanggal,
+          jam_mulai: row.jam_mulai,
+          jam_selesai: row.jam_selesai,
+          jumlah_sesi: row.jumlah_sesi,
+          topik: row.topik && row.topik.trim() ? row.topik.trim() : null,
+          koordinator_ids: row.koordinator_ids || [],
+          dosen_ids: row.dosen_ids || [],
+          ruangan_id: useRuangan ? (row.ruangan_id || null) : null,
+          use_ruangan: useRuangan,
+        };
+      });
+
+      // Send to API
+      const response = await api.post(`/seminar-pleno/jadwal/${kode}/import`, {
+        data: apiData,
+      });
+
+      if (response.data.success) {
+        const importedCount = seminarPlenoImportData.length;
+        setSeminarPlenoImportedCount(importedCount);
+        setSeminarPlenoSuccess(
+          `${importedCount} jadwal seminar pleno berhasil diimport.`
+        );
+        setShowSeminarPlenoImportModal(false);
+        // Cleanup data setelah import berhasil
+        setSeminarPlenoImportData([]);
+        setSeminarPlenoImportFile(null);
+        setSeminarPlenoCellErrors([]);
+        setSeminarPlenoEditingCell(null);
+        // Refresh data
+        await fetchBatchData();
+      } else {
+        setSeminarPlenoImportErrors(
+          response.data.errors || ["Gagal mengimport data seminar pleno"]
+        );
+      }
+    } catch (err: any) {
+      const errorMessage =
+        err?.response?.data?.message ||
+        "Gagal mengimport data seminar pleno. Silakan coba lagi.";
+      setSeminarPlenoImportErrors([errorMessage]);
+    } finally {
+      setIsSeminarPlenoImporting(false);
     }
   };
 
@@ -13951,6 +14885,8 @@ export default function DetailBlok() {
                     {form.jenisBaris === "jurnal" && "Jurnal Reading"}
 
                     {form.jenisBaris === "persamaan-persepsi" && "Persamaan Persepsi"}
+
+                    {form.jenisBaris === "seminar-pleno" && "Seminar Pleno"}
                   </div>
                 </div>
 
@@ -19121,6 +20057,8 @@ export default function DetailBlok() {
                         )}
                       </div>
 
+                    
+
                       <div>
                         <label className="flex items-center gap-2 cursor-pointer select-none text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           <span className="relative flex items-center">
@@ -20556,6 +21494,1138 @@ export default function DetailBlok() {
                       </div>
                     </>
                   )}
+
+                  {form.jenisBaris === "seminar-pleno" && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Hari/Tanggal
+                        </label>
+                        <input
+                          type="date"
+                          name="hariTanggal"
+                          value={form.hariTanggal || ""}
+                          onChange={handleFormChange}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        />
+                        {errorForm && (
+                          <div className="text-sm text-red-500 mt-2">
+                            {errorForm}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Jam Mulai
+                          </label>
+                          <Select
+                            options={jamOptions.map((j: string) => ({
+                              value: j,
+                              label: j,
+                            }))}
+                            value={
+                              jamOptions
+                                .map((j: string) => ({ value: j, label: j }))
+                                .find(
+                                  (opt: any) => opt.value === form.jamMulai
+                                ) || null
+                            }
+                            onChange={(opt) => {
+                              const value = opt?.value || "";
+                              setForm((f) => ({
+                                ...f,
+                                jamMulai: value,
+                                jamSelesai: hitungJamSelesai(
+                                  value,
+                                  f.jumlahKali
+                                ),
+                              }));
+                            }}
+                            classNamePrefix="react-select"
+                            className="react-select-container"
+                            isClearable
+                            placeholder="Pilih Jam Mulai"
+                            styles={{
+                              control: (base, state) => ({
+                                ...base,
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#f9fafb",
+                                borderColor: state.isFocused
+                                  ? "#3b82f6"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#334155"
+                                  : "#d1d5db",
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                                boxShadow: state.isFocused
+                                  ? "0 0 0 2px #3b82f633"
+                                  : undefined,
+                                borderRadius: "0.75rem",
+                                minHeight: "2.5rem",
+                                fontSize: "1rem",
+                                paddingLeft: "0.75rem",
+                                paddingRight: "0.75rem",
+                                "&:hover": { borderColor: "#3b82f6" },
+                              }),
+                              menu: (base) => ({
+                                ...base,
+                                zIndex: 9999,
+                                fontSize: "1rem",
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#fff",
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              option: (base, state) => ({
+                                ...base,
+                                backgroundColor: state.isSelected
+                                  ? "#3b82f6"
+                                  : state.isFocused
+                                  ? document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                    ? "#334155"
+                                    : "#e0e7ff"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#1e293b"
+                                  : "#fff",
+                                color: state.isSelected
+                                  ? "#fff"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#fff"
+                                  : "#1f2937",
+                                fontSize: "1rem",
+                              }),
+                              singleValue: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              placeholder: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#64748b"
+                                    : "#6b7280",
+                              }),
+                              input: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              dropdownIndicator: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#64748b"
+                                    : "#6b7280",
+                                "&:hover": { color: "#3b82f6" },
+                              }),
+                              indicatorSeparator: (base) => ({
+                                ...base,
+                                backgroundColor: "transparent",
+                              }),
+                            }}
+                          />
+                        </div>
+                        <div className="w-32">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            x 50 menit
+                          </label>
+                          <select
+                            name="jumlahKali"
+                            value={form.jumlahKali}
+                            onChange={handleFormChange}
+                            className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                          >
+                            {[1, 2, 3, 4, 5, 6].map((n) => (
+                              <option key={n} value={n}>
+                                {n} x 50'
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="mt-2">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Jam Selesai
+                        </label>
+                        <input
+                          type="text"
+                          name="jamSelesai"
+                          value={form.jamSelesai}
+                          readOnly
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm cursor-not-allowed"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Topik
+                        </label>
+                        <input
+                          type="text"
+                          name="topik"
+                          value={form.topik || ""}
+                          onChange={handleFormChange}
+                          placeholder="Masukkan topik (opsional)"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Koordinator Dosen
+                        </label>
+                        {loadingAssignedPBL ? (
+                          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                            <div className="flex items-center gap-2">
+                              <svg
+                                className="w-5 h-5 text-blue-500 animate-spin"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                              >
+                                <circle
+                                  className="opacity-25"
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                ></circle>
+                                <path
+                                  className="opacity-75"
+                                  fill="currentColor"
+                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                ></path>
+                              </svg>
+                              <span className="text-blue-700 dark:text-blue-300 text-sm font-medium">
+                                Memuat data assigned dosen...
+                              </span>
+                            </div>
+                          </div>
+                        ) : !hasAssignedPBL || assignedDosenPBL.length === 0 ? (
+                          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+                            <div className="flex items-center gap-2">
+                              <svg
+                                className="w-5 h-5 text-orange-500"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
+                                Belum ada dosen yang di-assign untuk blok ini
+                              </span>
+                            </div>
+                            <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
+                              Silakan generate dosen PBL terlebih dahulu di
+                              halaman PBL Generate
+                            </p>
+                          </div>
+                        ) : (
+                          <Select
+                            isMulti
+                            options={assignedDosenPBL.map((d) => {
+                              // Disable dosen yang sudah dipilih sebagai Pengampu
+                              const isDisabled = Array.isArray(form.pengampu) && (form.pengampu as number[]).includes(d.id);
+                              return {
+                                value: d.id,
+                                label: d.name,
+                                isDisabled: isDisabled,
+                              };
+                            })}
+                            value={
+                              Array.isArray(form.koordinator) && form.koordinator.length > 0
+                                ? assignedDosenPBL
+                                    .filter((d) =>
+                                      (form.koordinator as number[]).includes(d.id)
+                                    )
+                                    .map((d) => ({
+                                      value: d.id,
+                                      label: d.name,
+                                      isDisabled: false,
+                                    }))
+                                : []
+                            }
+                            onChange={(selected) => {
+                              const selectedIds = Array.isArray(selected)
+                                ? selected.map((s) => s.value)
+                                : [];
+                              setForm((f) => ({
+                                ...f,
+                                koordinator: selectedIds,
+                              }));
+                            }}
+                            placeholder="Pilih Koordinator Dosen (bisa lebih dari 1)"
+                            isOptionDisabled={(option: any) => option.isDisabled}
+                            classNamePrefix="react-select"
+                            className="react-select-container"
+                            styles={{
+                              control: (base, state) => ({
+                                ...base,
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#f9fafb",
+                                borderColor: state.isFocused
+                                  ? "#3b82f6"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#334155"
+                                  : "#d1d5db",
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                                boxShadow: state.isFocused
+                                  ? "0 0 0 2px #3b82f633"
+                                  : undefined,
+                                borderRadius: "0.75rem",
+                                minHeight: "2.5rem",
+                                fontSize: "1rem",
+                                paddingLeft: "0.75rem",
+                                paddingRight: "0.75rem",
+                                "&:hover": { borderColor: "#3b82f6" },
+                              }),
+                              menu: (base) => ({
+                                ...base,
+                                zIndex: 9999,
+                                fontSize: "1rem",
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#fff",
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              option: (base, state) => ({
+                                ...base,
+                                backgroundColor: state.isDisabled
+                                  ? "#f3f4f6"
+                                  : state.isSelected
+                                  ? "#bfdbfe"
+                                  : state.isFocused
+                                  ? document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                    ? "#334155"
+                                    : "#e0e7ff"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#1e293b"
+                                  : "#fff",
+                                color: state.isDisabled
+                                  ? "#9ca3af"
+                                  : state.isSelected
+                                  ? "#1e40af"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#fff"
+                                  : "#1f2937",
+                                cursor: state.isDisabled ? "not-allowed" : "default",
+                                fontSize: "1rem",
+                              }),
+                              multiValue: (base) => ({
+                                ...base,
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e3a8a"
+                                    : "#bfdbfe",
+                              }),
+                              multiValueLabel: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#dbeafe"
+                                    : "#1e40af",
+                              }),
+                              multiValueRemove: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#dbeafe"
+                                    : "#1e40af",
+                                "&:hover": {
+                                  backgroundColor:
+                                    document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#1e40af"
+                                      : "#93c5fd",
+                                  color: "#fff",
+                                },
+                              }),
+                              singleValue: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              placeholder: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#64748b"
+                                    : "#6b7280",
+                              }),
+                              input: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              dropdownIndicator: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#64748b"
+                                    : "#6b7280",
+                                "&:hover": { color: "#3b82f6" },
+                              }),
+                              indicatorSeparator: (base) => ({
+                                ...base,
+                                backgroundColor: "transparent",
+                              }),
+                            }}
+                          />
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Pengampu
+                        </label>
+                        {loadingAssignedPBL ? (
+                          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                            <div className="flex items-center gap-2">
+                              <svg
+                                className="w-5 h-5 text-blue-500 animate-spin"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                              >
+                                <circle
+                                  className="opacity-25"
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                ></circle>
+                                <path
+                                  className="opacity-75"
+                                  fill="currentColor"
+                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                ></path>
+                              </svg>
+                              <span className="text-blue-700 dark:text-blue-300 text-sm font-medium">
+                                Memuat data assigned dosen...
+                              </span>
+                            </div>
+                          </div>
+                        ) : !hasAssignedPBL || assignedDosenPBL.length === 0 ? (
+                          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+                            <div className="flex items-center gap-2">
+                              <svg
+                                className="w-5 h-5 text-orange-500"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
+                                Belum ada dosen yang di-assign untuk blok ini
+                              </span>
+                            </div>
+                            <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
+                              Silakan generate dosen PBL terlebih dahulu di
+                              halaman PBL Generate
+                            </p>
+                          </div>
+                        ) : (
+                          <Select
+                            isMulti
+                            options={assignedDosenPBL.map((d) => {
+                              // Disable dosen yang sudah dipilih sebagai Koordinator
+                              const isDisabled = Array.isArray(form.koordinator) && (form.koordinator as number[]).includes(d.id);
+                              return {
+                                value: d.id,
+                                label: d.name,
+                                isDisabled: isDisabled,
+                              };
+                            })}
+                            value={
+                              Array.isArray(form.pengampu) && form.pengampu.length > 0
+                                ? assignedDosenPBL
+                                    .filter((d) =>
+                                      (form.pengampu as number[]).includes(d.id)
+                                    )
+                                    .map((d) => ({
+                                      value: d.id,
+                                      label: d.name,
+                                      isDisabled: false,
+                                    }))
+                                : []
+                            }
+                            onChange={(selected) => {
+                              const selectedIds = Array.isArray(selected)
+                                ? selected.map((s) => s.value)
+                                : [];
+                              setForm((f) => ({
+                                ...f,
+                                pengampu: selectedIds,
+                              }));
+                            }}
+                            placeholder="Pilih Dosen (bisa lebih dari 1)"
+                            isOptionDisabled={(option: any) => option.isDisabled}
+                            classNamePrefix="react-select"
+                            className="react-select-container"
+                            styles={{
+                              control: (base, state) => ({
+                                ...base,
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#f9fafb",
+                                borderColor: state.isFocused
+                                  ? "#3b82f6"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#334155"
+                                  : "#d1d5db",
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                                boxShadow: state.isFocused
+                                  ? "0 0 0 2px #3b82f633"
+                                  : undefined,
+                                borderRadius: "0.75rem",
+                                minHeight: "2.5rem",
+                                fontSize: "1rem",
+                                paddingLeft: "0.75rem",
+                                paddingRight: "0.75rem",
+                                "&:hover": { borderColor: "#3b82f6" },
+                              }),
+                              menu: (base) => ({
+                                ...base,
+                                zIndex: 9999,
+                                fontSize: "1rem",
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#fff",
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              option: (base, state) => ({
+                                ...base,
+                                backgroundColor: state.isDisabled
+                                  ? "#f3f4f6"
+                                  : state.isSelected
+                                  ? "#bfdbfe"
+                                  : state.isFocused
+                                  ? document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                    ? "#334155"
+                                    : "#e0e7ff"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#1e293b"
+                                  : "#fff",
+                                color: state.isDisabled
+                                  ? "#9ca3af"
+                                  : state.isSelected
+                                  ? "#1e40af"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#fff"
+                                  : "#1f2937",
+                                cursor: state.isDisabled ? "not-allowed" : "default",
+                                fontSize: "1rem",
+                              }),
+                              multiValue: (base) => ({
+                                ...base,
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e3a8a"
+                                    : "#bfdbfe",
+                              }),
+                              multiValueLabel: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#dbeafe"
+                                    : "#1e40af",
+                              }),
+                              multiValueRemove: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                                "&:hover": {
+                                  backgroundColor: "#ef4444",
+                                  color: "#fff",
+                                },
+                              }),
+                              placeholder: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#64748b"
+                                    : "#6b7280",
+                              }),
+                              input: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              dropdownIndicator: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#64748b"
+                                    : "#6b7280",
+                                "&:hover": { color: "#3b82f6" },
+                              }),
+                              indicatorSeparator: (base) => ({
+                                ...base,
+                                backgroundColor: "transparent",
+                              }),
+                            }}
+                          />
+                        )}
+                      </div>
+
+<div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Kelompok Besar
+                        </label>
+
+                        {kelompokBesarOptions.length === 0 ? (
+                          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+                            <div className="flex items-center gap-2">
+                              <svg
+                                className="w-5 h-5 text-orange-500"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+
+                              <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
+                                Belum ada kelompok besar yang ditambahkan untuk
+                                mata kuliah ini
+                              </span>
+                            </div>
+
+                            <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
+                              Silakan tambahkan kelompok besar terlebih dahulu
+                              di halaman Kelompok Detail
+                            </p>
+                          </div>
+                        ) : (
+                          <Select
+                            options={kelompokBesarOptions.map((k) => ({
+                              value: Number(k.id),
+                              label: k.label,
+                            }))}
+                            value={
+                              kelompokBesarOptions.find(
+                                (k) => Number(k.id) === form.kelompokBesar
+                              )
+                                ? {
+                                    value: form.kelompokBesar,
+                                    label: kelompokBesarOptions.find(
+                                      (k) => Number(k.id) === form.kelompokBesar
+                                    )?.label,
+                                  }
+                                : null
+                            }
+                            onChange={(opt) => {
+                              setForm((f) => ({
+                                ...f,
+                                kelompokBesar: opt ? Number(opt.value) : null,
+                              }));
+
+                              resetErrorForm();
+                            }}
+                            isSearchable={false}
+                            placeholder="Pilih Kelompok Besar"
+                            isClearable
+                            classNamePrefix="react-select"
+                            className="react-select-container"
+                            styles={{
+                              control: (base, state) => ({
+                                ...base,
+
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#f9fafb",
+
+                                borderColor: state.isFocused
+                                  ? "#3b82f6"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#334155"
+                                  : "#d1d5db",
+
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+
+                                boxShadow: state.isFocused
+                                  ? "0 0 0 2px #3b82f633"
+                                  : undefined,
+
+                                borderRadius: "0.75rem",
+
+                                minHeight: "2.5rem",
+
+                                fontSize: "1rem",
+
+                                paddingLeft: "0.75rem",
+
+                                paddingRight: "0.75rem",
+
+                                "&:hover": { borderColor: "#3b82f6" },
+                              }),
+
+                              menu: (base) => ({
+                                ...base,
+
+                                zIndex: 9999,
+
+                                fontSize: "1rem",
+
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#fff",
+
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+
+                              option: (base, state) => ({
+                                ...base,
+
+                                backgroundColor: state.isSelected
+                                  ? "#3b82f6"
+                                  : state.isFocused
+                                  ? document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                    ? "#334155"
+                                    : "#e0e7ff"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#1e293b"
+                                  : "#fff",
+
+                                color: state.isSelected
+                                  ? "#fff"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#fff"
+                                  : "#1f2937",
+
+                                fontSize: "1rem",
+                              }),
+
+                              singleValue: (base) => ({
+                                ...base,
+
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+
+                              placeholder: (base) => ({
+                                ...base,
+
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#64748b"
+                                    : "#6b7280",
+                              }),
+
+                              input: (base) => ({
+                                ...base,
+
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+
+                              dropdownIndicator: (base) => ({
+                                ...base,
+
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#64748b"
+                                    : "#6b7280",
+
+                                "&:hover": { color: "#3b82f6" },
+                              }),
+
+                              indicatorSeparator: (base) => ({
+                                ...base,
+
+                                backgroundColor: "transparent",
+                              }),
+                            }}
+                          />
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="flex items-center gap-2 cursor-pointer select-none text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          <span className="relative flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={form.useRuangan}
+                              onChange={(e) =>
+                                setForm((f) => ({
+                                  ...f,
+                                  useRuangan: e.target.checked,
+                                }))
+                              }
+                              className={`
+                                w-5 h-5
+                                appearance-none
+                                rounded-md
+                                border-2
+                                ${
+                                  form.useRuangan
+                                    ? "border-brand-500 bg-brand-500"
+                                    : "border-brand-500 bg-transparent"
+                                }
+                                transition-colors
+                                duration-150
+                                focus:ring-2 focus:ring-brand-300
+                                dark:focus:ring-brand-600
+                                relative
+                              `}
+                            />
+                            {form.useRuangan && (
+                              <svg
+                                className="absolute left-0 top-0 w-5 h-5 pointer-events-none"
+                                viewBox="0 0 20 20"
+                                fill="none"
+                                stroke="white"
+                                strokeWidth="2.5"
+                              >
+                                <polyline points="5 11 9 15 15 7" />
+                              </svg>
+                            )}
+                          </span>
+                          <span className="select-none transition-colors duration-200 hover:text-brand-600 dark:hover:text-brand-400">
+                            Gunakan Ruangan (Offline)
+                          </span>
+                        </label>
+                      </div>
+
+                      {form.useRuangan && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Ruangan
+                          </label>
+                          {ruanganList.length === 0 ? (
+                          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+                            <div className="flex items-center gap-2">
+                              <svg
+                                className="w-5 h-5 text-orange-500"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
+                                Belum ada ruangan yang ditambahkan untuk mata
+                                kuliah ini
+                              </span>
+                            </div>
+                            <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
+                              Silakan tambahkan ruangan terlebih dahulu di
+                              halaman Ruangan Detail
+                            </p>
+                          </div>
+                        ) : (
+                          <Select
+                            options={getRuanganOptionsLocal()}
+                            value={
+                              getRuanganOptionsLocal().find(
+                                (opt) => opt.value === form.lokasi
+                              ) || null
+                            }
+                            onChange={(opt) =>
+                              setForm((f) => ({
+                                ...f,
+                                lokasi: opt ? Number(opt.value) : null,
+                              }))
+                            }
+                            placeholder="Pilih Ruangan"
+                            isClearable
+                            classNamePrefix="react-select"
+                            className="react-select-container"
+                            styles={{
+                              control: (base, state) => ({
+                                ...base,
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#f9fafb",
+                                borderColor: state.isFocused
+                                  ? "#3b82f6"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#334155"
+                                  : "#d1d5db",
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                                boxShadow: state.isFocused
+                                  ? "0 0 0 2px #3b82f633"
+                                  : undefined,
+                                borderRadius: "0.75rem",
+                                minHeight: "2.5rem",
+                                fontSize: "1rem",
+                                paddingLeft: "0.75rem",
+                                paddingRight: "0.75rem",
+                                "&:hover": { borderColor: "#3b82f6" },
+                              }),
+                              menu: (base) => ({
+                                ...base,
+                                zIndex: 9999,
+                                fontSize: "1rem",
+                                backgroundColor:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#1e293b"
+                                    : "#fff",
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              option: (base, state) => ({
+                                ...base,
+                                backgroundColor: state.isSelected
+                                  ? "#3b82f6"
+                                  : state.isFocused
+                                  ? document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                    ? "#334155"
+                                    : "#e0e7ff"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#1e293b"
+                                  : "#fff",
+                                color: state.isSelected
+                                  ? "#fff"
+                                  : document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                  ? "#fff"
+                                  : "#1f2937",
+                                fontSize: "1rem",
+                              }),
+                              singleValue: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              placeholder: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#64748b"
+                                    : "#6b7280",
+                              }),
+                              input: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#fff"
+                                    : "#1f2937",
+                              }),
+                              dropdownIndicator: (base) => ({
+                                ...base,
+                                color:
+                                  document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#64748b"
+                                    : "#6b7280",
+                                "&:hover": { color: "#3b82f6" },
+                              }),
+                              indicatorSeparator: (base) => ({
+                                ...base,
+                                backgroundColor: "transparent",
+                              }),
+                            }}
+                          />
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
 
                 {/* Error Backend */}
@@ -20724,6 +22794,28 @@ export default function DetailBlok() {
                               jadwalPersamaanPersepsi[editIndex].id!,
                               payload
                             );
+                          } else if (
+                            form.jenisBaris === "seminar-pleno" &&
+                            jadwalSeminarPleno[editIndex] &&
+                            jadwalSeminarPleno[editIndex].id
+                          ) {
+                            // Handle edit untuk seminar pleno
+                            const payload = {
+                              tanggal: tanggalFormatted,
+                              jam_mulai: form.jamMulai,
+                              jam_selesai: form.jamSelesai,
+                              jumlah_sesi: form.jumlahKali,
+                              topik: form.topik && form.topik.trim() ? form.topik.trim() : null,
+                              dosen_ids: Array.isArray(form.pengampu) ? form.pengampu : [], // Pengampu (non-koordinator)
+                              koordinator_ids: Array.isArray(form.koordinator) ? form.koordinator : [], // Koordinator (opsional)
+                              kelompok_besar_id: form.kelompokBesar ? Number(form.kelompokBesar) : null,
+                              ruangan_id: form.useRuangan ? Number(form.lokasi) : null,
+                              use_ruangan: form.useRuangan,
+                            };
+                            await handleEditJadwalSeminarPleno(
+                              jadwalSeminarPleno[editIndex].id!,
+                              payload
+                            );
                           } else {
                             // Handle edit untuk jenis baris lain
 
@@ -20748,6 +22840,21 @@ export default function DetailBlok() {
                               use_ruangan: form.useRuangan,
                             };
                             await handleTambahJadwalPersamaanPersepsi(payload);
+                          } else if (form.jenisBaris === "seminar-pleno") {
+                            // Handle tambah untuk seminar pleno
+                            const payload = {
+                              tanggal: tanggalFormatted,
+                              jam_mulai: form.jamMulai,
+                              jam_selesai: form.jamSelesai,
+                              jumlah_sesi: form.jumlahKali,
+                              topik: form.topik && form.topik.trim() ? form.topik.trim() : null,
+                              dosen_ids: Array.isArray(form.pengampu) ? form.pengampu : [], // Pengampu (non-koordinator)
+                              koordinator_ids: Array.isArray(form.koordinator) ? form.koordinator : [], // Koordinator (opsional)
+                              kelompok_besar_id: form.kelompokBesar ? Number(form.kelompokBesar) : null,
+                              ruangan_id: form.useRuangan ? Number(form.lokasi) : null,
+                              use_ruangan: form.useRuangan,
+                            };
+                            await handleTambahJadwalSeminarPleno(payload);
                           } else {
                             await handleTambahJadwal();
                           }
@@ -20808,7 +22915,8 @@ export default function DetailBlok() {
                           !form.topik ||
                           !form.pengampu ||
                           !form.lokasi)) ||
-                      (form.jenisBaris === "persamaan-persepsi" &&
+                      ((form.jenisBaris === "persamaan-persepsi" ||
+                        form.jenisBaris === "seminar-pleno") &&
                         (!form.hariTanggal ||
                           !form.jamMulai ||
                           !form.jamSelesai ||
@@ -22845,6 +24953,473 @@ export default function DetailBlok() {
                   )
                 }
                 disabled={persamaanPersepsiPage === getTotalPages(jadwalPersamaanPersepsi.length, persamaanPersepsiPageSize)}
+                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Section Seminar Pleno */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white">
+            Seminar Pleno
+          </h2>
+          <div className="flex items-center gap-2">
+            {/* Import Excel Button */}
+            <button
+              onClick={() => setShowSeminarPlenoImportModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform cursor-pointer"
+            >
+              <FontAwesomeIcon
+                icon={faFileExcel}
+                className="w-5 h-5 text-brand-700 dark:text-brand-200"
+              />
+              Import Excel
+            </button>
+            {/* Download Template Button */}
+            <button
+              onClick={downloadSeminarPlenoTemplate}
+              className="px-4 py-2 rounded-lg bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 text-sm font-medium shadow-theme-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition flex items-center gap-2"
+            >
+              <FontAwesomeIcon icon={faDownload} className="w-5 h-5" />
+              Download Template Excel
+            </button>
+            {/* Export Excel Button */}
+            <button
+              onClick={handleExportSeminarPleno}
+              disabled={jadwalSeminarPleno.length === 0}
+              className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
+                jadwalSeminarPleno.length === 0
+                  ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
+                  : "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
+              }`}
+              title={
+                jadwalSeminarPleno.length === 0
+                  ? "Tidak ada data seminar pleno. Silakan tambahkan data jadwal terlebih dahulu untuk melakukan export."
+                  : "Export data seminar pleno ke Excel"
+              }
+            >
+              <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5" />
+              Export ke Excel
+            </button>
+            {/* Tambah Jadwal Button */}
+            <button
+              onClick={() => {
+                setForm({
+                  hariTanggal: "",
+                  jamMulai: "",
+                  jumlahKali: 1,
+                  jamSelesai: "",
+                  pengampu: null, // Pengampu (non-koordinator) - dipilih manual oleh user
+                  koordinator: null, // Koordinator - dipilih manual oleh user
+                  materi: "",
+                  topik: "",
+                  lokasi: null,
+                  jenisBaris: "seminar-pleno",
+                  agenda: "",
+                  kelasPraktikum: "",
+                  pblTipe: "",
+                  modul: null,
+                  kelompok: "",
+                  kelompokBesar: null,
+                  useRuangan: true,
+                  fileJurnal: null,
+                });
+                setExistingFileJurnal(null);
+                setEditIndex(null);
+                setShowModal(true);
+                resetErrorForm();
+                fetchRuanganForModal();
+              }}
+              className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition"
+            >
+              Tambah Jadwal
+            </button>
+          </div>
+        </div>
+
+        <AnimatePresence>
+          {seminarPlenoSuccess && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
+            >
+              {seminarPlenoSuccess}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+          <div className="max-w-full overflow-x-auto hide-scroll">
+            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+              <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                <tr>
+                  <th className="px-4 py-4 text-center">
+                    <button
+                      aria-checked={
+                        jadwalSeminarPleno.length > 0 &&
+                        jadwalSeminarPleno.every((item) =>
+                          selectedSeminarPlenoItems.includes(item.id!)
+                        )
+                      }
+                      role="checkbox"
+                      onClick={() => handleSelectAll("seminar-pleno", jadwalSeminarPleno)}
+                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
+                        jadwalSeminarPleno.length > 0 &&
+                        jadwalSeminarPleno.every((item) =>
+                          selectedSeminarPlenoItems.includes(item.id!)
+                        )
+                          ? "bg-brand-500 border-brand-500"
+                          : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                      } cursor-pointer`}
+                    >
+                      {jadwalSeminarPleno.length > 0 &&
+                        jadwalSeminarPleno.every((item) =>
+                          selectedSeminarPlenoItems.includes(item.id!)
+                        ) && (
+                          <svg
+                            className="w-3 h-3 text-white"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth={3}
+                            viewBox="0 0 24 24"
+                          >
+                            <polyline points="20 7 11 17 4 10" />
+                          </svg>
+                        )}
+                    </button>
+                  </th>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    No
+                  </th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    Hari/Tanggal
+                  </th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    Pukul
+                  </th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    Waktu
+                  </th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    Topik
+                  </th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    Koordinator Dosen
+                  </th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    Pengampu
+                  </th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    Kelompok Besar
+                  </th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    Ruangan
+                  </th>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    Aksi
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {jadwalSeminarPleno.length === 0 ? (
+                  <tr>
+                    <td colSpan={11} className="text-center py-6 text-gray-400">
+                      Tidak ada data Seminar Pleno
+                    </td>
+                  </tr>
+                ) : (
+                  getPaginatedData(
+                    jadwalSeminarPleno
+                      .slice()
+                      .sort((a: JadwalSeminarPlenoType, b: JadwalSeminarPlenoType) => {
+                        const dateA = new Date(a.tanggal);
+                        const dateB = new Date(b.tanggal);
+                        return dateA.getTime() - dateB.getTime();
+                      }),
+                    seminarPlenoPage,
+                    seminarPlenoPageSize
+                  ).map((row: JadwalSeminarPlenoType, i: number) => (
+                    <tr
+                      key={row.id}
+                      className={
+                        i % 2 === 1 ? "bg-gray-50 dark:bg-white/[0.02]" : ""
+                      }
+                    >
+                      <td className="px-4 py-4 text-center">
+                        <button
+                          aria-checked={selectedSeminarPlenoItems.includes(row.id!)}
+                          role="checkbox"
+                          onClick={() => handleSelectItem("seminar-pleno", row.id!)}
+                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
+                            selectedSeminarPlenoItems.includes(row.id!)
+                              ? "bg-brand-500 border-brand-500"
+                              : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"
+                          } cursor-pointer`}
+                        >
+                          {selectedSeminarPlenoItems.includes(row.id!) && (
+                            <svg
+                              className="w-3 h-3 text-white"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={3}
+                              viewBox="0 0 24 24"
+                            >
+                              <polyline points="20 7 11 17 4 10" />
+                            </svg>
+                          )}
+                        </button>
+                      </td>
+                      <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {(seminarPlenoPage - 1) * seminarPlenoPageSize + i + 1}
+                      </td>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {row.tanggal ? formatTanggalKonsisten(row.tanggal) : ""}
+                      </td>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {formatJamTanpaDetik(row.jam_mulai)}–{formatJamTanpaDetik(row.jam_selesai)}
+                      </td>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {row.jumlah_sesi || 1} x 50 menit
+                      </td>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {row.topik || "-"}
+                      </td>
+                      {/* Kolom Koordinator Dosen */}
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {row.koordinator_names || "-"}
+                      </td>
+                      {/* Kolom Pengampu (non-koordinator) */}
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {row.pengampu_names || "-"}
+                      </td>
+                      {/* Kolom Kelompok Besar */}
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {row.kelompok_besar_antara?.nama_kelompok ||
+                          row.kelompok_besar?.nama_kelompok ||
+                          (row.kelompok_besar?.semester
+                            ? `Semester ${row.kelompok_besar.semester}`
+                            : "-")}
+                      </td>
+                      <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                        {allRuanganList.find((r) => r.id === row.ruangan_id)?.nama || "-"}
+                      </td>
+                      <td className="px-4 py-4 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-2">
+                          {/* Tombol Absensi - tampilkan jika ada dosen yang terdaftar */}
+                          {((row.koordinator_ids && Array.isArray(row.koordinator_ids) && row.koordinator_ids.length > 0) || 
+                             (row.dosen_ids && Array.isArray(row.dosen_ids) && row.dosen_ids.length > 0) ||
+                             (row.dosen_with_roles && Array.isArray(row.dosen_with_roles) && row.dosen_with_roles.length > 0)) && (
+                            <button
+                              onClick={() => navigate(`/absensi-seminar-pleno/${kode}/${row.id}`)}
+                              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors shrink-0"
+                              title="Buka Absensi"
+                            >
+                              <FontAwesomeIcon icon={faCheckCircle} className="w-3.5 h-3.5 shrink-0" />
+                              <span className="hidden xl:inline whitespace-nowrap">Absensi</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              const idx = jadwalSeminarPleno.findIndex((j) => j.id === row.id);
+                              if (idx >= 0) {
+                                const actualRow = jadwalSeminarPleno[idx];
+                                
+                                // Extract koordinator_ids from koordinator_ids or dosen_with_roles
+                                let koordinatorIds: number[] = [];
+                                if (actualRow.koordinator_ids && Array.isArray(actualRow.koordinator_ids)) {
+                                  koordinatorIds = actualRow.koordinator_ids;
+                                } else if (actualRow.dosen_with_roles && Array.isArray(actualRow.dosen_with_roles)) {
+                                  koordinatorIds = actualRow.dosen_with_roles
+                                    .filter((d: any) => d.peran === "koordinator" || d.peran_display === "Koordinator" || d.is_koordinator)
+                                    .map((d: any) => d.id);
+                                }
+                                
+                                // Extract pengampu_ids (non-koordinator) from dosen_ids
+                                const allDosenIds = Array.isArray(actualRow.dosen_ids) ? actualRow.dosen_ids : [];
+                                const pengampuIds = allDosenIds.filter((id: number) => !koordinatorIds.includes(id));
+                                
+                                setForm({
+                                  hariTanggal: actualRow.tanggal || "",
+                                  jamMulai: actualRow.jam_mulai || "",
+                                  jumlahKali: Number(actualRow.jumlah_sesi || 1),
+                                  jamSelesai: actualRow.jam_selesai || "",
+                                  pengampu: pengampuIds, // Pengampu (non-koordinator)
+                                  koordinator: koordinatorIds, // Koordinator
+                                  materi: "",
+                                  topik: actualRow.topik || "",
+                                  lokasi: actualRow.ruangan_id || null,
+                                  jenisBaris: "seminar-pleno",
+                                  agenda: "",
+                                  kelasPraktikum: "",
+                                  pblTipe: "",
+                                  modul: null,
+                                  kelompok: "",
+                                  kelompokBesar: actualRow.kelompok_besar_id || null,
+                                  useRuangan: actualRow.use_ruangan !== undefined ? actualRow.use_ruangan : (actualRow.ruangan_id ? true : false),
+                                  fileJurnal: null,
+                                });
+                                setEditIndex(idx);
+                                setShowModal(true);
+                                resetErrorForm();
+                                fetchRuanganForModal();
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition"
+                            title="Edit Jadwal"
+                          >
+                            <FontAwesomeIcon
+                              icon={faPenToSquare}
+                              className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500"
+                            />
+                            <span className="hidden sm:inline">Edit</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              const idx = jadwalSeminarPleno.findIndex((j) => j.id === row.id);
+                              if (idx >= 0) {
+                                setSelectedDeleteSeminarPlenoIndex(idx);
+                                setShowDeleteSeminarPlenoModal(true);
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition"
+                            title="Hapus Jadwal"
+                          >
+                            <FontAwesomeIcon
+                              icon={faTrash}
+                              className="w-4 h-4 sm:w-5 sm:h-5 text-red-500"
+                            />
+                            <span className="hidden sm:inline">Hapus</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Tombol Hapus Terpilih untuk Seminar Pleno */}
+        {selectedSeminarPlenoItems.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-4">
+            <button
+              disabled={isBulkDeleting}
+              onClick={() => handleBulkDelete("seminar-pleno")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${
+                isBulkDeleting
+                  ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                  : "bg-red-500 text-white shadow-theme-xs hover:bg-red-600"
+              }`}
+            >
+              {isBulkDeleting
+                ? "Menghapus..."
+                : `Hapus Terpilih (${selectedSeminarPlenoItems.length})`}
+            </button>
+          </div>
+        )}
+
+        {/* Pagination for Seminar Pleno */}
+        {jadwalSeminarPleno.length > 0 && (
+          <div className="flex items-center justify-between mt-6">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Menampilkan {(seminarPlenoPage - 1) * seminarPlenoPageSize + 1} -{" "}
+                {Math.min(seminarPlenoPage * seminarPlenoPageSize, jadwalSeminarPleno.length)} dari{" "}
+                {jadwalSeminarPleno.length} data
+              </span>
+              <select
+                value={seminarPlenoPageSize}
+                onChange={(e) => {
+                  setSeminarPlenoPageSize(Number(e.target.value));
+                  setSeminarPlenoPage(1);
+                }}
+                className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
+              >
+                {PAGE_SIZE_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
+              <button
+                onClick={() => setSeminarPlenoPage((p) => Math.max(1, p - 1))}
+                disabled={seminarPlenoPage === 1}
+                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Previous
+              </button>
+              {getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize) > 1 && (
+                <button
+                  onClick={() => setSeminarPlenoPage(1)}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    seminarPlenoPage === 1
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  1
+                </button>
+              )}
+              {Array.from(
+                { length: getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize) },
+                (_, i) => {
+                  const pageNum = i + 1;
+                  const shouldShow =
+                    pageNum > 1 &&
+                    pageNum < getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize) &&
+                    pageNum >= seminarPlenoPage - 2 &&
+                    pageNum <= seminarPlenoPage + 2;
+                  if (!shouldShow) return null;
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setSeminarPlenoPage(pageNum)}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                        seminarPlenoPage === pageNum
+                          ? "bg-brand-500 text-white"
+                          : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                }
+              )}
+              {seminarPlenoPage < getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize) - 3 && (
+                <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
+              )}
+              {getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize) > 1 && (
+                <button
+                  onClick={() =>
+                    setSeminarPlenoPage(getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize))
+                  }
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    seminarPlenoPage === getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize)
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  {getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize)}
+                </button>
+              )}
+              <button
+                onClick={() =>
+                  setSeminarPlenoPage((p) =>
+                    Math.min(getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize), p + 1)
+                  )
+                }
+                disabled={seminarPlenoPage === getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize)}
                 className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
               >
                 Next
@@ -28840,6 +31415,320 @@ export default function DetailBlok() {
         )}
       </AnimatePresence>
 
+      {/* Modal Import Excel Seminar Pleno */}
+      <AnimatePresence>
+        {showSeminarPlenoImportModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={handleSeminarPlenoCloseImportModal}
+            />
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={handleSeminarPlenoCloseImportModal}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+
+              {/* Header */}
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                  Import Jadwal Seminar Pleno
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Preview dan validasi data sebelum import
+                </p>
+              </div>
+
+              {/* Upload File Section */}
+              {!seminarPlenoImportFile && (
+                <div className="mb-6">
+                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
+                    <div className="space-y-4">
+                      <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
+                        <FontAwesomeIcon
+                          icon={faFileExcel}
+                          className="w-8 h-8 text-brand-600 dark:text-brand-400"
+                        />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                          Upload File Excel
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          Pilih file Excel dengan format template aplikasi
+                          (.xlsx, .xls)
+                        </p>
+                      </div>
+                      <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
+                        <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                        Pilih File
+                        <input
+                          ref={seminarPlenoFileInputRef}
+                          type="file"
+                          accept=".xlsx,.xls"
+                          onChange={handleSeminarPlenoFileUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* File Info */}
+              {seminarPlenoImportFile && (
+                <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <FontAwesomeIcon
+                      icon={faFileExcel}
+                      className="w-5 h-5 text-blue-500"
+                    />
+                    <div className="flex-1">
+                      <p className="font-medium text-blue-800 dark:text-blue-200">
+                        {seminarPlenoImportFile.name}
+                      </p>
+                      <p className="text-sm text-blue-600 dark:text-blue-300">
+                        {(seminarPlenoImportFile.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleSeminarPlenoRemoveFile}
+                      className="px-3 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition"
+                    >
+                      Hapus File
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Error Messages */}
+              {seminarPlenoImportErrors.length > 0 && (
+                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <FontAwesomeIcon
+                      icon={faExclamationTriangle}
+                      className="w-5 h-5 text-red-500"
+                    />
+                    <h3 className="font-semibold text-red-800 dark:text-red-200">
+                      Error
+                    </h3>
+                  </div>
+                  <ul className="list-disc list-inside space-y-1 text-sm text-red-700 dark:text-red-300">
+                    {seminarPlenoImportErrors.map((error, idx) => (
+                      <li key={idx}>{error}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Preview Table */}
+              {seminarPlenoImportData.length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                      Preview Data ({seminarPlenoImportData.length} jadwal)
+                    </h3>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      File: {seminarPlenoImportFile?.name}
+                    </div>
+                  </div>
+
+                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                    <div className="max-w-full overflow-x-auto hide-scroll">
+                      <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                        <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                          <tr>
+                            <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                              No
+                            </th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                              Tanggal
+                            </th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                              Jam Mulai
+                            </th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                              Jumlah Sesi
+                            </th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                              Topik
+                            </th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                              Koordinator Dosen
+                            </th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                              Pengampu
+                            </th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                              Ruangan
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {seminarPlenoImportData.map((row, index) => {
+                            const actualIndex = index;
+
+                            const renderEditableCell = (
+                              field: string,
+                              value: any,
+                              isNumeric = false
+                            ) => {
+                              const isEditing =
+                                seminarPlenoEditingCell?.row === actualIndex &&
+                                seminarPlenoEditingCell?.key === field;
+                              const cellError = seminarPlenoCellErrors.find(
+                                (err) =>
+                                  err.row === actualIndex + 1 &&
+                                  err.field === field
+                              );
+
+                              return (
+                                <td
+                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
+                                    isEditing ? "border-2 border-brand-500" : ""
+                                  } ${
+                                    cellError
+                                      ? "bg-red-50 dark:bg-red-900/20"
+                                      : ""
+                                  }`}
+                                  onClick={() =>
+                                    setSeminarPlenoEditingCell({
+                                      row: actualIndex,
+                                      key: field,
+                                    })
+                                  }
+                                  title={cellError ? cellError.message : ""}
+                                >
+                                  {isEditing ? (
+                                    <input
+                                      className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
+                                      type={isNumeric ? "number" : "text"}
+                                      value={value || ""}
+                                      onChange={(e) =>
+                                        handleSeminarPlenoCellEdit(
+                                          actualIndex,
+                                          field,
+                                          isNumeric
+                                            ? parseInt(e.target.value) || 0
+                                            : e.target.value
+                                        )
+                                      }
+                                      onBlur={() =>
+                                        setSeminarPlenoEditingCell(null)
+                                      }
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                          setSeminarPlenoEditingCell(null);
+                                        }
+                                      }}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <span>{value || "-"}</span>
+                                  )}
+                                </td>
+                              );
+                            };
+
+                            return (
+                              <tr
+                                key={index}
+                                className={
+                                  index % 2 === 1
+                                    ? "bg-gray-50 dark:bg-white/[0.02]"
+                                    : ""
+                                }
+                              >
+                                <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                                  {index + 1}
+                                </td>
+                                {renderEditableCell("tanggal", row.tanggal)}
+                                {renderEditableCell("jam_mulai", row.jam_mulai)}
+                                {renderEditableCell(
+                                  "jumlah_sesi",
+                                  row.jumlah_sesi,
+                                  true
+                                )}
+                                {renderEditableCell("topik", row.topik)}
+                                {renderEditableCell(
+                                  "koordinator",
+                                  row.koordinator || ""
+                                )}
+                                {renderEditableCell("pengampu", row.pengampu || "")}
+                                {renderEditableCell(
+                                  "nama_ruangan",
+                                  row.nama_ruangan || ""
+                                )}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-2 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={handleSeminarPlenoCloseImportModal}
+                  className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handleSeminarPlenoSubmitImport}
+                  disabled={
+                    isSeminarPlenoImporting ||
+                    seminarPlenoImportData.length === 0 ||
+                    seminarPlenoCellErrors.length > 0
+                  }
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                    isSeminarPlenoImporting ||
+                    seminarPlenoImportData.length === 0 ||
+                    seminarPlenoCellErrors.length > 0
+                      ? "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
+                      : "bg-brand-500 text-white hover:bg-brand-600"
+                  }`}
+                >
+                  {isSeminarPlenoImporting
+                    ? "Mengimport..."
+                    : "Import Data"}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Modal Konfirmasi Hapus Persamaan Persepsi */}
       <AnimatePresence>
         {showDeletePersamaanPersepsiModal && (
@@ -28880,6 +31769,58 @@ export default function DetailBlok() {
                       handleDeleteJadwalPersamaanPersepsi(selectedDeletePersamaanPersepsiIndex);
                       setShowDeletePersamaanPersepsiModal(false);
                       setSelectedDeletePersamaanPersepsiIndex(null);
+                    }
+                  }}
+                  className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition"
+                >
+                  Hapus
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Konfirmasi Hapus Seminar Pleno */}
+      <AnimatePresence>
+        {showDeleteSeminarPlenoModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-gray-500/30 dark:bg-gray-700/50 backdrop-blur-sm"
+              onClick={() => setShowDeleteSeminarPlenoModal(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-50"
+            >
+              <h2 className="text-lg font-bold mb-4 text-gray-800 dark:text-white">
+                Konfirmasi Hapus
+              </h2>
+              <p className="mb-6 text-gray-500 dark:text-gray-300">
+                Apakah Anda yakin ingin menghapus jadwal Seminar Pleno ini? Data yang dihapus tidak dapat dikembalikan.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => {
+                    setShowDeleteSeminarPlenoModal(false);
+                    setSelectedDeleteSeminarPlenoIndex(null);
+                  }}
+                  className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={() => {
+                    if (selectedDeleteSeminarPlenoIndex !== null) {
+                      handleDeleteJadwalSeminarPleno(selectedDeleteSeminarPlenoIndex);
+                      setShowDeleteSeminarPlenoModal(false);
+                      setSelectedDeleteSeminarPlenoIndex(null);
                     }
                   }}
                   className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition"

@@ -205,6 +205,41 @@ interface JadwalPersamaanPersepsi {
   is_in_history?: boolean; // Flag: apakah dosen ini hanya ada di history
 }
 
+interface JadwalSeminarPleno {
+  id: number;
+  tanggal: string;
+  jam_mulai: string;
+  jam_selesai: string;
+  topik?: string;
+  status_konfirmasi:
+    | "belum_konfirmasi"
+    | "bisa"
+    | "tidak_bisa"
+    | "waiting_reschedule";
+  status_reschedule?: "waiting" | "approved" | "rejected";
+  mata_kuliah_kode: string;
+  mata_kuliah_nama: string;
+  dosen_ids: number[];
+  koordinator_ids?: number[];
+  koordinator_names?: string;
+  pengampu_names?: string;
+  ruangan: {
+    id: number;
+    nama: string;
+  };
+  jumlah_sesi: number;
+  kelompok_besar_id?: number;
+  kelompok_besar?: {
+    id: number;
+    semester: number;
+    nama_kelompok: string;
+  } | null;
+  semester_type?: "reguler" | "antara";
+  created_at: string;
+  is_active_dosen?: boolean; // Flag: apakah dosen ini adalah dosen aktif
+  is_in_history?: boolean; // Flag: apakah dosen ini hanya ada di history
+}
+
 interface TodayScheduleItem {
   id: number;
   type: string;
@@ -465,6 +500,8 @@ export default function DashboardDosen() {
           return faNewspaper;
         case "persamaan_persepsi":
           return faUsers;
+        case "seminar_pleno":
+          return faUsers;
         case "csr":
           return faUsers;
         case "non_blok_non_csr":
@@ -493,6 +530,9 @@ export default function DashboardDosen() {
   >([]);
   const [jadwalPersamaanPersepsi, setJadwalPersamaanPersepsi] = useState<
     JadwalPersamaanPersepsi[]
+  >([]);
+  const [jadwalSeminarPleno, setJadwalSeminarPleno] = useState<
+    JadwalSeminarPleno[]
   >([]);
   const [jadwalCSR, setJadwalCSR] = useState<any[]>([]);
   const [jadwalNonBlokNonCSR, setJadwalNonBlokNonCSR] = useState<any[]>([]);
@@ -751,6 +791,7 @@ export default function DashboardDosen() {
         api.get(`/jadwal-praktikum/dosen/${userData.id}${semesterParams}`),
         api.get(`/jadwal-jurnal-reading/dosen/${userData.id}${semesterParams}`),
         api.get(`/jadwal-persamaan-persepsi/dosen/${userData.id}${semesterParams}`),
+        api.get(`/jadwal-seminar-pleno/dosen/${userData.id}${semesterParams}`),
         api.get(`/notifications/dosen/${userData.id}`),
         api.get(`/dosen/${userData.id}/today-schedule`),
       ];
@@ -778,6 +819,7 @@ export default function DashboardDosen() {
         jadwalPraktikumResult,
         jadwalJurnalReadingResult,
         jadwalPersamaanPersepsiResult,
+        jadwalSeminarPlenoResult,
         notifResult,
         todayScheduleResult,
         ...otherResults
@@ -807,6 +849,11 @@ export default function DashboardDosen() {
       setJadwalPersamaanPersepsi(
         jadwalPersamaanPersepsiResult.status === "fulfilled"
           ? jadwalPersamaanPersepsiResult.value.data.data || []
+          : []
+      );
+      setJadwalSeminarPleno(
+        jadwalSeminarPlenoResult.status === "fulfilled"
+          ? jadwalSeminarPlenoResult.value.data.data || []
           : []
       );
       setNotifications(
@@ -955,7 +1002,12 @@ export default function DashboardDosen() {
       } else if (selectedJadwal.file_jurnal !== undefined) {
         endpoint = `/jadwal-jurnal-reading/${selectedJadwal.id}/konfirmasi`;
         payload.dosen_id = getUser()?.id;
-      } else if (selectedJadwal.koordinator_ids !== undefined || (selectedJadwal.dosen_ids && !selectedJadwal.modul && !selectedJadwal.kelas_praktikum && !selectedJadwal.file_jurnal && !selectedJadwal.jenis_csr && !selectedJadwal.jenis_baris)) {
+      } else if (selectedJadwal.kelompok_besar_id !== undefined || selectedJadwal.kelompok_besar) {
+        // Seminar Pleno memiliki kelompok_besar_id atau kelompok_besar
+        endpoint = `/jadwal-seminar-pleno/${selectedJadwal.id}/konfirmasi`;
+        payload.dosen_id = getUser()?.id;
+      } else if (selectedJadwal.koordinator_ids !== undefined && !selectedJadwal.modul && !selectedJadwal.kelas_praktikum && !selectedJadwal.file_jurnal && !selectedJadwal.jenis_csr && !selectedJadwal.jenis_baris) {
+        // Persamaan Persepsi memiliki koordinator_ids tapi tidak memiliki kelompok_besar_id
         endpoint = `/jadwal-persamaan-persepsi/${selectedJadwal.id}/konfirmasi`;
         payload.dosen_id = getUser()?.id;
       } else if (selectedJadwal.jenis_csr !== undefined) {
@@ -995,7 +1047,11 @@ export default function DashboardDosen() {
         endpoint = `/jadwal-praktikum/${selectedJadwal.id}/reschedule`;
       } else if (selectedJadwal.file_jurnal !== undefined) {
         endpoint = `/jadwal-jurnal-reading/${selectedJadwal.id}/reschedule`;
-      } else if (selectedJadwal.koordinator_ids !== undefined || (selectedJadwal.dosen_ids && !selectedJadwal.modul && !selectedJadwal.kelas_praktikum && !selectedJadwal.file_jurnal && !selectedJadwal.jenis_csr && !selectedJadwal.jenis_baris)) {
+      } else if (selectedJadwal.kelompok_besar_id !== undefined || selectedJadwal.kelompok_besar) {
+        // Seminar Pleno memiliki kelompok_besar_id atau kelompok_besar
+        endpoint = `/jadwal-seminar-pleno/${selectedJadwal.id}/reschedule`;
+      } else if (selectedJadwal.koordinator_ids !== undefined && !selectedJadwal.modul && !selectedJadwal.kelas_praktikum && !selectedJadwal.file_jurnal && !selectedJadwal.jenis_csr && !selectedJadwal.jenis_baris) {
+        // Persamaan Persepsi memiliki koordinator_ids tapi tidak memiliki kelompok_besar_id
         endpoint = `/jadwal-persamaan-persepsi/${selectedJadwal.id}/reschedule`;
       } else if (selectedJadwal.jenis_csr !== undefined) {
         endpoint = `/jadwal-csr/${selectedJadwal.id}/reschedule`;
@@ -1504,6 +1560,7 @@ export default function DashboardDosen() {
         | "agenda_khusus"
         | "jurnal"
         | "persamaan_persepsi"
+        | "seminar_pleno"
         | "csr"
         | "non_blok_non_csr",
       emptyMessage: string
@@ -1521,10 +1578,12 @@ export default function DashboardDosen() {
             return "bg-indigo-500";
           case "persamaan_persepsi":
             return "bg-cyan-500";
+          case "seminar_pleno":
+            return "bg-teal-500";
           case "csr":
             return "bg-orange-500";
           case "non_blok_non_csr":
-            return "bg-teal-500";
+            return "bg-pink-500";
           default:
             return "bg-gray-500";
         }
@@ -1600,6 +1659,7 @@ export default function DashboardDosen() {
                         jadwalType === "pbl" ||
                         jadwalType === "jurnal" ||
                         jadwalType === "persamaan_persepsi" ||
+                        jadwalType === "seminar_pleno" ||
                         jadwalType === "csr" ||
                         jadwalType === "non_blok_non_csr"
                           ? `${item.jam_mulai} - ${item.jam_selesai}`
@@ -1628,13 +1688,14 @@ export default function DashboardDosen() {
                       )}
                       {jadwalType !== "pbl" && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {jadwalType === "kuliah_besar" ||
-                          jadwalType === "praktikum" ||
-                          jadwalType === "agenda_khusus" ||
-                          jadwalType === "jurnal" ||
-                          jadwalType === "persamaan_persepsi" ||
-                          jadwalType === "csr" ||
-                          jadwalType === "non_blok_non_csr"
+                          {                        jadwalType === "kuliah_besar" ||
+                        jadwalType === "praktikum" ||
+                        jadwalType === "agenda_khusus" ||
+                        jadwalType === "jurnal" ||
+                        jadwalType === "persamaan_persepsi" ||
+                        jadwalType === "seminar_pleno" ||
+                        jadwalType === "csr" ||
+                        jadwalType === "non_blok_non_csr"
                             ? `${item.jumlah_sesi || 1} x 50 menit`
                             : `${item.durasi} menit`}
                         </td>
@@ -1670,6 +1731,10 @@ export default function DashboardDosen() {
                             })()}
                           </td>
                         </>
+                      ) : jadwalType === "seminar_pleno" ? (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {item.topik || "N/A"}
+                        </td>
                       ) : jadwalType === "csr" ? (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {item.topik || "N/A"}
@@ -1720,7 +1785,7 @@ export default function DashboardDosen() {
                           </span>
                         </td>
                       )}
-                      {jadwalType === "persamaan_persepsi" ? (
+                      {jadwalType === "persamaan_persepsi" || jadwalType === "seminar_pleno" ? (
                         <>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                             {item.koordinator_names || "-"}
@@ -1747,6 +1812,7 @@ export default function DashboardDosen() {
                       {jadwalType !== "pbl" &&
                         jadwalType !== "jurnal" &&
                         jadwalType !== "persamaan_persepsi" &&
+                        jadwalType !== "seminar_pleno" &&
                         jadwalType !== "csr" &&
                         jadwalType !== "non_blok_non_csr" &&
                         jadwalType !== "kuliah_besar" && (
@@ -1756,6 +1822,7 @@ export default function DashboardDosen() {
                         )}
                       {(jadwalType === "kuliah_besar" ||
                         jadwalType === "jurnal" ||
+                        jadwalType === "seminar_pleno" ||
                         jadwalType === "non_blok_non_csr") && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {jadwalType === "kuliah_besar"
@@ -1767,6 +1834,12 @@ export default function DashboardDosen() {
                             ? item.kelompok_kecil?.nama ||
                               item.kelompok_kecil_antara?.nama_kelompok ||
                               "N/A"
+                            : jadwalType === "seminar_pleno"
+                            ? item.kelompok_besar_antara?.nama_kelompok ||
+                              item.kelompok_besar?.nama_kelompok ||
+                              (item.kelompok_besar?.semester
+                                ? `Semester ${item.kelompok_besar.semester}`
+                                : "N/A")
                             : jadwalType === "non_blok_non_csr"
                             ? item.kelompok_besar?.semester ||
                               item.kelompok_besar_antara?.nama_kelompok ||
@@ -1786,7 +1859,8 @@ export default function DashboardDosen() {
                             : "Online"
                           : jadwalType === "kuliah_besar" ||
                             jadwalType === "praktikum" ||
-                            jadwalType === "jurnal"
+                            jadwalType === "jurnal" ||
+                            jadwalType === "seminar_pleno"
                           ? item.ruangan?.nama || "N/A"
                           : jadwalType === "pbl"
                           ? item.ruangan || "N/A"
@@ -1878,8 +1952,8 @@ export default function DashboardDosen() {
                             item.status_konfirmasi,
                             item.status_reschedule
                           )}
-                          {/* Persamaan Persepsi tidak ada button konfirmasi (langsung bisa) */}
-                          {jadwalType === "persamaan_persepsi" ? (
+                          {/* Persamaan Persepsi dan Seminar Pleno tidak ada button konfirmasi (langsung bisa) */}
+                          {jadwalType === "persamaan_persepsi" || jadwalType === "seminar_pleno" ? (
                             <>
                               {/* Button Absensi hanya muncul jika dosen adalah koordinator */}
                               {(() => {
@@ -1893,11 +1967,19 @@ export default function DashboardDosen() {
                                   : false;
                                 
                                 if (isKoordinator) {
-                                  // Cek apakah persamaan persepsi antara berdasarkan semester_type
+                                  // Cek apakah antara berdasarkan semester_type
                                   const isAntara = item.semester_type === 'antara';
-                                  const routePath = isAntara 
-                                    ? `/absensi-persamaan-persepsi-antara/${item.mata_kuliah_kode}/${item.id}`
-                                    : `/absensi-persamaan-persepsi/${item.mata_kuliah_kode}/${item.id}`;
+                                  
+                                  let routePath = '';
+                                  if (jadwalType === "persamaan_persepsi") {
+                                    routePath = isAntara 
+                                      ? `/absensi-persamaan-persepsi-antara/${item.mata_kuliah_kode}/${item.id}`
+                                      : `/absensi-persamaan-persepsi/${item.mata_kuliah_kode}/${item.id}`;
+                                  } else if (jadwalType === "seminar_pleno") {
+                                    routePath = isAntara 
+                                      ? `/absensi-seminar-pleno-antara/${item.mata_kuliah_kode}/${item.id}`
+                                      : `/absensi-seminar-pleno/${item.mata_kuliah_kode}/${item.id}`;
+                                  }
                                   
                                   return (
                                     <button
@@ -2089,7 +2171,7 @@ export default function DashboardDosen() {
                               ) : null}
                                 </>
                               )}
-                              {/* Persamaan Persepsi tidak ada button reschedule (langsung bisa) */}
+                              {/* Persamaan Persepsi dan Seminar Pleno tidak ada button reschedule (langsung bisa) */}
                               {(jadwalType === "pbl" || jadwalType === "kuliah_besar" || jadwalType === "praktikum" || jadwalType === "agenda_khusus" || jadwalType === "jurnal" || jadwalType === "csr" || jadwalType === "non_blok_non_csr") && item.is_active_dosen && item.status_konfirmasi === "belum_konfirmasi" && (
                                 <button
                                   onClick={() => openRescheduleModal(item)}
@@ -3583,12 +3665,41 @@ export default function DashboardDosen() {
                 )}
               </motion.div>
 
+              {/* Seminar Pleno */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.8 }}
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+              >
+                {renderJadwalTable(
+                  "Seminar Pleno",
+                  faUsers,
+                  jadwalSeminarPleno,
+                  [
+                    "NO",
+                    "HARI/TANGGAL",
+                    "PUKUL",
+                    "WAKTU",
+                    "TOPIK",
+                    "KOORDINATOR DOSEN",
+                    "PENGAMPU",
+                    "KELOMPOK BESAR",
+                    "LOKASI",
+                    "JENIS SEMESTER",
+                    "AKSI",
+                  ],
+                  "seminar_pleno",
+                  "Tidak ada data Seminar Pleno"
+                )}
+              </motion.div>
+
               {/* Jadwal CSR - Hanya tampil di semester reguler */}
               {activeSemesterType !== "antara" && (
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.8 }}
+                  transition={{ delay: 0.85 }}
                   className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
                 >
                   {renderJadwalTable(
@@ -3620,7 +3731,7 @@ export default function DashboardDosen() {
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.9 }}
+                transition={{ delay: 0.95 }}
                 className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
               >
                 {renderJadwalTable(

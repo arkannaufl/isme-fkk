@@ -439,6 +439,31 @@ Route::middleware('auth:sanctum')->prefix('persamaan-persepsi')->group(function 
     Route::post('/{kode}/jadwal/{jadwalId}/absensi', [App\Http\Controllers\JadwalPersamaanPersepsiController::class, 'storeAbsensi']);
 });
 
+Route::middleware('auth:sanctum')->prefix('seminar-pleno')->group(function () {
+    Route::get('/jadwal/{kode}', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'index']);
+    Route::post('/jadwal/{kode}', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'store']);
+    Route::post('/jadwal/{kode}/import', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'import']);
+    Route::put('/jadwal/{kode}/{id}', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'update']);
+    Route::delete('/jadwal/{kode}/{id}', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'destroy']);
+});
+
+// Jadwal Seminar Pleno untuk dosen
+Route::middleware('auth:sanctum')->get('/jadwal-seminar-pleno/dosen/{dosenId}', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'getJadwalForDosen']);
+Route::middleware('auth:sanctum')->put('/jadwal-seminar-pleno/{id}/konfirmasi', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'konfirmasi']);
+Route::middleware('auth:sanctum')->post('/jadwal-seminar-pleno/{id}/reschedule', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'reschedule']);
+
+// Routes untuk absensi Seminar Pleno
+Route::middleware('auth:sanctum')->prefix('seminar-pleno')->group(function () {
+    Route::get('/{kode}/jadwal/{jadwalId}/absensi', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'getAbsensi']);
+    Route::post('/{kode}/jadwal/{jadwalId}/absensi', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'storeAbsensi']);
+    Route::get('/{kode}/jadwal/{jadwalId}/mahasiswa', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'getMahasiswa']);
+    Route::get('/{kode}/jadwal/{jadwalId}/qr-token', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'generateQrToken']);
+    Route::put('/{kode}/jadwal/{jadwalId}/toggle-qr', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'toggleQr']);
+    // Routes untuk absensi dosen (hanya koordinator)
+    Route::get('/{kode}/jadwal/{jadwalId}/absensi-dosen', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'getAbsensiDosen']);
+    Route::post('/{kode}/jadwal/{jadwalId}/absensi-dosen', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'storeAbsensiDosen']);
+});
+
 
 // Reference data endpoints untuk CSR
 Route::middleware('auth:sanctum')->get('/dosen-options', [JadwalCSRController::class, 'getDosenOptions']);

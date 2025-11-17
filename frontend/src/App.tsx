@@ -70,6 +70,8 @@ import DosenAbsensiKuliahBesarAntara from "./pages/DosenAbsensiKuliahBesarAntara
 import DosenAbsensiNonBlokNonCSR from "./pages/DosenAbsensiNonBlokNonCSR";
 import DosenAbsensiNonBlokNonCSRAntara from "./pages/DosenAbsensiNonBlokNonCSRAntara";
 import DosenAbsensiPraktikum from "./pages/DosenAbsensiPraktikum";
+import DosenAbsensiSeminarPleno from "./pages/DosenAbsensiSeminarPleno";
+import DetailAbSenMahasiswaSeminarPleno from "./pages/DetailAbSenMahasiswaSeminarPleno";
 
 import WhatsAppTest from "./pages/WhatsAppTest";
 
@@ -205,6 +207,14 @@ function AppContent() {
                 }
               />
               <Route
+                path="/mahasiswa/absensi-seminar-pleno/:kode/:jadwalId"
+                element={
+                  <RequireDosenRole allowedRoles={["mahasiswa"]}>
+                    <DetailAbSenMahasiswaSeminarPleno />
+                  </RequireDosenRole>
+                }
+              />
+              <Route
                 path="/mahasiswa/absensi-kuliah-besar-antara/:kode/:jadwalId"
                 element={
                   <RequireDosenRole allowedRoles={["mahasiswa"]}>
@@ -301,6 +311,14 @@ function AppContent() {
                 element={
                   <RequireDosenRole allowedRoles={["dosen", "super_admin", "tim_akademik"]}>
                     <DosenAbsensiPraktikum />
+                  </RequireDosenRole>
+                }
+              />
+              <Route
+                path="/absensi-seminar-pleno/:kode/:jadwalId"
+                element={
+                  <RequireDosenRole allowedRoles={["dosen", "super_admin", "tim_akademik"]}>
+                    <DosenAbsensiSeminarPleno />
                   </RequireDosenRole>
                 }
               />

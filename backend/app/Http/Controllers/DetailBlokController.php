@@ -9,6 +9,8 @@ use App\Models\JadwalKuliahBesar;
 use App\Models\JadwalAgendaKhusus;
 use App\Models\JadwalPraktikum;
 use App\Models\JadwalJurnalReading;
+use App\Models\JadwalPersamaanPersepsi;
+use App\Models\JadwalSeminarPleno;
 use App\Models\PBL;
 use App\Models\KelompokKecil;
 use App\Models\KelompokBesar;
@@ -38,6 +40,8 @@ class DetailBlokController extends Controller
                 'jadwal_agenda_khusus' => $this->getJadwalAgendaKhusus($kode),
                 'jadwal_praktikum' => $this->getJadwalPraktikum($kode),
                 'jadwal_jurnal_reading' => $this->getJadwalJurnalReading($kode),
+                'jadwal_persamaan_persepsi' => $this->getJadwalPersamaanPersepsi($kode),
+                'jadwal_seminar_pleno' => $this->getJadwalSeminarPleno($kode),
                 'modul_pbl' => $this->getModulPBL($kode),
                 'jurnal_reading' => $this->getJurnalReading($kode),
                 'kelompok_kecil' => $this->getKelompokKecil($mataKuliah->semester),
@@ -295,6 +299,121 @@ class DetailBlokController extends Controller
     private function getJurnalReading($kode)
     {
         return \App\Models\JurnalReading::where('mata_kuliah_kode', $kode)->get();
+    }
+
+    private function getJadwalPersamaanPersepsi($kode)
+    {
+        return JadwalPersamaanPersepsi::where('mata_kuliah_kode', $kode)
+            ->with(['ruangan', 'mataKuliah'])
+            ->orderBy('tanggal', 'asc')
+            ->orderBy('jam_mulai', 'asc')
+            ->get()
+            ->map(function ($jadwal) {
+                if ($jadwal->jam_mulai) {
+                    $jadwal->jam_mulai = $this->formatJamForFrontend($jadwal->jam_mulai);
+                }
+                if ($jadwal->jam_selesai) {
+                    $jadwal->jam_selesai = $this->formatJamForFrontend($jadwal->jam_selesai);
+                }
+
+                // Parse koordinator_ids dan dosen_ids
+                $koordinatorIds = $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) ? $jadwal->koordinator_ids : [];
+                $dosenIds = $jadwal->dosen_ids && is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : [];
+
+                // Get koordinator names
+                if (!empty($koordinatorIds)) {
+                    $koordinatorNames = User::whereIn('id', $koordinatorIds)->pluck('name')->toArray();
+                    $jadwal->koordinator_names = implode(', ', $koordinatorNames);
+                } else {
+                    $jadwal->koordinator_names = '';
+                }
+
+                // Get pengampu names (non-koordinator)
+                $pengampuIds = array_diff($dosenIds, $koordinatorIds);
+                if (!empty($pengampuIds)) {
+                    $pengampuNames = User::whereIn('id', $pengampuIds)->pluck('name')->toArray();
+                    $jadwal->pengampu_names = implode(', ', $pengampuNames);
+                } else {
+                    $jadwal->pengampu_names = '';
+                }
+
+                // Ensure ruangan_id is included
+                if (!$jadwal->ruangan_id && $jadwal->ruangan) {
+                    $jadwal->ruangan_id = $jadwal->ruangan->id;
+                }
+
+                return $jadwal;
+            });
+    }
+
+    private function getJadwalSeminarPleno($kode)
+    {
+        return JadwalSeminarPleno::where('mata_kuliah_kode', $kode)
+            ->with(['ruangan', 'mataKuliah', 'kelompokBesar', 'kelompokBesarAntara'])
+            ->orderBy('tanggal', 'asc')
+            ->orderBy('jam_mulai', 'asc')
+            ->get()
+            ->map(function ($jadwal) {
+                if ($jadwal->jam_mulai) {
+                    $jadwal->jam_mulai = $this->formatJamForFrontend($jadwal->jam_mulai);
+                }
+                if ($jadwal->jam_selesai) {
+                    $jadwal->jam_selesai = $this->formatJamForFrontend($jadwal->jam_selesai);
+                }
+
+                // Parse koordinator_ids dan dosen_ids
+                $koordinatorIds = $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) ? $jadwal->koordinator_ids : [];
+                $dosenIds = $jadwal->dosen_ids && is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : [];
+
+                // Get koordinator names
+                if (!empty($koordinatorIds)) {
+                    $koordinatorNames = User::whereIn('id', $koordinatorIds)->pluck('name')->toArray();
+                    $jadwal->koordinator_names = implode(', ', $koordinatorNames);
+                } else {
+                    $jadwal->koordinator_names = '';
+                }
+
+                // Get pengampu names (non-koordinator)
+                $pengampuIds = array_diff($dosenIds, $koordinatorIds);
+                if (!empty($pengampuIds)) {
+                    $pengampuNames = User::whereIn('id', $pengampuIds)->pluck('name')->toArray();
+                    $jadwal->pengampu_names = implode(', ', $pengampuNames);
+                } else {
+                    $jadwal->pengampu_names = '';
+                }
+
+                // Ensure ruangan_id is included
+                if (!$jadwal->ruangan_id && $jadwal->ruangan) {
+                    $jadwal->ruangan_id = $jadwal->ruangan->id;
+                }
+
+                // Ensure kelompok_besar_id and kelompok_besar_antara_id are included
+                // Explicitly set kelompok_besar_id and kelompok_besar_antara_id to ensure they're in response
+                $jadwal->kelompok_besar_id = $jadwal->kelompok_besar_id ?? null;
+                $jadwal->kelompok_besar_antara_id = $jadwal->kelompok_besar_antara_id ?? null;
+
+                // Set kelompok_besar object if relasi exists
+                if ($jadwal->kelompokBesar) {
+                    $jadwal->kelompok_besar = (object) [
+                        'id' => $jadwal->kelompokBesar->id,
+                        'semester' => $jadwal->kelompokBesar->semester,
+                    ];
+                } else {
+                    $jadwal->kelompok_besar = null;
+                }
+
+                // Set kelompok_besar_antara object if relasi exists
+                if ($jadwal->kelompokBesarAntara) {
+                    $jadwal->kelompok_besar_antara = (object) [
+                        'id' => $jadwal->kelompokBesarAntara->id,
+                        'nama_kelompok' => $jadwal->kelompokBesarAntara->nama_kelompok,
+                    ];
+                } else {
+                    $jadwal->kelompok_besar_antara = null;
+                }
+
+                return $jadwal;
+            });
     }
 
     private function getKelompokKecil($semester)
