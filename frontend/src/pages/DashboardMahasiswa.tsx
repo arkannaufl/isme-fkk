@@ -658,9 +658,14 @@ export default function DashboardMahasiswa() {
                         {item.topik || "N/A"}
                       </td>
                     ) : jadwalType === "seminar_pleno" ? (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {item.topik || "N/A"}
-                      </td>
+                      <>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {item.topik || "N/A"}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {item.koordinator_names || "N/A"}
+                        </td>
+                      </>
                     ) : jadwalType === "csr" ? (
                       <>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
@@ -709,13 +714,6 @@ export default function DashboardMahasiswa() {
                       </td>
                     )}
                     {jadwalType === "kuliah_besar" && (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {item.kelompok_besar?.semester
-                          ? `Semester ${item.kelompok_besar.semester}`
-                          : "N/A"}
-                      </td>
-                    )}
-                    {jadwalType === "seminar_pleno" && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {item.kelompok_besar?.semester
                           ? `Semester ${item.kelompok_besar.semester}`
@@ -1433,8 +1431,8 @@ export default function DashboardMahasiswa() {
                     "PUKUL",
                     "WAKTU",
                     "TOPIK",
+                    "KOORDINATOR",
                     "PENGAMPU",
-                    "KELOMPOK",
                     "RUANGAN",
                     "STATUS",
                     "JENIS",
