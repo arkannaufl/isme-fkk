@@ -64,7 +64,9 @@ type JadwalMengajar = {
     | "csr"
     | "materi"
     | "agenda"
-    | "non_blok_non_csr";
+    | "non_blok_non_csr"
+    | "seminar_pleno"
+    | "persamaan_persepsi";
   topik?: string;
   materi?: string;
   agenda?: string;
@@ -91,6 +93,9 @@ type JadwalMengajar = {
   reschedule_reason?: string | null;
   // Additional fields for penilaian
   penilaian_submitted?: boolean;
+  // Peran untuk Persamaan Persepsi dan Seminar Pleno
+  peran?: "koordinator" | "pengampu";
+  peran_display?: string;
 };
 
 export default function DosenRiwayat() {
@@ -544,6 +549,16 @@ export default function DosenRiwayat() {
         return j.status_konfirmasi === "bisa";
       }
 
+      // Filter realisasi Persamaan Persepsi: hanya hitung jika status_konfirmasi = "bisa" (langsung bisa mengajar)
+      if (j.jenis_jadwal === "persamaan_persepsi") {
+        return j.status_konfirmasi === "bisa";
+      }
+
+      // Filter realisasi Seminar Pleno: hanya hitung jika status_konfirmasi = "bisa" (langsung bisa mengajar)
+      if (j.jenis_jadwal === "seminar_pleno") {
+        return j.status_konfirmasi === "bisa";
+      }
+
       return true;
     });
 
@@ -962,6 +977,8 @@ export default function DosenRiwayat() {
         { jenis: "jurnal_reading", label: "Jurnal Reading" },
         { jenis: "csr", label: "CSR" },
         { jenis: "materi", label: "Materi" },
+        { jenis: "persamaan_persepsi", label: "Persamaan Persepsi" },
+        { jenis: "seminar_pleno", label: "Seminar Pleno" },
       ];
 
       semuaJenisKegiatan.forEach((jenisKegiatan) => {
@@ -1088,6 +1105,8 @@ export default function DosenRiwayat() {
           { jenis: "praktikum", label: "Praktikum" },
           { jenis: "jurnal_reading", label: "Jurnal Reading" },
           { jenis: "csr", label: "CSR" },
+          { jenis: "persamaan_persepsi", label: "Persamaan Persepsi" },
+          { jenis: "seminar_pleno", label: "Seminar Pleno" },
         ];
 
         semuaJenisKegiatan.forEach((jenisKegiatan) => {
@@ -1221,6 +1240,8 @@ export default function DosenRiwayat() {
           { jenis: "praktikum", label: "Praktikum" },
           { jenis: "jurnal_reading", label: "Jurnal Reading" },
           { jenis: "csr", label: "CSR" },
+          { jenis: "persamaan_persepsi", label: "Persamaan Persepsi" },
+          { jenis: "seminar_pleno", label: "Seminar Pleno" },
         ];
 
         semuaJenisKegiatan.forEach((jenisKegiatan) => {
@@ -1460,6 +1481,10 @@ export default function DosenRiwayat() {
       case "agenda":
       case "agenda_khusus":
         return "bg-yellow-100 text-yellow-800";
+      case "seminar_pleno":
+        return "bg-cyan-100 text-cyan-800";
+      case "persamaan_persepsi":
+        return "bg-teal-100 text-teal-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -1483,6 +1508,10 @@ export default function DosenRiwayat() {
         return "Agenda";
       case "agenda_khusus":
         return "Agenda Khusus";
+      case "seminar_pleno":
+        return "Seminar Pleno";
+      case "persamaan_persepsi":
+        return "Persamaan Persepsi";
       default:
         return jenis;
     }
@@ -1552,6 +1581,22 @@ export default function DosenRiwayat() {
       return total;
     }
 
+    // Untuk Persamaan Persepsi, realisasi hanya dihitung bila status_konfirmasi = "bisa" (langsung bisa mengajar)
+    if (
+      jadwal.jenis_jadwal === "persamaan_persepsi" &&
+      jadwal.status_konfirmasi !== "bisa"
+    ) {
+      return total;
+    }
+
+    // Untuk Seminar Pleno, realisasi hanya dihitung bila status_konfirmasi = "bisa" (langsung bisa mengajar)
+    if (
+      jadwal.jenis_jadwal === "seminar_pleno" &&
+      jadwal.status_konfirmasi !== "bisa"
+    ) {
+      return total;
+    }
+
     // Hitung jam berdasarkan jumlah sesi (1 sesi = 50 menit = 0.833 jam)
     const jamPerSesi = 50 / 60; // 50 menit dalam jam
     return total + jadwal.jumlah_sesi * jamPerSesi;
@@ -1597,6 +1642,16 @@ export default function DosenRiwayat() {
       (jenis === "materi" || jenis === "agenda") &&
       jadwal.status_konfirmasi !== "bisa"
     ) {
+      return acc;
+    }
+
+    // Untuk Persamaan Persepsi, realisasi hanya dihitung bila status_konfirmasi = "bisa" (langsung bisa mengajar)
+    if (jenis === "persamaan_persepsi" && jadwal.status_konfirmasi !== "bisa") {
+      return acc;
+    }
+
+    // Untuk Seminar Pleno, realisasi hanya dihitung bila status_konfirmasi = "bisa" (langsung bisa mengajar)
+    if (jenis === "seminar_pleno" && jadwal.status_konfirmasi !== "bisa") {
       return acc;
     }
 
@@ -1963,6 +2018,8 @@ export default function DosenRiwayat() {
               <option value="csr">CSR</option>
               <option value="materi">Materi</option>
               <option value="agenda">Agenda</option>
+              <option value="persamaan_persepsi">Persamaan Persepsi</option>
+              <option value="seminar_pleno">Seminar Pleno</option>
             </select>
           </div>
         </div>
@@ -2018,6 +2075,18 @@ export default function DosenRiwayat() {
               color:
                 "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
             },
+            {
+              jenis: "persamaan_persepsi",
+              label: "Persamaan Persepsi",
+              color:
+                "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
+            },
+            {
+              jenis: "seminar_pleno",
+              label: "Seminar Pleno",
+              color:
+                "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200",
+            },
           ].map((jenisKegiatan) => {
             const dataJenis = statistikPerJenis[jenisKegiatan.jenis] || {
               jumlah: 0,
@@ -2070,6 +2139,8 @@ export default function DosenRiwayat() {
             "csr",
             "materi",
             "agenda_khusus",
+            "persamaan_persepsi",
+            "seminar_pleno",
           ];
 
           return (
@@ -2146,6 +2217,11 @@ export default function DosenRiwayat() {
                                 Nomor CSR
                               </th>
                             )}
+                            {(jenis === "persamaan_persepsi" || jenis === "seminar_pleno") && (
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Peran
+                              </th>
+                            )}
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                               Detail
                             </th>
@@ -2213,6 +2289,19 @@ export default function DosenRiwayat() {
                                 <td className="px-6 py-4 whitespace-nowrap text-gray-500 dark:text-gray-400">
                                   <span className="font-medium">
                                     {jadwal.nomor_csr || "-"}
+                                  </span>
+                                </td>
+                              )}
+                              {(jenis === "persamaan_persepsi" || jenis === "seminar_pleno") && (
+                                <td className="px-6 py-4 whitespace-nowrap text-gray-500 dark:text-gray-400">
+                                  <span
+                                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                      jadwal.peran === "koordinator"
+                                        ? "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300"
+                                        : "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300"
+                                    }`}
+                                  >
+                                    {jadwal.peran_display || (jadwal.peran === "koordinator" ? "Koordinator" : "Pengampu")}
                                   </span>
                                 </td>
                               )}

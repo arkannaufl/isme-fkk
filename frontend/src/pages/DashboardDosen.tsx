@@ -1857,10 +1857,13 @@ export default function DashboardDosen() {
                           ? (item.use_ruangan && item.ruangan?.nama) 
                             ? item.ruangan.nama 
                             : "Online"
+                          : jadwalType === "seminar_pleno"
+                          ? (item.use_ruangan && item.ruangan?.nama)
+                            ? item.ruangan.nama
+                            : "Online"
                           : jadwalType === "kuliah_besar" ||
                             jadwalType === "praktikum" ||
-                            jadwalType === "jurnal" ||
-                            jadwalType === "seminar_pleno"
+                            jadwalType === "jurnal"
                           ? item.ruangan?.nama || "N/A"
                           : jadwalType === "pbl"
                           ? item.ruangan || "N/A"

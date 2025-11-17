@@ -46,6 +46,7 @@ class JadwalPBL extends Model
     ];
 
     protected $casts = [
+        'tanggal' => 'date',
         'dosen_ids' => 'array',
         'penilaian_submitted' => 'boolean',
         'penilaian_submitted_at' => 'datetime',

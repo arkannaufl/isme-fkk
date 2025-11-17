@@ -315,6 +315,10 @@ const AdminNotifications: React.FC = () => {
         label: "Persamaan Persepsi",
         cls: "bg-pink-100 text-pink-800 dark:bg-pink-900/20 dark:text-pink-200 border-pink-200 dark:border-pink-700",
       },
+      seminar_pleno: {
+        label: "Seminar Pleno",
+        cls: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/20 dark:text-cyan-200 border-cyan-200 dark:border-cyan-700",
+      },
     };
     const info = map[t];
     if (!info) return null;
@@ -480,6 +484,9 @@ const AdminNotifications: React.FC = () => {
         case "persamaan_persepsi":
           url = `/jadwal-persamaan-persepsi/${jadwalId}`;
           break;
+        case "seminar_pleno":
+          url = `/seminar-pleno/jadwal/${jadwalId}`;
+          break;
         default:
           return null;
       }
@@ -505,6 +512,7 @@ const AdminNotifications: React.FC = () => {
               csr: "csr",
               non_blok_non_csr: "non_blok_non_csr",
               persamaan_persepsi: "persamaan_persepsi",
+              seminar_pleno: "seminar_pleno",
             };
             const targetJenis = jenisKeyMap[normType] || normType;
             const found = items.find(
@@ -629,6 +637,9 @@ const AdminNotifications: React.FC = () => {
             case "persamaan_persepsi":
               url = `/jadwal-persamaan-persepsi/${id}`;
               break;
+            case "seminar_pleno":
+              url = `/seminar-pleno/jadwal/${id}`;
+              break;
             default:
               return;
           }
@@ -687,6 +698,7 @@ const AdminNotifications: React.FC = () => {
                 csr: "csr",
                 non_blok_non_csr: "non_blok_non_csr",
                 persamaan_persepsi: "persamaan_persepsi",
+                seminar_pleno: "seminar_pleno",
               };
               const normType = normTypeMap[type] || type;
               const found = items.find(
@@ -1390,6 +1402,8 @@ const AdminNotifications: React.FC = () => {
             endpoint = `/jadwal-non-blok-non-csr/${cleanJadwalId}/konfirmasi`;
           } else if (normalizedType === "persamaan_persepsi") {
             endpoint = `/jadwal-persamaan-persepsi/${cleanJadwalId}/konfirmasi`;
+          } else if (normalizedType === "seminar_pleno") {
+            endpoint = `/jadwal-seminar-pleno/${cleanJadwalId}/konfirmasi`;
           } else {
             console.error(
               "Invalid jadwal_type:",
@@ -1468,6 +1482,8 @@ const AdminNotifications: React.FC = () => {
             backendType = "non_blok_non_csr";
           } else if (normalizedType === "persamaan_persepsi") {
             backendType = "persamaan_persepsi";
+          } else if (normalizedType === "seminar_pleno") {
+            backendType = "seminar_pleno";
           }
 
           // Send notification
@@ -2146,25 +2162,32 @@ const AdminNotifications: React.FC = () => {
       }
     }
 
-    // PENTING: Persamaan Persepsi langsung "Bisa Mengajar" tanpa menunggu konfirmasi
-    // Jika ini adalah assignment notification untuk persamaan persepsi dan tidak ada status "tidak_bisa",
+    // PENTING: Persamaan Persepsi dan Seminar Pleno langsung "Bisa Mengajar" tanpa menunggu konfirmasi
+    // Jika ini adalah assignment notification atau reminder untuk persamaan persepsi/seminar pleno dan tidak ada status "tidak_bisa",
     // langsung tampilkan status "bisa"
-    if (type === "persamaan_persepsi" && !statusField) {
+    if ((type === "persamaan_persepsi" || type === "seminar_pleno") && !statusField) {
       const title = String(notification.title || "").toLowerCase();
       const message = String(notification.message || "").toLowerCase();
 
-      // Cek apakah ini assignment notification (bukan status change atau replacement)
-      const isAssignmentNotification =
+      // Cek apakah ini assignment notification atau reminder (bukan status change atau replacement)
+      const isAssignmentOrReminderNotification =
         (title.includes("jadwal persamaan persepsi") ||
           title.includes("persamaan persepsi baru") ||
-          message.includes("persamaan persepsi")) &&
+          title.includes("pengingat persamaan persepsi") ||
+          title.includes("reminder persamaan persepsi") ||
+          message.includes("persamaan persepsi") ||
+          title.includes("jadwal seminar pleno") ||
+          title.includes("seminar pleno baru") ||
+          title.includes("pengingat seminar pleno") ||
+          title.includes("reminder seminar pleno") ||
+          message.includes("seminar pleno")) &&
         !title.includes("status konfirmasi diubah") &&
         !title.includes("tidak bisa") &&
         !message.includes("status konfirmasi diubah") &&
         !message.includes("tidak bisa") &&
         notification.data?.admin_action !== "replacement_success";
 
-      if (isAssignmentNotification) {
+      if (isAssignmentOrReminderNotification) {
         return {
           status: "bisa",
           color: "text-green-500",
@@ -2173,6 +2196,36 @@ const AdminNotifications: React.FC = () => {
           icon: faCheckCircle,
           adminInfo: null,
         };
+      }
+    }
+    
+    // PENTING: Untuk Persamaan Persepsi dan Seminar Pleno, jika status_konfirmasi adalah "belum_konfirmasi" atau null,
+    // tetap tampilkan sebagai "bisa" karena mereka tidak perlu konfirmasi
+    if ((type === "persamaan_persepsi" || type === "seminar_pleno")) {
+      const title = String(notification.title || "").toLowerCase();
+      const message = String(notification.message || "").toLowerCase();
+      
+      // Skip jika ini adalah notifikasi "tidak bisa" atau replacement
+      const isNotValidNotification =
+        title.includes("tidak bisa") ||
+        message.includes("tidak bisa") ||
+        title.includes("status konfirmasi diubah") ||
+        message.includes("status konfirmasi diubah") ||
+        notification.data?.admin_action === "replacement_success";
+      
+      if (!isNotValidNotification) {
+        // Jika status adalah "belum_konfirmasi" atau null, tetap tampilkan sebagai "bisa"
+        const s = statusField ? String(statusField).toLowerCase() : "";
+        if (s.includes("belum_konfirmasi") || s === "pending" || !statusField) {
+          return {
+            status: "bisa",
+            color: "text-green-500",
+            bgColor: "bg-green-100 dark:bg-green-900/20",
+            textColor: "text-green-800 dark:text-green-200",
+            icon: faCheckCircle,
+            adminInfo: null,
+          };
+        }
       }
     }
 
@@ -4401,7 +4454,7 @@ const AdminNotifications: React.FC = () => {
                           const isSelected =
                             selectedReminderDosen.has(dosenKey);
 
-                          // PENTING: Persamaan Persepsi langsung "Bisa Mengajar" tanpa menunggu konfirmasi
+                          // PENTING: Persamaan Persepsi dan Seminar Pleno langsung "Bisa Mengajar" tanpa menunggu konfirmasi
                           const jadwalType = String(
                             dosen.jadwal_type || ""
                           ).toLowerCase();
@@ -4411,6 +4464,13 @@ const AdminNotifications: React.FC = () => {
                             String(dosen.mata_kuliah || "")
                               .toLowerCase()
                               .includes("persamaan persepsi");
+                          const isSeminarPleno =
+                            jadwalType === "seminar_pleno" ||
+                            jadwalType === "seminar pleno" ||
+                            String(dosen.mata_kuliah || "")
+                              .toLowerCase()
+                              .includes("seminar pleno");
+                          const isAutoBisa = isPersamaanPersepsi || isSeminarPleno;
 
                           return (
                             <div
@@ -4489,10 +4549,11 @@ const AdminNotifications: React.FC = () => {
                                     </p>
                                     <div className="flex items-center gap-2">
                                       {/* Reminder Type Badge */}
-                                      {dosen.reminder_type && (
+                                      {/* PENTING: Untuk Seminar Pleno dan Persamaan Persepsi, selalu tampilkan "Persiapan Mengajar" meskipun reminder_type "unconfirmed" */}
+                                      {(dosen.reminder_type || isAutoBisa) && (
                                         <span
                                           className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
-                                            isPersamaanPersepsi
+                                            isAutoBisa
                                               ? "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300"
                                               : dosen.reminder_type ===
                                                 "unconfirmed"
@@ -4500,7 +4561,7 @@ const AdminNotifications: React.FC = () => {
                                               : "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300"
                                           }`}
                                         >
-                                          {isPersamaanPersepsi
+                                          {isAutoBisa
                                             ? "Persiapan Mengajar"
                                             : dosen.reminder_type ===
                                               "unconfirmed"
@@ -4586,8 +4647,9 @@ const AdminNotifications: React.FC = () => {
                                 <span
                                   className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                                     // Sinkronkan dengan badge reminder_type di kiri
-                                    // Persamaan Persepsi = "Persiapan Mengajar" (biru), sama seperti jadwal lain
-                                    isPersamaanPersepsi && willReceiveReminder
+                                    // Persamaan Persepsi dan Seminar Pleno = "Persiapan Mengajar" (biru), sama seperti jadwal lain
+                                    // PENTING: Untuk Seminar Pleno dan Persamaan Persepsi, selalu tampilkan "Persiapan Mengajar" meskipun reminder_type "unconfirmed"
+                                    isAutoBisa
                                       ? "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300"
                                       : dosen.reminder_type === "upcoming" &&
                                         willReceiveReminder
@@ -4600,7 +4662,7 @@ const AdminNotifications: React.FC = () => {
                                       : "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300"
                                   }`}
                                 >
-                                  {isPersamaanPersepsi && willReceiveReminder
+                                  {isAutoBisa
                                     ? "Persiapan Mengajar"
                                     : dosen.reminder_type === "upcoming" &&
                                       willReceiveReminder
@@ -4938,7 +5000,7 @@ const AdminNotifications: React.FC = () => {
                           const selectedData = selectedDosenList.get(key);
                           const currentStatus = selectedData?.status || null;
 
-                          // PENTING: Persamaan Persepsi langsung "Bisa Mengajar" tanpa menunggu konfirmasi
+                          // PENTING: Persamaan Persepsi dan Seminar Pleno langsung "Bisa Mengajar" tanpa menunggu konfirmasi
                           const jadwalType = String(
                             dosen.jadwal_type || ""
                           ).toLowerCase();
@@ -4948,10 +5010,17 @@ const AdminNotifications: React.FC = () => {
                             String(dosen.mata_kuliah || "")
                               .toLowerCase()
                               .includes("persamaan persepsi");
+                          const isSeminarPleno =
+                            jadwalType === "seminar_pleno" ||
+                            jadwalType === "seminar pleno" ||
+                            String(dosen.mata_kuliah || "")
+                              .toLowerCase()
+                              .includes("seminar pleno");
+                          const isAutoBisa = isPersamaanPersepsi || isSeminarPleno;
 
-                          // Untuk persamaan persepsi, jika belum dipilih status, default ke "bisa"
+                          // Untuk persamaan persepsi dan seminar pleno, jika belum dipilih status, default ke "bisa"
                           const displayStatus =
-                            isPersamaanPersepsi && !currentStatus
+                            isAutoBisa && !currentStatus
                               ? "bisa"
                               : currentStatus;
 
@@ -5023,7 +5092,7 @@ const AdminNotifications: React.FC = () => {
                                         ? "Bisa Mengajar"
                                         : "Tidak Bisa Mengajar"}
                                     </span>
-                                  ) : isPersamaanPersepsi ? (
+                                  ) : isAutoBisa ? (
                                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">
                                       Bisa Mengajar
                                     </span>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use App\Models\MataKuliah;
 use App\Models\JadwalPBL;
 use App\Models\JadwalKuliahBesar;
@@ -32,30 +33,120 @@ class DetailBlokController extends Controller
                 return response()->json(['error' => 'Mata kuliah tidak ditemukan'], 404);
             }
 
-            // Get all data in parallel using Promise-like approach
-            $data = [
-                'mata_kuliah' => $mataKuliah,
-                'jadwal_pbl' => $this->getJadwalPBL($kode),
-                'jadwal_kuliah_besar' => $this->getJadwalKuliahBesar($kode),
-                'jadwal_agenda_khusus' => $this->getJadwalAgendaKhusus($kode),
-                'jadwal_praktikum' => $this->getJadwalPraktikum($kode),
-                'jadwal_jurnal_reading' => $this->getJadwalJurnalReading($kode),
-                'jadwal_persamaan_persepsi' => $this->getJadwalPersamaanPersepsi($kode),
-                'jadwal_seminar_pleno' => $this->getJadwalSeminarPleno($kode),
-                'modul_pbl' => $this->getModulPBL($kode),
-                'jurnal_reading' => $this->getJurnalReading($kode),
-                'kelompok_kecil' => $this->getKelompokKecil($mataKuliah->semester),
-                'kelompok_besar' => $this->getKelompokBesar($mataKuliah->semester),
-                'dosen' => $this->getDosen($mataKuliah),
-                'ruangan' => $this->getRuangan(),
-                'kelas_praktikum' => [],
-                'materi_praktikum' => [],
-                'jam_options' => $this->getJamOptions(),
-            ];
+            // Get all data with individual error handling
+            $data = [];
+            
+            try {
+                $data['mata_kuliah'] = $mataKuliah;
+            } catch (\Exception $e) {
+                Log::error("Error getting mata_kuliah: " . $e->getMessage());
+                $data['mata_kuliah'] = null;
+            }
+
+            try {
+                $data['jadwal_pbl'] = $this->getJadwalPBL($kode);
+            } catch (\Exception $e) {
+                Log::error("Error getting jadwal_pbl: " . $e->getMessage());
+                $data['jadwal_pbl'] = [];
+            }
+
+            try {
+                $data['jadwal_kuliah_besar'] = $this->getJadwalKuliahBesar($kode);
+            } catch (\Exception $e) {
+                Log::error("Error getting jadwal_kuliah_besar: " . $e->getMessage());
+                $data['jadwal_kuliah_besar'] = [];
+            }
+
+            try {
+                $data['jadwal_agenda_khusus'] = $this->getJadwalAgendaKhusus($kode);
+            } catch (\Exception $e) {
+                Log::error("Error getting jadwal_agenda_khusus: " . $e->getMessage());
+                $data['jadwal_agenda_khusus'] = [];
+            }
+
+            try {
+                $data['jadwal_praktikum'] = $this->getJadwalPraktikum($kode);
+            } catch (\Exception $e) {
+                Log::error("Error getting jadwal_praktikum: " . $e->getMessage());
+                $data['jadwal_praktikum'] = [];
+            }
+
+            try {
+                $data['jadwal_jurnal_reading'] = $this->getJadwalJurnalReading($kode);
+            } catch (\Exception $e) {
+                Log::error("Error getting jadwal_jurnal_reading: " . $e->getMessage());
+                $data['jadwal_jurnal_reading'] = [];
+            }
+
+            try {
+                $data['jadwal_persamaan_persepsi'] = $this->getJadwalPersamaanPersepsi($kode);
+            } catch (\Exception $e) {
+                Log::error("Error getting jadwal_persamaan_persepsi: " . $e->getMessage());
+                $data['jadwal_persamaan_persepsi'] = [];
+            }
+
+            try {
+                $data['jadwal_seminar_pleno'] = $this->getJadwalSeminarPleno($kode);
+            } catch (\Exception $e) {
+                Log::error("Error getting jadwal_seminar_pleno: " . $e->getMessage());
+                $data['jadwal_seminar_pleno'] = [];
+            }
+
+            try {
+                $data['modul_pbl'] = $this->getModulPBL($kode);
+            } catch (\Exception $e) {
+                Log::error("Error getting modul_pbl: " . $e->getMessage());
+                $data['modul_pbl'] = [];
+            }
+
+            try {
+                $data['jurnal_reading'] = $this->getJurnalReading($kode);
+            } catch (\Exception $e) {
+                Log::error("Error getting jurnal_reading: " . $e->getMessage());
+                $data['jurnal_reading'] = [];
+            }
+
+            try {
+                $data['kelompok_kecil'] = $this->getKelompokKecil($mataKuliah->semester ?? null);
+            } catch (\Exception $e) {
+                Log::error("Error getting kelompok_kecil: " . $e->getMessage());
+                $data['kelompok_kecil'] = [];
+            }
+
+            try {
+                $data['kelompok_besar'] = $this->getKelompokBesar($mataKuliah->semester ?? null);
+            } catch (\Exception $e) {
+                Log::error("Error getting kelompok_besar: " . $e->getMessage());
+                $data['kelompok_besar'] = [];
+            }
+
+            try {
+                $data['dosen'] = $this->getDosen($mataKuliah);
+            } catch (\Exception $e) {
+                Log::error("Error getting dosen: " . $e->getMessage());
+                $data['dosen'] = ['all' => [], 'matching' => []];
+            }
+
+            try {
+                $data['ruangan'] = $this->getRuangan();
+            } catch (\Exception $e) {
+                Log::error("Error getting ruangan: " . $e->getMessage());
+                $data['ruangan'] = [];
+            }
+
+            $data['kelas_praktikum'] = [];
+            $data['materi_praktikum'] = [];
+            $data['jam_options'] = $this->getJamOptions();
 
             return response()->json($data);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Gagal mengambil data: ' . $e->getMessage()], 500);
+            Log::error("DetailBlokController getBatchData error: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            return response()->json([
+                'error' => 'Gagal mengambil data',
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ], 500);
         }
     }
 

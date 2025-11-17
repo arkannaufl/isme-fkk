@@ -322,11 +322,11 @@ function AppContent() {
                   </RequireDosenRole>
                 }
               />
-              {/* Super Admin Only Routes */}
+              {/* Super Admin & Tim Akademik Routes */}
               <Route
                 path="/pbl"
                 element={
-                  <RequireDosenRole allowedRoles={["super_admin"]}>
+                  <RequireDosenRole allowedRoles={["super_admin", "tim_akademik"]}>
                     <PBLList />
                   </RequireDosenRole>
                 }
@@ -334,7 +334,7 @@ function AppContent() {
               <Route
                 path="/pbl/blok/:blokId"
                 element={
-                  <RequireDosenRole allowedRoles={["super_admin"]}>
+                  <RequireDosenRole allowedRoles={["super_admin", "tim_akademik"]}>
                     <PBLDetail />
                   </RequireDosenRole>
                 }
@@ -342,7 +342,7 @@ function AppContent() {
               <Route
                 path="/pbl/generate/:blokId"
                 element={
-                  <RequireDosenRole allowedRoles={["super_admin"]}>
+                  <RequireDosenRole allowedRoles={["super_admin", "tim_akademik"]}>
                     <PBLGenerate />
                   </RequireDosenRole>
                 }
@@ -350,7 +350,7 @@ function AppContent() {
               <Route
                 path="/pbl/keahlian"
                 element={
-                  <RequireDosenRole allowedRoles={["super_admin"]}>
+                  <RequireDosenRole allowedRoles={["super_admin", "tim_akademik"]}>
                     <MataKuliahKeahlian />
                   </RequireDosenRole>
                 }

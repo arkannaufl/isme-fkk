@@ -1601,7 +1601,7 @@ class NotificationController extends Controller
         try {
             $reminderCount = 0;
             $whatsappMessages = []; // Collect WhatsApp messages for bulk sending
-            $jadwalTypes = ['pbl', 'kuliah_besar', 'praktikum', 'jurnal_reading', 'csr', 'non_blok_non_csr', 'persamaan_persepsi'];
+            $jadwalTypes = ['pbl', 'kuliah_besar', 'praktikum', 'jurnal_reading', 'csr', 'non_blok_non_csr', 'persamaan_persepsi', 'seminar_pleno'];
 
             // Get filter parameters
             $reminderType = $request->get('reminder_type', 'all');
@@ -1636,36 +1636,43 @@ class NotificationController extends Controller
                                 $foundJadwalType = 'persamaan_persepsi';
                                 $foundJadwal = $jadwalPP;
                             } else {
-                                // Check other jadwal types
-                                $jadwalPBL = \App\Models\JadwalPBL::find($jadwalId);
-                                if ($jadwalPBL) {
-                                    $foundJadwalType = 'pbl';
-                                    $foundJadwal = $jadwalPBL;
+                                // Check Seminar Pleno (similar to Persamaan Persepsi)
+                                $jadwalSP = \App\Models\JadwalSeminarPleno::find($jadwalId);
+                                if ($jadwalSP) {
+                                    $foundJadwalType = 'seminar_pleno';
+                                    $foundJadwal = $jadwalSP;
                                 } else {
-                                    $jadwalKB = \App\Models\JadwalKuliahBesar::find($jadwalId);
-                                    if ($jadwalKB) {
-                                        $foundJadwalType = 'kuliah_besar';
-                                        $foundJadwal = $jadwalKB;
+                                    // Check other jadwal types
+                                    $jadwalPBL = \App\Models\JadwalPBL::find($jadwalId);
+                                    if ($jadwalPBL) {
+                                        $foundJadwalType = 'pbl';
+                                        $foundJadwal = $jadwalPBL;
                                     } else {
-                                        $jadwalPraktikum = \App\Models\JadwalPraktikum::find($jadwalId);
-                                        if ($jadwalPraktikum) {
-                                            $foundJadwalType = 'praktikum';
-                                            $foundJadwal = $jadwalPraktikum;
+                                        $jadwalKB = \App\Models\JadwalKuliahBesar::find($jadwalId);
+                                        if ($jadwalKB) {
+                                            $foundJadwalType = 'kuliah_besar';
+                                            $foundJadwal = $jadwalKB;
                                         } else {
-                                            $jadwalJR = \App\Models\JadwalJurnalReading::find($jadwalId);
-                                            if ($jadwalJR) {
-                                                $foundJadwalType = 'jurnal_reading';
-                                                $foundJadwal = $jadwalJR;
+                                            $jadwalPraktikum = \App\Models\JadwalPraktikum::find($jadwalId);
+                                            if ($jadwalPraktikum) {
+                                                $foundJadwalType = 'praktikum';
+                                                $foundJadwal = $jadwalPraktikum;
                                             } else {
-                                                $jadwalCSR = \App\Models\JadwalCSR::find($jadwalId);
-                                                if ($jadwalCSR) {
-                                                    $foundJadwalType = 'csr';
-                                                    $foundJadwal = $jadwalCSR;
+                                                $jadwalJR = \App\Models\JadwalJurnalReading::find($jadwalId);
+                                                if ($jadwalJR) {
+                                                    $foundJadwalType = 'jurnal_reading';
+                                                    $foundJadwal = $jadwalJR;
                                                 } else {
-                                                    $jadwalNBNC = \App\Models\JadwalNonBlokNonCSR::find($jadwalId);
-                                                    if ($jadwalNBNC) {
-                                                        $foundJadwalType = 'non_blok_non_csr';
-                                                        $foundJadwal = $jadwalNBNC;
+                                                    $jadwalCSR = \App\Models\JadwalCSR::find($jadwalId);
+                                                    if ($jadwalCSR) {
+                                                        $foundJadwalType = 'csr';
+                                                        $foundJadwal = $jadwalCSR;
+                                                    } else {
+                                                        $jadwalNBNC = \App\Models\JadwalNonBlokNonCSR::find($jadwalId);
+                                                        if ($jadwalNBNC) {
+                                                            $foundJadwalType = 'non_blok_non_csr';
+                                                            $foundJadwal = $jadwalNBNC;
+                                                        }
                                                     }
                                                 }
                                             }
@@ -1676,14 +1683,18 @@ class NotificationController extends Controller
                             
                             // Send reminder for this specific jadwal-dosen pair
                             if ($foundJadwalType && $foundJadwal) {
-                                // For persamaan_persepsi, always send "upcoming" reminder
-                                $reminderTypeForJadwal = ($foundJadwalType === 'persamaan_persepsi') ? 'upcoming' : $reminderType;
+                                // For persamaan_persepsi and seminar_pleno, always send "upcoming" reminder
+                                $reminderTypeForJadwal = ($foundJadwalType === 'persamaan_persepsi' || $foundJadwalType === 'seminar_pleno') ? 'upcoming' : $reminderType;
                                 
                                 // Kirim reminder hanya ke dosen yang dipilih (dari jadwal_dosen_pairs)
                                 if ($foundJadwalType === 'persamaan_persepsi') {
                                     // Persamaan Persepsi bisa punya banyak dosen (koordinator + pengampu)
                                     // Jadi kirim hanya ke dosen yang dipilih
                                     $result = $this->sendPersamaanPersepsiReminderToSpecificDosen($foundJadwal, $dosenId, $reminderTypeForJadwal);
+                                } elseif ($foundJadwalType === 'seminar_pleno') {
+                                    // Seminar Pleno bisa punya banyak dosen (koordinator + pengampu)
+                                    // Jadi kirim hanya ke dosen yang dipilih
+                                    $result = $this->sendSeminarPlenoReminderToSpecificDosen($foundJadwal, $dosenId, $reminderTypeForJadwal);
                                 } else {
                                     // Untuk jadwal lain, gunakan fungsi yang sudah ada
                                     // Fungsi sendReminderForJadwalType akan mengirim ke semua dosen di jadwal
@@ -1872,6 +1883,14 @@ class NotificationController extends Controller
                 // Persamaan Persepsi langsung "bisa", jadi hanya kirim "upcoming" reminder
                 if ($reminderType === 'all' || $reminderType === 'upcoming') {
                     $result = $this->sendPersamaanPersepsiReminders('upcoming', $semester, $blok);
+                    $reminderCount += $result['count'];
+                    $whatsappMessages = array_merge($whatsappMessages, $result['whatsapp_messages']);
+                }
+                break;
+            case 'seminar_pleno':
+                // Seminar Pleno langsung "bisa", jadi hanya kirim "upcoming" reminder
+                if ($reminderType === 'all' || $reminderType === 'upcoming') {
+                    $result = $this->sendSeminarPlenoReminders('upcoming', $semester, $blok);
                     $reminderCount += $result['count'];
                     $whatsappMessages = array_merge($whatsappMessages, $result['whatsapp_messages']);
                 }
@@ -3013,6 +3032,482 @@ class NotificationController extends Controller
     }
 
     /**
+     * Send Seminar Pleno reminder to specific dosen only
+     * Used when sending reminder based on jadwal_dosen_pairs (selected dosen)
+     */
+    private function sendSeminarPlenoReminderToSpecificDosen($jadwal, $dosenId, $reminderType = 'upcoming')
+    {
+        $reminderCount = 0;
+        $whatsappMessages = [];
+
+        $dosen = \App\Models\User::find($dosenId);
+        if (!$dosen) {
+            return [
+                'count' => 0,
+                'whatsapp_messages' => []
+            ];
+        }
+
+        // Check if dosen has valid email
+        $hasValidEmail = !empty($dosen->email) && filter_var($dosen->email, FILTER_VALIDATE_EMAIL);
+
+        // Check if dosen has valid WhatsApp phone (verification)
+        $hasValidWhatsApp = !empty($dosen->whatsapp_phone) && preg_match('/^62\d+$/', $dosen->whatsapp_phone);
+
+        // Seminar Pleno langsung "bisa", jadi hanya kirim reminder persiapan mengajar
+        $ruanganNama = $jadwal->ruangan ? $jadwal->ruangan->nama : 'Online';
+        $ruanganInfo = $jadwal->use_ruangan && $jadwal->ruangan
+            ? "di ruangan {$ruanganNama}"
+            : "secara online";
+
+        // Cek apakah dosen adalah koordinator atau pengampu
+        $isKoordinator = $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) && in_array($dosenId, $jadwal->koordinator_ids);
+
+        // Ambil daftar pengampu untuk koordinator
+        $pengampuList = [];
+        if ($isKoordinator && $jadwal->dosen_ids && is_array($jadwal->dosen_ids)) {
+            $pengampuIds = array_diff($jadwal->dosen_ids, $jadwal->koordinator_ids ?? []);
+            if (!empty($pengampuIds)) {
+                $pengampuList = \App\Models\User::whereIn('id', $pengampuIds)
+                    ->pluck('name')
+                    ->toArray();
+            }
+        }
+
+        // Ambil daftar koordinator untuk pengampu
+        $koordinatorList = [];
+        if (!$isKoordinator && $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) && !empty($jadwal->koordinator_ids)) {
+            $koordinatorList = \App\Models\User::whereIn('id', $jadwal->koordinator_ids)
+                ->pluck('name')
+                ->toArray();
+        }
+
+        // Buat pesan berbeda untuk koordinator dan pengampu
+        if ($isKoordinator) {
+            $title = 'Pengingat: Persiapan Mengajar Seminar Pleno - Koordinator';
+            $message = "Pengingat: Anda sebagai koordinator dosen memiliki jadwal Seminar Pleno {$jadwal->mataKuliah->nama} pada tanggal " .
+                date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                " {$ruanganInfo}.";
+            if (!empty($pengampuList)) {
+                $message .= " Dosen pengampu: " . implode(', ', $pengampuList) . ".";
+            }
+            $message .= " Silakan persiapkan diri untuk mengajar.";
+        } else {
+            $title = 'Pengingat: Persiapan Mengajar Seminar Pleno';
+            $message = "Pengingat: Anda memiliki jadwal Seminar Pleno {$jadwal->mataKuliah->nama} pada tanggal " .
+                date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                " {$ruanganInfo}.";
+            if (!empty($koordinatorList)) {
+                $message .= " Koordinator dosen: " . implode(', ', $koordinatorList) . ".";
+            }
+            $message .= " Silakan persiapkan diri untuk mengajar.";
+        }
+
+        Notification::create([
+            'user_id' => $dosen->id,
+            'title' => $title,
+            'message' => $message,
+            'type' => 'info',
+            'is_read' => false,
+            'data' => [
+                'jadwal_id' => $jadwal->id,
+                'jadwal_type' => 'seminar_pleno',
+                'mata_kuliah' => $jadwal->mataKuliah->nama,
+                'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                'ruangan' => $ruanganNama,
+                'ruangan_info' => $ruanganInfo,
+                'reminder' => true,
+                'reminder_type' => 'upcoming'
+            ]
+        ]);
+
+        // Send email reminder if dosen has valid email
+        if ($hasValidEmail) {
+            // Custom email untuk Seminar Pleno dengan pembedaan koordinator
+            try {
+                $subject = $isKoordinator
+                    ? "Pengingat: Persiapan Mengajar Seminar Pleno - Koordinator"
+                    : "Pengingat: Persiapan Mengajar Seminar Pleno";
+
+                // Ambil daftar pengampu untuk koordinator
+                $pengampuList = [];
+                if ($isKoordinator && $jadwal->dosen_ids && is_array($jadwal->dosen_ids)) {
+                    $pengampuIds = array_diff($jadwal->dosen_ids, $jadwal->koordinator_ids ?? []);
+                    if (!empty($pengampuIds)) {
+                        $pengampuList = \App\Models\User::whereIn('id', $pengampuIds)
+                            ->pluck('name')
+                            ->toArray();
+                    }
+                }
+
+                // Ambil daftar koordinator untuk pengampu
+                $koordinatorList = [];
+                if (!$isKoordinator && $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) && !empty($jadwal->koordinator_ids)) {
+                    $koordinatorList = \App\Models\User::whereIn('id', $jadwal->koordinator_ids)
+                        ->pluck('name')
+                        ->toArray();
+                }
+
+                Mail::send('emails.reminder-notification', [
+                    'dosen' => $dosen,
+                    'jadwal' => $jadwal,
+                    'jadwalType' => 'Seminar Pleno',
+                    'reminderType' => 'upcoming',
+                    'isKoordinator' => $isKoordinator,
+                    'pengampuList' => $pengampuList,
+                    'koordinatorList' => $koordinatorList
+                ], function ($message) use ($dosen, $subject) {
+                    $message->to($dosen->email, $dosen->name)
+                        ->subject($subject)
+                        ->from(env('MAIL_FROM_ADDRESS'), 'Pengingat Dari ISME (Integrated System Medical Education Fakultas Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta)');
+                });
+
+                \Log::info("Email reminder sent to {$dosen->name} ({$dosen->email}) for Seminar Pleno - Type: upcoming" . ($isKoordinator ? " (Koordinator)" : ""));
+            } catch (\Exception $e) {
+                \Log::error("Failed to send email reminder to {$dosen->name}: " . $e->getMessage());
+            }
+        }
+
+        // Prepare WhatsApp message if dosen has valid WhatsApp phone
+        if ($hasValidWhatsApp) {
+            // Custom WhatsApp message untuk Seminar Pleno dengan pembedaan koordinator
+            $greeting = "Halo {$dosen->name},";
+            $intro = $isKoordinator
+                ? "Ini adalah pengingat untuk persiapan mengajar jadwal Anda sebagai koordinator dosen yang akan datang."
+                : "Ini adalah pengingat untuk persiapan mengajar jadwal Anda yang akan datang.";
+
+            $details = "📋 *Detail Jadwal Seminar Pleno*\n\n";
+            $details .= "• *Jadwal:* {$jadwal->mataKuliah->nama}\n";
+            $details .= "• *Tanggal:* " . date('d/m/Y', strtotime($jadwal->tanggal)) . "\n";
+            $details .= "• *Waktu:* " . str_replace(':', '.', $jadwal->jam_mulai) . " - " . str_replace(':', '.', $jadwal->jam_selesai) . "\n";
+
+            if (isset($jadwal->mataKuliah) && $jadwal->mataKuliah) {
+                $details .= "• *Semester & Blok:* Semester {$jadwal->mataKuliah->semester}";
+                if ($jadwal->mataKuliah->blok) {
+                    $details .= " - Blok {$jadwal->mataKuliah->blok}";
+                }
+                $details .= "\n";
+            }
+
+            // Tambahkan daftar koordinator untuk pengampu
+            if (!$isKoordinator && $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) && !empty($jadwal->koordinator_ids)) {
+                $koordinatorList = \App\Models\User::whereIn('id', $jadwal->koordinator_ids)
+                    ->pluck('name')
+                    ->toArray();
+                if (!empty($koordinatorList)) {
+                    $details .= "• *Koordinator Dosen:* " . implode(', ', $koordinatorList) . "\n";
+                }
+            }
+
+            // Tampilkan ruangan dengan tipe (online/offline)
+            if ($jadwal->use_ruangan && $jadwal->ruangan) {
+                $details .= "• *Ruangan:* {$ruanganNama} (Offline)\n";
+            } else {
+                $details .= "• *Ruangan:* Online\n";
+            }
+
+            if (isset($jadwal->topik) && $jadwal->topik) {
+                $details .= "• *Topik:* {$jadwal->topik}\n";
+            }
+
+            // Tambahkan daftar pengampu untuk koordinator
+            if ($isKoordinator && $jadwal->dosen_ids && is_array($jadwal->dosen_ids)) {
+                $pengampuIds = array_diff($jadwal->dosen_ids, $jadwal->koordinator_ids ?? []);
+                if (!empty($pengampuIds)) {
+                    $pengampuList = \App\Models\User::whereIn('id', $pengampuIds)
+                        ->pluck('name')
+                        ->toArray();
+                    if (!empty($pengampuList)) {
+                        $details .= "\n👥 *Dosen Pengampu:*\n";
+                        foreach ($pengampuList as $index => $pengampuName) {
+                            $details .= "   " . ($index + 1) . ". {$pengampuName}\n";
+                        }
+                    }
+                }
+            }
+
+            $footer = "\nSilakan persiapkan diri untuk mengajar.\n\n";
+            $footer .= "Terima kasih,\n";
+            $footer .= "Tim Akademik FKK UMJ";
+
+            $whatsappMessage = "{$greeting}\n\n{$intro}\n\n{$details}\n{$footer}";
+
+            $whatsappMessages[] = [
+                'phone' => $dosen->whatsapp_phone,
+                'message' => $whatsappMessage,
+                'isGroup' => 'false',
+                'ref_id' => "reminder_seminar_pleno_{$jadwal->id}_{$dosen->id}_upcoming"
+            ];
+        }
+
+        $reminderCount++;
+
+        return [
+            'count' => $reminderCount,
+            'whatsapp_messages' => $whatsappMessages
+        ];
+    }
+
+    /**
+     * Send Seminar Pleno reminder notifications
+     * Note: Seminar Pleno langsung "bisa" (tidak perlu konfirmasi), jadi hanya kirim "upcoming" reminder
+     */
+    private function sendSeminarPlenoReminders($reminderType = 'upcoming', $semester = null, $blok = null)
+    {
+        $reminderCount = 0;
+        $whatsappMessages = [];
+
+        // Get Seminar Pleno schedules - hanya upcoming (karena langsung "bisa")
+        $now = now();
+        $query = \App\Models\JadwalSeminarPleno::with(['mataKuliah', 'ruangan'])
+            ->where('status_konfirmasi', 'bisa')
+            ->where('tanggal', '>=', $now->toDateString())
+            ->where(function ($q) use ($now) {
+                $q->where('tanggal', '>', $now->toDateString())
+                    ->orWhere(function ($q2) use ($now) {
+                        $q2->where('tanggal', '=', $now->toDateString())
+                            ->where('jam_mulai', '>', $now->format('H:i:s'));
+                    });
+            });
+
+        // Apply semester filter if provided
+        if ($semester) {
+            $query->whereHas('mataKuliah', function ($q) use ($semester) {
+                $q->where('semester', $semester);
+            });
+        }
+
+        // Apply blok filter if provided
+        if ($blok) {
+            $query->whereHas('mataKuliah', function ($q) use ($blok) {
+                $q->where('blok', $blok);
+            });
+        }
+
+        $jadwalSeminarPleno = $query->get();
+
+        foreach ($jadwalSeminarPleno as $jadwal) {
+            // Get all dosen (koordinator + pengampu)
+            $allDosenIds = array_unique(array_merge(
+                $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) ? $jadwal->koordinator_ids : [],
+                $jadwal->dosen_ids && is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : []
+            ));
+
+            foreach ($allDosenIds as $dosenId) {
+                $dosen = \App\Models\User::find($dosenId);
+                if (!$dosen) {
+                    continue;
+                }
+
+                // Check if dosen has valid email
+                $hasValidEmail = !empty($dosen->email) && filter_var($dosen->email, FILTER_VALIDATE_EMAIL);
+
+                // Check if dosen has valid WhatsApp phone (verification)
+                $hasValidWhatsApp = !empty($dosen->whatsapp_phone) && preg_match('/^62\d+$/', $dosen->whatsapp_phone);
+
+                // Seminar Pleno langsung "bisa", jadi hanya kirim reminder persiapan mengajar
+                $ruanganNama = $jadwal->ruangan ? $jadwal->ruangan->nama : 'Online';
+                $ruanganInfo = $jadwal->use_ruangan && $jadwal->ruangan
+                    ? "di ruangan {$ruanganNama}"
+                    : "secara online";
+
+                // Cek apakah dosen adalah koordinator atau pengampu
+                $isKoordinator = $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) && in_array($dosenId, $jadwal->koordinator_ids);
+
+                // Ambil daftar pengampu untuk koordinator
+                $pengampuList = [];
+                if ($isKoordinator && $jadwal->dosen_ids && is_array($jadwal->dosen_ids)) {
+                    $pengampuIds = array_diff($jadwal->dosen_ids, $jadwal->koordinator_ids ?? []);
+                    if (!empty($pengampuIds)) {
+                        $pengampuList = \App\Models\User::whereIn('id', $pengampuIds)
+                            ->pluck('name')
+                            ->toArray();
+                    }
+                }
+
+                // Ambil daftar koordinator untuk pengampu
+                $koordinatorList = [];
+                if (!$isKoordinator && $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) && !empty($jadwal->koordinator_ids)) {
+                    $koordinatorList = \App\Models\User::whereIn('id', $jadwal->koordinator_ids)
+                        ->pluck('name')
+                        ->toArray();
+                }
+
+                // Buat pesan berbeda untuk koordinator dan pengampu
+                if ($isKoordinator) {
+                    $title = 'Pengingat: Persiapan Mengajar Seminar Pleno - Koordinator';
+                    $message = "Pengingat: Anda sebagai koordinator dosen memiliki jadwal Seminar Pleno {$jadwal->mataKuliah->nama} pada tanggal " .
+                        date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                        str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                        " {$ruanganInfo}.";
+                    if (!empty($pengampuList)) {
+                        $message .= " Dosen pengampu: " . implode(', ', $pengampuList) . ".";
+                    }
+                    $message .= " Silakan persiapkan diri untuk mengajar.";
+                } else {
+                    $title = 'Pengingat: Persiapan Mengajar Seminar Pleno';
+                    $message = "Pengingat: Anda memiliki jadwal Seminar Pleno {$jadwal->mataKuliah->nama} pada tanggal " .
+                        date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                        str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                        " {$ruanganInfo}.";
+                    if (!empty($koordinatorList)) {
+                        $message .= " Koordinator dosen: " . implode(', ', $koordinatorList) . ".";
+                    }
+                    $message .= " Silakan persiapkan diri untuk mengajar.";
+                }
+
+                Notification::create([
+                    'user_id' => $dosen->id,
+                    'title' => $title,
+                    'message' => $message,
+                    'type' => 'info',
+                    'is_read' => false,
+                    'data' => [
+                        'jadwal_id' => $jadwal->id,
+                        'jadwal_type' => 'seminar_pleno',
+                        'mata_kuliah' => $jadwal->mataKuliah->nama,
+                        'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                        'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                        'ruangan' => $ruanganNama,
+                        'ruangan_info' => $ruanganInfo,
+                        'reminder' => true,
+                        'reminder_type' => 'upcoming'
+                    ]
+                ]);
+
+                // Send email reminder if dosen has valid email
+                if ($hasValidEmail) {
+                    // Custom email untuk Seminar Pleno dengan pembedaan koordinator
+                    try {
+                        $subject = $isKoordinator
+                            ? "Pengingat: Persiapan Mengajar Seminar Pleno - Koordinator"
+                            : "Pengingat: Persiapan Mengajar Seminar Pleno";
+
+                        // Ambil daftar pengampu untuk koordinator
+                        $pengampuList = [];
+                        if ($isKoordinator && $jadwal->dosen_ids && is_array($jadwal->dosen_ids)) {
+                            $pengampuIds = array_diff($jadwal->dosen_ids, $jadwal->koordinator_ids ?? []);
+                            if (!empty($pengampuIds)) {
+                                $pengampuList = \App\Models\User::whereIn('id', $pengampuIds)
+                                    ->pluck('name')
+                                    ->toArray();
+                            }
+                        }
+
+                        // Ambil daftar koordinator untuk pengampu
+                        $koordinatorList = [];
+                        if (!$isKoordinator && $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) && !empty($jadwal->koordinator_ids)) {
+                            $koordinatorList = \App\Models\User::whereIn('id', $jadwal->koordinator_ids)
+                                ->pluck('name')
+                                ->toArray();
+                        }
+
+                        Mail::send('emails.reminder-notification', [
+                            'dosen' => $dosen,
+                            'jadwal' => $jadwal,
+                            'jadwalType' => 'Seminar Pleno',
+                            'reminderType' => 'upcoming',
+                            'isKoordinator' => $isKoordinator,
+                            'pengampuList' => $pengampuList,
+                            'koordinatorList' => $koordinatorList
+                        ], function ($message) use ($dosen, $subject) {
+                            $message->to($dosen->email, $dosen->name)
+                                ->subject($subject)
+                                ->from(env('MAIL_FROM_ADDRESS'), 'Pengingat Dari ISME (Integrated System Medical Education Fakultas Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta)');
+                        });
+
+                        \Log::info("Email reminder sent to {$dosen->name} ({$dosen->email}) for Seminar Pleno - Type: upcoming" . ($isKoordinator ? " (Koordinator)" : ""));
+                    } catch (\Exception $e) {
+                        \Log::error("Failed to send email reminder to {$dosen->name}: " . $e->getMessage());
+                    }
+                }
+
+                // Prepare WhatsApp message if dosen has valid WhatsApp phone
+                if ($hasValidWhatsApp) {
+                    // Custom WhatsApp message untuk Seminar Pleno dengan pembedaan koordinator
+                    $greeting = "Halo {$dosen->name},";
+                    $intro = $isKoordinator
+                        ? "Ini adalah pengingat untuk persiapan mengajar jadwal Anda sebagai koordinator dosen yang akan datang."
+                        : "Ini adalah pengingat untuk persiapan mengajar jadwal Anda yang akan datang.";
+
+                    $details = "📋 *Detail Jadwal Seminar Pleno*\n\n";
+                    $details .= "• *Jadwal:* {$jadwal->mataKuliah->nama}\n";
+                    $details .= "• *Tanggal:* " . date('d/m/Y', strtotime($jadwal->tanggal)) . "\n";
+                    $details .= "• *Waktu:* " . str_replace(':', '.', $jadwal->jam_mulai) . " - " . str_replace(':', '.', $jadwal->jam_selesai) . "\n";
+
+                    if (isset($jadwal->mataKuliah) && $jadwal->mataKuliah) {
+                        $details .= "• *Semester & Blok:* Semester {$jadwal->mataKuliah->semester}";
+                        if ($jadwal->mataKuliah->blok) {
+                            $details .= " - Blok {$jadwal->mataKuliah->blok}";
+                        }
+                        $details .= "\n";
+                    }
+
+                    // Tambahkan daftar koordinator untuk pengampu
+                    if (!$isKoordinator && $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) && !empty($jadwal->koordinator_ids)) {
+                        $koordinatorList = \App\Models\User::whereIn('id', $jadwal->koordinator_ids)
+                            ->pluck('name')
+                            ->toArray();
+                        if (!empty($koordinatorList)) {
+                            $details .= "• *Koordinator Dosen:* " . implode(', ', $koordinatorList) . "\n";
+                        }
+                    }
+
+                    // Tampilkan ruangan dengan tipe (online/offline)
+                    if ($jadwal->use_ruangan && $jadwal->ruangan) {
+                        $details .= "• *Ruangan:* {$ruanganNama} (Offline)\n";
+                    } else {
+                        $details .= "• *Ruangan:* Online\n";
+                    }
+
+                    if (isset($jadwal->topik) && $jadwal->topik) {
+                        $details .= "• *Topik:* {$jadwal->topik}\n";
+                    }
+
+                    // Tambahkan daftar pengampu untuk koordinator
+                    if ($isKoordinator && $jadwal->dosen_ids && is_array($jadwal->dosen_ids)) {
+                        $pengampuIds = array_diff($jadwal->dosen_ids, $jadwal->koordinator_ids ?? []);
+                        if (!empty($pengampuIds)) {
+                            $pengampuList = \App\Models\User::whereIn('id', $pengampuIds)
+                                ->pluck('name')
+                                ->toArray();
+                            if (!empty($pengampuList)) {
+                                $details .= "\n👥 *Dosen Pengampu:*\n";
+                                foreach ($pengampuList as $index => $pengampuName) {
+                                    $details .= "   " . ($index + 1) . ". {$pengampuName}\n";
+                                }
+                            }
+                        }
+                    }
+
+                    $footer = "\nSilakan persiapkan diri untuk mengajar.\n\n";
+                    $footer .= "Terima kasih,\n";
+                    $footer .= "Tim Akademik FKK UMJ";
+
+                    $whatsappMessage = "{$greeting}\n\n{$intro}\n\n{$details}\n{$footer}";
+
+                    $whatsappMessages[] = [
+                        'phone' => $dosen->whatsapp_phone,
+                        'message' => $whatsappMessage,
+                        'isGroup' => 'false',
+                        'ref_id' => "reminder_seminar_pleno_{$jadwal->id}_{$dosen->id}_upcoming"
+                    ];
+                }
+
+                $reminderCount++;
+            }
+        }
+
+        return [
+            'count' => $reminderCount,
+            'whatsapp_messages' => $whatsappMessages
+        ];
+    }
+
+    /**
      * Get list of dosen with belum_konfirmasi status and email verified
      */
     public function getPendingDosen(Request $request)
@@ -3024,7 +3519,7 @@ class NotificationController extends Controller
 
         try {
             $pendingDosen = [];
-            $jadwalTypes = ['pbl', 'kuliah_besar', 'praktikum', 'jurnal_reading', 'csr', 'non_blok_non_csr', 'persamaan_persepsi'];
+            $jadwalTypes = ['pbl', 'kuliah_besar', 'praktikum', 'jurnal_reading', 'csr', 'non_blok_non_csr', 'persamaan_persepsi', 'seminar_pleno'];
 
             // Get filter parameters
             $semester = $request->get('semester');
@@ -3337,6 +3832,11 @@ class NotificationController extends Controller
 
             case 'persamaan_persepsi':
                 // Persamaan Persepsi langsung "bisa", tidak ada unconfirmed
+                // Jadi return empty array
+                break;
+
+            case 'seminar_pleno':
+                // Seminar Pleno langsung "bisa", tidak ada unconfirmed
                 // Jadi return empty array
                 break;
         }
@@ -3677,6 +4177,65 @@ class NotificationController extends Controller
                                 'email_verified' => $dosen->email_verified ?? false,
                                 'whatsapp_phone' => $dosen->whatsapp_phone ?? null,
                                 'jadwal_type' => 'Persamaan Persepsi',
+                                'mata_kuliah' => $jadwal->mataKuliah->nama,
+                                'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                                'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                                'ruangan' => $ruanganNama,
+                                'jadwal_id' => $jadwal->id,
+                                'reminder_type' => 'upcoming'
+                            ];
+                        }
+                    }
+                }
+                break;
+
+            case 'seminar_pleno':
+                // Seminar Pleno langsung "bisa", jadi hanya tampilkan upcoming
+                $query = \App\Models\JadwalSeminarPleno::with(['mataKuliah', 'ruangan'])
+                    ->where('status_konfirmasi', 'bisa')
+                    ->where('tanggal', '>=', $now->toDateString())
+                    ->where(function ($q) use ($now) {
+                        $q->where('tanggal', '>', $now->toDateString())
+                            ->orWhere(function ($q2) use ($now) {
+                                $q2->where('tanggal', '=', $now->toDateString())
+                                    ->where('jam_mulai', '>', $now->format('H:i:s'));
+                            });
+                    });
+
+                // Apply semester filter if provided
+                if ($semester) {
+                    $query->whereHas('mataKuliah', function ($q) use ($semester) {
+                        $q->where('semester', $semester);
+                    });
+                }
+
+                // Apply blok filter if provided
+                if ($blok) {
+                    $query->whereHas('mataKuliah', function ($q) use ($blok) {
+                        $q->where('blok', $blok);
+                    });
+                }
+
+                $jadwalSeminarPleno = $query->get();
+
+                foreach ($jadwalSeminarPleno as $jadwal) {
+                    // Get all dosen (koordinator + pengampu)
+                    $allDosenIds = array_unique(array_merge(
+                        $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) ? $jadwal->koordinator_ids : [],
+                        $jadwal->dosen_ids && is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : []
+                    ));
+
+                    foreach ($allDosenIds as $dosenId) {
+                        $dosen = \App\Models\User::find($dosenId);
+                        if ($dosen) {
+                            $ruanganNama = $jadwal->ruangan ? $jadwal->ruangan->nama : 'Online';
+                            $pendingDosen[] = [
+                                'dosen_id' => $dosen->id,
+                                'name' => $dosen->name,
+                                'email' => $dosen->email,
+                                'email_verified' => $dosen->email_verified ?? false,
+                                'whatsapp_phone' => $dosen->whatsapp_phone ?? null,
+                                'jadwal_type' => 'Seminar Pleno',
                                 'mata_kuliah' => $jadwal->mataKuliah->nama,
                                 'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
                                 'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),

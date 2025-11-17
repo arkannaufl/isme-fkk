@@ -935,7 +935,9 @@ export default function AbsensiSeminarPlenoPage() {
       const waktu = jadwalDetail.jam_mulai && jadwalDetail.jam_selesai
         ? `${jadwalDetail.jam_mulai} - ${jadwalDetail.jam_selesai}`
         : '-';
-      const ruangan = jadwalDetail?.ruangan?.nama || '-';
+      const ruangan = (jadwalDetail?.use_ruangan && jadwalDetail?.ruangan?.nama)
+        ? jadwalDetail.ruangan.nama
+        : "Online";
       const materi = jadwalDetail?.materi || '-';
       const topik = jadwalDetail?.topik || '-';
       
@@ -1535,7 +1537,9 @@ export default function AbsensiSeminarPlenoPage() {
       const waktu = jadwalDetail.jam_mulai && jadwalDetail.jam_selesai
         ? `${jadwalDetail.jam_mulai} - ${jadwalDetail.jam_selesai}`
         : '-';
-      const ruangan = jadwalDetail?.ruangan?.nama || '-';
+      const ruangan = (jadwalDetail?.use_ruangan && jadwalDetail?.ruangan?.nama)
+        ? jadwalDetail.ruangan.nama
+        : "Online";
       const materi = jadwalDetail?.materi || '-';
       const topik = jadwalDetail?.topik || '-';
 
@@ -2280,7 +2284,9 @@ export default function AbsensiSeminarPlenoPage() {
             <div className="md:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-700/40 p-4">
               <div className="text-xs font-medium tracking-wide text-gray-600 dark:text-gray-400">Ruangan</div>
               <div className="text-base font-semibold text-gray-900 dark:text-white break-words leading-snug">
-                {jadwalDetail?.ruangan?.nama || '-'}
+                {jadwalDetail?.use_ruangan && jadwalDetail?.ruangan?.nama
+                  ? jadwalDetail.ruangan.nama
+                  : "Online"}
               </div>
             </div>
           </div>

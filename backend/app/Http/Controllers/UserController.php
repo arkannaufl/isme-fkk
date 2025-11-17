@@ -700,6 +700,147 @@ class UserController extends Controller
                 Log::error("Error fetching Non Blok Non CSR: " . $e->getMessage());
             }
 
+            // 7. Jadwal Persamaan Persepsi
+            try {
+                $persamaanPersepsiController = new \App\Http\Controllers\JadwalPersamaanPersepsiController();
+                $persamaanPersepsiRequest = new \Illuminate\Http\Request();
+                $persamaanPersepsiRequest->query->set('semester_type', $semesterType);
+                $persamaanPersepsiResponse = $persamaanPersepsiController->getJadwalForDosen($id, $persamaanPersepsiRequest);
+                $persamaanPersepsiData = $persamaanPersepsiResponse->getData();
+
+                if (isset($persamaanPersepsiData->data)) {
+                    $jadwalPersamaanPersepsi = collect($persamaanPersepsiData->data)->map(function ($item) use ($id) {
+                        // Handle both array and object data
+                        $isArray = is_array($item);
+
+                        // Tentukan peran dosen: koordinator atau pengampu
+                        $koordinatorIds = [];
+                        if ($isArray) {
+                            $koordinatorIds = isset($item['koordinator_ids']) && is_array($item['koordinator_ids']) 
+                                ? $item['koordinator_ids'] 
+                                : (isset($item['koordinator_ids']) ? json_decode($item['koordinator_ids'], true) : []);
+                        } else {
+                            $koordinatorIds = isset($item->koordinator_ids) && is_array($item->koordinator_ids)
+                                ? $item->koordinator_ids
+                                : (isset($item->koordinator_ids) ? json_decode($item->koordinator_ids, true) : []);
+                        }
+                        if (!is_array($koordinatorIds)) {
+                            $koordinatorIds = [];
+                        }
+
+                        $isKoordinator = in_array($id, $koordinatorIds);
+                        $peran = $isKoordinator ? 'koordinator' : 'pengampu';
+                        $peran_display = $isKoordinator ? 'Koordinator' : 'Pengampu';
+
+                        return (object) [
+                            'id' => $isArray ? $item['id'] : $item->id,
+                            'mata_kuliah_kode' => $isArray ? $item['mata_kuliah_kode'] : $item->mata_kuliah_kode,
+                            'mata_kuliah_nama' => $isArray ? ($item['mata_kuliah_nama'] ?? '') : ($item->mata_kuliah_nama ?? ''),
+                            'tanggal' => $isArray ? $item['tanggal'] : $item->tanggal,
+                            'jam_mulai' => $isArray ? $item['jam_mulai'] : $item->jam_mulai,
+                            'jam_selesai' => $isArray ? $item['jam_selesai'] : $item->jam_selesai,
+                            'jenis_jadwal' => 'persamaan_persepsi',
+                            'topik' => $isArray ? ($item['topik'] ?? null) : ($item->topik ?? null),
+                            'ruangan_nama' => $isArray ? ($item['ruangan']['nama'] ?? '') : ($item->ruangan->nama ?? ''),
+                            'jumlah_sesi' => $isArray ? ($item['jumlah_sesi'] ?? 1) : ($item->jumlah_sesi ?? 1),
+                            'semester' => $isArray ? ($item['mata_kuliah']['semester'] ?? '') : ($item->mata_kuliah->semester ?? ''),
+                            'blok' => $isArray ? ($item['mata_kuliah']['blok'] ?? null) : ($item->mata_kuliah->blok ?? null),
+                            'kelompok_kecil' => '',
+                            'status_konfirmasi' => $isArray ? ($item['status_konfirmasi'] ?? 'bisa') : ($item->status_konfirmasi ?? 'bisa'),
+                            'alasan_konfirmasi' => $isArray ? ($item['alasan_konfirmasi'] ?? null) : ($item->alasan_konfirmasi ?? null),
+                            'status_reschedule' => $isArray ? ($item['status_reschedule'] ?? null) : ($item->status_reschedule ?? null),
+                            'reschedule_reason' => $isArray ? ($item['reschedule_reason'] ?? null) : ($item->reschedule_reason ?? null),
+                            'semester_type' => $isArray ? ($item['semester_type'] ?? 'reguler') : ($item->semester_type ?? 'reguler'),
+                            'mata_kuliah' => $isArray ? ($item['mata_kuliah'] ?? null) : ($item->mata_kuliah ?? null),
+                            'peran' => $peran,
+                            'peran_display' => $peran_display
+                        ];
+                    });
+                    $jadwalMengajar = $jadwalMengajar->concat($jadwalPersamaanPersepsi);
+                }
+            } catch (\Exception $e) {
+                Log::error("Error fetching Persamaan Persepsi: " . $e->getMessage());
+            }
+
+            // 8. Jadwal Seminar Pleno
+            try {
+                $seminarPlenoController = new \App\Http\Controllers\JadwalSeminarPlenoController();
+                $seminarPlenoRequest = new \Illuminate\Http\Request();
+                $seminarPlenoRequest->query->set('semester_type', $semesterType);
+                $seminarPlenoResponse = $seminarPlenoController->getJadwalForDosen($id, $seminarPlenoRequest);
+                $seminarPlenoData = $seminarPlenoResponse->getData();
+
+                if (isset($seminarPlenoData->data)) {
+                    $jadwalSeminarPleno = collect($seminarPlenoData->data)->map(function ($item) use ($id) {
+                        // Handle both array and object data
+                        $isArray = is_array($item);
+
+                        // Tentukan peran dosen: koordinator atau pengampu
+                        $koordinatorIds = [];
+                        if ($isArray) {
+                            $koordinatorIds = isset($item['koordinator_ids']) && is_array($item['koordinator_ids']) 
+                                ? $item['koordinator_ids'] 
+                                : (isset($item['koordinator_ids']) ? json_decode($item['koordinator_ids'], true) : []);
+                        } else {
+                            $koordinatorIds = isset($item->koordinator_ids) && is_array($item->koordinator_ids)
+                                ? $item->koordinator_ids
+                                : (isset($item->koordinator_ids) ? json_decode($item->koordinator_ids, true) : []);
+                        }
+                        if (!is_array($koordinatorIds)) {
+                            $koordinatorIds = [];
+                        }
+
+                        $isKoordinator = in_array($id, $koordinatorIds);
+                        $peran = $isKoordinator ? 'koordinator' : 'pengampu';
+                        $peran_display = $isKoordinator ? 'Koordinator' : 'Pengampu';
+
+                        // Get kelompok besar
+                        $kelompokBesarId = null;
+                        if ($isArray) {
+                            if (isset($item['kelompok_besar']) && isset($item['kelompok_besar']['id'])) {
+                                $kelompokBesarId = $item['kelompok_besar']['id'];
+                            } elseif (isset($item['kelompok_besar_antara']) && isset($item['kelompok_besar_antara']['id'])) {
+                                $kelompokBesarId = $item['kelompok_besar_antara']['id'];
+                            }
+                        } else {
+                            if (isset($item->kelompok_besar) && isset($item->kelompok_besar->id)) {
+                                $kelompokBesarId = $item->kelompok_besar->id;
+                            } elseif (isset($item->kelompok_besar_antara) && isset($item->kelompok_besar_antara->id)) {
+                                $kelompokBesarId = $item->kelompok_besar_antara->id;
+                            }
+                        }
+
+                        return (object) [
+                            'id' => $isArray ? $item['id'] : $item->id,
+                            'mata_kuliah_kode' => $isArray ? $item['mata_kuliah_kode'] : $item->mata_kuliah_kode,
+                            'mata_kuliah_nama' => $isArray ? ($item['mata_kuliah_nama'] ?? '') : ($item->mata_kuliah_nama ?? ''),
+                            'tanggal' => $isArray ? $item['tanggal'] : $item->tanggal,
+                            'jam_mulai' => $isArray ? $item['jam_mulai'] : $item->jam_mulai,
+                            'jam_selesai' => $isArray ? $item['jam_selesai'] : $item->jam_selesai,
+                            'jenis_jadwal' => 'seminar_pleno',
+                            'topik' => $isArray ? ($item['topik'] ?? null) : ($item->topik ?? null),
+                            'ruangan_nama' => $isArray ? ($item['ruangan']['nama'] ?? '') : ($item->ruangan->nama ?? ''),
+                            'jumlah_sesi' => $isArray ? ($item['jumlah_sesi'] ?? 1) : ($item->jumlah_sesi ?? 1),
+                            'semester' => $isArray ? ($item['mata_kuliah']['semester'] ?? '') : ($item->mata_kuliah->semester ?? ''),
+                            'blok' => $isArray ? ($item['mata_kuliah']['blok'] ?? null) : ($item->mata_kuliah->blok ?? null),
+                            'kelompok_kecil' => '',
+                            'kelompok_besar_id' => $kelompokBesarId,
+                            'status_konfirmasi' => $isArray ? ($item['status_konfirmasi'] ?? 'bisa') : ($item->status_konfirmasi ?? 'bisa'),
+                            'alasan_konfirmasi' => $isArray ? ($item['alasan_konfirmasi'] ?? null) : ($item->alasan_konfirmasi ?? null),
+                            'status_reschedule' => $isArray ? ($item['status_reschedule'] ?? null) : ($item->status_reschedule ?? null),
+                            'reschedule_reason' => $isArray ? ($item['reschedule_reason'] ?? null) : ($item->reschedule_reason ?? null),
+                            'semester_type' => $isArray ? ($item['semester_type'] ?? 'reguler') : ($item->semester_type ?? 'reguler'),
+                            'mata_kuliah' => $isArray ? ($item['mata_kuliah'] ?? null) : ($item->mata_kuliah ?? null),
+                            'peran' => $peran,
+                            'peran_display' => $peran_display
+                        ];
+                    });
+                    $jadwalMengajar = $jadwalMengajar->concat($jadwalSeminarPleno);
+                }
+            } catch (\Exception $e) {
+                Log::error("Error fetching Seminar Pleno: " . $e->getMessage());
+            }
+
             Log::info("Total jadwal mengajar untuk semester {$semesterType}: " . $jadwalMengajar->count());
 
             // Sort berdasarkan tanggal dan jam

@@ -215,10 +215,49 @@ class JadwalSeminarPlenoController extends Controller
                         ? "di ruangan {$ruanganNama}"
                         : "secara online";
 
+                    // Cek apakah dosen adalah koordinator atau pengampu
+                    $isKoordinator = $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) && in_array($dosenId, $jadwal->koordinator_ids);
+
+                    // Ambil daftar pengampu untuk koordinator
+                    $pengampuList = [];
+                    if ($isKoordinator && $jadwal->dosen_ids && is_array($jadwal->dosen_ids)) {
+                        $pengampuIds = array_diff($jadwal->dosen_ids, $jadwal->koordinator_ids ?? []);
+                        if (!empty($pengampuIds)) {
+                            $pengampuList = User::whereIn('id', $pengampuIds)
+                                ->pluck('name')
+                                ->toArray();
+                        }
+                    }
+
+                    // Ambil daftar koordinator untuk pengampu
+                    $koordinatorList = [];
+                    if (!$isKoordinator && $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) && !empty($jadwal->koordinator_ids)) {
+                        $koordinatorList = User::whereIn('id', $jadwal->koordinator_ids)
+                            ->pluck('name')
+                            ->toArray();
+                    }
+
+                    // Buat pesan berbeda untuk koordinator dan pengampu
+                    if ($isKoordinator) {
+                        $title = 'Jadwal Seminar Pleno Baru - Koordinator';
+                        $message = "Anda telah menjadi koordinator dosen untuk Seminar Pleno {$jadwal->mataKuliah->nama} pada tanggal {$jadwal->tanggal} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai} {$ruanganInfo}.";
+                        if (!empty($pengampuList)) {
+                            $message .= " Dosen pengampu: " . implode(', ', $pengampuList) . ".";
+                        }
+                        $message .= " Silakan persiapkan diri untuk mengajar.";
+                    } else {
+                        $title = 'Jadwal Seminar Pleno Baru';
+                        $message = "Anda telah di-assign untuk Seminar Pleno {$jadwal->mataKuliah->nama} pada tanggal {$jadwal->tanggal} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai} {$ruanganInfo}.";
+                        if (!empty($koordinatorList)) {
+                            $message .= " Koordinator dosen: " . implode(', ', $koordinatorList) . ".";
+                        }
+                        $message .= " Silakan persiapkan diri untuk mengajar.";
+                    }
+
                     Notification::create([
                         'user_id' => $dosenId,
-                        'title' => 'Jadwal Seminar Pleno Baru',
-                        'message' => "Anda telah di-assign untuk Seminar Pleno {$jadwal->mataKuliah->nama} pada tanggal {$jadwal->tanggal} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai} {$ruanganInfo}. Silakan konfirmasi ketersediaan Anda.",
+                        'title' => $title,
+                        'message' => $message,
                         'type' => 'info',
                         'data' => [
                             'topik' => $jadwal->topik,
@@ -630,10 +669,49 @@ class JadwalSeminarPlenoController extends Controller
                                     ? "di ruangan {$ruanganNama}"
                                     : "secara online";
 
+                                // Cek apakah dosen adalah koordinator atau pengampu
+                                $isKoordinator = $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) && in_array($dosenId, $jadwal->koordinator_ids);
+
+                                // Ambil daftar pengampu untuk koordinator
+                                $pengampuList = [];
+                                if ($isKoordinator && $jadwal->dosen_ids && is_array($jadwal->dosen_ids)) {
+                                    $pengampuIds = array_diff($jadwal->dosen_ids, $jadwal->koordinator_ids ?? []);
+                                    if (!empty($pengampuIds)) {
+                                        $pengampuList = User::whereIn('id', $pengampuIds)
+                                            ->pluck('name')
+                                            ->toArray();
+                                    }
+                                }
+
+                                // Ambil daftar koordinator untuk pengampu
+                                $koordinatorList = [];
+                                if (!$isKoordinator && $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) && !empty($jadwal->koordinator_ids)) {
+                                    $koordinatorList = User::whereIn('id', $jadwal->koordinator_ids)
+                                        ->pluck('name')
+                                        ->toArray();
+                                }
+
+                                // Buat pesan berbeda untuk koordinator dan pengampu
+                                if ($isKoordinator) {
+                                    $title = 'Jadwal Seminar Pleno Baru - Koordinator';
+                                    $message = "Anda telah menjadi koordinator dosen untuk Seminar Pleno {$jadwal->mataKuliah->nama} pada tanggal {$rowData['tanggal']} jam {$rowData['jam_mulai']}-{$rowData['jam_selesai']} {$ruanganInfo}.";
+                                    if (!empty($pengampuList)) {
+                                        $message .= " Dosen pengampu: " . implode(', ', $pengampuList) . ".";
+                                    }
+                                    $message .= " Silakan persiapkan diri untuk mengajar.";
+                                } else {
+                                    $title = 'Jadwal Seminar Pleno Baru';
+                                    $message = "Anda telah di-assign untuk Seminar Pleno {$jadwal->mataKuliah->nama} pada tanggal {$rowData['tanggal']} jam {$rowData['jam_mulai']}-{$rowData['jam_selesai']} {$ruanganInfo}.";
+                                    if (!empty($koordinatorList)) {
+                                        $message .= " Koordinator dosen: " . implode(', ', $koordinatorList) . ".";
+                                    }
+                                    $message .= " Silakan persiapkan diri untuk mengajar.";
+                                }
+
                                 Notification::create([
                                     'user_id' => $dosenId,
-                                    'title' => 'Jadwal Seminar Pleno Baru',
-                                    'message' => "Anda telah di-assign untuk Seminar Pleno {$jadwal->mataKuliah->nama} pada tanggal {$rowData['tanggal']} jam {$rowData['jam_mulai']}-{$rowData['jam_selesai']} {$ruanganInfo}. Silakan konfirmasi ketersediaan Anda.",
+                                    'title' => $title,
+                                    'message' => $message,
                                     'type' => 'info',
                                     'data' => [
                                         'topik' => $rowData['topik'] ?? '',

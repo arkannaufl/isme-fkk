@@ -554,9 +554,10 @@ class DashboardTimAkademikController extends Controller
                 ->with('mataKuliah')
                 ->get()
                 ->map(function($csr) {
+                    $tanggal = is_string($csr->tanggal) ? Carbon::parse($csr->tanggal) : $csr->tanggal;
                     return [
                         'title' => "CSR: " . ($csr->mataKuliah->nama ?? 'Unknown'),
-                        'date' => $csr->tanggal->format('Y-m-d')
+                        'date' => $tanggal instanceof Carbon ? $tanggal->format('Y-m-d') : (string)$csr->tanggal
                     ];
                 });
 
@@ -565,9 +566,10 @@ class DashboardTimAkademikController extends Controller
                 ->with('mataKuliah')
                 ->get()
                 ->map(function($pbl) {
+                    $tanggal = is_string($pbl->tanggal) ? Carbon::parse($pbl->tanggal) : $pbl->tanggal;
                     return [
                         'title' => "PBL: " . ($pbl->mataKuliah->nama ?? 'Unknown'),
-                        'date' => $pbl->tanggal->format('Y-m-d')
+                        'date' => $tanggal instanceof Carbon ? $tanggal->format('Y-m-d') : (string)$pbl->tanggal
                     ];
                 });
 
