@@ -1424,6 +1424,212 @@ class JadwalSeminarPlenoController extends Controller
     }
 
     /**
+     * Get jadwal Seminar Pleno untuk mahasiswa
+     */
+    public function getJadwalForMahasiswa($mahasiswaId, Request $request)
+    {
+        try {
+            // Check if user exists
+            $user = User::find($mahasiswaId);
+            if (!$user || $user->role !== 'mahasiswa') {
+                return response()->json([
+                    'message' => 'Mahasiswa tidak ditemukan',
+                    'data' => []
+                ], 404);
+            }
+
+            $semesterType = $request->query('semester_type');
+
+            // Get mahasiswa's semester langsung dari user (seperti di controller lain)
+            $semesterMahasiswa = $user->semester;
+
+            // Fallback: jika user tidak punya semester, ambil dari KelompokBesar
+            if (!$semesterMahasiswa) {
+                $kelompokBesarMahasiswa = \App\Models\KelompokBesar::where('mahasiswa_id', $mahasiswaId)->first();
+                if ($kelompokBesarMahasiswa) {
+                    $semesterMahasiswa = $kelompokBesarMahasiswa->semester;
+                } else {
+                    // Fallback: ambil dari KelompokKecil
+                    $kelompokKecil = \App\Models\KelompokKecil::where('mahasiswa_id', $mahasiswaId)->first();
+                    if ($kelompokKecil) {
+                        $semesterMahasiswa = $kelompokKecil->semester;
+                    }
+                }
+            }
+
+            // Get kelompok besar antara jika ada (untuk semester antara)
+            $kelompokBesarAntara = \App\Models\KelompokBesarAntara::where(function ($q) use ($mahasiswaId) {
+                $q->whereJsonContains('mahasiswa_ids', $mahasiswaId)
+                  ->orWhereRaw('JSON_SEARCH(mahasiswa_ids, "one", ?) IS NOT NULL', [$mahasiswaId])
+                  ->orWhereRaw('CAST(mahasiswa_ids AS CHAR) LIKE ?', ['%"' . $mahasiswaId . '"%'])
+                  ->orWhereRaw('CAST(mahasiswa_ids AS CHAR) LIKE ?', ['%' . $mahasiswaId . '%']);
+            })->first();
+            $kelompokBesarAntaraId = $kelompokBesarAntara ? $kelompokBesarAntara->id : null;
+
+            // Log untuk debugging
+            Log::info("Seminar Pleno getJadwalForMahasiswa - Mahasiswa ID: {$mahasiswaId}, Semester: {$semesterMahasiswa}, Kelompok Antara ID: {$kelompokBesarAntaraId}");
+
+            // Jika tidak ada semester dan tidak ada kelompok antara, return empty
+            if (!$semesterMahasiswa && !$kelompokBesarAntaraId) {
+                Log::warning("Seminar Pleno getJadwalForMahasiswa - Mahasiswa tidak memiliki kelompok besar");
+                return response()->json([
+                    'message' => 'Mahasiswa belum memiliki kelompok besar',
+                    'data' => []
+                ]);
+            }
+
+            // Pastikan semester adalah integer untuk perbandingan yang benar
+            if ($semesterMahasiswa) {
+                $semesterMahasiswa = (int)$semesterMahasiswa;
+            }
+
+            // Query jadwal seminar pleno berdasarkan kelompok besar mahasiswa
+            $query = JadwalSeminarPleno::with([
+                'mataKuliah:kode,nama,semester',
+                'ruangan:id,nama,gedung',
+                'kelompokBesar:id,semester',
+                'kelompokBesarAntara:id,nama_kelompok'
+            ]);
+
+            // Filter berdasarkan kelompok besar
+            // PENTING: kelompok_besar_id di jadwal menyimpan semester (bukan ID)
+            // Bisa berupa integer (semester) atau null
+            $query->where(function ($q) use ($semesterMahasiswa, $kelompokBesarAntaraId) {
+                // Filter untuk semester reguler: kelompok_besar_id = semester mahasiswa
+                if ($semesterMahasiswa && $semesterMahasiswa !== 'Antara') {
+                    // Match dengan kelompok_besar_id yang menyimpan semester
+                    // Handle berbagai format: integer, string, atau null dengan fallback ke mata kuliah
+                    $q->where(function ($subQ) use ($semesterMahasiswa) {
+                        // Match langsung dengan semester
+                        $subQ->where('kelompok_besar_id', $semesterMahasiswa)
+                             // Atau jika kelompok_besar_id null, cek semester dari mata kuliah
+                             ->orWhere(function ($fallbackQ) use ($semesterMahasiswa) {
+                                 $fallbackQ->whereNull('kelompok_besar_id')
+                                           ->whereHas('mataKuliah', function ($mkQ) use ($semesterMahasiswa) {
+                                               $mkQ->where('semester', $semesterMahasiswa)
+                                                   ->where('semester', '!=', 'Antara');
+                                           });
+                             });
+                    });
+                }
+
+                // Filter untuk semester antara: kelompok_besar_antara_id = ID kelompok antara mahasiswa
+                if ($kelompokBesarAntaraId) {
+                    $q->orWhere('kelompok_besar_antara_id', $kelompokBesarAntaraId);
+                }
+            });
+
+            // Filter semester_type
+            if ($semesterType && $semesterType !== 'all') {
+                $query->whereHas('mataKuliah', function ($q) use ($semesterType) {
+                    if ($semesterType === 'antara') {
+                        $q->where('semester', 'Antara');
+                    } elseif ($semesterType === 'reguler') {
+                        $q->where('semester', '!=', 'Antara');
+                    }
+                });
+            }
+
+            $jadwal = $query->orderBy('tanggal')
+                ->orderBy('jam_mulai')
+                ->get();
+
+            // Log untuk debugging
+            Log::info("Seminar Pleno getJadwalForMahasiswa - Found {$jadwal->count()} jadwal for mahasiswa ID: {$mahasiswaId}");
+            if ($jadwal->count() > 0) {
+                Log::info("Seminar Pleno getJadwalForMahasiswa - First jadwal: ID={$jadwal->first()->id}, kelompok_besar_id={$jadwal->first()->kelompok_besar_id}, kelompok_besar_antara_id={$jadwal->first()->kelompok_besar_antara_id}");
+            } else {
+                // Debug: cek apakah ada jadwal dengan semester yang sama
+                $allJadwal = JadwalSeminarPleno::where('kelompok_besar_id', $semesterMahasiswa)
+                    ->orWhere('kelompok_besar_antara_id', $kelompokBesarAntaraId)
+                    ->count();
+                Log::warning("Seminar Pleno getJadwalForMahasiswa - No jadwal found. Total jadwal with semester {$semesterMahasiswa} or antara {$kelompokBesarAntaraId}: {$allJadwal}");
+            }
+
+            $mappedJadwal = $jadwal->map(function ($jadwal) {
+                // Parse koordinator_ids dan dosen_ids
+                $koordinatorIds = [];
+                if ($jadwal->koordinator_ids) {
+                    $koordinatorIds = is_array($jadwal->koordinator_ids) ? $jadwal->koordinator_ids : json_decode($jadwal->koordinator_ids, true);
+                    if (!is_array($koordinatorIds)) {
+                        $koordinatorIds = [];
+                    }
+                }
+
+                $dosenIds = [];
+                if ($jadwal->dosen_ids) {
+                    $dosenIds = is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : json_decode($jadwal->dosen_ids, true);
+                    if (!is_array($dosenIds)) {
+                        $dosenIds = [];
+                    }
+                }
+
+                // Get koordinator and pengampu names
+                $koordinatorList = !empty($koordinatorIds) ? User::whereIn('id', $koordinatorIds)->get() : collect([]);
+                $pengampuIds = array_diff($dosenIds, $koordinatorIds);
+                $pengampuList = !empty($pengampuIds) ? User::whereIn('id', $pengampuIds)->get() : collect([]);
+
+                $koordinatorNames = $koordinatorList->pluck('name')->toArray();
+                $pengampuNames = $pengampuList->pluck('name')->toArray();
+
+                // Determine semester type
+                $semesterType = 'reguler';
+                if ($jadwal->mataKuliah && $jadwal->mataKuliah->semester === 'Antara') {
+                    $semesterType = 'antara';
+                }
+
+                // Get kelompok besar data
+                $kelompokBesar = null;
+                if ($jadwal->kelompokBesar) {
+                    $kelompokBesar = (object) [
+                        'id' => $jadwal->kelompokBesar->id,
+                        'semester' => $jadwal->kelompokBesar->semester,
+                        'nama_kelompok' => "Semester {$jadwal->kelompokBesar->semester}",
+                    ];
+                } elseif ($jadwal->kelompokBesarAntara) {
+                    $kelompokBesar = (object) [
+                        'id' => $jadwal->kelompokBesarAntara->id,
+                        'nama_kelompok' => $jadwal->kelompokBesarAntara->nama_kelompok,
+                    ];
+                }
+
+                return (object) [
+                    'id' => $jadwal->id,
+                    'mata_kuliah_kode' => $jadwal->mata_kuliah_kode,
+                    'mata_kuliah_nama' => $jadwal->mataKuliah->nama ?? 'Unknown',
+                    'tanggal' => $jadwal->tanggal,
+                    'jam_mulai' => $jadwal->jam_mulai,
+                    'jam_selesai' => $jadwal->jam_selesai,
+                    'topik' => $jadwal->topik,
+                    'koordinator_names' => implode(', ', $koordinatorNames),
+                    'pengampu_names' => implode(', ', $pengampuNames),
+                    'ruangan' => $jadwal->ruangan ? (object) [
+                        'id' => $jadwal->ruangan->id,
+                        'nama' => $jadwal->ruangan->nama,
+                    ] : null,
+                    'use_ruangan' => $jadwal->use_ruangan ?? true,
+                    'status_konfirmasi' => 'bisa', // Seminar Pleno tidak perlu konfirmasi
+                    'jumlah_sesi' => $jadwal->jumlah_sesi ?? 1,
+                    'semester_type' => $semesterType,
+                    'kelompok_besar' => $kelompokBesar,
+                ];
+            });
+
+            return response()->json([
+                'message' => 'Data jadwal Seminar Pleno berhasil diambil',
+                'data' => $mappedJadwal,
+                'count' => $mappedJadwal->count()
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error getting jadwal seminar pleno for mahasiswa: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Terjadi kesalahan saat mengambil data jadwal',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Konfirmasi ketersediaan dosen untuk jadwal Seminar Pleno
      */
     public function konfirmasi(Request $request, $id)

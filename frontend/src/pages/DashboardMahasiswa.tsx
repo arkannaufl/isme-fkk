@@ -177,6 +177,36 @@ interface JadwalAgendaBesar {
   semester_type?: "reguler" | "antara";
 }
 
+interface JadwalSeminarPleno {
+  id: number;
+  tanggal: string;
+  jam_mulai: string;
+  jam_selesai: string;
+  topik: string | null;
+  mata_kuliah_kode: string;
+  mata_kuliah_nama: string;
+  koordinator_names?: string;
+  pengampu_names?: string;
+  ruangan: {
+    id: number;
+    nama: string;
+  } | null;
+  jumlah_sesi: number;
+  use_ruangan: boolean;
+  status_konfirmasi?:
+    | "belum_konfirmasi"
+    | "bisa"
+    | "tidak_bisa"
+    | "waiting_reschedule";
+  status_reschedule?: "waiting" | "approved" | "rejected";
+  semester_type?: "reguler" | "antara";
+  kelompok_besar?: {
+    id: number;
+    semester: number;
+    nama_kelompok: string;
+  } | null;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type JadwalItem = any & {
   status_konfirmasi?:
@@ -223,6 +253,9 @@ export default function DashboardMahasiswa() {
   >([]);
   const [jadwalAgendaBesar, setJadwalAgendaBesar] = useState<
     JadwalAgendaBesar[]
+  >([]);
+  const [jadwalSeminarPleno, setJadwalSeminarPleno] = useState<
+    JadwalSeminarPleno[]
   >([]);
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -294,6 +327,7 @@ export default function DashboardMahasiswa() {
             `/jadwal-jurnal-reading/mahasiswa/${user.id}${semesterParams}`
           ),
           api.get(`/jadwal-agenda-besar/mahasiswa/${user.id}${semesterParams}`),
+        api.get(`/jadwal-seminar-pleno/mahasiswa/${user.id}${semesterParams}`),
         api.get(`/notifications/dosen/${user.id}`),
       ];
 
@@ -317,6 +351,7 @@ export default function DashboardMahasiswa() {
         jadwalPraktikumResult,
         jadwalJurnalReadingResult,
           jadwalAgendaBesarResult,
+        jadwalSeminarPlenoResult,
         notifResult,
         ...otherResults
       ] = responses;
@@ -357,6 +392,13 @@ export default function DashboardMahasiswa() {
           jadwalAgendaBesarResult.status === "fulfilled"
             ? jadwalAgendaBesarResult.value.data.data || []
           : []
+      );
+      setJadwalSeminarPleno(
+        filterActiveLecturers(
+          jadwalSeminarPlenoResult.status === "fulfilled"
+            ? jadwalSeminarPlenoResult.value.data.data || []
+            : []
+        )
       );
       setNotifications(
         notifResult.status === "fulfilled" ? notifResult.value.data || [] : []
@@ -615,6 +657,10 @@ export default function DashboardMahasiswa() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {item.topik || "N/A"}
                       </td>
+                    ) : jadwalType === "seminar_pleno" ? (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {item.topik || "N/A"}
+                      </td>
                     ) : jadwalType === "csr" ? (
                       <>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
@@ -651,6 +697,8 @@ export default function DashboardMahasiswa() {
                             .join(", ") || "N/A"
                         : jadwalType === "jurnal"
                         ? item.dosen?.name || "N/A"
+                        : jadwalType === "seminar_pleno"
+                        ? item.pengampu_names || "N/A"
                         : jadwalType === "pbl"
                         ? item.pengampu || "N/A"
                         : item.pengampu || item.dosen?.name || "N/A"}
@@ -667,11 +715,19 @@ export default function DashboardMahasiswa() {
                           : "N/A"}
                       </td>
                     )}
+                    {jadwalType === "seminar_pleno" && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {item.kelompok_besar?.semester
+                          ? `Semester ${item.kelompok_besar.semester}`
+                          : "N/A"}
+                      </td>
+                    )}
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {jadwalType === "kuliah_besar" ||
                       jadwalType === "praktikum" ||
-                      jadwalType === "jurnal"
-                        ? item.ruangan?.nama || "N/A"
+                      jadwalType === "jurnal" ||
+                      jadwalType === "seminar_pleno"
+                        ? item.ruangan?.nama || (item.use_ruangan === false ? "-" : "N/A")
                         : jadwalType === "pbl"
                         ? item.ruangan || "N/A"
                         : jadwalType === "non_blok_non_csr"
@@ -1357,6 +1413,34 @@ export default function DashboardMahasiswa() {
                   ],
                   "agenda_besar",
                   "Tidak ada data Agenda Besar"
+                )}
+              </motion.div>
+
+              {/* Seminar Pleno */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.0 }}
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+              >
+                {renderJadwalTable(
+                  "Seminar Pleno",
+                  faGraduationCap,
+                  jadwalSeminarPleno,
+                  [
+                    "NO",
+                    "TANGGAL",
+                    "PUKUL",
+                    "WAKTU",
+                    "TOPIK",
+                    "PENGAMPU",
+                    "KELOMPOK",
+                    "RUANGAN",
+                    "STATUS",
+                    "JENIS",
+                  ],
+                  "seminar_pleno",
+                  "Tidak ada data Seminar Pleno"
                 )}
               </motion.div>
 

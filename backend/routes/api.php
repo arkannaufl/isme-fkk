@@ -702,6 +702,7 @@ Route::middleware(['auth:sanctum', 'role:mahasiswa'])->group(function () {
     Route::get('/jadwal-csr/mahasiswa/{id}', [JadwalCSRController::class, 'getJadwalForMahasiswa']);
     Route::get('/jadwal-non-blok-non-csr/mahasiswa/{id}', [JadwalNonBlokNonCSRController::class, 'getJadwalForMahasiswa']);
     Route::get('/jadwal-agenda-besar/mahasiswa/{id}', [App\Http\Controllers\JadwalAgendaKhususController::class, 'getJadwalForMahasiswa']);
+    Route::get('/jadwal-seminar-pleno/mahasiswa/{id}', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'getJadwalForMahasiswa']);
 
     // Keabsenan routes for mahasiswa
     Route::get('/keabsenan-mahasiswa/{id}', [App\Http\Controllers\MahasiswaKeabsenanController::class, 'getKeabsenanMahasiswa']);
