@@ -10943,6 +10943,18 @@ export default function DetailBlok() {
         });
       }
 
+      // Validasi koordinator hanya boleh 1 orang untuk Seminar Pleno
+      if (row.koordinator && row.koordinator.trim() !== "") {
+        const koordinatorNames = row.koordinator.split(",").map((n: string) => n.trim()).filter((n: string) => n !== "");
+        if (koordinatorNames.length > 1) {
+          cellErrors.push({
+            row: rowNumber,
+            field: "koordinator",
+            message: "Koordinator Seminar Pleno hanya boleh 1 orang",
+          });
+        }
+      }
+
       // Validasi koordinator dan pengampu tidak boleh sama
       if (row.koordinator && row.pengampu) {
         const koordinatorNames = row.koordinator.split(",").map((n: string) => n.trim().toLowerCase());
@@ -21766,7 +21778,6 @@ export default function DetailBlok() {
                           </div>
                         ) : (
                           <Select
-                            isMulti
                             options={assignedDosenPBL.map((d) => {
                               // Disable dosen yang sudah dipilih sebagai Pengampu
                               const isDisabled = Array.isArray(form.pengampu) && (form.pengampu as number[]).includes(d.id);
@@ -21778,27 +21789,31 @@ export default function DetailBlok() {
                             })}
                             value={
                               Array.isArray(form.koordinator) && form.koordinator.length > 0
-                                ? assignedDosenPBL
-                                    .filter((d) =>
-                                      (form.koordinator as number[]).includes(d.id)
-                                    )
-                                    .map((d) => ({
-                                      value: d.id,
-                                      label: d.name,
+                                ? assignedDosenPBL.find((d) => (form.koordinator as number[]).includes(d.id))
+                                  ? {
+                                      value: (form.koordinator as number[])[0],
+                                      label: assignedDosenPBL.find((d) => d.id === (form.koordinator as number[])[0])?.name || '',
                                       isDisabled: false,
-                                    }))
-                                : []
+                                    }
+                                  : null
+                                : form.koordinator && typeof form.koordinator === 'number'
+                                ? assignedDosenPBL.find((d) => d.id === form.koordinator)
+                                  ? {
+                                      value: form.koordinator,
+                                      label: assignedDosenPBL.find((d) => d.id === form.koordinator)?.name || '',
+                                      isDisabled: false,
+                                    }
+                                  : null
+                                : null
                             }
                             onChange={(selected) => {
-                              const selectedIds = Array.isArray(selected)
-                                ? selected.map((s) => s.value)
-                                : [];
+                              const selectedId = selected ? selected.value : null;
                               setForm((f) => ({
                                 ...f,
-                                koordinator: selectedIds,
+                                koordinator: selectedId ? [selectedId] : [],
                               }));
                             }}
-                            placeholder="Pilih Koordinator Dosen (bisa lebih dari 1)"
+                            placeholder="Pilih Koordinator Dosen (hanya 1)"
                             isOptionDisabled={(option: any) => option.isDisabled}
                             classNamePrefix="react-select"
                             className="react-select-container"

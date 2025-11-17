@@ -107,7 +107,7 @@ class JadwalSeminarPlenoController extends Controller
             'jumlah_sesi' => 'required|integer|min:1|max:6',
             'dosen_ids' => 'required|array|min:1', // Pengampu (non-koordinator)
             'dosen_ids.*' => 'exists:users,id',
-            'koordinator_ids' => 'nullable|array', // Koordinator (opsional)
+            'koordinator_ids' => 'nullable|array|max:1', // Koordinator (opsional, maksimal 1)
             'koordinator_ids.*' => 'exists:users,id',
             'ruangan_id' => 'nullable|exists:ruangan,id',
             'use_ruangan' => 'required|boolean',
@@ -119,6 +119,13 @@ class JadwalSeminarPlenoController extends Controller
         // Gabungkan koordinator_ids dan dosen_ids untuk validasi kapasitas dan bentrok
         $koordinatorIds = $data['koordinator_ids'] ?? [];
         $pengampuIds = $data['dosen_ids'] ?? [];
+
+        // Validasi: Koordinator hanya boleh 1 orang untuk Seminar Pleno
+        if (count($koordinatorIds) > 1) {
+            return response()->json([
+                'message' => 'Koordinator Seminar Pleno hanya boleh 1 orang'
+            ], 422);
+        }
 
         // Validasi: Cek apakah ada dosen yang sama di koordinator_ids dan dosen_ids
         $duplicateIds = array_intersect($koordinatorIds, $pengampuIds);
@@ -251,7 +258,7 @@ class JadwalSeminarPlenoController extends Controller
             'jumlah_sesi' => 'required|integer|min:1|max:6',
             'dosen_ids' => 'required|array|min:1', // Pengampu (non-koordinator)
             'dosen_ids.*' => 'exists:users,id',
-            'koordinator_ids' => 'nullable|array', // Koordinator (opsional)
+            'koordinator_ids' => 'nullable|array|max:1', // Koordinator (opsional, maksimal 1)
             'koordinator_ids.*' => 'exists:users,id',
             'ruangan_id' => 'nullable|exists:ruangan,id',
             'use_ruangan' => 'required|boolean',
@@ -263,6 +270,13 @@ class JadwalSeminarPlenoController extends Controller
         // Gabungkan koordinator_ids dan dosen_ids untuk validasi kapasitas dan bentrok
         $koordinatorIds = $data['koordinator_ids'] ?? [];
         $pengampuIds = $data['dosen_ids'] ?? [];
+
+        // Validasi: Koordinator hanya boleh 1 orang untuk Seminar Pleno
+        if (count($koordinatorIds) > 1) {
+            return response()->json([
+                'message' => 'Koordinator Seminar Pleno hanya boleh 1 orang'
+            ], 422);
+        }
 
         // Validasi: Cek apakah ada dosen yang sama di koordinator_ids dan dosen_ids
         $duplicateIds = array_intersect($koordinatorIds, $pengampuIds);
@@ -374,7 +388,7 @@ class JadwalSeminarPlenoController extends Controller
                 'data.*.jumlah_sesi' => 'required|integer|min:1|max:6',
                 'data.*.dosen_ids' => 'required|array|min:1', // Pengampu (non-koordinator)
                 'data.*.dosen_ids.*' => 'exists:users,id',
-                'data.*.koordinator_ids' => 'nullable|array', // Koordinator (opsional)
+                'data.*.koordinator_ids' => 'nullable|array|max:1', // Koordinator (opsional, maksimal 1)
                 'data.*.koordinator_ids.*' => 'exists:users,id',
                 'data.*.ruangan_id' => 'nullable|integer|min:1',
                 'data.*.use_ruangan' => 'required|boolean',
@@ -441,6 +455,10 @@ class JadwalSeminarPlenoController extends Controller
 
                 // Validasi dosen koordinator
                 $koordinatorIds = $row['koordinator_ids'] ?? [];
+                // Validasi koordinator hanya boleh 1 orang untuk Seminar Pleno
+                if (count($koordinatorIds) > 1) {
+                    $rowErrors[] = "Baris " . ($index + 1) . ": Koordinator Seminar Pleno hanya boleh 1 orang";
+                }
                 foreach ($koordinatorIds as $dosenId) {
                     $dosen = User::find($dosenId);
                     if (!$dosen) {
