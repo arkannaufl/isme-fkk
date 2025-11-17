@@ -393,6 +393,7 @@ class JadwalSeminarPlenoController extends Controller
                 'data.*.ruangan_id' => 'nullable|integer|min:1',
                 'data.*.use_ruangan' => 'required|boolean',
                 'data.*.topik' => 'nullable|string',
+                'data.*.kelompok_besar_id' => 'nullable|integer', // Bisa berupa ID atau semester
             ]);
 
             $mataKuliah = \App\Models\MataKuliah::find($kode);
@@ -528,6 +529,27 @@ class JadwalSeminarPlenoController extends Controller
                 }
 
                 if (empty($rowErrors)) {
+                    // Handle kelompok_besar_id: bisa berupa ID atau semester
+                    $kelompokBesarId = null;
+                    if (isset($row['kelompok_besar_id']) && $row['kelompok_besar_id'] !== null) {
+                        $inputKelompokBesarId = $row['kelompok_besar_id'];
+
+                        // Cek apakah ini ID sebenarnya (cek di database)
+                        $kelompokBesarById = KelompokBesar::find($inputKelompokBesarId);
+                        if ($kelompokBesarById) {
+                            // Jika ditemukan sebagai ID, gunakan ID tersebut
+                            $kelompokBesarId = $kelompokBesarById->id;
+                        } else {
+                            // Jika tidak ditemukan sebagai ID, coba sebagai semester
+                            $kelompokBesarBySemester = KelompokBesar::where('semester', $inputKelompokBesarId)->first();
+                            if ($kelompokBesarBySemester) {
+                                // Ambil ID pertama dari semester tersebut
+                                $kelompokBesarId = $kelompokBesarBySemester->id;
+                            }
+                            // Jika tidak ditemukan juga, biarkan null (opsional)
+                        }
+                    }
+
                     // Simpan koordinator_ids dan dosen_ids terpisah untuk insert ke database
                     $validRowData = [
                         'mata_kuliah_kode' => $kode,
@@ -540,6 +562,7 @@ class JadwalSeminarPlenoController extends Controller
                         'ruangan_id' => $row['ruangan_id'],
                         'use_ruangan' => $row['use_ruangan'] ?? true,
                         'topik' => $row['topik'] ?? '',
+                        'kelompok_besar_id' => $kelompokBesarId,
                     ];
                     $validData[] = $validRowData;
                 } else {
@@ -660,6 +683,175 @@ class JadwalSeminarPlenoController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Terjadi kesalahan saat mengimport data: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Validasi preview data import (tanpa menyimpan ke database)
+     */
+    public function validatePreview(Request $request, $kode)
+    {
+        try {
+            $data = $request->validate([
+                'data' => 'required|array',
+                'data.*.tanggal' => 'required|date',
+                'data.*.jam_mulai' => 'required|string',
+                'data.*.jam_selesai' => 'required|string',
+                'data.*.jumlah_sesi' => 'required|integer|min:1|max:6',
+                'data.*.dosen_ids' => 'required|array|min:1',
+                'data.*.dosen_ids.*' => 'exists:users,id',
+                'data.*.koordinator_ids' => 'nullable|array|max:1',
+                'data.*.koordinator_ids.*' => 'exists:users,id',
+                'data.*.ruangan_id' => 'nullable|integer|min:1',
+                'data.*.use_ruangan' => 'required|boolean',
+                'data.*.topik' => 'nullable|string',
+                'data.*.kelompok_besar_id' => 'nullable|integer',
+            ]);
+
+            $mataKuliah = \App\Models\MataKuliah::find($kode);
+            if (!$mataKuliah) {
+                return response()->json(['message' => 'Mata kuliah tidak ditemukan'], 404);
+            }
+
+            $errors = [];
+
+            // Validasi semua data
+            foreach ($data['data'] as $index => $row) {
+                $rowErrors = [];
+
+                // Validasi tanggal dalam rentang mata kuliah
+                if ($row['tanggal'] < $mataKuliah->tanggal_mulai || $row['tanggal'] > $mataKuliah->tanggal_akhir) {
+                    $rowErrors[] = "Baris " . ($index + 1) . ": Tanggal di luar rentang mata kuliah";
+                }
+
+                // Validasi ruangan hanya jika menggunakan ruangan
+                $useRuangan = $row['use_ruangan'] ?? true;
+                if ($useRuangan) {
+                    if (!$row['ruangan_id']) {
+                        $rowErrors[] = "Baris " . ($index + 1) . ": Ruangan wajib dipilih jika menggunakan ruangan";
+                    } else {
+                        $ruangan = Ruangan::find($row['ruangan_id']);
+                        if (!$ruangan) {
+                            $rowErrors[] = "Baris " . ($index + 1) . ": Ruangan tidak ditemukan";
+                        } else {
+                            // Validasi kapasitas ruangan
+                            $koordinatorIds = $row['koordinator_ids'] ?? [];
+                            $pengampuIds = $row['dosen_ids'] ?? [];
+
+                            // Validasi: Cek apakah ada dosen yang sama di koordinator_ids dan dosen_ids
+                            $duplicateIds = array_intersect($koordinatorIds, $pengampuIds);
+                            if (!empty($duplicateIds)) {
+                                $duplicateNames = \App\Models\User::whereIn('id', $duplicateIds)->pluck('name')->toArray();
+                                $rowErrors[] = "Baris " . ($index + 1) . ": Dosen yang sama tidak boleh dipilih sebagai Koordinator Dosen dan Pengampu: " . implode(', ', $duplicateNames);
+                            }
+
+                            $allDosenIds = array_unique(array_merge($koordinatorIds, $pengampuIds));
+                            $jumlahDosen = count($allDosenIds);
+                            if ($jumlahDosen > $ruangan->kapasitas) {
+                                $rowErrors[] = "Baris " . ($index + 1) . ": Kapasitas ruangan tidak mencukupi. Ruangan {$ruangan->nama} hanya dapat menampung {$ruangan->kapasitas} orang, sedangkan diperlukan {$jumlahDosen} dosen";
+                            }
+                        }
+                    }
+                }
+
+                // Validasi dosen pengampu
+                foreach ($row['dosen_ids'] as $dosenId) {
+                    $dosen = User::find($dosenId);
+                    if (!$dosen) {
+                        $rowErrors[] = "Baris " . ($index + 1) . ": Dosen dengan ID {$dosenId} tidak ditemukan";
+                    }
+                }
+
+                // Validasi dosen koordinator
+                $koordinatorIds = $row['koordinator_ids'] ?? [];
+                if (count($koordinatorIds) > 1) {
+                    $rowErrors[] = "Baris " . ($index + 1) . ": Koordinator Seminar Pleno hanya boleh 1 orang";
+                }
+                foreach ($koordinatorIds as $dosenId) {
+                    $dosen = User::find($dosenId);
+                    if (!$dosen) {
+                        $rowErrors[] = "Baris " . ($index + 1) . ": Koordinator dengan ID {$dosenId} tidak ditemukan";
+                    }
+                }
+
+                // Gabungkan koordinator_ids dan dosen_ids untuk validasi bentrok
+                $koordinatorIds = $row['koordinator_ids'] ?? [];
+                $pengampuIds = $row['dosen_ids'] ?? [];
+                $allDosenIds = array_unique(array_merge($koordinatorIds, $pengampuIds));
+
+                // Validasi bentrok (cek semua dosen - koordinator + pengampu)
+                $rowData = [
+                    'mata_kuliah_kode' => $kode,
+                    'tanggal' => $row['tanggal'],
+                    'jam_mulai' => $row['jam_mulai'],
+                    'jam_selesai' => $row['jam_selesai'],
+                    'jumlah_sesi' => $row['jumlah_sesi'],
+                    'dosen_ids' => $allDosenIds,
+                    'ruangan_id' => $row['ruangan_id'],
+                    'use_ruangan' => $row['use_ruangan'] ?? true,
+                    'topik' => $row['topik'] ?? '',
+                ];
+
+                $bentrokMessage = $this->checkBentrokWithDetail($rowData, null);
+                if ($bentrokMessage) {
+                    $rowErrors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;
+                }
+
+                // Validasi bentrok dengan data dalam batch import yang sama
+                for ($j = 0; $j < $index; $j++) {
+                    $previousData = $data['data'][$j];
+                    $prevKoordinatorIds = $previousData['koordinator_ids'] ?? [];
+                    $prevPengampuIds = $previousData['dosen_ids'] ?? [];
+                    $prevAllDosenIds = array_unique(array_merge($prevKoordinatorIds, $prevPengampuIds));
+
+                    $previousRowData = [
+                        'mata_kuliah_kode' => $kode,
+                        'tanggal' => $previousData['tanggal'],
+                        'jam_mulai' => $previousData['jam_mulai'],
+                        'jam_selesai' => $previousData['jam_selesai'],
+                        'jumlah_sesi' => $previousData['jumlah_sesi'],
+                        'dosen_ids' => $prevAllDosenIds,
+                        'ruangan_id' => $previousData['ruangan_id'],
+                        'use_ruangan' => $previousData['use_ruangan'] ?? true,
+                        'topik' => $previousData['topik'] ?? '',
+                    ];
+                    if ($this->isDataBentrok($rowData, $previousRowData)) {
+                        $ruanganPrev = Ruangan::find($previousData['ruangan_id']);
+                        $ruanganNamePrev = $ruanganPrev ? $ruanganPrev->nama : 'N/A';
+                        $dosenNamesPrev = [];
+                        foreach ($prevAllDosenIds as $dosenIdPrev) {
+                            $dosenPrev = User::find($dosenIdPrev);
+                            if ($dosenPrev) {
+                                $dosenNamesPrev[] = $dosenPrev->name;
+                            }
+                        }
+                        $dosenNamesStrPrev = implode(', ', $dosenNamesPrev);
+                        if (empty($dosenNamesStrPrev)) {
+                            $dosenNamesStrPrev = 'N/A';
+                        }
+                        $rowErrors[] = "Baris " . ($index + 1) . ": Jadwal bentrok dengan data pada baris " . ($j + 1) . " (Dosen: {$dosenNamesStrPrev}, Ruangan: {$ruanganNamePrev})";
+                        break;
+                    }
+                }
+
+                if (!empty($rowErrors)) {
+                    $errors = array_merge($errors, $rowErrors);
+                }
+            }
+
+            // Return hasil validasi
+            return response()->json([
+                'valid' => empty($errors),
+                'errors' => $errors,
+                'message' => empty($errors) ? 'Data valid' : 'Terdapat error pada data'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error validating Seminar Pleno preview: ' . $e->getMessage());
+            return response()->json([
+                'valid' => false,
+                'errors' => ['Terjadi kesalahan saat memvalidasi data: ' . $e->getMessage()],
+                'message' => 'Terjadi kesalahan saat memvalidasi data'
             ], 500);
         }
     }

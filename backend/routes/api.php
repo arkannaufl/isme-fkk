@@ -443,6 +443,7 @@ Route::middleware('auth:sanctum')->prefix('seminar-pleno')->group(function () {
     Route::get('/jadwal/{kode}', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'index']);
     Route::post('/jadwal/{kode}', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'store']);
     Route::post('/jadwal/{kode}/import', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'import']);
+    Route::post('/jadwal/{kode}/validate-preview', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'validatePreview']);
     Route::put('/jadwal/{kode}/{id}', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'update']);
     Route::delete('/jadwal/{kode}/{id}', [App\Http\Controllers\JadwalSeminarPlenoController::class, 'destroy']);
 });

@@ -1028,6 +1028,7 @@ export default function DetailBlok() {
   const jurnalReadingFileInputRef = useRef<HTMLInputElement>(null);
   const persamaanPersepsiFileInputRef = useRef<HTMLInputElement>(null);
   const seminarPlenoFileInputRef = useRef<HTMLInputElement>(null);
+  const seminarPlenoValidationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch materi (keahlian) dari mata kuliah yang sedang dipilih
 
@@ -10684,8 +10685,16 @@ export default function DetailBlok() {
       const contohDosen1 = assignedDosenPBL[0]?.name || "Dr. John Doe";
       const contohDosen2 = assignedDosenPBL[1]?.name || "Dr. Jane Smith";
       const contohDosen3 = assignedDosenPBL[2]?.name || "Dr. Bob Wilson";
-      const contohKoordinator = contohDosen1; // Contoh koordinator
+      const contohKoordinator = contohDosen1; // Contoh koordinator (hanya 1)
       const contohPengampu = contohDosen2 ? `${contohDosen2}, ${contohDosen3 || "Dr. Alice"}` : contohDosen2;
+      
+      // Ambil contoh kelompok besar (gunakan format sederhana untuk kemudahan)
+      const contohKelompokBesar = kelompokBesarOptions[0] 
+        ? (() => {
+            const match = kelompokBesarOptions[0].label.match(/(?:semester\s*)?(\d+)/i);
+            return match ? `Semester ${match[1]}` : kelompokBesarOptions[0].label;
+          })()
+        : "Semester 1";
 
       // Data template - 1 dengan ruangan, 1 tanpa ruangan (online)
       const rawTemplateData = [
@@ -10697,6 +10706,7 @@ export default function DetailBlok() {
           koordinator: contohKoordinator,
           pengampu: contohPengampu,
           ruangan: ruanganList[0]?.nama || "Ruang 1",
+          kelompok_besar: contohKelompokBesar,
         },
         {
           tanggal: contohTanggal2,
@@ -10706,6 +10716,7 @@ export default function DetailBlok() {
           koordinator: contohDosen1,
           pengampu: contohDosen2 || "",
           ruangan: "", // Tidak menggunakan ruangan (online)
+          kelompok_besar: contohKelompokBesar,
         },
       ];
 
@@ -10718,6 +10729,7 @@ export default function DetailBlok() {
         "Koordinator Dosen": row.koordinator,
         Pengampu: row.pengampu,
         Ruangan: row.ruangan,
+        "Kelompok Besar": row.kelompok_besar,
       }));
 
       // Create workbook
@@ -10733,6 +10745,7 @@ export default function DetailBlok() {
           "Koordinator Dosen",
           "Pengampu",
           "Ruangan",
+          "Kelompok Besar",
         ],
       });
 
@@ -10745,6 +10758,7 @@ export default function DetailBlok() {
         { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
         { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
         { wch: EXCEL_COLUMN_WIDTHS.RUANGAN },
+        { wch: EXCEL_COLUMN_WIDTHS.KELOMPOK_BESAR },
       ];
       ws["!cols"] = colWidths;
 
@@ -10952,6 +10966,58 @@ export default function DetailBlok() {
             field: "koordinator",
             message: "Koordinator Seminar Pleno hanya boleh 1 orang",
           });
+        } else {
+          // Validasi apakah nama koordinator valid (terdaftar di assignedDosenPBL)
+          const invalidKoordinatorNames: string[] = [];
+          koordinatorNames.forEach((namaDosen: string) => {
+            const dosen = assignedDosenPBL.find(
+              (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
+            );
+            if (!dosen) {
+              invalidKoordinatorNames.push(namaDosen);
+            }
+          });
+          
+          if (invalidKoordinatorNames.length > 0) {
+            cellErrors.push({
+              row: rowNumber,
+              field: "koordinator",
+              message: `Koordinator Dosen tidak valid: "${invalidKoordinatorNames.join(", ")}". Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini`,
+            });
+          }
+        }
+      }
+
+      // Validasi pengampu: cek apakah semua nama dosen valid
+      if (row.pengampu && row.pengampu.trim() !== "") {
+        const pengampuNames = row.pengampu.split(",").map((n: string) => n.trim()).filter((n: string) => n !== "");
+        const invalidPengampuNames: string[] = [];
+        
+        pengampuNames.forEach((namaDosen: string) => {
+          const dosen = assignedDosenPBL.find(
+            (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
+          );
+          if (!dosen) {
+            invalidPengampuNames.push(namaDosen);
+          }
+        });
+        
+        if (invalidPengampuNames.length > 0) {
+          cellErrors.push({
+            row: rowNumber,
+            field: "pengampu",
+            message: `Pengampu tidak valid: "${invalidPengampuNames.join(", ")}". Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini`,
+          });
+        }
+        
+        // Validasi minimal 1 pengampu valid
+        const validPengampuCount = pengampuNames.length - invalidPengampuNames.length;
+        if (validPengampuCount === 0) {
+          cellErrors.push({
+            row: rowNumber,
+            field: "pengampu",
+            message: "Pengampu wajib diisi dengan minimal 1 dosen yang valid",
+          });
         }
       }
 
@@ -10993,6 +11059,53 @@ export default function DetailBlok() {
         row.use_ruangan = false;
         row.ruangan_id = null;
       }
+
+      // Validasi kelompok besar (opsional)
+      if (row.kelompok_besar && row.kelompok_besar.trim() !== "") {
+        const inputValue = row.kelompok_besar.trim();
+        
+        // Helper untuk extract semester dari berbagai format
+        const extractSemester = (value: string): number | null => {
+          // Coba ekstrak angka dari berbagai format:
+          // "Semester 1" -> 1
+          // "1" -> 1
+          // "Kelompok Besar Semester 1 (50 mahasiswa)" -> 1
+          // "Semester1" -> 1
+          const match = value.match(/(?:semester\s*)?(\d+)/i);
+          return match ? parseInt(match[1]) : null;
+        };
+        
+        // Cari exact match di label (case-insensitive)
+        let kelompokBesar = kelompokBesarOptions.find(
+          (kb) => kb.label.toLowerCase() === inputValue.toLowerCase()
+        );
+        
+        // Jika tidak ditemukan exact match, coba cari berdasarkan semester
+        if (!kelompokBesar) {
+          const semester = extractSemester(inputValue);
+          if (semester) {
+            kelompokBesar = kelompokBesarOptions.find(
+              (kb) => {
+                // Cek apakah label mengandung semester yang sama
+                const kbSemester = extractSemester(kb.label);
+                return kbSemester === semester;
+              }
+            );
+          }
+        }
+        
+        if (!kelompokBesar) {
+          cellErrors.push({
+            row: rowNumber,
+            field: "kelompok_besar",
+            message: `Kelompok Besar "${inputValue}" tidak ditemukan. Gunakan format: "Semester 1" atau "1" atau lihat daftar ketersediaan`,
+          });
+        } else {
+          row.kelompok_besar_id = Number(kelompokBesar.id);
+        }
+      } else {
+        row.kelompok_besar_id = null;
+      }
     });
 
     return { cellErrors };
@@ -11013,6 +11126,51 @@ export default function DetailBlok() {
         const pengampuNames = row.pengampu_names || "";
         const ruangan = allRuanganList.find((r) => r.id === row.ruangan_id);
         const useRuangan = row.use_ruangan !== undefined ? row.use_ruangan : (row.ruangan_id ? true : false);
+        
+        // Ambil nama kelompok besar
+        let kelompokBesarName = "";
+        
+        // Cek apakah ada kelompok_besar object dari backend
+        if (row.kelompok_besar && row.kelompok_besar.id) {
+          const kelompokBesarId = row.kelompok_besar.id;
+          const semester = row.kelompok_besar.semester;
+          
+          // Cari di kelompokBesarOptions berdasarkan ID
+          if (kelompokBesarOptions.length > 0) {
+            const kelompokBesar = kelompokBesarOptions.find(
+              (kb) => Number(kb.id) === Number(kelompokBesarId)
+            );
+            if (kelompokBesar) {
+              kelompokBesarName = kelompokBesar.label || "";
+            }
+          }
+          
+          // Fallback: jika tidak ditemukan di options, buat dari semester
+          if (!kelompokBesarName && semester) {
+            kelompokBesarName = `Semester ${semester}`;
+          }
+        }
+        // Cek apakah ada kelompok_besar_id langsung
+        else if (row.kelompok_besar_id) {
+          // Cari di kelompokBesarOptions berdasarkan ID
+          if (kelompokBesarOptions.length > 0) {
+            const kelompokBesar = kelompokBesarOptions.find(
+              (kb) => Number(kb.id) === Number(row.kelompok_besar_id)
+            );
+            if (kelompokBesar) {
+              kelompokBesarName = kelompokBesar.label || "";
+            }
+          }
+          
+          // Fallback: jika tidak ditemukan, coba gunakan kelompok_besar_id sebagai semester
+          if (!kelompokBesarName) {
+            // Jika kelompok_besar_id adalah angka kecil (kemungkinan semester), gunakan sebagai semester
+            const kelompokBesarIdNum = Number(row.kelompok_besar_id);
+            if (kelompokBesarIdNum > 0 && kelompokBesarIdNum <= 8) {
+              kelompokBesarName = `Semester ${kelompokBesarIdNum}`;
+            }
+          }
+        }
 
         return {
           Tanggal: row.tanggal,
@@ -11022,6 +11180,7 @@ export default function DetailBlok() {
           "Koordinator Dosen": koordinatorNames,
           Pengampu: pengampuNames,
           Ruangan: useRuangan ? (ruangan?.nama || "") : "",
+          "Kelompok Besar": kelompokBesarName,
         };
       });
 
@@ -11034,6 +11193,7 @@ export default function DetailBlok() {
           "Koordinator Dosen",
           "Pengampu",
           "Ruangan",
+          "Kelompok Besar",
         ],
       });
 
@@ -11045,6 +11205,7 @@ export default function DetailBlok() {
         { wch: EXCEL_COLUMN_WIDTHS.DOSEN }, // For Koordinator
         { wch: EXCEL_COLUMN_WIDTHS.DOSEN }, // For Pengampu
         { wch: EXCEL_COLUMN_WIDTHS.RUANGAN },
+        { wch: EXCEL_COLUMN_WIDTHS.KELOMPOK_BESAR },
       ];
       ws["!cols"] = colWidths;
 
@@ -11090,13 +11251,16 @@ export default function DetailBlok() {
           "• Pastikan data dosen dan ruangan valid sebelum import",
         ],
         [
-          "• Kolom Koordinator Dosen opsional (boleh dikosongkan). Untuk multi-select, pisahkan nama dosen dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)",
+          "• Kolom Koordinator Dosen opsional (boleh dikosongkan, hanya 1 orang). Isi dengan nama koordinator dosen (contoh: Dr. John Doe)",
         ],
         [
           "• Kolom Pengampu wajib diisi (minimal 1 dosen). Untuk multi-select, pisahkan nama dosen dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)",
         ],
         [
           "• ⚠️ PENTING: Dosen yang sama TIDAK BOLEH dipilih sebagai Koordinator Dosen dan Pengampu sekaligus",
+        ],
+        [
+          "• ⚠️ PENTING: Koordinator Dosen hanya boleh 1 orang untuk Seminar Pleno",
         ],
         [
           "• Ruangan boleh dikosongkan untuk jadwal online/tidak memerlukan ruangan",
@@ -11106,6 +11270,21 @@ export default function DetailBlok() {
         ],
         [
           "• Jika ruangan dikosongkan, jadwal akan dianggap sebagai jadwal online (tidak menggunakan ruangan)",
+        ],
+        [
+          "• Kelompok Besar opsional (boleh dikosongkan). Format yang bisa digunakan:",
+        ],
+        [
+          "  - Format lengkap: Kelompok Besar Semester 1 (50 mahasiswa)",
+        ],
+        [
+          "  - Format sederhana: Semester 1",
+        ],
+        [
+          "  - Format paling sederhana: 1",
+        ],
+        [
+          "• Sistem akan otomatis mencari berdasarkan semester yang diinput",
         ],
       ];
 
@@ -11179,6 +11358,42 @@ export default function DetailBlok() {
         const namaRuangan = row[6]?.toString() || "";
         const ruangan = findRuangan(namaRuangan);
 
+        // Parse kelompok besar dengan parsing yang lebih fleksibel
+        const kelompokBesarStr = row[7]?.toString() || "";
+        
+        // Helper untuk extract semester dari berbagai format
+        const extractSemester = (value: string): number | null => {
+          const match = value.match(/(?:semester\s*)?(\d+)/i);
+          return match ? parseInt(match[1]) : null;
+        };
+        
+        let kelompokBesar = null;
+        let kelompokBesarId = null;
+        
+        if (kelompokBesarStr.trim() !== "") {
+          // Cari exact match di label (case-insensitive)
+          kelompokBesar = kelompokBesarOptions.find(
+            (kb) => kb.label.toLowerCase() === kelompokBesarStr.toLowerCase()
+          );
+          
+          // Jika tidak ditemukan exact match, coba cari berdasarkan semester
+          if (!kelompokBesar) {
+            const semester = extractSemester(kelompokBesarStr);
+            if (semester) {
+              kelompokBesar = kelompokBesarOptions.find(
+                (kb) => {
+                  const kbSemester = extractSemester(kb.label);
+                  return kbSemester === semester;
+                }
+              );
+            }
+          }
+          
+          if (kelompokBesar) {
+            kelompokBesarId = Number(kelompokBesar.id);
+          }
+        }
+
         // Konversi format jam
         const jamMulaiRaw = row[1]?.toString() || "";
         const jamMulai = convertTimeFormat(jamMulaiRaw);
@@ -11225,6 +11440,8 @@ export default function DetailBlok() {
             namaRuangan.trim() !== "" &&
             ruangan?.id
           ),
+          kelompok_besar_id: kelompokBesarId,
+          kelompok_besar: kelompokBesarStr,
           koordinator: koordinatorStr,
           pengampu: pengampuStr,
         };
@@ -11232,12 +11449,104 @@ export default function DetailBlok() {
 
       setSeminarPlenoImportData(convertedData);
 
-      // Validasi data
+      // Validasi data frontend
       const { cellErrors } = validateSeminarPlenoExcelData(convertedData);
       setSeminarPlenoCellErrors(cellErrors);
 
       // Buka modal
       setShowSeminarPlenoImportModal(true);
+
+      // Validasi backend secara real-time (cek bentrok jadwal)
+      if (kode && convertedData.length > 0) {
+        try {
+          // Transform data untuk API
+          const apiData = convertedData.map((row: any) => {
+            let useRuangan: boolean;
+            if (row.use_ruangan !== undefined && row.use_ruangan !== null) {
+              useRuangan = Boolean(row.use_ruangan);
+            } else if (row.ruangan_id) {
+              useRuangan = true;
+            } else if (row.nama_ruangan && row.nama_ruangan.trim() !== "") {
+              useRuangan = true;
+            } else {
+              useRuangan = false;
+            }
+            
+            return {
+              tanggal: row.tanggal,
+              jam_mulai: row.jam_mulai,
+              jam_selesai: row.jam_selesai,
+              jumlah_sesi: row.jumlah_sesi,
+              topik: row.topik && row.topik.trim() ? row.topik.trim() : null,
+              koordinator_ids: row.koordinator_ids || [],
+              dosen_ids: row.dosen_ids || [],
+              kelompok_besar_id: row.kelompok_besar_id || null,
+              ruangan_id: useRuangan ? (row.ruangan_id || null) : null,
+              use_ruangan: useRuangan,
+            };
+          });
+
+          // Panggil endpoint validasi preview
+          const validationResponse = await api.post(
+            `/seminar-pleno/jadwal/${kode}/validate-preview`,
+            { data: apiData }
+          );
+
+          if (validationResponse.data && !validationResponse.data.valid) {
+            const backendErrors = validationResponse.data.errors || [];
+            
+            // Convert backend errors ke format cellErrors
+            const newCellErrors: { row: number; field: string; message: string }[] = [];
+            backendErrors.forEach((error: string) => {
+              const barisMatch = error.match(/Baris\s+(\d+)/i);
+              if (barisMatch) {
+                const rowNum = parseInt(barisMatch[1]);
+                let field = "general";
+                if (error.toLowerCase().includes("tanggal")) field = "tanggal";
+                else if (error.toLowerCase().includes("jam")) field = "jam_mulai";
+                else if (error.toLowerCase().includes("pengampu") || error.toLowerCase().includes("dosen")) field = "pengampu";
+                else if (error.toLowerCase().includes("koordinator")) field = "koordinator";
+                else if (error.toLowerCase().includes("ruangan")) field = "nama_ruangan";
+                else if (error.toLowerCase().includes("kelompok")) field = "kelompok_besar";
+                
+                newCellErrors.push({
+                  row: rowNum,
+                  field: field,
+                  message: error.replace(/Baris\s+\d+:\s*/i, ""),
+                });
+              }
+            });
+
+            // Gabungkan dengan cellErrors yang sudah ada
+            setSeminarPlenoCellErrors((prev: any[]) => {
+              // Hapus error yang sudah ada untuk row yang sama
+              const filtered = prev.filter(
+                (err) => !newCellErrors.some((newErr) => newErr.row === err.row && newErr.field === err.field)
+              );
+              return [...filtered, ...newCellErrors];
+            });
+
+            // Set error umum
+            setSeminarPlenoImportErrors([
+              "Gagal mengimport data. Perbaiki error terlebih dahulu.",
+              ...backendErrors,
+            ]);
+          } else {
+            // Jika valid, clear error backend
+            setSeminarPlenoImportErrors([]);
+          }
+        } catch (err: any) {
+          // Jika error validasi, tampilkan error
+          const errorResponse = err?.response?.data;
+          const errorDetails = errorResponse?.errors || [];
+          if (errorDetails.length > 0) {
+            setSeminarPlenoImportErrors([
+              errorResponse?.message || "Gagal memvalidasi data",
+              ...errorDetails,
+            ]);
+          }
+        }
+      }
     } catch (error) {
       setSeminarPlenoImportErrors([
         "Gagal membaca file Excel. Pastikan format file sudah benar.",
@@ -11266,17 +11575,23 @@ export default function DetailBlok() {
           .filter((name: string) => name.length > 0);
         
         const koordinatorIds: number[] = [];
+        const invalidNames: string[] = [];
+        
         koordinatorNames.forEach((namaDosen: string) => {
           const dosen = assignedDosenPBL.find(
             (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
           );
           if (dosen) {
             koordinatorIds.push(dosen.id);
+          } else {
+            invalidNames.push(namaDosen);
           }
         });
 
         row.koordinator_ids = koordinatorIds;
         row.koordinator = value;
+        
+        // Error akan ditangani oleh validasi di bawah
       } else {
         row.koordinator_ids = [];
         row.koordinator = "";
@@ -11290,20 +11605,66 @@ export default function DetailBlok() {
           .filter((name: string) => name.length > 0);
         
         const pengampuIds: number[] = [];
+        const invalidNames: string[] = [];
+        
         pengampuNames.forEach((namaDosen: string) => {
           const dosen = assignedDosenPBL.find(
             (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
           );
           if (dosen) {
             pengampuIds.push(dosen.id);
+          } else {
+            invalidNames.push(namaDosen);
           }
         });
 
         row.dosen_ids = pengampuIds;
         row.pengampu = value;
+        
+        // Error akan ditangani oleh validasi di bawah
       } else {
         row.dosen_ids = [];
         row.pengampu = "";
+      }
+    } else if (key === "kelompok_besar_id" || key === "kelompok_besar") {
+      // Handle mapping untuk kelompok besar
+      if (value && value.trim() !== "") {
+        const inputValue = value.toString().trim();
+        
+        // Helper untuk extract semester dari berbagai format
+        const extractSemester = (val: string): number | null => {
+          const match = val.match(/(?:semester\s*)?(\d+)/i);
+          return match ? parseInt(match[1]) : null;
+        };
+        
+        // Cari exact match di label (case-insensitive)
+        let kelompokBesar = kelompokBesarOptions.find(
+          (kb) => kb.label.toLowerCase() === inputValue.toLowerCase()
+        );
+        
+        // Jika tidak ditemukan exact match, coba cari berdasarkan semester
+        if (!kelompokBesar) {
+          const semester = extractSemester(inputValue);
+          if (semester) {
+            kelompokBesar = kelompokBesarOptions.find(
+              (kb) => {
+                const kbSemester = extractSemester(kb.label);
+                return kbSemester === semester;
+              }
+            );
+          }
+        }
+        
+        if (kelompokBesar) {
+          row.kelompok_besar_id = Number(kelompokBesar.id);
+          row.kelompok_besar = kelompokBesar.label;
+        } else {
+          row.kelompok_besar_id = null;
+          row.kelompok_besar = inputValue;
+        }
+      } else {
+        row.kelompok_besar_id = null;
+        row.kelompok_besar = "";
       }
     } else {
       (row as any)[key] = value;
@@ -11319,17 +11680,135 @@ export default function DetailBlok() {
 
     setSeminarPlenoImportData(updatedData);
 
-    // Re-validasi data
+    // Re-validasi data frontend secara real-time
     const { cellErrors } = validateSeminarPlenoExcelData(updatedData);
     setSeminarPlenoCellErrors(cellErrors);
+    
+    // Validasi backend secara real-time (cek bentrok jadwal) dengan debounce
+    if (kode && updatedData.length > 0) {
+      // Clear timeout sebelumnya jika ada
+      if (seminarPlenoValidationTimeoutRef.current) {
+        clearTimeout(seminarPlenoValidationTimeoutRef.current);
+      }
+
+      // Debounce: tunggu 500ms setelah edit terakhir sebelum validasi backend
+      seminarPlenoValidationTimeoutRef.current = setTimeout(async () => {
+        try {
+          // Transform data untuk API
+          const apiData = updatedData.map((row: any) => {
+            let useRuangan: boolean;
+            if (row.use_ruangan !== undefined && row.use_ruangan !== null) {
+              useRuangan = Boolean(row.use_ruangan);
+            } else if (row.ruangan_id) {
+              useRuangan = true;
+            } else if (row.nama_ruangan && row.nama_ruangan.trim() !== "") {
+              useRuangan = true;
+            } else {
+              useRuangan = false;
+            }
+            
+            return {
+              tanggal: row.tanggal,
+              jam_mulai: row.jam_mulai,
+              jam_selesai: row.jam_selesai,
+              jumlah_sesi: row.jumlah_sesi,
+              topik: row.topik && row.topik.trim() ? row.topik.trim() : null,
+              koordinator_ids: row.koordinator_ids || [],
+              dosen_ids: row.dosen_ids || [],
+              kelompok_besar_id: row.kelompok_besar_id || null,
+              ruangan_id: useRuangan ? (row.ruangan_id || null) : null,
+              use_ruangan: useRuangan,
+            };
+          });
+
+          // Panggil endpoint validasi preview
+          const validationResponse = await api.post(
+            `/seminar-pleno/jadwal/${kode}/validate-preview`,
+            { data: apiData }
+          );
+
+          if (validationResponse.data && !validationResponse.data.valid) {
+            const backendErrors = validationResponse.data.errors || [];
+            
+            // Convert backend errors ke format cellErrors
+            const newCellErrors: { row: number; field: string; message: string }[] = [];
+            backendErrors.forEach((error: string) => {
+              const barisMatch = error.match(/Baris\s+(\d+)/i);
+              if (barisMatch) {
+                const rowNum = parseInt(barisMatch[1]);
+                let field = "general";
+                if (error.toLowerCase().includes("tanggal")) field = "tanggal";
+                else if (error.toLowerCase().includes("jam")) field = "jam_mulai";
+                else if (error.toLowerCase().includes("pengampu") || error.toLowerCase().includes("dosen")) field = "pengampu";
+                else if (error.toLowerCase().includes("koordinator")) field = "koordinator";
+                else if (error.toLowerCase().includes("ruangan")) field = "nama_ruangan";
+                else if (error.toLowerCase().includes("kelompok")) field = "kelompok_besar";
+                
+                newCellErrors.push({
+                  row: rowNum,
+                  field: field,
+                  message: error.replace(/Baris\s+\d+:\s*/i, ""),
+                });
+              }
+            });
+
+            // Update cellErrors: hapus error lama untuk row yang sama, tambahkan yang baru
+            setSeminarPlenoCellErrors((prev: any[]) => {
+              // Hapus error yang sudah ada untuk row yang sama dengan error baru
+              const filtered = prev.filter(
+                (err) => !newCellErrors.some((newErr) => newErr.row === err.row && newErr.field === err.field)
+              );
+              return [...filtered, ...newCellErrors];
+            });
+
+            // Set error umum
+            if (backendErrors.length > 0) {
+              setSeminarPlenoImportErrors([
+                "Gagal mengimport data. Perbaiki error terlebih dahulu.",
+                ...backendErrors,
+              ]);
+            }
+          } else {
+            // Jika valid, clear semua error backend
+            setSeminarPlenoImportErrors([]);
+            // Hapus cellErrors yang terkait dengan backend (error yang mengandung "bentrok" atau "Jadwal bentrok")
+            setSeminarPlenoCellErrors((prev: any[]) => {
+              // Hapus error yang terkait dengan backend (error bentrok jadwal)
+              return prev.filter((err) => {
+                const message = err.message.toLowerCase();
+                // Hapus error yang mengandung kata-kata kunci error backend
+                return !message.includes("bentrok") && 
+                       !message.includes("jadwal bentrok") &&
+                       !message.includes("jurnal reading") &&
+                       !message.includes("kuliah besar") &&
+                       !message.includes("agenda khusus") &&
+                       !message.includes("seminar pleno lain");
+              });
+            });
+          }
+        } catch (err: any) {
+          // Jika error validasi, tampilkan error
+          const errorResponse = err?.response?.data;
+          const errorDetails = errorResponse?.errors || [];
+          if (errorDetails.length > 0) {
+            setSeminarPlenoImportErrors([
+              errorResponse?.message || "Gagal memvalidasi data",
+              ...errorDetails,
+            ]);
+          }
+        }
+      }, 500);
+    }
   };
 
   // Submit import Excel untuk Seminar Pleno
   const handleSeminarPlenoSubmitImport = async () => {
     if (!kode || seminarPlenoImportData.length === 0) return;
 
-    setIsSeminarPlenoImporting(true);
+    // Clear error backend terlebih dahulu (akan di-update setelah API call)
     setSeminarPlenoImportErrors([]);
+    
+    setIsSeminarPlenoImporting(true);
 
     try {
       // Final validation
@@ -11338,6 +11817,10 @@ export default function DetailBlok() {
       );
       if (cellErrors.length > 0) {
         setSeminarPlenoCellErrors(cellErrors);
+        setSeminarPlenoImportErrors([
+          `⚠️ Terdapat ${cellErrors.length} error pada data. Perbaiki error terlebih dahulu sebelum import.`,
+          "Error ditandai dengan warna merah di tabel preview. Klik pada cell yang error untuk melihat detail."
+        ]);
         setIsSeminarPlenoImporting(false);
         return;
       }
@@ -11365,6 +11848,7 @@ export default function DetailBlok() {
           topik: row.topik && row.topik.trim() ? row.topik.trim() : null,
           koordinator_ids: row.koordinator_ids || [],
           dosen_ids: row.dosen_ids || [],
+          kelompok_besar_id: row.kelompok_besar_id || null,
           ruangan_id: useRuangan ? (row.ruangan_id || null) : null,
           use_ruangan: useRuangan,
         };
@@ -11390,15 +11874,81 @@ export default function DetailBlok() {
         // Refresh data
         await fetchBatchData();
       } else {
-        setSeminarPlenoImportErrors(
-          response.data.errors || ["Gagal mengimport data seminar pleno"]
-        );
+        // Tampilkan error dari backend dengan detail
+        const backendErrors = response.data.errors || [];
+        const backendMessage = response.data.message || "Gagal mengimport data seminar pleno";
+        
+        // Gabungkan semua error
+        const allErrors = backendMessage ? [backendMessage, ...backendErrors] : backendErrors;
+        setSeminarPlenoImportErrors(allErrors);
+        
+        // Jika ada error per baris, convert ke cellErrors untuk ditampilkan di tabel
+        if (Array.isArray(backendErrors) && backendErrors.length > 0) {
+          const newCellErrors: { row: number; field: string; message: string }[] = [];
+          backendErrors.forEach((error: string) => {
+            // Parse error format: "Baris X: ..." atau "Baris X: Field: ..."
+            const barisMatch = error.match(/Baris\s+(\d+)/i);
+            if (barisMatch) {
+              const rowNum = parseInt(barisMatch[1]);
+              // Coba extract field name dari error message
+              let field = "general";
+              if (error.toLowerCase().includes("tanggal")) field = "tanggal";
+              else if (error.toLowerCase().includes("jam")) field = "jam_mulai";
+              else if (error.toLowerCase().includes("pengampu") || error.toLowerCase().includes("dosen")) field = "pengampu";
+              else if (error.toLowerCase().includes("koordinator")) field = "koordinator";
+              else if (error.toLowerCase().includes("ruangan")) field = "ruangan";
+              else if (error.toLowerCase().includes("kelompok")) field = "kelompok_besar";
+              
+              newCellErrors.push({
+                row: rowNum,
+                field: field,
+                message: error.replace(/Baris\s+\d+:\s*/i, ""),
+              });
+            }
+          });
+          
+          if (newCellErrors.length > 0) {
+            setSeminarPlenoCellErrors(newCellErrors);
+          }
+        }
       }
     } catch (err: any) {
-      const errorMessage =
-        err?.response?.data?.message ||
-        "Gagal mengimport data seminar pleno. Silakan coba lagi.";
-      setSeminarPlenoImportErrors([errorMessage]);
+      // Tampilkan error dengan detail
+      const errorResponse = err?.response?.data;
+      const errorMessage = errorResponse?.message || "Gagal mengimport data seminar pleno. Silakan coba lagi.";
+      const errorDetails = errorResponse?.errors || [];
+      
+      // Gabungkan semua error
+      const allErrors = errorMessage ? [errorMessage, ...errorDetails] : errorDetails;
+      setSeminarPlenoImportErrors(allErrors.length > 0 ? allErrors : [errorMessage]);
+      
+      // Jika ada error per baris, convert ke cellErrors
+      if (Array.isArray(errorDetails) && errorDetails.length > 0) {
+        const newCellErrors: { row: number; field: string; message: string }[] = [];
+        errorDetails.forEach((error: string) => {
+          const barisMatch = error.match(/Baris\s+(\d+)/i);
+          if (barisMatch) {
+            const rowNum = parseInt(barisMatch[1]);
+            let field = "general";
+            if (error.toLowerCase().includes("tanggal")) field = "tanggal";
+            else if (error.toLowerCase().includes("jam")) field = "jam_mulai";
+            else if (error.toLowerCase().includes("pengampu") || error.toLowerCase().includes("dosen")) field = "pengampu";
+            else if (error.toLowerCase().includes("koordinator")) field = "koordinator";
+            else if (error.toLowerCase().includes("ruangan")) field = "ruangan";
+            else if (error.toLowerCase().includes("kelompok")) field = "kelompok_besar";
+            
+            newCellErrors.push({
+              row: rowNum,
+              field: field,
+              message: error.replace(/Baris\s+\d+:\s*/i, ""),
+            });
+          }
+        });
+        
+        if (newCellErrors.length > 0) {
+          setSeminarPlenoCellErrors(newCellErrors);
+        }
+      }
     } finally {
       setIsSeminarPlenoImporting(false);
     }
@@ -31543,23 +32093,72 @@ export default function DetailBlok() {
                 </div>
               )}
 
-              {/* Error Messages */}
-              {seminarPlenoImportErrors.length > 0 && (
-                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
+              {/* Error Messages - Tampilkan hanya jika ada error */}
+              {(seminarPlenoImportErrors.length > 0 || seminarPlenoCellErrors.length > 0) && (
+                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg">
+                  <div className="flex items-center gap-2 mb-3">
                     <FontAwesomeIcon
                       icon={faExclamationTriangle}
-                      className="w-5 h-5 text-red-500"
+                      className="w-6 h-6 text-red-600 dark:text-red-400"
                     />
-                    <h3 className="font-semibold text-red-800 dark:text-red-200">
-                      Error
+                    <h3 className="font-bold text-lg text-red-800 dark:text-red-200">
+                      ⚠️ Error Import Data
                     </h3>
                   </div>
-                  <ul className="list-disc list-inside space-y-1 text-sm text-red-700 dark:text-red-300">
-                    {seminarPlenoImportErrors.map((error, idx) => (
-                      <li key={idx}>{error}</li>
-                    ))}
-                  </ul>
+                  <div className="bg-red-100 dark:bg-red-900/30 p-3 rounded-lg mb-3">
+                    <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
+                      Data tidak dapat diimport karena terdapat error berikut:
+                    </p>
+                  </div>
+                  {seminarPlenoImportErrors.length > 0 && (
+                    <ul className="list-disc list-inside space-y-2 text-sm text-red-700 dark:text-red-300 max-h-60 overflow-y-auto mb-3">
+                      {seminarPlenoImportErrors.map((error, idx) => (
+                        <li key={idx} className="font-medium">{error}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {seminarPlenoCellErrors.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
+                        Error pada data:
+                      </p>
+                      <ul className="list-disc list-inside space-y-1 text-sm text-red-700 dark:text-red-300 max-h-40 overflow-y-auto">
+                        {seminarPlenoCellErrors.map((error, idx) => (
+                          <li key={idx}>
+                            Baris {error.row}: {error.message}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                      <strong>💡 Tips:</strong> Perbaiki error di atas terlebih dahulu. Error juga ditandai dengan warna merah di tabel preview di bawah. Klik pada cell yang error untuk melihat detail error. Setelah memperbaiki, error akan hilang secara otomatis.
+                    </p>
+                  </div>
+                </div>
+              )}
+              
+              {/* Success Message - Tampilkan jika tidak ada error */}
+              {seminarPlenoImportData.length > 0 && 
+               seminarPlenoImportErrors.length === 0 && 
+               seminarPlenoCellErrors.length === 0 && (
+                <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border-2 border-green-300 dark:border-green-700 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <FontAwesomeIcon
+                      icon={faCheckCircle}
+                      className="w-6 h-6 text-green-600 dark:text-green-400"
+                    />
+                    <h3 className="font-bold text-lg text-green-800 dark:text-green-200">
+                      ✅ Data Valid
+                    </h3>
+                  </div>
+                  <p className="text-sm text-green-700 dark:text-green-300">
+                    Semua data sudah valid dan siap untuk diimport. Klik tombol "Import Data" untuk menyimpan data ke sistem.
+                  </p>
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-2 italic">
+                    Catatan: Sistem akan memvalidasi bentrok jadwal saat import. Jika ada bentrok, error akan ditampilkan setelah klik "Import Data".
+                  </p>
                 </div>
               )}
 
@@ -31603,6 +32202,9 @@ export default function DetailBlok() {
                             </th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                               Ruangan
+                            </th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                              Kelompok Besar
                             </th>
                           </tr>
                         </thead>
@@ -31701,6 +32303,10 @@ export default function DetailBlok() {
                                   "nama_ruangan",
                                   row.nama_ruangan || ""
                                 )}
+                                {renderEditableCell(
+                                  "kelompok_besar",
+                                  row.kelompok_besar || ""
+                                )}
                               </tr>
                             );
                           })}
@@ -31724,18 +32330,33 @@ export default function DetailBlok() {
                   disabled={
                     isSeminarPlenoImporting ||
                     seminarPlenoImportData.length === 0 ||
-                    seminarPlenoCellErrors.length > 0
+                    seminarPlenoCellErrors.length > 0 ||
+                    seminarPlenoImportErrors.length > 0
                   }
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
                     isSeminarPlenoImporting ||
                     seminarPlenoImportData.length === 0 ||
-                    seminarPlenoCellErrors.length > 0
+                    seminarPlenoCellErrors.length > 0 ||
+                    seminarPlenoImportErrors.length > 0
                       ? "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
                       : "bg-brand-500 text-white hover:bg-brand-600"
                   }`}
+                  title={
+                    isSeminarPlenoImporting
+                      ? "Sedang mengimport data..."
+                      : seminarPlenoImportData.length === 0
+                      ? "Tidak ada data untuk diimport"
+                      : seminarPlenoCellErrors.length > 0
+                      ? `Terdapat ${seminarPlenoCellErrors.length} error. Perbaiki error terlebih dahulu sebelum import.`
+                      : seminarPlenoImportErrors.length > 0
+                      ? `Terdapat error dari backend. Perbaiki error terlebih dahulu sebelum import.`
+                      : "Import data ke sistem"
+                  }
                 >
                   {isSeminarPlenoImporting
                     ? "Mengimport..."
+                    : seminarPlenoCellErrors.length > 0 || seminarPlenoImportErrors.length > 0
+                    ? `Import Data (${seminarPlenoCellErrors.length + seminarPlenoImportErrors.length} error)`
                     : "Import Data"}
                 </button>
               </div>
