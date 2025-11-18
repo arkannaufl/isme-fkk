@@ -96,6 +96,12 @@ type JadwalMengajar = {
   // Peran untuk Persamaan Persepsi dan Seminar Pleno
   peran?: "koordinator" | "pengampu";
   peran_display?: string;
+  // Additional fields for persamaan persepsi
+  dosen_ids?: number[];
+  koordinator_ids?: number[];
+  absensi_hadir?: boolean; // Untuk dosen pengampu: apakah dosen hadir
+  role_type?: "koordinator" | "pengampu"; // Role dosen: koordinator atau pengampu
+  absensi_status?: "menunggu" | "hadir" | "tidak_hadir"; // Status absensi: menunggu, hadir, atau tidak hadir
 };
 
 export default function DosenRiwayat() {
@@ -159,9 +165,9 @@ export default function DosenRiwayat() {
         // Fetch jadwal mengajar dosen untuk semua semester (tanpa filter)
         if (dosenId) {
           try {
-            // Fetch semua jadwal tanpa filter semester_type
+            // Fetch semua jadwal dengan semester_type=all untuk mendapatkan semua jadwal
             const jadwalAllResponse = await api.get(
-              `/users/${dosenId}/jadwal-mengajar`
+              `/users/${dosenId}/jadwal-mengajar?semester_type=all`
             );
             const jadwalAll = jadwalAllResponse.data || [];
 
@@ -422,6 +428,40 @@ export default function DosenRiwayat() {
     return perencanaan;
   };
 
+  // Function to calculate Persamaan Persepsi perencanaan per blok
+  const getPersamaanPersepsiPerencanaanPerBlok = (blokNumber: number): number => {
+    // Filter jadwal persamaan persepsi untuk blok tertentu
+    const persepsiJadwalBlok = jadwalMengajar.filter((j) => {
+      const blokMataKuliah = getBlokFromMataKuliah(j.mata_kuliah_kode);
+      return (
+        j.jenis_jadwal === "persamaan_persepsi" &&
+        blokMataKuliah === blokNumber.toString()
+      );
+    });
+
+    // Perencanaan = jumlah sesi dari jadwal (1 sesi = 1 perencanaan, 2 sesi = 2 perencanaan)
+    const perencanaan = persepsiJadwalBlok.reduce((total, jadwal) => {
+      return total + (jadwal.jumlah_sesi || 0);
+    }, 0);
+
+    return perencanaan;
+  };
+
+  // Function to calculate total Persamaan Persepsi perencanaan for all blocks
+  const getTotalPersamaanPersepsiPerencanaan = (): number => {
+    // Filter jadwal persamaan persepsi untuk semua blok
+    const persepsiJadwal = jadwalMengajar.filter(
+      (j) => j.jenis_jadwal === "persamaan_persepsi"
+    );
+
+    // Perencanaan = jumlah sesi dari jadwal (1 sesi = 1 perencanaan, 2 sesi = 2 perencanaan)
+    const perencanaan = persepsiJadwal.reduce((total, jadwal) => {
+      return total + (jadwal.jumlah_sesi || 0);
+    }, 0);
+
+    return perencanaan;
+  };
+
   // Function to calculate total PBL sesi for all blocks
   const getTotalPblSesi = (): number => {
     let totalSesi = 0;
@@ -549,14 +589,31 @@ export default function DosenRiwayat() {
         return j.status_konfirmasi === "bisa";
       }
 
-      // Filter realisasi Persamaan Persepsi: hanya hitung jika status_konfirmasi = "bisa" (langsung bisa mengajar)
-      if (j.jenis_jadwal === "persamaan_persepsi") {
-        return j.status_konfirmasi === "bisa";
-      }
-
       // Filter realisasi Seminar Pleno: hanya hitung jika status_konfirmasi = "bisa" (langsung bisa mengajar)
       if (j.jenis_jadwal === "seminar_pleno") {
         return j.status_konfirmasi === "bisa";
+      }
+
+      // Filter realisasi Persamaan Persepsi:
+      // - Harus sudah disubmit (penilaian_submitted = true)
+      // - Untuk dosen pengampu: harus hadir (absensi_hadir = true)
+      // - Untuk koordinator: cukup sudah disubmit
+      if (j.jenis_jadwal === "persamaan_persepsi") {
+        const submitted = j.penilaian_submitted === true;
+        if (!submitted) return false;
+
+        // Cek apakah dosen adalah koordinator
+        const dosenId = dosenData?.id;
+        const isKoordinator = dosenId && j.koordinator_ids && j.koordinator_ids.includes(dosenId);
+
+        // Jika koordinator, cukup sudah disubmit
+        if (isKoordinator) {
+          return submitted;
+        }
+
+        // Jika pengampu, harus hadir juga
+        const hadir = j.absensi_hadir === true;
+        return submitted && hadir;
       }
 
       return true;
@@ -976,6 +1033,7 @@ export default function DosenRiwayat() {
         { jenis: "praktikum", label: "Praktikum" },
         { jenis: "jurnal_reading", label: "Jurnal Reading" },
         { jenis: "csr", label: "CSR" },
+        { jenis: "persamaan_persepsi", label: "Persamaan Persepsi" },
         { jenis: "materi", label: "Materi" },
         { jenis: "persamaan_persepsi", label: "Persamaan Persepsi" },
         { jenis: "seminar_pleno", label: "Seminar Pleno" },
@@ -1026,6 +1084,8 @@ export default function DosenRiwayat() {
           perencanaanValue = getTotalJurnalReadingPerencanaan().toString();
         } else if (jenisKegiatan.jenis === "csr") {
           perencanaanValue = getTotalCSRPerencanaan().toString();
+        } else if (jenisKegiatan.jenis === "persamaan_persepsi") {
+          perencanaanValue = getTotalPersamaanPersepsiPerencanaan().toString();
         }
         doc.text(perencanaanValue, colPerencanaan, yPos);
         doc.text(`${dataJenis.jumlah}`, colPertemuan, yPos);
@@ -1158,6 +1218,9 @@ export default function DosenRiwayat() {
           } else if (jenisKegiatan.jenis === "csr") {
             const perencanaanCSR = getCSRPerencanaanPerBlok(blokNumber);
             perencanaanValue = perencanaanCSR.toString();
+          } else if (jenisKegiatan.jenis === "persamaan_persepsi") {
+            const perencanaanPersepsi = getPersamaanPersepsiPerencanaanPerBlok(blokNumber);
+            perencanaanValue = perencanaanPersepsi.toString();
           }
           doc.text(perencanaanValue, colPerencanaan, yPos);
           doc.text(`${dataJenis.jumlah}`, colPertemuan, yPos);
@@ -1293,6 +1356,9 @@ export default function DosenRiwayat() {
           } else if (jenisKegiatan.jenis === "csr") {
             const perencanaanCSR = getCSRPerencanaanPerBlok(blokNumber);
             perencanaanValue = perencanaanCSR.toString();
+          } else if (jenisKegiatan.jenis === "persamaan_persepsi") {
+            const perencanaanPersepsi = getPersamaanPersepsiPerencanaanPerBlok(blokNumber);
+            perencanaanValue = perencanaanPersepsi.toString();
           }
           doc.text(perencanaanValue, colPerencanaan, yPos);
           doc.text(`${dataJenis.jumlah}`, colPertemuan, yPos);
@@ -1476,6 +1542,8 @@ export default function DosenRiwayat() {
         return "bg-orange-100 text-orange-800";
       case "csr":
         return "bg-red-100 text-red-800";
+      case "persamaan_persepsi":
+        return "bg-pink-100 text-pink-800";
       case "materi":
         return "bg-indigo-100 text-indigo-800";
       case "agenda":
@@ -1483,8 +1551,6 @@ export default function DosenRiwayat() {
         return "bg-yellow-100 text-yellow-800";
       case "seminar_pleno":
         return "bg-cyan-100 text-cyan-800";
-      case "persamaan_persepsi":
-        return "bg-teal-100 text-teal-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -1502,6 +1568,8 @@ export default function DosenRiwayat() {
         return "PBL";
       case "csr":
         return "CSR";
+      case "persamaan_persepsi":
+        return "Persamaan Persepsi";
       case "materi":
         return "Materi";
       case "agenda":
@@ -1510,8 +1578,6 @@ export default function DosenRiwayat() {
         return "Agenda Khusus";
       case "seminar_pleno":
         return "Seminar Pleno";
-      case "persamaan_persepsi":
-        return "Persamaan Persepsi";
       default:
         return jenis;
     }
@@ -1581,20 +1647,40 @@ export default function DosenRiwayat() {
       return total;
     }
 
-    // Untuk Persamaan Persepsi, realisasi hanya dihitung bila status_konfirmasi = "bisa" (langsung bisa mengajar)
-    if (
-      jadwal.jenis_jadwal === "persamaan_persepsi" &&
-      jadwal.status_konfirmasi !== "bisa"
-    ) {
-      return total;
-    }
-
     // Untuk Seminar Pleno, realisasi hanya dihitung bila status_konfirmasi = "bisa" (langsung bisa mengajar)
     if (
       jadwal.jenis_jadwal === "seminar_pleno" &&
       jadwal.status_konfirmasi !== "bisa"
     ) {
       return total;
+    }
+
+     // Untuk Persamaan Persepsi, realisasi hanya dihitung bila:
+    // - penilaian_submitted = true DAN
+    // - Untuk pengampu: absensi_hadir = true
+    // - Untuk koordinator: cukup penilaian_submitted = true
+    if (jadwal.jenis_jadwal === "persamaan_persepsi") {
+      const submitted = jadwal.penilaian_submitted === true;
+      if (!submitted) {
+        return total;
+      }
+
+      // Cek apakah dosen adalah koordinator
+      const dosenId = dosenData?.id;
+      const isKoordinator = dosenId && jadwal.koordinator_ids && jadwal.koordinator_ids.includes(dosenId);
+
+      // Jika koordinator, cukup sudah disubmit
+      if (isKoordinator) {
+        // Hitung jam berdasarkan jumlah sesi (1 sesi = 50 menit = 0.833 jam)
+        const jamPerSesi = 50 / 60;
+        return total + jadwal.jumlah_sesi * jamPerSesi;
+      }
+
+      // Jika pengampu, harus hadir juga
+      const hadir = jadwal.absensi_hadir === true;
+      if (!hadir) {
+        return total;
+      }
     }
 
     // Hitung jam berdasarkan jumlah sesi (1 sesi = 50 menit = 0.833 jam)
@@ -1645,14 +1731,32 @@ export default function DosenRiwayat() {
       return acc;
     }
 
-    // Untuk Persamaan Persepsi, realisasi hanya dihitung bila status_konfirmasi = "bisa" (langsung bisa mengajar)
-    if (jenis === "persamaan_persepsi" && jadwal.status_konfirmasi !== "bisa") {
-      return acc;
-    }
-
     // Untuk Seminar Pleno, realisasi hanya dihitung bila status_konfirmasi = "bisa" (langsung bisa mengajar)
     if (jenis === "seminar_pleno" && jadwal.status_konfirmasi !== "bisa") {
       return acc;
+    }
+
+    // Untuk Persamaan Persepsi, realisasi hanya dihitung bila:
+    // - penilaian_submitted = true DAN
+    // - Untuk pengampu: absensi_hadir = true
+    // - Untuk koordinator: cukup penilaian_submitted = true
+    if (jenis === "persamaan_persepsi") {
+      const submitted = jadwal.penilaian_submitted === true;
+      if (!submitted) {
+        return acc;
+      }
+
+      // Cek apakah dosen adalah koordinator
+      const dosenId = dosenData?.id;
+      const isKoordinator = dosenId && jadwal.koordinator_ids && jadwal.koordinator_ids.includes(dosenId);
+
+      // Jika pengampu, harus hadir juga
+      if (!isKoordinator) {
+        const hadir = jadwal.absensi_hadir === true;
+        if (!hadir) {
+          return acc;
+        }
+      }
     }
 
     if (!acc[jenis]) {
@@ -2016,6 +2120,7 @@ export default function DosenRiwayat() {
               <option value="jurnal_reading">Jurnal Reading</option>
               <option value="pbl">PBL</option>
               <option value="csr">CSR</option>
+              <option value="persamaan_persepsi">Persamaan Persepsi</option>
               <option value="materi">Materi</option>
               <option value="agenda">Agenda</option>
               <option value="persamaan_persepsi">Persamaan Persepsi</option>
@@ -2068,6 +2173,12 @@ export default function DosenRiwayat() {
               label: "CSR",
               color:
                 "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
+            },
+            {
+              jenis: "persamaan_persepsi",
+              label: "Persamaan Persepsi",
+              color:
+                "bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200",
             },
             {
               jenis: "materi",
@@ -2137,6 +2248,7 @@ export default function DosenRiwayat() {
             "praktikum",
             "jurnal_reading",
             "csr",
+            "persamaan_persepsi",
             "materi",
             "agenda_khusus",
             "persamaan_persepsi",
@@ -2217,9 +2329,19 @@ export default function DosenRiwayat() {
                                 Nomor CSR
                               </th>
                             )}
-                            {(jenis === "persamaan_persepsi" || jenis === "seminar_pleno") && (
+                            {jenis === "seminar_pleno" && (
                               <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                                 Peran
+                              </th>
+                            )}
+                            {jenis === "persamaan_persepsi" && (
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Type
+                              </th>
+                            )}
+                            {jenis === "persamaan_persepsi" && (
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Status Absensi
                               </th>
                             )}
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
@@ -2292,7 +2414,7 @@ export default function DosenRiwayat() {
                                   </span>
                                 </td>
                               )}
-                              {(jenis === "persamaan_persepsi" || jenis === "seminar_pleno") && (
+                              {jenis === "seminar_pleno" && (
                                 <td className="px-6 py-4 whitespace-nowrap text-gray-500 dark:text-gray-400">
                                   <span
                                     className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -2302,6 +2424,40 @@ export default function DosenRiwayat() {
                                     }`}
                                   >
                                     {jadwal.peran_display || (jadwal.peran === "koordinator" ? "Koordinator" : "Pengampu")}
+                                  </span>
+                                </td>
+                              )}
+                              {jenis === "persamaan_persepsi" && (
+                                <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-white/90">
+                                  <span
+                                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                      jadwal.role_type === "koordinator"
+                                        ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border border-purple-200 dark:border-purple-700"
+                                        : "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-700"
+                                    }`}
+                                  >
+                                    {jadwal.role_type === "koordinator"
+                                      ? "Koordinator"
+                                      : "Pengampu"}
+                                  </span>
+                                </td>
+                              )}
+                              {jenis === "persamaan_persepsi" && (
+                                <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-white/90">
+                                  <span
+                                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                      jadwal.absensi_status === "hadir"
+                                        ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-700"
+                                        : jadwal.absensi_status === "tidak_hadir"
+                                        ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-700"
+                                        : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700"
+                                    }`}
+                                  >
+                                    {jadwal.absensi_status === "hadir"
+                                      ? "Hadir"
+                                      : jadwal.absensi_status === "tidak_hadir"
+                                      ? "Tidak Hadir"
+                                      : "Menunggu"}
                                   </span>
                                 </td>
                               )}
