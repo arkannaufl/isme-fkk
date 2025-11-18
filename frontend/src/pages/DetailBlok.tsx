@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 
 import { useRef, useEffect, useState, useCallback, ChangeEvent } from "react";
-import api, { API_BASE_URL, handleApiError } from "../utils/api";
+import api, { API_BASE_URL, handleApiError, getUser } from "../utils/api";
 
 import { ChevronLeftIcon } from "../icons";
 
@@ -14511,19 +14511,53 @@ export default function DetailBlok() {
                       </td>
                       <td className="px-4 py-4 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-2">
-                          {/* Tombol Absensi - tampilkan jika ada dosen yang terdaftar */}
-                          {((row.koordinator_ids && Array.isArray(row.koordinator_ids) && row.koordinator_ids.length > 0) || 
-                             (row.dosen_ids && Array.isArray(row.dosen_ids) && row.dosen_ids.length > 0) ||
-                             (row.dosen_with_roles && Array.isArray(row.dosen_with_roles) && row.dosen_with_roles.length > 0)) && (
-                            <button
-                              onClick={() => navigate(`/absensi-seminar-pleno/${kode}/${row.id}`)}
-                              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors shrink-0"
-                              title="Buka Absensi"
-                            >
-                              <FontAwesomeIcon icon={faCheckCircle} className="w-3.5 h-3.5 shrink-0" />
-                              <span className="hidden xl:inline whitespace-nowrap">Absensi</span>
-                            </button>
-                          )}
+                          {/* Tombol Absensi - tampilkan jika superadmin/tim_akademik atau dosen yang merupakan koordinator */}
+                          {(() => {
+                            const user = getUser();
+                            if (!user) return null;
+
+                            // Extract koordinator_ids dari row
+                            let koordinatorIds: number[] = [];
+                            if (row.koordinator_ids && Array.isArray(row.koordinator_ids)) {
+                              koordinatorIds = row.koordinator_ids;
+                            } else if (row.dosen_with_roles && Array.isArray(row.dosen_with_roles)) {
+                              koordinatorIds = row.dosen_with_roles
+                                .filter((d: any) => d.peran === "koordinator" || d.peran_display === "Koordinator" || d.is_koordinator)
+                                .map((d: any) => d.id);
+                            }
+
+                            // Superadmin dan tim_akademik selalu bisa akses
+                            // Dosen hanya bisa akses jika dia adalah koordinator
+                            const canAccess = 
+                              user.role === "super_admin" || 
+                              user.role === "tim_akademik" ||
+                              (user.role === "dosen" && koordinatorIds.includes(Number(user.id)));
+
+                            // Cek apakah ada dosen yang terdaftar
+                            const hasDosen = 
+                              (koordinatorIds && koordinatorIds.length > 0) || 
+                              (row.dosen_ids && Array.isArray(row.dosen_ids) && row.dosen_ids.length > 0) ||
+                              (row.dosen_with_roles && Array.isArray(row.dosen_with_roles) && row.dosen_with_roles.length > 0);
+
+                            if (!canAccess || !hasDosen) return null;
+
+                            // Cek apakah antara berdasarkan semester_type
+                            const isAntara = row.semester_type === 'antara';
+                            const routePath = isAntara 
+                              ? `/absensi-seminar-pleno-antara/${kode}/${row.id}`
+                              : `/absensi-seminar-pleno/${kode}/${row.id}`;
+
+                            return (
+                              <button
+                                onClick={() => navigate(routePath)}
+                                className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors shrink-0"
+                                title="Buka Absensi"
+                              >
+                                <FontAwesomeIcon icon={faCheckCircle} className="w-3.5 h-3.5 shrink-0" />
+                                <span className="hidden xl:inline whitespace-nowrap">Absensi</span>
+                              </button>
+                            );
+                          })()}
                           <button
                             onClick={() => {
                               const idx = jadwalSeminarPleno.findIndex((j) => j.id === row.id);
@@ -25810,6 +25844,53 @@ export default function DetailBlok() {
                       </td>
                       <td className="px-4 py-4 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-2">
+                          {/* Tombol Absensi - tampilkan jika superadmin/tim_akademik atau dosen yang merupakan koordinator */}
+                          {(() => {
+                            const user = getUser();
+                            if (!user) return null;
+
+                            // Extract koordinator_ids dari row
+                            let koordinatorIds: number[] = [];
+                            if (row.koordinator_ids && Array.isArray(row.koordinator_ids)) {
+                              koordinatorIds = row.koordinator_ids;
+                            } else if (row.dosen_with_roles && Array.isArray(row.dosen_with_roles)) {
+                              koordinatorIds = row.dosen_with_roles
+                                .filter((d: any) => d.peran === "koordinator" || d.peran_display === "Koordinator" || d.is_koordinator)
+                                .map((d: any) => d.id);
+                            }
+
+                            // Superadmin dan tim_akademik selalu bisa akses
+                            // Dosen hanya bisa akses jika dia adalah koordinator
+                            const canAccess = 
+                              user.role === "super_admin" || 
+                              user.role === "tim_akademik" ||
+                              (user.role === "dosen" && koordinatorIds.includes(Number(user.id)));
+
+                            // Cek apakah ada dosen yang terdaftar
+                            const hasDosen = 
+                              (koordinatorIds && koordinatorIds.length > 0) || 
+                              (row.dosen_ids && Array.isArray(row.dosen_ids) && row.dosen_ids.length > 0) ||
+                              (row.dosen_with_roles && Array.isArray(row.dosen_with_roles) && row.dosen_with_roles.length > 0);
+
+                            if (!canAccess || !hasDosen) return null;
+
+                            // Cek apakah antara berdasarkan semester_type
+                            const isAntara = row.semester_type === 'antara';
+                            const routePath = isAntara 
+                              ? `/absensi-persamaan-persepsi-antara/${kode}/${row.id}`
+                              : `/absensi-persamaan-persepsi/${kode}/${row.id}`;
+
+                            return (
+                              <button
+                                onClick={() => navigate(routePath)}
+                                className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors shrink-0"
+                                title="Buka Absensi"
+                              >
+                                <FontAwesomeIcon icon={faCheckCircle} className="w-3.5 h-3.5 shrink-0" />
+                                <span className="hidden xl:inline whitespace-nowrap">Absensi</span>
+                              </button>
+                            );
+                          })()}
                           <button
                             onClick={() => {
                               const idx = jadwalPersamaanPersepsi.findIndex((j) => j.id === row.id);

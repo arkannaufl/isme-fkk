@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Database\Eloquent\Collection;
 
 class JadwalPersamaanPersepsiController extends Controller
@@ -1459,12 +1460,27 @@ class JadwalPersamaanPersepsiController extends Controller
                 return response()->json(['message' => 'Jadwal tidak ditemukan'], 404);
             }
 
-            // Cek apakah user adalah koordinator
-            $user = auth()->user();
-            $koordinatorIds = $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) ? $jadwal->koordinator_ids : [];
+            // Cek apakah user adalah koordinator atau super_admin/tim_akademik
+            $user = Auth::user();
+            if (!$user) {
+                return response()->json(['message' => 'Unauthorized'], 401);
+            }
 
-            if (!in_array($user->id, $koordinatorIds)) {
-                return response()->json(['message' => 'Anda tidak memiliki akses untuk melihat absensi ini'], 403);
+            // Super admin dan tim akademik selalu bisa
+            if (!in_array($user->role, ['super_admin', 'tim_akademik'])) {
+                // Cek apakah user adalah koordinator
+                $koordinatorIds = $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) ? $jadwal->koordinator_ids : [];
+
+                // Parse JSON jika masih string
+                if (is_string($koordinatorIds)) {
+                    $koordinatorIds = json_decode($koordinatorIds, true) ?? [];
+                }
+
+                $isKoordinator = in_array($user->id, $koordinatorIds);
+
+                if (!$isKoordinator) {
+                    return response()->json(['message' => 'Anda tidak memiliki akses untuk melihat absensi ini'], 403);
+                }
             }
 
             // Ambil data absensi yang sudah ada
@@ -1501,12 +1517,27 @@ class JadwalPersamaanPersepsiController extends Controller
                 return response()->json(['message' => 'Jadwal tidak ditemukan'], 404);
             }
 
-            // Cek apakah user adalah koordinator
-            $user = auth()->user();
-            $koordinatorIds = $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) ? $jadwal->koordinator_ids : [];
+            // Cek apakah user adalah koordinator atau super_admin/tim_akademik
+            $user = Auth::user();
+            if (!$user) {
+                return response()->json(['message' => 'Unauthorized'], 401);
+            }
 
-            if (!in_array($user->id, $koordinatorIds)) {
-                return response()->json(['message' => 'Anda tidak memiliki akses untuk menyimpan absensi ini'], 403);
+            // Super admin dan tim akademik selalu bisa
+            if (!in_array($user->role, ['super_admin', 'tim_akademik'])) {
+                // Cek apakah user adalah koordinator
+                $koordinatorIds = $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) ? $jadwal->koordinator_ids : [];
+
+                // Parse JSON jika masih string
+                if (is_string($koordinatorIds)) {
+                    $koordinatorIds = json_decode($koordinatorIds, true) ?? [];
+                }
+
+                $isKoordinator = in_array($user->id, $koordinatorIds);
+
+                if (!$isKoordinator) {
+                    return response()->json(['message' => 'Anda tidak memiliki akses untuk menyimpan absensi ini'], 403);
+                }
             }
 
             $request->validate([
