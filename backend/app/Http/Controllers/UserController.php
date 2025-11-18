@@ -448,7 +448,8 @@ class UserController extends Controller
     {
         try {
             $dosen = User::findOrFail($id);
-            $semesterType = $request->query('semester_type', 'reguler');
+            // Default ke 'all' untuk mendapatkan semua jadwal (reguler + antara)
+            $semesterType = $request->query('semester_type', 'all');
 
             // Log untuk debug
             Log::info("Fetching jadwal mengajar for dosen ID: {$id}, semester_type: {$semesterType}");
@@ -702,64 +703,206 @@ class UserController extends Controller
 
             // 7. Jadwal Persamaan Persepsi
             try {
-                $persamaanPersepsiController = new \App\Http\Controllers\JadwalPersamaanPersepsiController();
-                $persamaanPersepsiRequest = new \Illuminate\Http\Request();
-                $persamaanPersepsiRequest->query->set('semester_type', $semesterType);
-                $persamaanPersepsiResponse = $persamaanPersepsiController->getJadwalForDosen($id, $persamaanPersepsiRequest);
-                $persamaanPersepsiData = $persamaanPersepsiResponse->getData();
+                $persepsiController = new \App\Http\Controllers\JadwalPersamaanPersepsiController();
+                $persepsiRequest = new \Illuminate\Http\Request();
+                $persepsiRequest->query->set('semester_type', $semesterType);
+                $persepsiResponse = $persepsiController->getJadwalForDosen($id, $persepsiRequest);
+                $persepsiData = $persepsiResponse->getData();
 
-                if (isset($persamaanPersepsiData->data)) {
-                    $jadwalPersamaanPersepsi = collect($persamaanPersepsiData->data)->map(function ($item) use ($id) {
+                Log::info("Persamaan Persepsi data response for dosen ID: {$id}, has data: " . (isset($persepsiData->data) ? 'yes' : 'no'));
+
+                if (isset($persepsiData->data)) {
+                    Log::info("Persamaan Persepsi data found: " . count($persepsiData->data) . " records for semester_type: {$semesterType}");
+                    $jadwalPersepsi = collect($persepsiData->data)->map(function ($item) use ($id) {
                         // Handle both array and object data
                         $isArray = is_array($item);
-
-                        // Tentukan peran dosen: koordinator atau pengampu
+                        
+                        // Get jadwal ID for absensi check
+                        $jadwalId = $isArray ? $item['id'] : $item->id;
+                        $mataKuliahKode = $isArray ? $item['mata_kuliah_kode'] : $item->mata_kuliah_kode;
+                        
+                        // Parse koordinator_ids dan dosen_ids
                         $koordinatorIds = [];
+                        $dosenIds = [];
                         if ($isArray) {
-                            $koordinatorIds = isset($item['koordinator_ids']) && is_array($item['koordinator_ids']) 
-                                ? $item['koordinator_ids'] 
-                                : (isset($item['koordinator_ids']) ? json_decode($item['koordinator_ids'], true) : []);
+                            $koordinatorIds = $item['koordinator_ids'] ?? [];
+                            $dosenIds = $item['dosen_ids'] ?? [];
                         } else {
-                            $koordinatorIds = isset($item->koordinator_ids) && is_array($item->koordinator_ids)
-                                ? $item->koordinator_ids
-                                : (isset($item->koordinator_ids) ? json_decode($item->koordinator_ids, true) : []);
+                            $koordinatorIds = $item->koordinator_ids ?? [];
+                            $dosenIds = $item->dosen_ids ?? [];
                         }
+                        
+                        // Ensure arrays
                         if (!is_array($koordinatorIds)) {
-                            $koordinatorIds = [];
+                            $koordinatorIds = is_string($koordinatorIds) ? json_decode($koordinatorIds, true) : [];
                         }
-
+                        if (!is_array($dosenIds)) {
+                            $dosenIds = is_string($dosenIds) ? json_decode($dosenIds, true) : [];
+                        }
+                        
+                        // Check if dosen is koordinator or pengampu
                         $isKoordinator = in_array($id, $koordinatorIds);
-                        $peran = $isKoordinator ? 'koordinator' : 'pengampu';
-                        $peran_display = $isKoordinator ? 'Koordinator' : 'Pengampu';
+                        $roleType = $isKoordinator ? 'koordinator' : 'pengampu';
+                        
+                        // Get penilaian_submitted dari jadwal terlebih dahulu
+                        $penilaianSubmitted = false;
+                        $absensiHadir = false;
+                        $absensiStatus = 'menunggu'; // Default: menunggu
+                        
+                        try {
+                            // Cek penilaian_submitted dari jadwal
+                            $jadwalPP = \App\Models\JadwalPersamaanPersepsi::find($jadwalId);
+                            if ($jadwalPP) {
+                                $penilaianSubmitted = (bool)($jadwalPP->penilaian_submitted ?? false);
+                            }
+                            
+                            // Tentukan status absensi berdasarkan penilaian_submitted dan absensi data
+                            if ($penilaianSubmitted) {
+                                // Jika sudah submitted, cek absensi untuk pengampu
+                                $absensiData = \App\Models\AbsensiPersamaanPersepsi::where('jadwal_persamaan_persepsi_id', $jadwalId)
+                                    ->where('dosen_id', $id)
+                                    ->first();
+                                
+                                if ($absensiData) {
+                                    // Ada data absensi
+                                    if (!$isKoordinator) {
+                                        // Untuk pengampu: cek apakah hadir
+                                        $absensiHadir = (bool)($absensiData->hadir ?? false);
+                                        $absensiStatus = $absensiHadir ? 'hadir' : 'tidak_hadir';
+                                    } else {
+                                        // Untuk koordinator: absensi_hadir selalu true jika sudah disubmit
+                                        $absensiHadir = true;
+                                        $absensiStatus = 'hadir';
+                                    }
+                                } else {
+                                    // Belum ada data absensi tapi sudah submitted
+                                    if ($isKoordinator) {
+                                        // Untuk koordinator: otomatis hadir = true
+                                        $absensiHadir = true;
+                                        $absensiStatus = 'hadir';
+                                    } else {
+                                        // Untuk pengampu: belum ada data, status menunggu
+                                        $absensiHadir = false;
+                                        $absensiStatus = 'menunggu';
+                                    }
+                                }
+                            } else {
+                                // Belum submitted, status menunggu
+                                $absensiStatus = 'menunggu';
+                                $absensiHadir = false;
+                            }
+                        } catch (\Exception $e) {
+                            Log::warning("Error fetching absensi for persamaan persepsi jadwal {$jadwalId}: " . $e->getMessage());
+                        }
 
                         return (object) [
-                            'id' => $isArray ? $item['id'] : $item->id,
-                            'mata_kuliah_kode' => $isArray ? $item['mata_kuliah_kode'] : $item->mata_kuliah_kode,
+                            'id' => $jadwalId,
+                            'mata_kuliah_kode' => $mataKuliahKode,
                             'mata_kuliah_nama' => $isArray ? ($item['mata_kuliah_nama'] ?? '') : ($item->mata_kuliah_nama ?? ''),
                             'tanggal' => $isArray ? $item['tanggal'] : $item->tanggal,
                             'jam_mulai' => $isArray ? $item['jam_mulai'] : $item->jam_mulai,
                             'jam_selesai' => $isArray ? $item['jam_selesai'] : $item->jam_selesai,
                             'jenis_jadwal' => 'persamaan_persepsi',
-                            'topik' => $isArray ? ($item['topik'] ?? null) : ($item->topik ?? null),
-                            'ruangan_nama' => $isArray ? ($item['ruangan']['nama'] ?? '') : ($item->ruangan->nama ?? ''),
+                            'topik' => $isArray ? ($item['topik'] ?? '') : ($item->topik ?? ''),
+                            'ruangan_nama' => (function() use ($isArray, $item) {
+                                // Cek use_ruangan
+                                $useRuangan = false;
+                                $ruanganNama = '';
+                                
+                                if ($isArray) {
+                                    $useRuangan = $item['use_ruangan'] ?? false;
+                                    // Handle ruangan bisa array atau object
+                                    if (isset($item['ruangan'])) {
+                                        if (is_array($item['ruangan'])) {
+                                            $ruanganNama = $item['ruangan']['nama'] ?? '';
+                                        } else {
+                                            $ruanganNama = $item['ruangan']->nama ?? '';
+                                        }
+                                    }
+                                } else {
+                                    $useRuangan = $item->use_ruangan ?? false;
+                                    // Handle ruangan bisa object atau nested object
+                                    if ($item->ruangan) {
+                                        if (is_object($item->ruangan)) {
+                                            $ruanganNama = $item->ruangan->nama ?? '';
+                                        } else {
+                                            $ruanganNama = $item->ruangan;
+                                        }
+                                    }
+                                }
+                                
+                                // Jika use_ruangan = false atau ruangan kosong, return "Online"
+                                if (!$useRuangan || empty($ruanganNama)) {
+                                    return 'Online';
+                                }
+                                return $ruanganNama;
+                            })(),
                             'jumlah_sesi' => $isArray ? ($item['jumlah_sesi'] ?? 1) : ($item->jumlah_sesi ?? 1),
-                            'semester' => $isArray ? ($item['mata_kuliah']['semester'] ?? '') : ($item->mata_kuliah->semester ?? ''),
-                            'blok' => $isArray ? ($item['mata_kuliah']['blok'] ?? null) : ($item->mata_kuliah->blok ?? null),
+                            'semester' => (function() use ($isArray, $item, $mataKuliahKode) {
+                                // Response dari getJadwalForDosen tidak include mataKuliah object
+                                // Kita perlu fetch dari database atau gunakan semester_type
+                                try {
+                                    $mataKuliah = \App\Models\MataKuliah::where('kode', $mataKuliahKode)->first(['semester']);
+                                    if ($mataKuliah && $mataKuliah->semester) {
+                                        return $mataKuliah->semester;
+                                    }
+                                } catch (\Exception $e) {
+                                    Log::warning("Error fetching mata kuliah semester for {$mataKuliahKode}: " . $e->getMessage());
+                                }
+                                // Fallback: return empty string
+                                return '';
+                            })(),
+                            'blok' => (function() use ($isArray, $item, $mataKuliahKode) {
+                                // Response dari getJadwalForDosen tidak include mataKuliah object
+                                // Kita perlu fetch dari database
+                                try {
+                                    $mataKuliah = \App\Models\MataKuliah::where('kode', $mataKuliahKode)->first(['blok']);
+                                    if ($mataKuliah && $mataKuliah->blok !== null) {
+                                        return $mataKuliah->blok;
+                                    }
+                                } catch (\Exception $e) {
+                                    Log::warning("Error fetching mata kuliah blok for {$mataKuliahKode}: " . $e->getMessage());
+                                }
+                                // Fallback: return null
+                                return null;
+                            })(),
                             'kelompok_kecil' => '',
-                            'status_konfirmasi' => $isArray ? ($item['status_konfirmasi'] ?? 'bisa') : ($item->status_konfirmasi ?? 'bisa'),
-                            'alasan_konfirmasi' => $isArray ? ($item['alasan_konfirmasi'] ?? null) : ($item->alasan_konfirmasi ?? null),
-                            'status_reschedule' => $isArray ? ($item['status_reschedule'] ?? null) : ($item->status_reschedule ?? null),
-                            'reschedule_reason' => $isArray ? ($item['reschedule_reason'] ?? null) : ($item->reschedule_reason ?? null),
+                            'status_konfirmasi' => 'bisa', // Persamaan Persepsi selalu "bisa"
+                            'alasan_konfirmasi' => null,
+                            'status_reschedule' => null,
+                            'reschedule_reason' => null,
                             'semester_type' => $isArray ? ($item['semester_type'] ?? 'reguler') : ($item->semester_type ?? 'reguler'),
-                            'mata_kuliah' => $isArray ? ($item['mata_kuliah'] ?? null) : ($item->mata_kuliah ?? null),
-                            'peran' => $peran,
-                            'peran_display' => $peran_display
+                            'penilaian_submitted' => $penilaianSubmitted,
+                            'dosen_ids' => $dosenIds,
+                            'koordinator_ids' => $koordinatorIds,
+                            'absensi_hadir' => $absensiHadir,
+                            'role_type' => $roleType, // 'koordinator' atau 'pengampu'
+                            'absensi_status' => $absensiStatus, // 'menunggu', 'hadir', atau 'tidak_hadir'
+                            'mata_kuliah' => (function() use ($mataKuliahKode) {
+                                // Fetch mata_kuliah object untuk konsistensi
+                                try {
+                                    $mataKuliah = \App\Models\MataKuliah::where('kode', $mataKuliahKode)->first();
+                                    return $mataKuliah ? (object) [
+                                        'kode' => $mataKuliah->kode,
+                                        'nama' => $mataKuliah->nama,
+                                        'semester' => $mataKuliah->semester,
+                                        'blok' => $mataKuliah->blok,
+                                    ] : null;
+                                } catch (\Exception $e) {
+                                    Log::warning("Error fetching mata kuliah object for {$mataKuliahKode}: " . $e->getMessage());
+                                    return null;
+                                }
+                            })()
                         ];
                     });
-                    $jadwalMengajar = $jadwalMengajar->concat($jadwalPersamaanPersepsi);
+                    $jadwalMengajar = $jadwalMengajar->concat($jadwalPersepsi);
+                    Log::info("Persamaan Persepsi mapped: " . $jadwalPersepsi->count() . " records added to jadwalMengajar");
+                } else {
+                    Log::warning("Persamaan Persepsi data is not set or empty for dosen ID: {$id}");
                 }
             } catch (\Exception $e) {
                 Log::error("Error fetching Persamaan Persepsi: " . $e->getMessage());
+                Log::error("Stack trace: " . $e->getTraceAsString());
             }
 
             // 8. Jadwal Seminar Pleno
