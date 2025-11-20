@@ -33121,10 +33121,137 @@ export default function DetailBlok() {
                                   "nama_ruangan",
                                   row.nama_ruangan || ""
                                 )}
-                                {renderEditableCell(
-                                  "kelompok_besar",
-                                  row.kelompok_besar || ""
-                                )}
+                                {(() => {
+                                  const field = "kelompok_besar";
+                                  const isEditing =
+                                    seminarPlenoEditingCell?.row === actualIndex &&
+                                    seminarPlenoEditingCell?.key === field;
+                                  const cellError = seminarPlenoCellErrors.find(
+                                    (err) =>
+                                      err.row === actualIndex + 1 &&
+                                      err.field === field
+                                  );
+
+                                  // Extract semester number from kelompok_besar label or kelompok_besar_id
+                                  let inputValue = "";
+                                  if (isEditing) {
+                                    // When editing, show semester number
+                                    if (row.kelompok_besar) {
+                                      // Extract semester from label like "Kelompok Besar Semester 3 (17 mahasiswa)"
+                                      const match = row.kelompok_besar.match(
+                                        /Semester\s*(\d+)/i
+                                      );
+                                      if (match) {
+                                        inputValue = match[1];
+                                      } else {
+                                        // Try to extract from kelompok_besar_id by finding in options
+                                        if (row.kelompok_besar_id) {
+                                          const kelompokBesar = kelompokBesarOptions.find(
+                                            (kb) => Number(kb.id) === row.kelompok_besar_id
+                                          );
+                                          if (kelompokBesar) {
+                                            const semesterMatch = kelompokBesar.label.match(
+                                              /Semester\s*(\d+)/i
+                                            );
+                                            if (semesterMatch) {
+                                              inputValue = semesterMatch[1];
+                                            }
+                                          }
+                                        }
+                                      }
+                                    } else if (row.kelompok_besar_id) {
+                                      // If only ID is available, find semester from options
+                                      const kelompokBesar = kelompokBesarOptions.find(
+                                        (kb) => Number(kb.id) === row.kelompok_besar_id
+                                      );
+                                      if (kelompokBesar) {
+                                        const semesterMatch = kelompokBesar.label.match(
+                                          /Semester\s*(\d+)/i
+                                        );
+                                        if (semesterMatch) {
+                                          inputValue = semesterMatch[1];
+                                        }
+                                      }
+                                    }
+                                  }
+
+                                  // Display value when not editing
+                                  let displayValue = row.kelompok_besar || "-";
+                                  if (!isEditing && row.kelompok_besar_id) {
+                                    // Find full label from options
+                                    const kelompokBesar = kelompokBesarOptions.find(
+                                      (kb) => Number(kb.id) === row.kelompok_besar_id
+                                    );
+                                    if (kelompokBesar) {
+                                      displayValue = kelompokBesar.label;
+                                    }
+                                  }
+
+                                  return (
+                                    <td
+                                      className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
+                                        isEditing ? "border-2 border-brand-500" : ""
+                                      } ${
+                                        cellError
+                                          ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700"
+                                          : ""
+                                      }`}
+                                      onClick={() =>
+                                        setSeminarPlenoEditingCell({
+                                          row: actualIndex,
+                                          key: field,
+                                        })
+                                      }
+                                      title={cellError ? cellError.message : ""}
+                                    >
+                                      {isEditing ? (
+                                        <input
+                                          className={`w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent ${
+                                            cellError
+                                              ? "text-red-500"
+                                              : "text-gray-800 dark:text-white/90"
+                                          }`}
+                                          type="number"
+                                          value={inputValue}
+                                          onChange={(e) => {
+                                            const value = e.target.value;
+                                            // Only allow numeric input
+                                            if (value === "" || /^\d+$/.test(value)) {
+                                              handleSeminarPlenoCellEdit(
+                                                actualIndex,
+                                                field,
+                                                value
+                                              );
+                                            }
+                                          }}
+                                          onBlur={() =>
+                                            setSeminarPlenoEditingCell(null)
+                                          }
+                                          onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                              setSeminarPlenoEditingCell(null);
+                                            }
+                                            if (e.key === "Escape") {
+                                              setSeminarPlenoEditingCell(null);
+                                            }
+                                          }}
+                                          onFocus={(e) => e.target.select()}
+                                          autoFocus
+                                        />
+                                      ) : (
+                                        <span
+                                          className={
+                                            cellError
+                                              ? "text-red-500"
+                                              : "text-gray-800 dark:text-white/90"
+                                          }
+                                        >
+                                          {displayValue}
+                                        </span>
+                                      )}
+                                    </td>
+                                  );
+                                })()}
                               </tr>
                             );
                           })}
