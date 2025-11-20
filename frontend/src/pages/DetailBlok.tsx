@@ -234,7 +234,7 @@ type JadwalPersamaanPersepsiType = {
   jam_selesai: string;
   jumlah_sesi: number;
   dosen_ids: number[]; // Pengampu (non-koordinator)
-  koordinator_ids?: number[]; // Koordinator (opsional)
+  koordinator_ids?: number[]; // Koordinator (wajib)
   ruangan_id: number;
   topik: string;
   dosen_names?: string;
@@ -257,7 +257,7 @@ type JadwalSeminarPlenoType = {
   jam_selesai: string;
   jumlah_sesi: number;
   dosen_ids: number[]; // Pengampu (non-koordinator)
-  koordinator_ids?: number[]; // Koordinator (opsional)
+  koordinator_ids?: number[]; // Koordinator (wajib)
   ruangan_id: number | null;
   use_ruangan?: boolean;
   topik: string;
@@ -301,9 +301,9 @@ export default function DetailBlok() {
     string | null
   >(null);
 
-  const [seminarPlenoSuccess, setSeminarPlenoSuccess] = useState<
-    string | null
-  >(null);
+  const [seminarPlenoSuccess, setSeminarPlenoSuccess] = useState<string | null>(
+    null
+  );
 
   // Auto-hide pesan sukses bulk delete (refactored dengan custom logic)
   useEffect(() => {
@@ -351,7 +351,14 @@ export default function DetailBlok() {
 
     lokasi: number | null;
 
-    jenisBaris: "materi" | "agenda" | "praktikum" | "pbl" | "jurnal" | "persamaan-persepsi" | "seminar-pleno";
+    jenisBaris:
+      | "materi"
+      | "agenda"
+      | "praktikum"
+      | "pbl"
+      | "jurnal"
+      | "persamaan-persepsi"
+      | "seminar-pleno";
 
     agenda: string;
 
@@ -867,23 +874,23 @@ export default function DetailBlok() {
   >([]);
 
   // State untuk import Excel Persamaan Persepsi
-  const [showPersamaanPersepsiImportModal, setShowPersamaanPersepsiImportModal] =
-    useState(false);
+  const [
+    showPersamaanPersepsiImportModal,
+    setShowPersamaanPersepsiImportModal,
+  ] = useState(false);
   const [persamaanPersepsiImportFile, setPersamaanPersepsiImportFile] =
     useState<File | null>(null);
-  const [persamaanPersepsiImportData, setPersamaanPersepsiImportData] = useState<
-    any[]
-  >([]);
-  const [persamaanPersepsiImportErrors, setPersamaanPersepsiImportErrors] = useState<
-    string[]
-  >([]);
-  const [persamaanPersepsiCellErrors, setPersamaanPersepsiCellErrors] = useState<
-    { row: number; field: string; message: string }[]
-  >([]);
-  const [persamaanPersepsiEditingCell, setPersamaanPersepsiEditingCell] = useState<{
-    row: number;
-    key: string;
-  } | null>(null);
+  const [persamaanPersepsiImportData, setPersamaanPersepsiImportData] =
+    useState<any[]>([]);
+  const [persamaanPersepsiImportErrors, setPersamaanPersepsiImportErrors] =
+    useState<string[]>([]);
+  const [persamaanPersepsiCellErrors, setPersamaanPersepsiCellErrors] =
+    useState<{ row: number; field: string; message: string }[]>([]);
+  const [persamaanPersepsiEditingCell, setPersamaanPersepsiEditingCell] =
+    useState<{
+      row: number;
+      key: string;
+    } | null>(null);
   const [isPersamaanPersepsiImporting, setIsPersamaanPersepsiImporting] =
     useState(false);
   const [persamaanPersepsiImportedCount, setPersamaanPersepsiImportedCount] =
@@ -894,9 +901,9 @@ export default function DetailBlok() {
     useState(false);
   const [seminarPlenoImportFile, setSeminarPlenoImportFile] =
     useState<File | null>(null);
-  const [seminarPlenoImportData, setSeminarPlenoImportData] = useState<
-    any[]
-  >([]);
+  const [seminarPlenoImportData, setSeminarPlenoImportData] = useState<any[]>(
+    []
+  );
   const [seminarPlenoImportErrors, setSeminarPlenoImportErrors] = useState<
     string[]
   >([]);
@@ -907,10 +914,8 @@ export default function DetailBlok() {
     row: number;
     key: string;
   } | null>(null);
-  const [isSeminarPlenoImporting, setIsSeminarPlenoImporting] =
-    useState(false);
-  const [seminarPlenoImportedCount, setSeminarPlenoImportedCount] =
-    useState(0);
+  const [isSeminarPlenoImporting, setIsSeminarPlenoImporting] = useState(false);
+  const [seminarPlenoImportedCount, setSeminarPlenoImportedCount] = useState(0);
   const [jurnalReadingImportErrors, setJurnalReadingImportErrors] = useState<
     string[]
   >([]);
@@ -960,15 +965,20 @@ export default function DetailBlok() {
   const [selectedJurnalReadingItems, setSelectedJurnalReadingItems] = useState<
     number[]
   >([]);
-  const [selectedPersamaanPersepsiItems, setSelectedPersamaanPersepsiItems] = useState<
-    number[]
-  >([]);
+  const [selectedPersamaanPersepsiItems, setSelectedPersamaanPersepsiItems] =
+    useState<number[]>([]);
   const [selectedSeminarPlenoItems, setSelectedSeminarPlenoItems] = useState<
     number[]
   >([]);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [bulkDeleteType, setBulkDeleteType] = useState<
-    "kuliah-besar" | "praktikum" | "agenda-khusus" | "pbl" | "jurnal-reading" | "persamaan-persepsi" | "seminar-pleno"
+    | "kuliah-besar"
+    | "praktikum"
+    | "agenda-khusus"
+    | "pbl"
+    | "jurnal-reading"
+    | "persamaan-persepsi"
+    | "seminar-pleno"
   >("kuliah-besar");
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
@@ -1979,10 +1989,14 @@ export default function DetailBlok() {
     useState(false);
 
   // State untuk modal konfirmasi hapus Persamaan Persepsi
-  const [showDeletePersamaanPersepsiModal, setShowDeletePersamaanPersepsiModal] =
-    useState(false);
-  const [selectedDeletePersamaanPersepsiIndex, setSelectedDeletePersamaanPersepsiIndex] =
-    useState<number | null>(null);
+  const [
+    showDeletePersamaanPersepsiModal,
+    setShowDeletePersamaanPersepsiModal,
+  ] = useState(false);
+  const [
+    selectedDeletePersamaanPersepsiIndex,
+    setSelectedDeletePersamaanPersepsiIndex,
+  ] = useState<number | null>(null);
 
   // State untuk modal konfirmasi hapus Seminar Pleno
   const [showDeleteSeminarPlenoModal, setShowDeleteSeminarPlenoModal] =
@@ -3086,7 +3100,9 @@ export default function DetailBlok() {
   }
 
   // Fungsi tambah jadwal Persamaan Persepsi
-  async function handleTambahJadwalPersamaanPersepsi(formPersepsi: JadwalPersamaanPersepsiType) {
+  async function handleTambahJadwalPersamaanPersepsi(
+    formPersepsi: JadwalPersamaanPersepsiType
+  ) {
     setErrorBackend("");
     try {
       await api.post(`/persamaan-persepsi/jadwal/${kode}`, formPersepsi);
@@ -3102,7 +3118,10 @@ export default function DetailBlok() {
   }
 
   // Fungsi edit jadwal Persamaan Persepsi
-  async function handleEditJadwalPersamaanPersepsi(id: number, formPersepsi: JadwalPersamaanPersepsiType) {
+  async function handleEditJadwalPersamaanPersepsi(
+    id: number,
+    formPersepsi: JadwalPersamaanPersepsiType
+  ) {
     setErrorBackend("");
     try {
       await api.put(`/persamaan-persepsi/jadwal/${kode}/${id}`, formPersepsi);
@@ -3132,7 +3151,9 @@ export default function DetailBlok() {
   }
 
   // Fungsi tambah jadwal Seminar Pleno
-  async function handleTambahJadwalSeminarPleno(formSeminarPleno: JadwalSeminarPlenoType) {
+  async function handleTambahJadwalSeminarPleno(
+    formSeminarPleno: JadwalSeminarPlenoType
+  ) {
     setErrorBackend("");
     try {
       await api.post(`/seminar-pleno/jadwal/${kode}`, formSeminarPleno);
@@ -3148,7 +3169,10 @@ export default function DetailBlok() {
   }
 
   // Fungsi edit jadwal Seminar Pleno
-  async function handleEditJadwalSeminarPleno(id: number, formSeminarPleno: JadwalSeminarPlenoType) {
+  async function handleEditJadwalSeminarPleno(
+    id: number,
+    formSeminarPleno: JadwalSeminarPlenoType
+  ) {
     setErrorBackend("");
     try {
       await api.put(`/seminar-pleno/jadwal/${kode}/${id}`, formSeminarPleno);
@@ -4336,10 +4360,7 @@ export default function DetailBlok() {
             selectedSeminarPlenoItems.filter((id) => id !== itemId)
           );
         } else {
-          setSelectedSeminarPlenoItems([
-            ...selectedSeminarPlenoItems,
-            itemId,
-          ]);
+          setSelectedSeminarPlenoItems([...selectedSeminarPlenoItems, itemId]);
         }
         break;
     }
@@ -7184,7 +7205,7 @@ export default function DetailBlok() {
             if (!isMateriValid) {
               // Format keahlian untuk ditampilkan (original case)
               const keahlianDisplay = Array.isArray(dosen.keahlian)
-              ? dosen.keahlian
+                ? dosen.keahlian
                 : (dosen.keahlian || "")
                     .split(",")
                     .map((k: string) => k.trim());
@@ -9391,7 +9412,9 @@ export default function DetailBlok() {
           });
         } else {
           // Validasi dosen harus dosen yang sudah di-generate untuk blok/semester atau dosen standby
-          const isAssignedDosen = assignedDosenPBL?.some((d) => d.id === dosen.id);
+          const isAssignedDosen = assignedDosenPBL?.some(
+            (d) => d.id === dosen.id
+          );
           const isStandbyDosen =
             dosen.name.toLowerCase().includes("standby") ||
             (Array.isArray(dosen.keahlian)
@@ -9776,7 +9799,7 @@ export default function DetailBlok() {
   };
 
   // ========== FUNGSI IMPORT/EXPORT EXCEL PERSAMAAN PERSEPSI ==========
-  
+
   // Download template Excel untuk Persamaan Persepsi
   const downloadPersamaanPersepsiTemplate = async () => {
     if (!data) return;
@@ -9818,7 +9841,9 @@ export default function DetailBlok() {
       const contohDosen2 = assignedDosenPBL[1]?.name || "Dr. Jane Smith";
       const contohDosen3 = assignedDosenPBL[2]?.name || "Dr. Bob Wilson";
       const contohKoordinator = contohDosen1; // Contoh koordinator
-      const contohPengampu = contohDosen2 ? `${contohDosen2}, ${contohDosen3 || "Dr. Alice"}` : contohDosen2;
+      const contohPengampu = contohDosen2
+        ? `${contohDosen2}, ${contohDosen3 || "Dr. Alice"}`
+        : contohDosen2;
 
       // Data template - 1 dengan ruangan, 1 tanpa ruangan (online)
       const rawTemplateData = [
@@ -9888,7 +9913,9 @@ export default function DetailBlok() {
         ["TIPS DAN INFORMASI IMPORT JADWAL PERSAMAAN PERSEPSI"],
         [""],
         ["📋 CARA UPLOAD FILE:"],
-        ["1. Download template ini dan isi dengan data jadwal persamaan persepsi"],
+        [
+          "1. Download template ini dan isi dengan data jadwal persamaan persepsi",
+        ],
         ["2. Pastikan semua kolom wajib diisi dengan benar"],
         ["3. Upload file Excel yang sudah diisi ke sistem"],
         ["4. Periksa preview data dan perbaiki error jika ada"],
@@ -9909,11 +9936,19 @@ export default function DetailBlok() {
         [
           "• Dosen yang tersedia adalah dosen yang sudah di-assign untuk PBL mata kuliah ini",
         ],
-        ["• Kolom Koordinator Dosen: Isi dengan nama koordinator dosen (opsional)"],
-        ["• Kolom Pengampu: Isi dengan nama dosen pengampu (wajib, minimal 1 dosen)"],
-        ["• Untuk multi-select, pisahkan nama dosen dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)"],
+        [
+          "• Kolom Koordinator Dosen: Isi dengan nama koordinator dosen (wajib, maksimal 1 orang)",
+        ],
+        [
+          "• Kolom Pengampu: Isi dengan nama dosen pengampu (wajib, minimal 1 dosen)",
+        ],
+        [
+          "• Untuk multi-select, pisahkan nama dosen dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)",
+        ],
         ["• Kolom Pengampu: Minimal 1 dosen harus dipilih"],
-        ["• ⚠️ PENTING: Dosen yang sama TIDAK BOLEH dipilih sebagai Koordinator Dosen dan Pengampu sekaligus"],
+        [
+          "• ⚠️ PENTING: Dosen yang sama TIDAK BOLEH dipilih sebagai Koordinator Dosen dan Pengampu sekaligus",
+        ],
         ...assignedDosenPBL
           .filter(
             (dosen, index, self) =>
@@ -9952,29 +9987,39 @@ export default function DetailBlok() {
         ["• Jika diisi, topik akan disimpan"],
         [""],
         ["👨‍🏫 VALIDASI KOORDINATOR DOSEN:"],
-        ["• Koordinator Dosen opsional (boleh dikosongkan)"],
-        ["• Untuk multi-select, pisahkan dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)"],
+        ["• Koordinator Dosen wajib diisi (maksimal 1 orang)"],
+        ["• Maksimal hanya boleh 1 orang koordinator (contoh: Dr. John Doe)"],
         [
           "• Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini",
         ],
         ["• Nama koordinator harus sesuai dengan yang ada di database"],
-        ["• ⚠️ Dosen yang sudah dipilih sebagai Pengampu TIDAK BOLEH dipilih sebagai Koordinator Dosen"],
+        [
+          "• ⚠️ Dosen yang sudah dipilih sebagai Pengampu TIDAK BOLEH dipilih sebagai Koordinator Dosen",
+        ],
         [""],
         ["👨‍🏫 VALIDASI PENGAMPU:"],
         ["• Pengampu wajib diisi (minimal 1 dosen)"],
-        ["• Untuk multi-select, pisahkan dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)"],
+        [
+          "• Untuk multi-select, pisahkan dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)",
+        ],
         [
           "• Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini",
         ],
         ["• Nama dosen harus sesuai dengan yang ada di database"],
-        ["• ⚠️ Dosen yang sudah dipilih sebagai Koordinator Dosen TIDAK BOLEH dipilih sebagai Pengampu"],
+        [
+          "• ⚠️ Dosen yang sudah dipilih sebagai Koordinator Dosen TIDAK BOLEH dipilih sebagai Pengampu",
+        ],
         [""],
         ["🏢 VALIDASI RUANGAN:"],
-        ["• Ruangan boleh dikosongkan untuk jadwal online/tidak memerlukan ruangan"],
+        [
+          "• Ruangan boleh dikosongkan untuk jadwal online/tidak memerlukan ruangan",
+        ],
         ["• Jika diisi, nama ruangan harus ada di database"],
         ["• Pastikan ruangan tersedia untuk jadwal tersebut"],
         ["• Kapasitas ruangan harus mencukupi untuk jumlah dosen yang dipilih"],
-        ["• Jika ruangan dikosongkan, jadwal akan dianggap sebagai jadwal online"],
+        [
+          "• Jika ruangan dikosongkan, jadwal akan dianggap sebagai jadwal online",
+        ],
         [""],
         ["🔢 VALIDASI JUMLAH SESI:"],
         ["• Jumlah sesi: 1-6 (1 x 50 menit sampai 6 x 50 menit)"],
@@ -9988,7 +10033,9 @@ export default function DetailBlok() {
         ["• Sistem akan highlight error dengan warna merah"],
         ["• Tooltip akan menampilkan pesan error detail"],
         ["• Untuk multi-select dosen, pastikan semua nama dosen valid"],
-        ["• ⚠️ Pastikan tidak ada dosen yang sama di kolom Koordinator Dosen dan Pengampu"],
+        [
+          "• ⚠️ Pastikan tidak ada dosen yang sama di kolom Koordinator Dosen dan Pengampu",
+        ],
       ];
 
       const infoWs = XLSX.utils.aoa_to_sheet(infoData);
@@ -10002,14 +10049,14 @@ export default function DetailBlok() {
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       console.error("Error downloading Persamaan Persepsi template:", error);
-      alert("Gagal mendownload template Persamaan Persepsi. Silakan coba lagi.");
+      alert(
+        "Gagal mendownload template Persamaan Persepsi. Silakan coba lagi."
+      );
     }
   };
 
   // Validasi data Excel Persamaan Persepsi
-  const validatePersamaanPersepsiExcelData = (
-    convertedData: any[]
-  ) => {
+  const validatePersamaanPersepsiExcelData = (convertedData: any[]) => {
     const cellErrors: { row: number; field: string; message: string }[] = [];
 
     if (!convertedData) return { cellErrors };
@@ -10019,7 +10066,8 @@ export default function DetailBlok() {
 
       // Pastikan use_ruangan selalu di-set berdasarkan ruangan
       if (row.use_ruangan === undefined || row.use_ruangan === null) {
-        row.use_ruangan = row.nama_ruangan && row.nama_ruangan.trim() !== "" ? true : false;
+        row.use_ruangan =
+          row.nama_ruangan && row.nama_ruangan.trim() !== "" ? true : false;
       }
 
       // Validasi tanggal
@@ -10058,15 +10106,39 @@ export default function DetailBlok() {
 
       // Validasi topik (opsional, tidak perlu validasi)
 
-      // Validasi koordinator (opsional, multi-select)
-      if (row.nama_koordinator && row.nama_koordinator.trim() !== "") {
+      // Validasi koordinator (wajib, maksimal 1)
+      if (!row.nama_koordinator || row.nama_koordinator.trim() === "") {
+        cellErrors.push({
+          row: rowNumber,
+          field: "koordinator_ids",
+          message: `Koordinator Dosen wajib diisi (Baris ${rowNumber}, Kolom Koordinator Dosen)`,
+        });
+      } else {
         // Parse nama koordinator yang dipisahkan koma
         const koordinatorNames = row.nama_koordinator
           .split(",")
           .map((name: string) => name.trim())
           .filter((name: string) => name.length > 0);
 
-        if (koordinatorNames.length > 0) {
+        // Validasi maksimal 1 koordinator
+        if (koordinatorNames.length > 1) {
+          cellErrors.push({
+            row: rowNumber,
+            field: "koordinator_ids",
+            message: `Koordinator Dosen maksimal hanya boleh 1 orang. Ditemukan ${
+              koordinatorNames.length
+            } koordinator: "${koordinatorNames.join(
+              ", "
+            )}" (Baris ${rowNumber}, Kolom Koordinator Dosen)`,
+          });
+        } else if (koordinatorNames.length === 0) {
+          // Jika setelah parsing menjadi kosong (misalnya hanya spasi/koma)
+          cellErrors.push({
+            row: rowNumber,
+            field: "koordinator_ids",
+            message: `Koordinator Dosen wajib diisi (Baris ${rowNumber}, Kolom Koordinator Dosen)`,
+          });
+        } else {
           // Validasi setiap nama koordinator
           const invalidKoordinatorNames: string[] = [];
           koordinatorNames.forEach((namaDosen: string) => {
@@ -10082,7 +10154,9 @@ export default function DetailBlok() {
             cellErrors.push({
               row: rowNumber,
               field: "koordinator_ids",
-              message: `Koordinator Dosen tidak valid: "${invalidKoordinatorNames.join(", ")}". Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini (Baris ${rowNumber}, Kolom Koordinator Dosen)`,
+              message: `Koordinator Dosen tidak valid: "${invalidKoordinatorNames.join(
+                ", "
+              )}". Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini (Baris ${rowNumber}, Kolom Koordinator Dosen)`,
             });
           }
         }
@@ -10124,7 +10198,9 @@ export default function DetailBlok() {
             cellErrors.push({
               row: rowNumber,
               field: "dosen_ids",
-              message: `Pengampu tidak valid: "${invalidPengampuNames.join(", ")}". Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini (Baris ${rowNumber}, Kolom Pengampu)`,
+              message: `Pengampu tidak valid: "${invalidPengampuNames.join(
+                ", "
+              )}". Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini (Baris ${rowNumber}, Kolom Pengampu)`,
             });
           }
 
@@ -10140,9 +10216,17 @@ export default function DetailBlok() {
       }
 
       // Validasi: Cek apakah ada dosen yang sama di koordinator_ids dan dosen_ids
-      if (row.koordinator_ids && Array.isArray(row.koordinator_ids) && row.koordinator_ids.length > 0 &&
-          row.dosen_ids && Array.isArray(row.dosen_ids) && row.dosen_ids.length > 0) {
-        const duplicateIds = row.koordinator_ids.filter((id: number) => row.dosen_ids.includes(id));
+      if (
+        row.koordinator_ids &&
+        Array.isArray(row.koordinator_ids) &&
+        row.koordinator_ids.length > 0 &&
+        row.dosen_ids &&
+        Array.isArray(row.dosen_ids) &&
+        row.dosen_ids.length > 0
+      ) {
+        const duplicateIds = row.koordinator_ids.filter((id: number) =>
+          row.dosen_ids.includes(id)
+        );
         if (duplicateIds.length > 0) {
           const duplicateNames = assignedDosenPBL
             .filter((d) => duplicateIds.includes(d.id))
@@ -10150,7 +10234,9 @@ export default function DetailBlok() {
           cellErrors.push({
             row: rowNumber,
             field: "koordinator_ids",
-            message: `Dosen yang sama tidak boleh dipilih sebagai Koordinator Dosen dan Pengampu: "${duplicateNames.join(", ")}" (Baris ${rowNumber})`,
+            message: `Dosen yang sama tidak boleh dipilih sebagai Koordinator Dosen dan Pengampu: "${duplicateNames.join(
+              ", "
+            )}" (Baris ${rowNumber})`,
           });
         }
       }
@@ -10175,7 +10261,11 @@ export default function DetailBlok() {
           const jumlahKoordinator = row.koordinator_ids?.length || 0;
           const jumlahPengampu = row.dosen_ids?.length || 0;
           const totalDosen = jumlahKoordinator + jumlahPengampu;
-          if (totalDosen > 0 && ruangan.kapasitas && totalDosen > ruangan.kapasitas) {
+          if (
+            totalDosen > 0 &&
+            ruangan.kapasitas &&
+            totalDosen > ruangan.kapasitas
+          ) {
             cellErrors.push({
               row: rowNumber,
               field: "ruangan_id",
@@ -10285,7 +10375,7 @@ export default function DetailBlok() {
           dosen_ids: pengampuIds, // Pengampu (non-koordinator)
           use_ruangan: Boolean(useRuangan), // Pastikan selalu boolean
           nama_ruangan: namaRuangan,
-          ruangan_id: useRuangan ? (ruangan?.id || null) : null,
+          ruangan_id: useRuangan ? ruangan?.id || null : null,
         };
       });
 
@@ -10337,13 +10427,13 @@ export default function DetailBlok() {
         row.use_ruangan = false; // Jika ruangan dikosongkan, berarti online
       }
     } else if (key === "koordinator_ids" || key === "nama_koordinator") {
-      // Handle edit koordinator (multi-select, opsional)
+      // Handle edit koordinator (maksimal 1, wajib)
       if (value && value.trim() !== "") {
         const koordinatorNames = value
           .split(",")
           .map((name: string) => name.trim())
           .filter((name: string) => name.length > 0);
-        
+
         const koordinatorIds: number[] = [];
         koordinatorNames.forEach((namaDosen: string) => {
           const dosen = assignedDosenPBL.find(
@@ -10367,7 +10457,7 @@ export default function DetailBlok() {
           .split(",")
           .map((name: string) => name.trim())
           .filter((name: string) => name.length > 0);
-        
+
         const pengampuIds: number[] = [];
         pengampuNames.forEach((namaDosen: string) => {
           const dosen = assignedDosenPBL.find(
@@ -10435,7 +10525,7 @@ export default function DetailBlok() {
         } else {
           useRuangan = false;
         }
-        
+
         return {
           tanggal: row.tanggal,
           jam_mulai: row.jam_mulai,
@@ -10444,15 +10534,18 @@ export default function DetailBlok() {
           topik: row.topik && row.topik.trim() ? row.topik.trim() : null,
           koordinator_ids: row.koordinator_ids || [],
           dosen_ids: row.dosen_ids || [],
-          ruangan_id: useRuangan ? (row.ruangan_id || null) : null,
+          ruangan_id: useRuangan ? row.ruangan_id || null : null,
           use_ruangan: useRuangan,
         };
       });
 
       // Send to API
-      const response = await api.post(`/persamaan-persepsi/jadwal/${kode}/import`, {
-        data: apiData,
-      });
+      const response = await api.post(
+        `/persamaan-persepsi/jadwal/${kode}/import`,
+        {
+          data: apiData,
+        }
+      );
 
       if (response.data.success) {
         const importedCount = persamaanPersepsiImportData.length;
@@ -10554,7 +10647,12 @@ export default function DetailBlok() {
         const koordinatorNames = row.koordinator_names || "";
         const pengampuNames = row.pengampu_names || "";
         const ruangan = allRuanganList.find((r) => r.id === row.ruangan_id);
-        const useRuangan = row.use_ruangan !== undefined ? row.use_ruangan : (row.ruangan_id ? true : false);
+        const useRuangan =
+          row.use_ruangan !== undefined
+            ? row.use_ruangan
+            : row.ruangan_id
+            ? true
+            : false;
 
         return {
           Tanggal: row.tanggal,
@@ -10626,13 +10724,13 @@ export default function DetailBlok() {
         ["• Format tanggal: YYYY-MM-DD"],
         ["• Format jam: HH.MM atau HH:MM"],
         ["• Sesi: 1-6 (1 sesi = 50 menit)"],
-        ["• Jam Selesai dihitung otomatis dari Jam Mulai + (Jumlah Sesi x 50 menit)"],
-        ["• Topik opsional (boleh dikosongkan)"],
         [
-          "• Pastikan data dosen dan ruangan valid sebelum import",
+          "• Jam Selesai dihitung otomatis dari Jam Mulai + (Jumlah Sesi x 50 menit)",
         ],
+        ["• Topik opsional (boleh dikosongkan)"],
+        ["• Pastikan data dosen dan ruangan valid sebelum import"],
         [
-          "• Kolom Koordinator Dosen opsional (boleh dikosongkan). Untuk multi-select, pisahkan nama dosen dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)",
+          "• Kolom Koordinator Dosen wajib diisi (maksimal 1 orang). Isi dengan nama koordinator dosen (contoh: Dr. John Doe)",
         ],
         [
           "• Kolom Pengampu wajib diisi (minimal 1 dosen). Untuk multi-select, pisahkan nama dosen dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)",
@@ -10655,9 +10753,9 @@ export default function DetailBlok() {
       infoWs["!cols"] = [{ wch: 30 }, { wch: 50 }];
       XLSX.utils.book_append_sheet(wb, infoWs, "Info Mata Kuliah");
 
-      const fileName = `Export_Persamaan_Persepsi_${data?.kode || "MataKuliah"}_${
-        new Date().toISOString().split("T")[0]
-      }.xlsx`;
+      const fileName = `Export_Persamaan_Persepsi_${
+        data?.kode || "MataKuliah"
+      }_${new Date().toISOString().split("T")[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       console.error("Error exporting Persamaan Persepsi:", error);
@@ -10706,13 +10804,19 @@ export default function DetailBlok() {
       const contohDosen2 = assignedDosenPBL[1]?.name || "Dr. Jane Smith";
       const contohDosen3 = assignedDosenPBL[2]?.name || "Dr. Bob Wilson";
       const contohKoordinator = contohDosen1; // Contoh koordinator (hanya 1)
-      const contohPengampu = contohDosen2 ? `${contohDosen2}, ${contohDosen3 || "Dr. Alice"}` : contohDosen2;
-      
+      const contohPengampu = contohDosen2
+        ? `${contohDosen2}, ${contohDosen3 || "Dr. Alice"}`
+        : contohDosen2;
+
       // Ambil contoh kelompok besar (gunakan format sederhana untuk kemudahan)
-      const contohKelompokBesar = kelompokBesarOptions[0] 
+      const contohKelompokBesar = kelompokBesarOptions[0]
         ? (() => {
-            const match = kelompokBesarOptions[0].label.match(/(?:semester\s*)?(\d+)/i);
-            return match ? `Semester ${match[1]}` : kelompokBesarOptions[0].label;
+            const match = kelompokBesarOptions[0].label.match(
+              /(?:semester\s*)?(\d+)/i
+            );
+            return match
+              ? `Semester ${match[1]}`
+              : kelompokBesarOptions[0].label;
           })()
         : "Semester 1";
 
@@ -10810,11 +10914,19 @@ export default function DetailBlok() {
         [
           "• Dosen yang tersedia adalah dosen yang sudah di-assign untuk PBL mata kuliah ini",
         ],
-        ["• Kolom Koordinator Dosen: Isi dengan nama koordinator dosen (opsional)"],
-        ["• Kolom Pengampu: Isi dengan nama dosen pengampu (wajib, minimal 1 dosen)"],
-        ["• Untuk multi-select, pisahkan nama dosen dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)"],
+        [
+          "• Kolom Koordinator Dosen: Isi dengan nama koordinator dosen (wajib, maksimal 1 orang)",
+        ],
+        [
+          "• Kolom Pengampu: Isi dengan nama dosen pengampu (wajib, minimal 1 dosen)",
+        ],
+        [
+          "• Untuk multi-select, pisahkan nama dosen dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)",
+        ],
         ["• Kolom Pengampu: Minimal 1 dosen harus dipilih"],
-        ["• ⚠️ PENTING: Dosen yang sama TIDAK BOLEH dipilih sebagai Koordinator Dosen dan Pengampu sekaligus"],
+        [
+          "• ⚠️ PENTING: Dosen yang sama TIDAK BOLEH dipilih sebagai Koordinator Dosen dan Pengampu sekaligus",
+        ],
         ...assignedDosenPBL
           .filter(
             (dosen, index, self) =>
@@ -10853,29 +10965,39 @@ export default function DetailBlok() {
         ["• Jika diisi, topik akan disimpan"],
         [""],
         ["👨‍🏫 VALIDASI KOORDINATOR DOSEN:"],
-        ["• Koordinator Dosen opsional (boleh dikosongkan)"],
-        ["• Untuk multi-select, pisahkan dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)"],
+        ["• Koordinator Dosen wajib diisi (maksimal 1 orang)"],
+        ["• Maksimal hanya boleh 1 orang koordinator (contoh: Dr. John Doe)"],
         [
           "• Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini",
         ],
         ["• Nama koordinator harus sesuai dengan yang ada di database"],
-        ["• ⚠️ Dosen yang sudah dipilih sebagai Pengampu TIDAK BOLEH dipilih sebagai Koordinator Dosen"],
+        [
+          "• ⚠️ Dosen yang sudah dipilih sebagai Pengampu TIDAK BOLEH dipilih sebagai Koordinator Dosen",
+        ],
         [""],
         ["👨‍🏫 VALIDASI PENGAMPU:"],
         ["• Pengampu wajib diisi (minimal 1 dosen)"],
-        ["• Untuk multi-select, pisahkan dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)"],
+        [
+          "• Untuk multi-select, pisahkan dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)",
+        ],
         [
           "• Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini",
         ],
         ["• Nama dosen harus sesuai dengan yang ada di database"],
-        ["• ⚠️ Dosen yang sudah dipilih sebagai Koordinator Dosen TIDAK BOLEH dipilih sebagai Pengampu"],
+        [
+          "• ⚠️ Dosen yang sudah dipilih sebagai Koordinator Dosen TIDAK BOLEH dipilih sebagai Pengampu",
+        ],
         [""],
         ["🏢 VALIDASI RUANGAN:"],
-        ["• Ruangan boleh dikosongkan untuk jadwal online/tidak memerlukan ruangan"],
+        [
+          "• Ruangan boleh dikosongkan untuk jadwal online/tidak memerlukan ruangan",
+        ],
         ["• Jika diisi, nama ruangan harus ada di database"],
         ["• Pastikan ruangan tersedia untuk jadwal tersebut"],
         ["• Kapasitas ruangan harus mencukupi untuk jumlah dosen yang dipilih"],
-        ["• Jika ruangan dikosongkan, jadwal akan dianggap sebagai jadwal online"],
+        [
+          "• Jika ruangan dikosongkan, jadwal akan dianggap sebagai jadwal online",
+        ],
         [""],
         ["🔢 VALIDASI JUMLAH SESI:"],
         ["• Jumlah sesi: 1-6 (1 x 50 menit sampai 6 x 50 menit)"],
@@ -10889,7 +11011,9 @@ export default function DetailBlok() {
         ["• Sistem akan highlight error dengan warna merah"],
         ["• Tooltip akan menampilkan pesan error detail"],
         ["• Untuk multi-select dosen, pastikan semua nama dosen valid"],
-        ["• ⚠️ Pastikan tidak ada dosen yang sama di kolom Koordinator Dosen dan Pengampu"],
+        [
+          "• ⚠️ Pastikan tidak ada dosen yang sama di kolom Koordinator Dosen dan Pengampu",
+        ],
       ];
 
       const infoWs = XLSX.utils.aoa_to_sheet(infoData);
@@ -10908,9 +11032,7 @@ export default function DetailBlok() {
   };
 
   // Validasi data Excel Seminar Pleno
-  const validateSeminarPlenoExcelData = (
-    convertedData: any[]
-  ) => {
+  const validateSeminarPlenoExcelData = (convertedData: any[]) => {
     const cellErrors: { row: number; field: string; message: string }[] = [];
 
     if (!convertedData) return { cellErrors };
@@ -10920,7 +11042,8 @@ export default function DetailBlok() {
 
       // Pastikan use_ruangan selalu di-set berdasarkan ruangan
       if (row.use_ruangan === undefined || row.use_ruangan === null) {
-        row.use_ruangan = row.nama_ruangan && row.nama_ruangan.trim() !== "" ? true : false;
+        row.use_ruangan =
+          row.nama_ruangan && row.nama_ruangan.trim() !== "" ? true : false;
       }
 
       // Validasi tanggal
@@ -10979,7 +11102,10 @@ export default function DetailBlok() {
 
       // Validasi koordinator hanya boleh 1 orang untuk Seminar Pleno
       if (row.koordinator && row.koordinator.trim() !== "") {
-        const koordinatorNames = row.koordinator.split(",").map((n: string) => n.trim()).filter((n: string) => n !== "");
+        const koordinatorNames = row.koordinator
+          .split(",")
+          .map((n: string) => n.trim())
+          .filter((n: string) => n !== "");
         if (koordinatorNames.length > 1) {
           cellErrors.push({
             row: rowNumber,
@@ -10997,12 +11123,14 @@ export default function DetailBlok() {
               invalidKoordinatorNames.push(namaDosen);
             }
           });
-          
+
           if (invalidKoordinatorNames.length > 0) {
             cellErrors.push({
               row: rowNumber,
               field: "koordinator",
-              message: `Koordinator Dosen tidak valid: "${invalidKoordinatorNames.join(", ")}". Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini`,
+              message: `Koordinator Dosen tidak valid: "${invalidKoordinatorNames.join(
+                ", "
+              )}". Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini`,
             });
           }
         }
@@ -11010,9 +11138,12 @@ export default function DetailBlok() {
 
       // Validasi pengampu: cek apakah semua nama dosen valid
       if (row.pengampu && row.pengampu.trim() !== "") {
-        const pengampuNames = row.pengampu.split(",").map((n: string) => n.trim()).filter((n: string) => n !== "");
+        const pengampuNames = row.pengampu
+          .split(",")
+          .map((n: string) => n.trim())
+          .filter((n: string) => n !== "");
         const invalidPengampuNames: string[] = [];
-        
+
         pengampuNames.forEach((namaDosen: string) => {
           const dosen = assignedDosenPBL.find(
             (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
@@ -11021,17 +11152,20 @@ export default function DetailBlok() {
             invalidPengampuNames.push(namaDosen);
           }
         });
-        
+
         if (invalidPengampuNames.length > 0) {
           cellErrors.push({
             row: rowNumber,
             field: "pengampu",
-            message: `Pengampu tidak valid: "${invalidPengampuNames.join(", ")}". Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini`,
+            message: `Pengampu tidak valid: "${invalidPengampuNames.join(
+              ", "
+            )}". Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini`,
           });
         }
-        
+
         // Validasi minimal 1 pengampu valid
-        const validPengampuCount = pengampuNames.length - invalidPengampuNames.length;
+        const validPengampuCount =
+          pengampuNames.length - invalidPengampuNames.length;
         if (validPengampuCount === 0) {
           cellErrors.push({
             row: rowNumber,
@@ -11043,19 +11177,27 @@ export default function DetailBlok() {
 
       // Validasi koordinator dan pengampu tidak boleh sama
       if (row.koordinator && row.pengampu) {
-        const koordinatorNames = row.koordinator.split(",").map((n: string) => n.trim().toLowerCase());
-        const pengampuNames = row.pengampu.split(",").map((n: string) => n.trim().toLowerCase());
-        const hasDuplicate = koordinatorNames.some((koord: string) => pengampuNames.includes(koord));
+        const koordinatorNames = row.koordinator
+          .split(",")
+          .map((n: string) => n.trim().toLowerCase());
+        const pengampuNames = row.pengampu
+          .split(",")
+          .map((n: string) => n.trim().toLowerCase());
+        const hasDuplicate = koordinatorNames.some((koord: string) =>
+          pengampuNames.includes(koord)
+        );
         if (hasDuplicate) {
           cellErrors.push({
             row: rowNumber,
             field: "koordinator",
-            message: "Dosen yang sama tidak boleh dipilih sebagai Koordinator Dosen dan Pengampu sekaligus",
+            message:
+              "Dosen yang sama tidak boleh dipilih sebagai Koordinator Dosen dan Pengampu sekaligus",
           });
           cellErrors.push({
             row: rowNumber,
             field: "pengampu",
-            message: "Dosen yang sama tidak boleh dipilih sebagai Koordinator Dosen dan Pengampu sekaligus",
+            message:
+              "Dosen yang sama tidak boleh dipilih sebagai Koordinator Dosen dan Pengampu sekaligus",
           });
         }
       }
@@ -11083,7 +11225,7 @@ export default function DetailBlok() {
       // Validasi kelompok besar (opsional)
       if (row.kelompok_besar && row.kelompok_besar.trim() !== "") {
         const inputValue = row.kelompok_besar.trim();
-        
+
         // Helper untuk extract semester dari berbagai format
         const extractSemester = (value: string): number | null => {
           // Coba ekstrak angka dari berbagai format:
@@ -11094,26 +11236,24 @@ export default function DetailBlok() {
           const match = value.match(/(?:semester\s*)?(\d+)/i);
           return match ? parseInt(match[1]) : null;
         };
-        
+
         // Cari exact match di label (case-insensitive)
         let kelompokBesar = kelompokBesarOptions.find(
           (kb) => kb.label.toLowerCase() === inputValue.toLowerCase()
         );
-        
+
         // Jika tidak ditemukan exact match, coba cari berdasarkan semester
         if (!kelompokBesar) {
           const semester = extractSemester(inputValue);
           if (semester) {
-            kelompokBesar = kelompokBesarOptions.find(
-              (kb) => {
-                // Cek apakah label mengandung semester yang sama
-                const kbSemester = extractSemester(kb.label);
-                return kbSemester === semester;
-              }
-            );
+            kelompokBesar = kelompokBesarOptions.find((kb) => {
+              // Cek apakah label mengandung semester yang sama
+              const kbSemester = extractSemester(kb.label);
+              return kbSemester === semester;
+            });
           }
         }
-        
+
         if (!kelompokBesar) {
           cellErrors.push({
             row: rowNumber,
@@ -11145,17 +11285,23 @@ export default function DetailBlok() {
         const koordinatorNames = row.koordinator_names || "";
         const pengampuNames = row.pengampu_names || "";
         const ruangan = allRuanganList.find((r) => r.id === row.ruangan_id);
-        const useRuangan = row.use_ruangan !== undefined ? row.use_ruangan : (row.ruangan_id ? true : false);
-        const ruanganNama = useRuangan && ruangan?.nama ? ruangan.nama : "Online";
-        
+        const useRuangan =
+          row.use_ruangan !== undefined
+            ? row.use_ruangan
+            : row.ruangan_id
+            ? true
+            : false;
+        const ruanganNama =
+          useRuangan && ruangan?.nama ? ruangan.nama : "Online";
+
         // Ambil nama kelompok besar
         let kelompokBesarName = "";
-        
+
         // Cek apakah ada kelompok_besar object dari backend
         if (row.kelompok_besar && row.kelompok_besar.id) {
           const kelompokBesarId = row.kelompok_besar.id;
           const semester = row.kelompok_besar.semester;
-          
+
           // Cari di kelompokBesarOptions berdasarkan ID
           if (kelompokBesarOptions.length > 0) {
             const kelompokBesar = kelompokBesarOptions.find(
@@ -11165,7 +11311,7 @@ export default function DetailBlok() {
               kelompokBesarName = kelompokBesar.label || "";
             }
           }
-          
+
           // Fallback: jika tidak ditemukan di options, buat dari semester
           if (!kelompokBesarName && semester) {
             kelompokBesarName = `Semester ${semester}`;
@@ -11182,7 +11328,7 @@ export default function DetailBlok() {
               kelompokBesarName = kelompokBesar.label || "";
             }
           }
-          
+
           // Fallback: jika tidak ditemukan, coba gunakan kelompok_besar_id sebagai semester
           if (!kelompokBesarName) {
             // Jika kelompok_besar_id adalah angka kecil (kemungkinan semester), gunakan sebagai semester
@@ -11266,13 +11412,13 @@ export default function DetailBlok() {
         ["• Format tanggal: YYYY-MM-DD"],
         ["• Format jam: HH.MM atau HH:MM"],
         ["• Sesi: 1-6 (1 sesi = 50 menit)"],
-        ["• Jam Selesai dihitung otomatis dari Jam Mulai + (Jumlah Sesi x 50 menit)"],
-        ["• Topik opsional (boleh dikosongkan)"],
         [
-          "• Pastikan data dosen dan ruangan valid sebelum import",
+          "• Jam Selesai dihitung otomatis dari Jam Mulai + (Jumlah Sesi x 50 menit)",
         ],
+        ["• Topik opsional (boleh dikosongkan)"],
+        ["• Pastikan data dosen dan ruangan valid sebelum import"],
         [
-          "• Kolom Koordinator Dosen opsional (boleh dikosongkan, hanya 1 orang). Isi dengan nama koordinator dosen (contoh: Dr. John Doe)",
+          "• Kolom Koordinator Dosen wajib diisi (maksimal 1 orang). Isi dengan nama koordinator dosen (contoh: Dr. John Doe)",
         ],
         [
           "• Kolom Pengampu wajib diisi (minimal 1 dosen). Untuk multi-select, pisahkan nama dosen dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)",
@@ -11295,18 +11441,10 @@ export default function DetailBlok() {
         [
           "• Kelompok Besar opsional (boleh dikosongkan). Format yang bisa digunakan:",
         ],
-        [
-          "  - Format lengkap: Kelompok Besar Semester 1 (50 mahasiswa)",
-        ],
-        [
-          "  - Format sederhana: Semester 1",
-        ],
-        [
-          "  - Format paling sederhana: 1",
-        ],
-        [
-          "• Sistem akan otomatis mencari berdasarkan semester yang diinput",
-        ],
+        ["  - Format lengkap: Kelompok Besar Semester 1 (50 mahasiswa)"],
+        ["  - Format sederhana: Semester 1"],
+        ["  - Format paling sederhana: 1"],
+        ["• Sistem akan otomatis mencari berdasarkan semester yang diinput"],
       ];
 
       const infoWs = XLSX.utils.aoa_to_sheet(infoData);
@@ -11381,35 +11519,33 @@ export default function DetailBlok() {
 
         // Parse kelompok besar dengan parsing yang lebih fleksibel
         const kelompokBesarStr = row[7]?.toString() || "";
-        
+
         // Helper untuk extract semester dari berbagai format
         const extractSemester = (value: string): number | null => {
           const match = value.match(/(?:semester\s*)?(\d+)/i);
           return match ? parseInt(match[1]) : null;
         };
-        
+
         let kelompokBesar = null;
         let kelompokBesarId = null;
-        
+
         if (kelompokBesarStr.trim() !== "") {
           // Cari exact match di label (case-insensitive)
           kelompokBesar = kelompokBesarOptions.find(
             (kb) => kb.label.toLowerCase() === kelompokBesarStr.toLowerCase()
           );
-          
+
           // Jika tidak ditemukan exact match, coba cari berdasarkan semester
           if (!kelompokBesar) {
             const semester = extractSemester(kelompokBesarStr);
             if (semester) {
-              kelompokBesar = kelompokBesarOptions.find(
-                (kb) => {
-                  const kbSemester = extractSemester(kb.label);
-                  return kbSemester === semester;
-                }
-              );
+              kelompokBesar = kelompokBesarOptions.find((kb) => {
+                const kbSemester = extractSemester(kb.label);
+                return kbSemester === semester;
+              });
             }
           }
-          
+
           if (kelompokBesar) {
             kelompokBesarId = Number(kelompokBesar.id);
           }
@@ -11430,7 +11566,10 @@ export default function DetailBlok() {
         // Helper untuk parse dosen names ke IDs
         const parseDosenNames = (dosenStr: string) => {
           if (!dosenStr || dosenStr.trim() === "") return [];
-          const dosenNames = dosenStr.split(",").map((n: string) => n.trim()).filter((n: string) => n);
+          const dosenNames = dosenStr
+            .split(",")
+            .map((n: string) => n.trim())
+            .filter((n: string) => n);
           const dosenIds: number[] = [];
           dosenNames.forEach((namaDosen: string) => {
             const dosen = assignedDosenPBL.find(
@@ -11492,7 +11631,7 @@ export default function DetailBlok() {
             } else {
               useRuangan = false;
             }
-            
+
             return {
               tanggal: row.tanggal,
               jam_mulai: row.jam_mulai,
@@ -11502,7 +11641,7 @@ export default function DetailBlok() {
               koordinator_ids: row.koordinator_ids || [],
               dosen_ids: row.dosen_ids || [],
               kelompok_besar_id: row.kelompok_besar_id || null,
-              ruangan_id: useRuangan ? (row.ruangan_id || null) : null,
+              ruangan_id: useRuangan ? row.ruangan_id || null : null,
               use_ruangan: useRuangan,
             };
           });
@@ -11515,21 +11654,33 @@ export default function DetailBlok() {
 
           if (validationResponse.data && !validationResponse.data.valid) {
             const backendErrors = validationResponse.data.errors || [];
-            
+
             // Convert backend errors ke format cellErrors
-            const newCellErrors: { row: number; field: string; message: string }[] = [];
+            const newCellErrors: {
+              row: number;
+              field: string;
+              message: string;
+            }[] = [];
             backendErrors.forEach((error: string) => {
               const barisMatch = error.match(/Baris\s+(\d+)/i);
               if (barisMatch) {
                 const rowNum = parseInt(barisMatch[1]);
                 let field = "general";
                 if (error.toLowerCase().includes("tanggal")) field = "tanggal";
-                else if (error.toLowerCase().includes("jam")) field = "jam_mulai";
-                else if (error.toLowerCase().includes("pengampu") || error.toLowerCase().includes("dosen")) field = "pengampu";
-                else if (error.toLowerCase().includes("koordinator")) field = "koordinator";
-                else if (error.toLowerCase().includes("ruangan")) field = "nama_ruangan";
-                else if (error.toLowerCase().includes("kelompok")) field = "kelompok_besar";
-                
+                else if (error.toLowerCase().includes("jam"))
+                  field = "jam_mulai";
+                else if (
+                  error.toLowerCase().includes("pengampu") ||
+                  error.toLowerCase().includes("dosen")
+                )
+                  field = "pengampu";
+                else if (error.toLowerCase().includes("koordinator"))
+                  field = "koordinator";
+                else if (error.toLowerCase().includes("ruangan"))
+                  field = "nama_ruangan";
+                else if (error.toLowerCase().includes("kelompok"))
+                  field = "kelompok_besar";
+
                 newCellErrors.push({
                   row: rowNum,
                   field: field,
@@ -11542,7 +11693,11 @@ export default function DetailBlok() {
             setSeminarPlenoCellErrors((prev: any[]) => {
               // Hapus error yang sudah ada untuk row yang sama
               const filtered = prev.filter(
-                (err) => !newCellErrors.some((newErr) => newErr.row === err.row && newErr.field === err.field)
+                (err) =>
+                  !newCellErrors.some(
+                    (newErr) =>
+                      newErr.row === err.row && newErr.field === err.field
+                  )
               );
               return [...filtered, ...newCellErrors];
             });
@@ -11594,10 +11749,10 @@ export default function DetailBlok() {
           .split(",")
           .map((name: string) => name.trim())
           .filter((name: string) => name.length > 0);
-        
+
         const koordinatorIds: number[] = [];
         const invalidNames: string[] = [];
-        
+
         koordinatorNames.forEach((namaDosen: string) => {
           const dosen = assignedDosenPBL.find(
             (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
@@ -11611,7 +11766,7 @@ export default function DetailBlok() {
 
         row.koordinator_ids = koordinatorIds;
         row.koordinator = value;
-        
+
         // Error akan ditangani oleh validasi di bawah
       } else {
         row.koordinator_ids = [];
@@ -11624,10 +11779,10 @@ export default function DetailBlok() {
           .split(",")
           .map((name: string) => name.trim())
           .filter((name: string) => name.length > 0);
-        
+
         const pengampuIds: number[] = [];
         const invalidNames: string[] = [];
-        
+
         pengampuNames.forEach((namaDosen: string) => {
           const dosen = assignedDosenPBL.find(
             (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
@@ -11641,7 +11796,7 @@ export default function DetailBlok() {
 
         row.dosen_ids = pengampuIds;
         row.pengampu = value;
-        
+
         // Error akan ditangani oleh validasi di bawah
       } else {
         row.dosen_ids = [];
@@ -11651,31 +11806,29 @@ export default function DetailBlok() {
       // Handle mapping untuk kelompok besar
       if (value && value.trim() !== "") {
         const inputValue = value.toString().trim();
-        
+
         // Helper untuk extract semester dari berbagai format
         const extractSemester = (val: string): number | null => {
           const match = val.match(/(?:semester\s*)?(\d+)/i);
           return match ? parseInt(match[1]) : null;
         };
-        
+
         // Cari exact match di label (case-insensitive)
         let kelompokBesar = kelompokBesarOptions.find(
           (kb) => kb.label.toLowerCase() === inputValue.toLowerCase()
         );
-        
+
         // Jika tidak ditemukan exact match, coba cari berdasarkan semester
         if (!kelompokBesar) {
           const semester = extractSemester(inputValue);
           if (semester) {
-            kelompokBesar = kelompokBesarOptions.find(
-              (kb) => {
-                const kbSemester = extractSemester(kb.label);
-                return kbSemester === semester;
-              }
-            );
+            kelompokBesar = kelompokBesarOptions.find((kb) => {
+              const kbSemester = extractSemester(kb.label);
+              return kbSemester === semester;
+            });
           }
         }
-        
+
         if (kelompokBesar) {
           row.kelompok_besar_id = Number(kelompokBesar.id);
           row.kelompok_besar = kelompokBesar.label;
@@ -11704,7 +11857,7 @@ export default function DetailBlok() {
     // Re-validasi data frontend secara real-time
     const { cellErrors } = validateSeminarPlenoExcelData(updatedData);
     setSeminarPlenoCellErrors(cellErrors);
-    
+
     // Validasi backend secara real-time (cek bentrok jadwal) dengan debounce
     if (kode && updatedData.length > 0) {
       // Clear timeout sebelumnya jika ada
@@ -11727,7 +11880,7 @@ export default function DetailBlok() {
             } else {
               useRuangan = false;
             }
-            
+
             return {
               tanggal: row.tanggal,
               jam_mulai: row.jam_mulai,
@@ -11737,7 +11890,7 @@ export default function DetailBlok() {
               koordinator_ids: row.koordinator_ids || [],
               dosen_ids: row.dosen_ids || [],
               kelompok_besar_id: row.kelompok_besar_id || null,
-              ruangan_id: useRuangan ? (row.ruangan_id || null) : null,
+              ruangan_id: useRuangan ? row.ruangan_id || null : null,
               use_ruangan: useRuangan,
             };
           });
@@ -11750,21 +11903,33 @@ export default function DetailBlok() {
 
           if (validationResponse.data && !validationResponse.data.valid) {
             const backendErrors = validationResponse.data.errors || [];
-            
+
             // Convert backend errors ke format cellErrors
-            const newCellErrors: { row: number; field: string; message: string }[] = [];
+            const newCellErrors: {
+              row: number;
+              field: string;
+              message: string;
+            }[] = [];
             backendErrors.forEach((error: string) => {
               const barisMatch = error.match(/Baris\s+(\d+)/i);
               if (barisMatch) {
                 const rowNum = parseInt(barisMatch[1]);
                 let field = "general";
                 if (error.toLowerCase().includes("tanggal")) field = "tanggal";
-                else if (error.toLowerCase().includes("jam")) field = "jam_mulai";
-                else if (error.toLowerCase().includes("pengampu") || error.toLowerCase().includes("dosen")) field = "pengampu";
-                else if (error.toLowerCase().includes("koordinator")) field = "koordinator";
-                else if (error.toLowerCase().includes("ruangan")) field = "nama_ruangan";
-                else if (error.toLowerCase().includes("kelompok")) field = "kelompok_besar";
-                
+                else if (error.toLowerCase().includes("jam"))
+                  field = "jam_mulai";
+                else if (
+                  error.toLowerCase().includes("pengampu") ||
+                  error.toLowerCase().includes("dosen")
+                )
+                  field = "pengampu";
+                else if (error.toLowerCase().includes("koordinator"))
+                  field = "koordinator";
+                else if (error.toLowerCase().includes("ruangan"))
+                  field = "nama_ruangan";
+                else if (error.toLowerCase().includes("kelompok"))
+                  field = "kelompok_besar";
+
                 newCellErrors.push({
                   row: rowNum,
                   field: field,
@@ -11777,7 +11942,11 @@ export default function DetailBlok() {
             setSeminarPlenoCellErrors((prev: any[]) => {
               // Hapus error yang sudah ada untuk row yang sama dengan error baru
               const filtered = prev.filter(
-                (err) => !newCellErrors.some((newErr) => newErr.row === err.row && newErr.field === err.field)
+                (err) =>
+                  !newCellErrors.some(
+                    (newErr) =>
+                      newErr.row === err.row && newErr.field === err.field
+                  )
               );
               return [...filtered, ...newCellErrors];
             });
@@ -11798,12 +11967,14 @@ export default function DetailBlok() {
               return prev.filter((err) => {
                 const message = err.message.toLowerCase();
                 // Hapus error yang mengandung kata-kata kunci error backend
-                return !message.includes("bentrok") && 
-                       !message.includes("jadwal bentrok") &&
-                       !message.includes("jurnal reading") &&
-                       !message.includes("kuliah besar") &&
-                       !message.includes("agenda khusus") &&
-                       !message.includes("seminar pleno lain");
+                return (
+                  !message.includes("bentrok") &&
+                  !message.includes("jadwal bentrok") &&
+                  !message.includes("jurnal reading") &&
+                  !message.includes("kuliah besar") &&
+                  !message.includes("agenda khusus") &&
+                  !message.includes("seminar pleno lain")
+                );
               });
             });
           }
@@ -11828,7 +11999,7 @@ export default function DetailBlok() {
 
     // Clear error backend terlebih dahulu (akan di-update setelah API call)
     setSeminarPlenoImportErrors([]);
-    
+
     setIsSeminarPlenoImporting(true);
 
     try {
@@ -11840,7 +12011,7 @@ export default function DetailBlok() {
         setSeminarPlenoCellErrors(cellErrors);
         setSeminarPlenoImportErrors([
           `⚠️ Terdapat ${cellErrors.length} error pada data. Perbaiki error terlebih dahulu sebelum import.`,
-          "Error ditandai dengan warna merah di tabel preview. Klik pada cell yang error untuk melihat detail."
+          "Error ditandai dengan warna merah di tabel preview. Klik pada cell yang error untuk melihat detail.",
         ]);
         setIsSeminarPlenoImporting(false);
         return;
@@ -11860,7 +12031,7 @@ export default function DetailBlok() {
         } else {
           useRuangan = false;
         }
-        
+
         return {
           tanggal: row.tanggal,
           jam_mulai: row.jam_mulai,
@@ -11870,7 +12041,7 @@ export default function DetailBlok() {
           koordinator_ids: row.koordinator_ids || [],
           dosen_ids: row.dosen_ids || [],
           kelompok_besar_id: row.kelompok_besar_id || null,
-          ruangan_id: useRuangan ? (row.ruangan_id || null) : null,
+          ruangan_id: useRuangan ? row.ruangan_id || null : null,
           use_ruangan: useRuangan,
         };
       });
@@ -11897,15 +12068,22 @@ export default function DetailBlok() {
       } else {
         // Tampilkan error dari backend dengan detail
         const backendErrors = response.data.errors || [];
-        const backendMessage = response.data.message || "Gagal mengimport data seminar pleno";
-        
+        const backendMessage =
+          response.data.message || "Gagal mengimport data seminar pleno";
+
         // Gabungkan semua error
-        const allErrors = backendMessage ? [backendMessage, ...backendErrors] : backendErrors;
+        const allErrors = backendMessage
+          ? [backendMessage, ...backendErrors]
+          : backendErrors;
         setSeminarPlenoImportErrors(allErrors);
-        
+
         // Jika ada error per baris, convert ke cellErrors untuk ditampilkan di tabel
         if (Array.isArray(backendErrors) && backendErrors.length > 0) {
-          const newCellErrors: { row: number; field: string; message: string }[] = [];
+          const newCellErrors: {
+            row: number;
+            field: string;
+            message: string;
+          }[] = [];
           backendErrors.forEach((error: string) => {
             // Parse error format: "Baris X: ..." atau "Baris X: Field: ..."
             const barisMatch = error.match(/Baris\s+(\d+)/i);
@@ -11915,11 +12093,18 @@ export default function DetailBlok() {
               let field = "general";
               if (error.toLowerCase().includes("tanggal")) field = "tanggal";
               else if (error.toLowerCase().includes("jam")) field = "jam_mulai";
-              else if (error.toLowerCase().includes("pengampu") || error.toLowerCase().includes("dosen")) field = "pengampu";
-              else if (error.toLowerCase().includes("koordinator")) field = "koordinator";
-              else if (error.toLowerCase().includes("ruangan")) field = "ruangan";
-              else if (error.toLowerCase().includes("kelompok")) field = "kelompok_besar";
-              
+              else if (
+                error.toLowerCase().includes("pengampu") ||
+                error.toLowerCase().includes("dosen")
+              )
+                field = "pengampu";
+              else if (error.toLowerCase().includes("koordinator"))
+                field = "koordinator";
+              else if (error.toLowerCase().includes("ruangan"))
+                field = "ruangan";
+              else if (error.toLowerCase().includes("kelompok"))
+                field = "kelompok_besar";
+
               newCellErrors.push({
                 row: rowNum,
                 field: field,
@@ -11927,7 +12112,7 @@ export default function DetailBlok() {
               });
             }
           });
-          
+
           if (newCellErrors.length > 0) {
             setSeminarPlenoCellErrors(newCellErrors);
           }
@@ -11936,16 +12121,23 @@ export default function DetailBlok() {
     } catch (err: any) {
       // Tampilkan error dengan detail
       const errorResponse = err?.response?.data;
-      const errorMessage = errorResponse?.message || "Gagal mengimport data seminar pleno. Silakan coba lagi.";
+      const errorMessage =
+        errorResponse?.message ||
+        "Gagal mengimport data seminar pleno. Silakan coba lagi.";
       const errorDetails = errorResponse?.errors || [];
-      
+
       // Gabungkan semua error
-      const allErrors = errorMessage ? [errorMessage, ...errorDetails] : errorDetails;
-      setSeminarPlenoImportErrors(allErrors.length > 0 ? allErrors : [errorMessage]);
-      
+      const allErrors = errorMessage
+        ? [errorMessage, ...errorDetails]
+        : errorDetails;
+      setSeminarPlenoImportErrors(
+        allErrors.length > 0 ? allErrors : [errorMessage]
+      );
+
       // Jika ada error per baris, convert ke cellErrors
       if (Array.isArray(errorDetails) && errorDetails.length > 0) {
-        const newCellErrors: { row: number; field: string; message: string }[] = [];
+        const newCellErrors: { row: number; field: string; message: string }[] =
+          [];
         errorDetails.forEach((error: string) => {
           const barisMatch = error.match(/Baris\s+(\d+)/i);
           if (barisMatch) {
@@ -11953,11 +12145,17 @@ export default function DetailBlok() {
             let field = "general";
             if (error.toLowerCase().includes("tanggal")) field = "tanggal";
             else if (error.toLowerCase().includes("jam")) field = "jam_mulai";
-            else if (error.toLowerCase().includes("pengampu") || error.toLowerCase().includes("dosen")) field = "pengampu";
-            else if (error.toLowerCase().includes("koordinator")) field = "koordinator";
+            else if (
+              error.toLowerCase().includes("pengampu") ||
+              error.toLowerCase().includes("dosen")
+            )
+              field = "pengampu";
+            else if (error.toLowerCase().includes("koordinator"))
+              field = "koordinator";
             else if (error.toLowerCase().includes("ruangan")) field = "ruangan";
-            else if (error.toLowerCase().includes("kelompok")) field = "kelompok_besar";
-            
+            else if (error.toLowerCase().includes("kelompok"))
+              field = "kelompok_besar";
+
             newCellErrors.push({
               row: rowNum,
               field: field,
@@ -11965,7 +12163,7 @@ export default function DetailBlok() {
             });
           }
         });
-        
+
         if (newCellErrors.length > 0) {
           setSeminarPlenoCellErrors(newCellErrors);
         }
@@ -13985,8 +14183,12 @@ export default function DetailBlok() {
                         </td>
 
                         <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                          {row.kelompok_besar_id
-                            ? `Kelompok Besar Semester ${row.kelompok_besar_id}`
+                          {row.kelompok_besar?.semester
+                            ? `Kelompok Besar Semester ${row.kelompok_besar.semester}`
+                            : row.kelompok_besar?.nama_kelompok
+                            ? row.kelompok_besar.nama_kelompok
+                            : row.kelompok_besar_antara?.nama_kelompok
+                            ? row.kelompok_besar_antara.nama_kelompok
                             : "-"}
                         </td>
 
@@ -14003,20 +14205,30 @@ export default function DetailBlok() {
                             {/* Tombol Absensi - tampilkan jika ada dosen yang terdaftar */}
                             {row.dosen_id && (
                               <button
-                                onClick={() => navigate(`/absensi-kuliah-besar/${kode}/${row.id}`)}
+                                onClick={() =>
+                                  navigate(
+                                    `/absensi-kuliah-besar/${kode}/${row.id}`
+                                  )
+                                }
                                 className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors shrink-0"
                                 title="Buka Absensi"
                               >
-                                <FontAwesomeIcon icon={faCheckCircle} className="w-3.5 h-3.5 shrink-0" />
-                                <span className="hidden xl:inline whitespace-nowrap">Absensi</span>
+                                <FontAwesomeIcon
+                                  icon={faCheckCircle}
+                                  className="w-3.5 h-3.5 shrink-0"
+                                />
+                                <span className="hidden xl:inline whitespace-nowrap">
+                                  Absensi
+                                </span>
                               </button>
                             )}
                             <button
                               onClick={() => {
                                 // Cari index berdasarkan ID untuk memastikan data yang benar
-                                const correctIndex = jadwalKuliahBesar.findIndex(
-                                  (j) => j.id === row.id
-                                );
+                                const correctIndex =
+                                  jadwalKuliahBesar.findIndex(
+                                    (j) => j.id === row.id
+                                  );
                                 handleEditJadwalKuliahBesar(
                                   correctIndex >= 0 ? correctIndex : actualIndex
                                 );
@@ -14028,7 +14240,9 @@ export default function DetailBlok() {
                                 icon={faPenToSquare}
                                 className="w-3.5 h-3.5 shrink-0"
                               />
-                              <span className="hidden xl:inline whitespace-nowrap">Edit</span>
+                              <span className="hidden xl:inline whitespace-nowrap">
+                                Edit
+                              </span>
                             </button>
 
                             <button
@@ -14046,7 +14260,9 @@ export default function DetailBlok() {
                                 icon={faTrash}
                                 className="w-3.5 h-3.5 shrink-0"
                               />
-                              <span className="hidden xl:inline whitespace-nowrap">Hapus</span>
+                              <span className="hidden xl:inline whitespace-nowrap">
+                                Hapus
+                              </span>
                             </button>
                           </div>
                         </td>
@@ -14365,7 +14581,9 @@ export default function DetailBlok() {
                         )
                       }
                       role="checkbox"
-                      onClick={() => handleSelectAll("seminar-pleno", jadwalSeminarPleno)}
+                      onClick={() =>
+                        handleSelectAll("seminar-pleno", jadwalSeminarPleno)
+                      }
                       className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
                         jadwalSeminarPleno.length > 0 &&
                         jadwalSeminarPleno.every((item) =>
@@ -14434,11 +14652,16 @@ export default function DetailBlok() {
                   getPaginatedData(
                     jadwalSeminarPleno
                       .slice()
-                      .sort((a: JadwalSeminarPlenoType, b: JadwalSeminarPlenoType) => {
-                        const dateA = new Date(a.tanggal);
-                        const dateB = new Date(b.tanggal);
-                        return dateA.getTime() - dateB.getTime();
-                      }),
+                      .sort(
+                        (
+                          a: JadwalSeminarPlenoType,
+                          b: JadwalSeminarPlenoType
+                        ) => {
+                          const dateA = new Date(a.tanggal);
+                          const dateB = new Date(b.tanggal);
+                          return dateA.getTime() - dateB.getTime();
+                        }
+                      ),
                     seminarPlenoPage,
                     seminarPlenoPageSize
                   ).map((row: JadwalSeminarPlenoType, i: number) => (
@@ -14450,9 +14673,13 @@ export default function DetailBlok() {
                     >
                       <td className="px-4 py-4 text-center">
                         <button
-                          aria-checked={selectedSeminarPlenoItems.includes(row.id!)}
+                          aria-checked={selectedSeminarPlenoItems.includes(
+                            row.id!
+                          )}
                           role="checkbox"
-                          onClick={() => handleSelectItem("seminar-pleno", row.id!)}
+                          onClick={() =>
+                            handleSelectItem("seminar-pleno", row.id!)
+                          }
                           className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
                             selectedSeminarPlenoItems.includes(row.id!)
                               ? "bg-brand-500 border-brand-500"
@@ -14479,7 +14706,8 @@ export default function DetailBlok() {
                         {row.tanggal ? formatTanggalKonsisten(row.tanggal) : ""}
                       </td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                        {formatJamTanpaDetik(row.jam_mulai)}–{formatJamTanpaDetik(row.jam_selesai)}
+                        {formatJamTanpaDetik(row.jam_mulai)}–
+                        {formatJamTanpaDetik(row.jam_selesai)}
                       </td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {row.jumlah_sesi || 1} x 50 menit
@@ -14505,8 +14733,12 @@ export default function DetailBlok() {
                       </td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {(() => {
-                          const ruangan = allRuanganList.find((r) => r.id === row.ruangan_id);
-                          return (row.use_ruangan && ruangan?.nama) ? ruangan.nama : "Online";
+                          const ruangan = allRuanganList.find(
+                            (r) => r.id === row.ruangan_id
+                          );
+                          return row.use_ruangan && ruangan?.nama
+                            ? ruangan.nama
+                            : "Online";
                         })()}
                       </td>
                       <td className="px-4 py-4 text-center whitespace-nowrap">
@@ -14560,28 +14792,49 @@ export default function DetailBlok() {
                           })()}
                           <button
                             onClick={() => {
-                              const idx = jadwalSeminarPleno.findIndex((j) => j.id === row.id);
+                              const idx = jadwalSeminarPleno.findIndex(
+                                (j) => j.id === row.id
+                              );
                               if (idx >= 0) {
                                 const actualRow = jadwalSeminarPleno[idx];
-                                
+
                                 // Extract koordinator_ids from koordinator_ids or dosen_with_roles
                                 let koordinatorIds: number[] = [];
-                                if (actualRow.koordinator_ids && Array.isArray(actualRow.koordinator_ids)) {
+                                if (
+                                  actualRow.koordinator_ids &&
+                                  Array.isArray(actualRow.koordinator_ids)
+                                ) {
                                   koordinatorIds = actualRow.koordinator_ids;
-                                } else if (actualRow.dosen_with_roles && Array.isArray(actualRow.dosen_with_roles)) {
+                                } else if (
+                                  actualRow.dosen_with_roles &&
+                                  Array.isArray(actualRow.dosen_with_roles)
+                                ) {
                                   koordinatorIds = actualRow.dosen_with_roles
-                                    .filter((d: any) => d.peran === "koordinator" || d.peran_display === "Koordinator" || d.is_koordinator)
+                                    .filter(
+                                      (d: any) =>
+                                        d.peran === "koordinator" ||
+                                        d.peran_display === "Koordinator" ||
+                                        d.is_koordinator
+                                    )
                                     .map((d: any) => d.id);
                                 }
-                                
+
                                 // Extract pengampu_ids (non-koordinator) from dosen_ids
-                                const allDosenIds = Array.isArray(actualRow.dosen_ids) ? actualRow.dosen_ids : [];
-                                const pengampuIds = allDosenIds.filter((id: number) => !koordinatorIds.includes(id));
-                                
+                                const allDosenIds = Array.isArray(
+                                  actualRow.dosen_ids
+                                )
+                                  ? actualRow.dosen_ids
+                                  : [];
+                                const pengampuIds = allDosenIds.filter(
+                                  (id: number) => !koordinatorIds.includes(id)
+                                );
+
                                 setForm({
                                   hariTanggal: actualRow.tanggal || "",
                                   jamMulai: actualRow.jam_mulai || "",
-                                  jumlahKali: Number(actualRow.jumlah_sesi || 1),
+                                  jumlahKali: Number(
+                                    actualRow.jumlah_sesi || 1
+                                  ),
                                   jamSelesai: actualRow.jam_selesai || "",
                                   pengampu: pengampuIds, // Pengampu (non-koordinator)
                                   koordinator: koordinatorIds, // Koordinator
@@ -14594,8 +14847,14 @@ export default function DetailBlok() {
                                   pblTipe: "",
                                   modul: null,
                                   kelompok: "",
-                                  kelompokBesar: actualRow.kelompok_besar_id || null,
-                                  useRuangan: actualRow.use_ruangan !== undefined ? actualRow.use_ruangan : (actualRow.ruangan_id ? true : false),
+                                  kelompokBesar:
+                                    actualRow.kelompok_besar_id || null,
+                                  useRuangan:
+                                    actualRow.use_ruangan !== undefined
+                                      ? actualRow.use_ruangan
+                                      : actualRow.ruangan_id
+                                      ? true
+                                      : false,
                                   fileJurnal: null,
                                 });
                                 setEditIndex(idx);
@@ -14615,7 +14874,9 @@ export default function DetailBlok() {
                           </button>
                           <button
                             onClick={() => {
-                              const idx = jadwalSeminarPleno.findIndex((j) => j.id === row.id);
+                              const idx = jadwalSeminarPleno.findIndex(
+                                (j) => j.id === row.id
+                              );
                               if (idx >= 0) {
                                 setSelectedDeleteSeminarPlenoIndex(idx);
                                 setShowDeleteSeminarPlenoModal(true);
@@ -14664,9 +14925,13 @@ export default function DetailBlok() {
           <div className="flex items-center justify-between mt-6">
             <div className="flex items-center gap-4">
               <span className="text-sm text-gray-600 dark:text-gray-400">
-                Menampilkan {(seminarPlenoPage - 1) * seminarPlenoPageSize + 1} -{" "}
-                {Math.min(seminarPlenoPage * seminarPlenoPageSize, jadwalSeminarPleno.length)} dari{" "}
-                {jadwalSeminarPleno.length} data
+                Menampilkan {(seminarPlenoPage - 1) * seminarPlenoPageSize + 1}{" "}
+                -{" "}
+                {Math.min(
+                  seminarPlenoPage * seminarPlenoPageSize,
+                  jadwalSeminarPleno.length
+                )}{" "}
+                dari {jadwalSeminarPleno.length} data
               </span>
               <select
                 value={seminarPlenoPageSize}
@@ -14691,7 +14956,8 @@ export default function DetailBlok() {
               >
                 Previous
               </button>
-              {getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize) > 1 && (
+              {getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize) >
+                1 && (
                 <button
                   onClick={() => setSeminarPlenoPage(1)}
                   className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
@@ -14704,12 +14970,21 @@ export default function DetailBlok() {
                 </button>
               )}
               {Array.from(
-                { length: getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize) },
+                {
+                  length: getTotalPages(
+                    jadwalSeminarPleno.length,
+                    seminarPlenoPageSize
+                  ),
+                },
                 (_, i) => {
                   const pageNum = i + 1;
                   const shouldShow =
                     pageNum > 1 &&
-                    pageNum < getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize) &&
+                    pageNum <
+                      getTotalPages(
+                        jadwalSeminarPleno.length,
+                        seminarPlenoPageSize
+                      ) &&
                     pageNum >= seminarPlenoPage - 2 &&
                     pageNum <= seminarPlenoPage + 2;
                   if (!shouldShow) return null;
@@ -14728,30 +15003,56 @@ export default function DetailBlok() {
                   );
                 }
               )}
-              {seminarPlenoPage < getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize) - 3 && (
-                <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
+              {seminarPlenoPage <
+                getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize) -
+                  3 && (
+                <span className="px-2 text-gray-500 dark:text-gray-400">
+                  ...
+                </span>
               )}
-              {getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize) > 1 && (
+              {getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize) >
+                1 && (
                 <button
                   onClick={() =>
-                    setSeminarPlenoPage(getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize))
+                    setSeminarPlenoPage(
+                      getTotalPages(
+                        jadwalSeminarPleno.length,
+                        seminarPlenoPageSize
+                      )
+                    )
                   }
                   className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    seminarPlenoPage === getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize)
+                    seminarPlenoPage ===
+                    getTotalPages(
+                      jadwalSeminarPleno.length,
+                      seminarPlenoPageSize
+                    )
                       ? "bg-brand-500 text-white"
                       : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                   }`}
                 >
-                  {getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize)}
+                  {getTotalPages(
+                    jadwalSeminarPleno.length,
+                    seminarPlenoPageSize
+                  )}
                 </button>
               )}
               <button
                 onClick={() =>
                   setSeminarPlenoPage((p) =>
-                    Math.min(getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize), p + 1)
+                    Math.min(
+                      getTotalPages(
+                        jadwalSeminarPleno.length,
+                        seminarPlenoPageSize
+                      ),
+                      p + 1
+                    )
                   )
                 }
-                disabled={seminarPlenoPage === getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize)}
+                disabled={
+                  seminarPlenoPage ===
+                  getTotalPages(jadwalSeminarPleno.length, seminarPlenoPageSize)
+                }
                 className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
               >
                 Next
@@ -15103,14 +15404,22 @@ export default function DetailBlok() {
                       <td className="px-3 py-3 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5 flex-nowrap">
                           {/* Tombol Absensi - tampilkan jika ada dosen yang terdaftar */}
-                          {(row.dosen_id || (row.dosen && row.dosen.length > 0)) && (
+                          {(row.dosen_id ||
+                            (row.dosen && row.dosen.length > 0)) && (
                             <button
-                              onClick={() => navigate(`/absensi-praktikum/${kode}/${row.id}`)}
+                              onClick={() =>
+                                navigate(`/absensi-praktikum/${kode}/${row.id}`)
+                              }
                               className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors shrink-0"
                               title="Buka Absensi"
                             >
-                              <FontAwesomeIcon icon={faCheckCircle} className="w-3.5 h-3.5 shrink-0" />
-                              <span className="hidden xl:inline whitespace-nowrap">Absensi</span>
+                              <FontAwesomeIcon
+                                icon={faCheckCircle}
+                                className="w-3.5 h-3.5 shrink-0"
+                              />
+                              <span className="hidden xl:inline whitespace-nowrap">
+                                Absensi
+                              </span>
                             </button>
                           )}
                           <button
@@ -15134,7 +15443,9 @@ export default function DetailBlok() {
                               icon={faPenToSquare}
                               className="w-3.5 h-3.5 shrink-0"
                             />
-                            <span className="hidden xl:inline whitespace-nowrap">Edit</span>
+                            <span className="hidden xl:inline whitespace-nowrap">
+                              Edit
+                            </span>
                           </button>
 
                           <button
@@ -15146,7 +15457,9 @@ export default function DetailBlok() {
                               icon={faTrash}
                               className="w-3.5 h-3.5 shrink-0"
                             />
-                            <span className="hidden xl:inline whitespace-nowrap">Hapus</span>
+                            <span className="hidden xl:inline whitespace-nowrap">
+                              Hapus
+                            </span>
                           </button>
                         </div>
                       </td>
@@ -15966,7 +16279,8 @@ export default function DetailBlok() {
 
                     {form.jenisBaris === "jurnal" && "Jurnal Reading"}
 
-                    {form.jenisBaris === "persamaan-persepsi" && "Persamaan Persepsi"}
+                    {form.jenisBaris === "persamaan-persepsi" &&
+                      "Persamaan Persepsi"}
 
                     {form.jenisBaris === "seminar-pleno" && "Seminar Pleno"}
                   </div>
@@ -20649,7 +20963,8 @@ export default function DetailBlok() {
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Koordinator Dosen
+                          Koordinator Dosen{" "}
+                          <span className="text-red-500">*</span>
                         </label>
                         {loadingAssignedPBL ? (
                           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
@@ -20703,42 +21018,94 @@ export default function DetailBlok() {
                           </div>
                         ) : (
                           <Select
-                            isMulti
                             options={assignedDosenPBL.map((d) => {
                               // Disable dosen yang sudah dipilih sebagai Pengampu
-                              const isDisabled = Array.isArray(form.pengampu) && (form.pengampu as number[]).includes(d.id);
+                              const isDisabled =
+                                Array.isArray(form.pengampu) &&
+                                (form.pengampu as number[]).includes(d.id);
                               return {
                                 value: d.id,
                                 label: d.name,
+                                data: d,
                                 isDisabled: isDisabled,
                               };
                             })}
                             value={
-                              Array.isArray(form.koordinator) && form.koordinator.length > 0
-                                ? assignedDosenPBL
-                                    .filter((d) =>
-                                      (form.koordinator as number[]).includes(d.id)
-                                    )
-                                    .map((d) => ({
-                                      value: d.id,
-                                      label: d.name,
+                              Array.isArray(form.koordinator) &&
+                              form.koordinator.length > 0
+                                ? assignedDosenPBL.find(
+                                    (d) =>
+                                      d.id === (form.koordinator as number[])[0]
+                                  )
+                                  ? {
+                                      value: (form.koordinator as number[])[0],
+                                      label:
+                                        assignedDosenPBL.find(
+                                          (d) =>
+                                            d.id ===
+                                            (form.koordinator as number[])[0]
+                                        )?.name || "",
+                                      data: assignedDosenPBL.find(
+                                        (d) =>
+                                          d.id ===
+                                          (form.koordinator as number[])[0]
+                                      ),
                                       isDisabled: false,
-                                    }))
-                                : []
+                                    }
+                                  : null
+                                : form.koordinator &&
+                                  typeof form.koordinator === "number"
+                                ? assignedDosenPBL.find(
+                                    (d) => d.id === form.koordinator
+                                  )
+                                  ? {
+                                      value: form.koordinator,
+                                      label:
+                                        assignedDosenPBL.find(
+                                          (d) => d.id === form.koordinator
+                                        )?.name || "",
+                                      data: assignedDosenPBL.find(
+                                        (d) => d.id === form.koordinator
+                                      ),
+                                      isDisabled: false,
+                                    }
+                                  : null
+                                : null
                             }
                             onChange={(selected) => {
-                              const selectedIds = Array.isArray(selected)
-                                ? selected.map((s) => s.value)
-                                : [];
+                              const selectedId = selected
+                                ? selected.value
+                                : null;
                               setForm((f) => ({
                                 ...f,
-                                koordinator: selectedIds,
+                                koordinator: selectedId ? [selectedId] : [],
                               }));
                             }}
-                            placeholder="Pilih Koordinator Dosen (bisa lebih dari 1)"
-                            isOptionDisabled={(option: any) => option.isDisabled}
+                            placeholder="Pilih Koordinator Dosen (wajib, maksimal 1)"
+                            isOptionDisabled={(option: any) =>
+                              option.isDisabled
+                            }
+                            isClearable
                             classNamePrefix="react-select"
                             className="react-select-container"
+                            formatOptionLabel={(option: any) => {
+                              const dosen = option.data;
+                              if (dosen) {
+                                return (
+                                  <div className="flex items-center gap-2 p-2">
+                                    <div className="w-6 h-6 rounded-full flex items-center justify-center bg-green-500">
+                                      <span className="text-white text-xs font-bold">
+                                        {dosen.name.charAt(0)}
+                                      </span>
+                                    </div>
+                                    <span className="text-xs font-medium text-green-700 dark:text-green-200">
+                                      {dosen.name}
+                                    </span>
+                                  </div>
+                                );
+                              }
+                              return option.label;
+                            }}
                             styles={{
                               control: (base, state) => ({
                                 ...base,
@@ -20793,7 +21160,7 @@ export default function DetailBlok() {
                                 backgroundColor: state.isDisabled
                                   ? "#f3f4f6"
                                   : state.isSelected
-                                  ? "#bfdbfe"
+                                  ? "#3b82f6"
                                   : state.isFocused
                                   ? document.documentElement.classList.contains(
                                       "dark"
@@ -20808,50 +21175,17 @@ export default function DetailBlok() {
                                 color: state.isDisabled
                                   ? "#9ca3af"
                                   : state.isSelected
-                                  ? "#1e40af"
+                                  ? "#fff"
                                   : document.documentElement.classList.contains(
                                       "dark"
                                     )
                                   ? "#fff"
                                   : "#1f2937",
-                                cursor: state.isDisabled ? "not-allowed" : "default",
+                                cursor: state.isDisabled
+                                  ? "not-allowed"
+                                  : "default",
                                 fontSize: "1rem",
-                              }),
-                              multiValue: (base) => ({
-                                ...base,
-                                backgroundColor:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#1e3a8a"
-                                    : "#bfdbfe",
-                              }),
-                              multiValueLabel: (base) => ({
-                                ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#dbeafe"
-                                    : "#1e40af",
-                              }),
-                              multiValueRemove: (base) => ({
-                                ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#dbeafe"
-                                    : "#1e40af",
-                                "&:hover": {
-                                  backgroundColor:
-                                    document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                      ? "#1e40af"
-                                      : "#93c5fd",
-                                  color: "#fff",
-                                },
+                                padding: "0.5rem",
                               }),
                               singleValue: (base) => ({
                                 ...base,
@@ -20958,16 +21292,19 @@ export default function DetailBlok() {
                             isMulti
                             options={assignedDosenPBL.map((d) => {
                               // Disable dosen yang sudah dipilih sebagai Koordinator Dosen
-                              const isDisabled = Array.isArray(form.koordinator) && (form.koordinator as number[]).includes(d.id);
+                              const isDisabled =
+                                Array.isArray(form.koordinator) &&
+                                (form.koordinator as number[]).includes(d.id);
                               return {
                                 value: d.id,
                                 label: d.name,
-                                peran: "", // Not displayed, but required for type compatibility
+                                data: d,
                                 isDisabled: isDisabled,
                               };
                             })}
                             value={
-                              Array.isArray(form.pengampu) && form.pengampu.length > 0
+                              Array.isArray(form.pengampu) &&
+                              form.pengampu.length > 0
                                 ? assignedDosenPBL
                                     .filter((d) =>
                                       (form.pengampu as number[]).includes(d.id)
@@ -20975,7 +21312,7 @@ export default function DetailBlok() {
                                     .map((d) => ({
                                       value: d.id,
                                       label: d.name,
-                                      peran: "", // Not displayed, but required for type compatibility
+                                      data: d,
                                       isDisabled: false,
                                     }))
                                 : []
@@ -20990,9 +21327,29 @@ export default function DetailBlok() {
                               }));
                             }}
                             placeholder="Pilih Dosen (bisa lebih dari 1)"
-                            isOptionDisabled={(option: any) => option.isDisabled}
+                            isOptionDisabled={(option: any) =>
+                              option.isDisabled
+                            }
                             classNamePrefix="react-select"
                             className="react-select-container"
+                            formatOptionLabel={(option: any) => {
+                              const dosen = option.data;
+                              if (dosen) {
+                                return (
+                                  <div className="flex items-center gap-2 p-2">
+                                    <div className="w-6 h-6 rounded-full flex items-center justify-center bg-green-500">
+                                      <span className="text-white text-xs font-bold">
+                                        {dosen.name.charAt(0)}
+                                      </span>
+                                    </div>
+                                    <span className="text-xs font-medium text-green-700 dark:text-green-200">
+                                      {dosen.name}
+                                    </span>
+                                  </div>
+                                );
+                              }
+                              return option.label;
+                            }}
                             styles={{
                               control: (base, state) => ({
                                 ...base,
@@ -21047,7 +21404,7 @@ export default function DetailBlok() {
                                 backgroundColor: state.isDisabled
                                   ? "#f3f4f6"
                                   : state.isSelected
-                                  ? "#bfdbfe"
+                                  ? "#3b82f6"
                                   : state.isFocused
                                   ? document.documentElement.classList.contains(
                                       "dark"
@@ -21062,44 +21419,41 @@ export default function DetailBlok() {
                                 color: state.isDisabled
                                   ? "#9ca3af"
                                   : state.isSelected
-                                  ? "#1e40af"
+                                  ? "#fff"
                                   : document.documentElement.classList.contains(
                                       "dark"
                                     )
                                   ? "#fff"
                                   : "#1f2937",
-                                cursor: state.isDisabled ? "not-allowed" : "default",
                                 fontSize: "1rem",
+                                padding: "0.5rem",
                               }),
                               multiValue: (base) => ({
                                 ...base,
-                                backgroundColor:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#1e3a8a"
-                                    : "#bfdbfe",
+                                backgroundColor: "#dcfce7", // green-100
+                                border: "1px solid #bbf7d0", // green-200
+                                borderRadius: "9999px", // rounded-full
+                                padding: "0.25rem 0.75rem", // px-3 py-1
+                                margin: "0.125rem",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.5rem", // gap-2
                               }),
                               multiValueLabel: (base) => ({
                                 ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#dbeafe"
-                                    : "#1e40af",
+                                color: "#166534", // green-700
+                                fontWeight: "500", // font-medium
+                                fontSize: "0.75rem", // text-xs
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.5rem", // gap-2
                               }),
                               multiValueRemove: (base) => ({
                                 ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#fff"
-                                    : "#1f2937",
-                                "&:hover": {
-                                  backgroundColor: "#ef4444",
-                                  color: "#fff",
+                                color: "#ef4444", // red-500
+                                ":hover": {
+                                  backgroundColor: "#fee2e2", // red-100
+                                  color: "#dc2626", // red-600
                                 },
                               }),
                               placeholder: (base) => ({
@@ -21135,11 +21489,48 @@ export default function DetailBlok() {
                                 backgroundColor: "transparent",
                               }),
                             }}
+                            components={{
+                              MultiValue: ({ data, removeProps }: any) => {
+                                const dosen = data.data;
+                                if (dosen) {
+                                  return (
+                                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/40">
+                                      <div className="w-6 h-6 rounded-full flex items-center justify-center bg-green-500">
+                                        <span className="text-white text-xs font-bold">
+                                          {dosen.name.charAt(0)}
+                                        </span>
+                                      </div>
+                                      <span className="text-xs font-medium text-green-700 dark:text-green-200">
+                                        {dosen.name}
+                                      </span>
+                                      <button
+                                        className="ml-2 p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-full transition text-xs"
+                                        title="Hapus dosen"
+                                        {...removeProps}
+                                      >
+                                        <svg
+                                          className="w-3 h-3"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M6 18L18 6M6 6l12 12"
+                                          />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              },
+                            }}
                           />
                         )}
                       </div>
-
-                    
 
                       <div>
                         <label className="flex items-center gap-2 cursor-pointer select-none text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -21194,163 +21585,163 @@ export default function DetailBlok() {
                             Ruangan
                           </label>
                           {ruanganList.length === 0 ? (
-                          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
-                            <div className="flex items-center gap-2">
-                              <svg
-                                className="w-5 h-5 text-orange-500"
-                                fill="currentColor"
-                                viewBox="0 0 20 20"
-                              >
-                                <path
-                                  fillRule="evenodd"
-                                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
-                              <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                                Belum ada ruangan yang ditambahkan untuk mata
-                                kuliah ini
-                              </span>
+                            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+                              <div className="flex items-center gap-2">
+                                <svg
+                                  className="w-5 h-5 text-orange-500"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                                <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
+                                  Belum ada ruangan yang ditambahkan untuk mata
+                                  kuliah ini
+                                </span>
+                              </div>
+                              <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
+                                Silakan tambahkan ruangan terlebih dahulu di
+                                halaman Ruangan Detail
+                              </p>
                             </div>
-                            <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                              Silakan tambahkan ruangan terlebih dahulu di
-                              halaman Ruangan Detail
-                            </p>
-                          </div>
-                        ) : (
-                          <Select
-                            options={getRuanganOptionsLocal()}
-                            value={
-                              getRuanganOptionsLocal().find(
-                                (opt) => opt.value === form.lokasi
-                              ) || null
-                            }
-                            onChange={(opt) =>
-                              setForm((f) => ({
-                                ...f,
-                                lokasi: opt ? Number(opt.value) : null,
-                              }))
-                            }
-                            placeholder="Pilih Ruangan"
-                            isClearable
-                            classNamePrefix="react-select"
-                            className="react-select-container"
-                            styles={{
-                              control: (base, state) => ({
-                                ...base,
-                                backgroundColor:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#1e293b"
-                                    : "#f9fafb",
-                                borderColor: state.isFocused
-                                  ? "#3b82f6"
-                                  : document.documentElement.classList.contains(
+                          ) : (
+                            <Select
+                              options={getRuanganOptionsLocal()}
+                              value={
+                                getRuanganOptionsLocal().find(
+                                  (opt) => opt.value === form.lokasi
+                                ) || null
+                              }
+                              onChange={(opt) =>
+                                setForm((f) => ({
+                                  ...f,
+                                  lokasi: opt ? Number(opt.value) : null,
+                                }))
+                              }
+                              placeholder="Pilih Ruangan"
+                              isClearable
+                              classNamePrefix="react-select"
+                              className="react-select-container"
+                              styles={{
+                                control: (base, state) => ({
+                                  ...base,
+                                  backgroundColor:
+                                    document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#334155"
-                                  : "#d1d5db",
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#fff"
-                                    : "#1f2937",
-                                boxShadow: state.isFocused
-                                  ? "0 0 0 2px #3b82f633"
-                                  : undefined,
-                                borderRadius: "0.75rem",
-                                minHeight: "2.5rem",
-                                fontSize: "1rem",
-                                paddingLeft: "0.75rem",
-                                paddingRight: "0.75rem",
-                                "&:hover": { borderColor: "#3b82f6" },
-                              }),
-                              menu: (base) => ({
-                                ...base,
-                                zIndex: 9999,
-                                fontSize: "1rem",
-                                backgroundColor:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
+                                      ? "#1e293b"
+                                      : "#f9fafb",
+                                  borderColor: state.isFocused
+                                    ? "#3b82f6"
+                                    : document.documentElement.classList.contains(
+                                        "dark"
+                                      )
+                                    ? "#334155"
+                                    : "#d1d5db",
+                                  color:
+                                    document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#fff"
+                                      : "#1f2937",
+                                  boxShadow: state.isFocused
+                                    ? "0 0 0 2px #3b82f633"
+                                    : undefined,
+                                  borderRadius: "0.75rem",
+                                  minHeight: "2.5rem",
+                                  fontSize: "1rem",
+                                  paddingLeft: "0.75rem",
+                                  paddingRight: "0.75rem",
+                                  "&:hover": { borderColor: "#3b82f6" },
+                                }),
+                                menu: (base) => ({
+                                  ...base,
+                                  zIndex: 9999,
+                                  fontSize: "1rem",
+                                  backgroundColor:
+                                    document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#1e293b"
+                                      : "#fff",
+                                  color:
+                                    document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#fff"
+                                      : "#1f2937",
+                                }),
+                                option: (base, state) => ({
+                                  ...base,
+                                  backgroundColor: state.isSelected
+                                    ? "#3b82f6"
+                                    : state.isFocused
+                                    ? document.documentElement.classList.contains(
+                                        "dark"
+                                      )
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
+                                        "dark"
+                                      )
                                     ? "#1e293b"
                                     : "#fff",
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
+                                  color: state.isSelected
+                                    ? "#fff"
+                                    : document.documentElement.classList.contains(
+                                        "dark"
+                                      )
                                     ? "#fff"
                                     : "#1f2937",
-                              }),
-                              option: (base, state) => ({
-                                ...base,
-                                backgroundColor: state.isSelected
-                                  ? "#3b82f6"
-                                  : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                  fontSize: "1rem",
+                                }),
+                                singleValue: (base) => ({
+                                  ...base,
+                                  color:
+                                    document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#fff"
+                                      : "#1f2937",
+                                }),
+                                placeholder: (base) => ({
+                                  ...base,
+                                  color:
+                                    document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
-                                color: state.isSelected
-                                  ? "#fff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#64748b"
+                                      : "#6b7280",
+                                }),
+                                input: (base) => ({
+                                  ...base,
+                                  color:
+                                    document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#fff"
-                                  : "#1f2937",
-                                fontSize: "1rem",
-                              }),
-                              singleValue: (base) => ({
-                                ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#fff"
-                                    : "#1f2937",
-                              }),
-                              placeholder: (base) => ({
-                                ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#64748b"
-                                    : "#6b7280",
-                              }),
-                              input: (base) => ({
-                                ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#fff"
-                                    : "#1f2937",
-                              }),
-                              dropdownIndicator: (base) => ({
-                                ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#64748b"
-                                    : "#6b7280",
-                                "&:hover": { color: "#3b82f6" },
-                              }),
-                              indicatorSeparator: (base) => ({
-                                ...base,
-                                backgroundColor: "transparent",
-                              }),
-                            }}
-                          />
+                                      ? "#fff"
+                                      : "#1f2937",
+                                }),
+                                dropdownIndicator: (base) => ({
+                                  ...base,
+                                  color:
+                                    document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#64748b"
+                                      : "#6b7280",
+                                  "&:hover": { color: "#3b82f6" },
+                                }),
+                                indicatorSeparator: (base) => ({
+                                  ...base,
+                                  backgroundColor: "transparent",
+                                }),
+                              }}
+                            />
                           )}
                         </div>
                       )}
@@ -22794,7 +23185,8 @@ export default function DetailBlok() {
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                          Koordinator Dosen
+                          Koordinator Dosen{" "}
+                          <span className="text-red-500">*</span>
                         </label>
                         {loadingAssignedPBL ? (
                           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
@@ -22850,43 +23242,93 @@ export default function DetailBlok() {
                           <Select
                             options={assignedDosenPBL.map((d) => {
                               // Disable dosen yang sudah dipilih sebagai Pengampu
-                              const isDisabled = Array.isArray(form.pengampu) && (form.pengampu as number[]).includes(d.id);
+                              const isDisabled =
+                                Array.isArray(form.pengampu) &&
+                                (form.pengampu as number[]).includes(d.id);
                               return {
                                 value: d.id,
                                 label: d.name,
+                                data: d,
                                 isDisabled: isDisabled,
                               };
                             })}
                             value={
-                              Array.isArray(form.koordinator) && form.koordinator.length > 0
-                                ? assignedDosenPBL.find((d) => (form.koordinator as number[]).includes(d.id))
+                              Array.isArray(form.koordinator) &&
+                              form.koordinator.length > 0
+                                ? assignedDosenPBL.find((d) =>
+                                    (form.koordinator as number[]).includes(
+                                      d.id
+                                    )
+                                  )
                                   ? {
                                       value: (form.koordinator as number[])[0],
-                                      label: assignedDosenPBL.find((d) => d.id === (form.koordinator as number[])[0])?.name || '',
+                                      label:
+                                        assignedDosenPBL.find(
+                                          (d) =>
+                                            d.id ===
+                                            (form.koordinator as number[])[0]
+                                        )?.name || "",
+                                      data: assignedDosenPBL.find(
+                                        (d) =>
+                                          d.id ===
+                                          (form.koordinator as number[])[0]
+                                      ),
                                       isDisabled: false,
                                     }
                                   : null
-                                : form.koordinator && typeof form.koordinator === 'number'
-                                ? assignedDosenPBL.find((d) => d.id === form.koordinator)
+                                : form.koordinator &&
+                                  typeof form.koordinator === "number"
+                                ? assignedDosenPBL.find(
+                                    (d) => d.id === form.koordinator
+                                  )
                                   ? {
                                       value: form.koordinator,
-                                      label: assignedDosenPBL.find((d) => d.id === form.koordinator)?.name || '',
+                                      label:
+                                        assignedDosenPBL.find(
+                                          (d) => d.id === form.koordinator
+                                        )?.name || "",
+                                      data: assignedDosenPBL.find(
+                                        (d) => d.id === form.koordinator
+                                      ),
                                       isDisabled: false,
                                     }
                                   : null
                                 : null
                             }
                             onChange={(selected) => {
-                              const selectedId = selected ? selected.value : null;
+                              const selectedId = selected
+                                ? selected.value
+                                : null;
                               setForm((f) => ({
                                 ...f,
                                 koordinator: selectedId ? [selectedId] : [],
                               }));
                             }}
-                            placeholder="Pilih Koordinator Dosen (hanya 1)"
-                            isOptionDisabled={(option: any) => option.isDisabled}
+                            placeholder="Pilih Koordinator Dosen (wajib, maksimal 1)"
+                            isOptionDisabled={(option: any) =>
+                              option.isDisabled
+                            }
+                            isClearable
                             classNamePrefix="react-select"
                             className="react-select-container"
+                            formatOptionLabel={(option: any) => {
+                              const dosen = option.data;
+                              if (dosen) {
+                                return (
+                                  <div className="flex items-center gap-2 p-2">
+                                    <div className="w-6 h-6 rounded-full flex items-center justify-center bg-green-500">
+                                      <span className="text-white text-xs font-bold">
+                                        {dosen.name.charAt(0)}
+                                      </span>
+                                    </div>
+                                    <span className="text-xs font-medium text-green-700 dark:text-green-200">
+                                      {dosen.name}
+                                    </span>
+                                  </div>
+                                );
+                              }
+                              return option.label;
+                            }}
                             styles={{
                               control: (base, state) => ({
                                 ...base,
@@ -22941,7 +23383,7 @@ export default function DetailBlok() {
                                 backgroundColor: state.isDisabled
                                   ? "#f3f4f6"
                                   : state.isSelected
-                                  ? "#bfdbfe"
+                                  ? "#3b82f6"
                                   : state.isFocused
                                   ? document.documentElement.classList.contains(
                                       "dark"
@@ -22956,50 +23398,17 @@ export default function DetailBlok() {
                                 color: state.isDisabled
                                   ? "#9ca3af"
                                   : state.isSelected
-                                  ? "#1e40af"
+                                  ? "#fff"
                                   : document.documentElement.classList.contains(
                                       "dark"
                                     )
                                   ? "#fff"
                                   : "#1f2937",
-                                cursor: state.isDisabled ? "not-allowed" : "default",
+                                cursor: state.isDisabled
+                                  ? "not-allowed"
+                                  : "default",
                                 fontSize: "1rem",
-                              }),
-                              multiValue: (base) => ({
-                                ...base,
-                                backgroundColor:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#1e3a8a"
-                                    : "#bfdbfe",
-                              }),
-                              multiValueLabel: (base) => ({
-                                ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#dbeafe"
-                                    : "#1e40af",
-                              }),
-                              multiValueRemove: (base) => ({
-                                ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#dbeafe"
-                                    : "#1e40af",
-                                "&:hover": {
-                                  backgroundColor:
-                                    document.documentElement.classList.contains(
-                                      "dark"
-                                    )
-                                      ? "#1e40af"
-                                      : "#93c5fd",
-                                  color: "#fff",
-                                },
+                                padding: "0.5rem",
                               }),
                               singleValue: (base) => ({
                                 ...base,
@@ -23106,15 +23515,19 @@ export default function DetailBlok() {
                             isMulti
                             options={assignedDosenPBL.map((d) => {
                               // Disable dosen yang sudah dipilih sebagai Koordinator
-                              const isDisabled = Array.isArray(form.koordinator) && (form.koordinator as number[]).includes(d.id);
+                              const isDisabled =
+                                Array.isArray(form.koordinator) &&
+                                (form.koordinator as number[]).includes(d.id);
                               return {
                                 value: d.id,
                                 label: d.name,
+                                data: d,
                                 isDisabled: isDisabled,
                               };
                             })}
                             value={
-                              Array.isArray(form.pengampu) && form.pengampu.length > 0
+                              Array.isArray(form.pengampu) &&
+                              form.pengampu.length > 0
                                 ? assignedDosenPBL
                                     .filter((d) =>
                                       (form.pengampu as number[]).includes(d.id)
@@ -23122,6 +23535,7 @@ export default function DetailBlok() {
                                     .map((d) => ({
                                       value: d.id,
                                       label: d.name,
+                                      data: d,
                                       isDisabled: false,
                                     }))
                                 : []
@@ -23136,9 +23550,29 @@ export default function DetailBlok() {
                               }));
                             }}
                             placeholder="Pilih Dosen (bisa lebih dari 1)"
-                            isOptionDisabled={(option: any) => option.isDisabled}
+                            isOptionDisabled={(option: any) =>
+                              option.isDisabled
+                            }
                             classNamePrefix="react-select"
                             className="react-select-container"
+                            formatOptionLabel={(option: any) => {
+                              const dosen = option.data;
+                              if (dosen) {
+                                return (
+                                  <div className="flex items-center gap-2 p-2">
+                                    <div className="w-6 h-6 rounded-full flex items-center justify-center bg-green-500">
+                                      <span className="text-white text-xs font-bold">
+                                        {dosen.name.charAt(0)}
+                                      </span>
+                                    </div>
+                                    <span className="text-xs font-medium text-green-700 dark:text-green-200">
+                                      {dosen.name}
+                                    </span>
+                                  </div>
+                                );
+                              }
+                              return option.label;
+                            }}
                             styles={{
                               control: (base, state) => ({
                                 ...base,
@@ -23193,7 +23627,7 @@ export default function DetailBlok() {
                                 backgroundColor: state.isDisabled
                                   ? "#f3f4f6"
                                   : state.isSelected
-                                  ? "#bfdbfe"
+                                  ? "#3b82f6"
                                   : state.isFocused
                                   ? document.documentElement.classList.contains(
                                       "dark"
@@ -23208,44 +23642,41 @@ export default function DetailBlok() {
                                 color: state.isDisabled
                                   ? "#9ca3af"
                                   : state.isSelected
-                                  ? "#1e40af"
+                                  ? "#fff"
                                   : document.documentElement.classList.contains(
                                       "dark"
                                     )
                                   ? "#fff"
                                   : "#1f2937",
-                                cursor: state.isDisabled ? "not-allowed" : "default",
                                 fontSize: "1rem",
+                                padding: "0.5rem",
                               }),
                               multiValue: (base) => ({
                                 ...base,
-                                backgroundColor:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#1e3a8a"
-                                    : "#bfdbfe",
+                                backgroundColor: "#dcfce7", // green-100
+                                border: "1px solid #bbf7d0", // green-200
+                                borderRadius: "9999px", // rounded-full
+                                padding: "0.25rem 0.75rem", // px-3 py-1
+                                margin: "0.125rem",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.5rem", // gap-2
                               }),
                               multiValueLabel: (base) => ({
                                 ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#dbeafe"
-                                    : "#1e40af",
+                                color: "#166534", // green-700
+                                fontWeight: "500", // font-medium
+                                fontSize: "0.75rem", // text-xs
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.5rem", // gap-2
                               }),
                               multiValueRemove: (base) => ({
                                 ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#fff"
-                                    : "#1f2937",
-                                "&:hover": {
-                                  backgroundColor: "#ef4444",
-                                  color: "#fff",
+                                color: "#ef4444", // red-500
+                                ":hover": {
+                                  backgroundColor: "#fee2e2", // red-100
+                                  color: "#dc2626", // red-600
                                 },
                               }),
                               placeholder: (base) => ({
@@ -23281,11 +23712,50 @@ export default function DetailBlok() {
                                 backgroundColor: "transparent",
                               }),
                             }}
+                            components={{
+                              MultiValue: ({ data, removeProps }: any) => {
+                                const dosen = data.data;
+                                if (dosen) {
+                                  return (
+                                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/40">
+                                      <div className="w-6 h-6 rounded-full flex items-center justify-center bg-green-500">
+                                        <span className="text-white text-xs font-bold">
+                                          {dosen.name.charAt(0)}
+                                        </span>
+                                      </div>
+                                      <span className="text-xs font-medium text-green-700 dark:text-green-200">
+                                        {dosen.name}
+                                      </span>
+                                      <button
+                                        className="ml-2 p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-full transition text-xs"
+                                        title="Hapus dosen"
+                                        {...removeProps}
+                                      >
+                                        <svg
+                                          className="w-3 h-3"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M6 18L18 6M6 6l12 12"
+                                          />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              },
+                            }}
                           />
                         )}
                       </div>
 
-<div>
+                      <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Kelompok Besar
                         </label>
@@ -23549,163 +24019,163 @@ export default function DetailBlok() {
                             Ruangan
                           </label>
                           {ruanganList.length === 0 ? (
-                          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
-                            <div className="flex items-center gap-2">
-                              <svg
-                                className="w-5 h-5 text-orange-500"
-                                fill="currentColor"
-                                viewBox="0 0 20 20"
-                              >
-                                <path
-                                  fillRule="evenodd"
-                                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
-                              <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                                Belum ada ruangan yang ditambahkan untuk mata
-                                kuliah ini
-                              </span>
+                            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+                              <div className="flex items-center gap-2">
+                                <svg
+                                  className="w-5 h-5 text-orange-500"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                                <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
+                                  Belum ada ruangan yang ditambahkan untuk mata
+                                  kuliah ini
+                                </span>
+                              </div>
+                              <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
+                                Silakan tambahkan ruangan terlebih dahulu di
+                                halaman Ruangan Detail
+                              </p>
                             </div>
-                            <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                              Silakan tambahkan ruangan terlebih dahulu di
-                              halaman Ruangan Detail
-                            </p>
-                          </div>
-                        ) : (
-                          <Select
-                            options={getRuanganOptionsLocal()}
-                            value={
-                              getRuanganOptionsLocal().find(
-                                (opt) => opt.value === form.lokasi
-                              ) || null
-                            }
-                            onChange={(opt) =>
-                              setForm((f) => ({
-                                ...f,
-                                lokasi: opt ? Number(opt.value) : null,
-                              }))
-                            }
-                            placeholder="Pilih Ruangan"
-                            isClearable
-                            classNamePrefix="react-select"
-                            className="react-select-container"
-                            styles={{
-                              control: (base, state) => ({
-                                ...base,
-                                backgroundColor:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#1e293b"
-                                    : "#f9fafb",
-                                borderColor: state.isFocused
-                                  ? "#3b82f6"
-                                  : document.documentElement.classList.contains(
+                          ) : (
+                            <Select
+                              options={getRuanganOptionsLocal()}
+                              value={
+                                getRuanganOptionsLocal().find(
+                                  (opt) => opt.value === form.lokasi
+                                ) || null
+                              }
+                              onChange={(opt) =>
+                                setForm((f) => ({
+                                  ...f,
+                                  lokasi: opt ? Number(opt.value) : null,
+                                }))
+                              }
+                              placeholder="Pilih Ruangan"
+                              isClearable
+                              classNamePrefix="react-select"
+                              className="react-select-container"
+                              styles={{
+                                control: (base, state) => ({
+                                  ...base,
+                                  backgroundColor:
+                                    document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#334155"
-                                  : "#d1d5db",
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#fff"
-                                    : "#1f2937",
-                                boxShadow: state.isFocused
-                                  ? "0 0 0 2px #3b82f633"
-                                  : undefined,
-                                borderRadius: "0.75rem",
-                                minHeight: "2.5rem",
-                                fontSize: "1rem",
-                                paddingLeft: "0.75rem",
-                                paddingRight: "0.75rem",
-                                "&:hover": { borderColor: "#3b82f6" },
-                              }),
-                              menu: (base) => ({
-                                ...base,
-                                zIndex: 9999,
-                                fontSize: "1rem",
-                                backgroundColor:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
+                                      ? "#1e293b"
+                                      : "#f9fafb",
+                                  borderColor: state.isFocused
+                                    ? "#3b82f6"
+                                    : document.documentElement.classList.contains(
+                                        "dark"
+                                      )
+                                    ? "#334155"
+                                    : "#d1d5db",
+                                  color:
+                                    document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#fff"
+                                      : "#1f2937",
+                                  boxShadow: state.isFocused
+                                    ? "0 0 0 2px #3b82f633"
+                                    : undefined,
+                                  borderRadius: "0.75rem",
+                                  minHeight: "2.5rem",
+                                  fontSize: "1rem",
+                                  paddingLeft: "0.75rem",
+                                  paddingRight: "0.75rem",
+                                  "&:hover": { borderColor: "#3b82f6" },
+                                }),
+                                menu: (base) => ({
+                                  ...base,
+                                  zIndex: 9999,
+                                  fontSize: "1rem",
+                                  backgroundColor:
+                                    document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#1e293b"
+                                      : "#fff",
+                                  color:
+                                    document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#fff"
+                                      : "#1f2937",
+                                }),
+                                option: (base, state) => ({
+                                  ...base,
+                                  backgroundColor: state.isSelected
+                                    ? "#3b82f6"
+                                    : state.isFocused
+                                    ? document.documentElement.classList.contains(
+                                        "dark"
+                                      )
+                                      ? "#334155"
+                                      : "#e0e7ff"
+                                    : document.documentElement.classList.contains(
+                                        "dark"
+                                      )
                                     ? "#1e293b"
                                     : "#fff",
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
+                                  color: state.isSelected
+                                    ? "#fff"
+                                    : document.documentElement.classList.contains(
+                                        "dark"
+                                      )
                                     ? "#fff"
                                     : "#1f2937",
-                              }),
-                              option: (base, state) => ({
-                                ...base,
-                                backgroundColor: state.isSelected
-                                  ? "#3b82f6"
-                                  : state.isFocused
-                                  ? document.documentElement.classList.contains(
+                                  fontSize: "1rem",
+                                }),
+                                singleValue: (base) => ({
+                                  ...base,
+                                  color:
+                                    document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                    ? "#334155"
-                                    : "#e0e7ff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#fff"
+                                      : "#1f2937",
+                                }),
+                                placeholder: (base) => ({
+                                  ...base,
+                                  color:
+                                    document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#1e293b"
-                                  : "#fff",
-                                color: state.isSelected
-                                  ? "#fff"
-                                  : document.documentElement.classList.contains(
+                                      ? "#64748b"
+                                      : "#6b7280",
+                                }),
+                                input: (base) => ({
+                                  ...base,
+                                  color:
+                                    document.documentElement.classList.contains(
                                       "dark"
                                     )
-                                  ? "#fff"
-                                  : "#1f2937",
-                                fontSize: "1rem",
-                              }),
-                              singleValue: (base) => ({
-                                ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#fff"
-                                    : "#1f2937",
-                              }),
-                              placeholder: (base) => ({
-                                ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#64748b"
-                                    : "#6b7280",
-                              }),
-                              input: (base) => ({
-                                ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#fff"
-                                    : "#1f2937",
-                              }),
-                              dropdownIndicator: (base) => ({
-                                ...base,
-                                color:
-                                  document.documentElement.classList.contains(
-                                    "dark"
-                                  )
-                                    ? "#64748b"
-                                    : "#6b7280",
-                                "&:hover": { color: "#3b82f6" },
-                              }),
-                              indicatorSeparator: (base) => ({
-                                ...base,
-                                backgroundColor: "transparent",
-                              }),
-                            }}
-                          />
+                                      ? "#fff"
+                                      : "#1f2937",
+                                }),
+                                dropdownIndicator: (base) => ({
+                                  ...base,
+                                  color:
+                                    document.documentElement.classList.contains(
+                                      "dark"
+                                    )
+                                      ? "#64748b"
+                                      : "#6b7280",
+                                  "&:hover": { color: "#3b82f6" },
+                                }),
+                                indicatorSeparator: (base) => ({
+                                  ...base,
+                                  backgroundColor: "transparent",
+                                }),
+                              }}
+                            />
                           )}
                         </div>
                       )}
@@ -23869,10 +24339,19 @@ export default function DetailBlok() {
                               jam_mulai: form.jamMulai,
                               jam_selesai: form.jamSelesai,
                               jumlah_sesi: form.jumlahKali,
-                              topik: form.topik && form.topik.trim() ? form.topik.trim() : null,
-                              dosen_ids: Array.isArray(form.pengampu) ? form.pengampu : [], // Pengampu (non-koordinator)
-                              koordinator_ids: Array.isArray(form.koordinator) ? form.koordinator : [], // Koordinator (opsional)
-                              ruangan_id: form.useRuangan ? Number(form.lokasi) : null,
+                              topik:
+                                form.topik && form.topik.trim()
+                                  ? form.topik.trim()
+                                  : null,
+                              dosen_ids: Array.isArray(form.pengampu)
+                                ? form.pengampu
+                                : [], // Pengampu (non-koordinator)
+                              koordinator_ids: Array.isArray(form.koordinator)
+                                ? form.koordinator
+                                : [], // Koordinator (wajib)
+                              ruangan_id: form.useRuangan
+                                ? Number(form.lokasi)
+                                : null,
                               use_ruangan: form.useRuangan,
                             };
                             await handleEditJadwalPersamaanPersepsi(
@@ -23890,11 +24369,22 @@ export default function DetailBlok() {
                               jam_mulai: form.jamMulai,
                               jam_selesai: form.jamSelesai,
                               jumlah_sesi: form.jumlahKali,
-                              topik: form.topik && form.topik.trim() ? form.topik.trim() : null,
-                              dosen_ids: Array.isArray(form.pengampu) ? form.pengampu : [], // Pengampu (non-koordinator)
-                              koordinator_ids: Array.isArray(form.koordinator) ? form.koordinator : [], // Koordinator (opsional)
-                              kelompok_besar_id: form.kelompokBesar ? Number(form.kelompokBesar) : null,
-                              ruangan_id: form.useRuangan ? Number(form.lokasi) : null,
+                              topik:
+                                form.topik && form.topik.trim()
+                                  ? form.topik.trim()
+                                  : null,
+                              dosen_ids: Array.isArray(form.pengampu)
+                                ? form.pengampu
+                                : [], // Pengampu (non-koordinator)
+                              koordinator_ids: Array.isArray(form.koordinator)
+                                ? form.koordinator
+                                : [], // Koordinator (wajib)
+                              kelompok_besar_id: form.kelompokBesar
+                                ? Number(form.kelompokBesar)
+                                : null,
+                              ruangan_id: form.useRuangan
+                                ? Number(form.lokasi)
+                                : null,
                               use_ruangan: form.useRuangan,
                             };
                             await handleEditJadwalSeminarPleno(
@@ -23918,10 +24408,19 @@ export default function DetailBlok() {
                               jam_mulai: form.jamMulai,
                               jam_selesai: form.jamSelesai,
                               jumlah_sesi: form.jumlahKali,
-                              topik: form.topik && form.topik.trim() ? form.topik.trim() : null,
-                              dosen_ids: Array.isArray(form.pengampu) ? form.pengampu : [], // Pengampu (non-koordinator)
-                              koordinator_ids: Array.isArray(form.koordinator) ? form.koordinator : [], // Koordinator (opsional)
-                              ruangan_id: form.useRuangan ? Number(form.lokasi) : null,
+                              topik:
+                                form.topik && form.topik.trim()
+                                  ? form.topik.trim()
+                                  : null,
+                              dosen_ids: Array.isArray(form.pengampu)
+                                ? form.pengampu
+                                : [], // Pengampu (non-koordinator)
+                              koordinator_ids: Array.isArray(form.koordinator)
+                                ? form.koordinator
+                                : [], // Koordinator (wajib)
+                              ruangan_id: form.useRuangan
+                                ? Number(form.lokasi)
+                                : null,
                               use_ruangan: form.useRuangan,
                             };
                             await handleTambahJadwalPersamaanPersepsi(payload);
@@ -23932,11 +24431,22 @@ export default function DetailBlok() {
                               jam_mulai: form.jamMulai,
                               jam_selesai: form.jamSelesai,
                               jumlah_sesi: form.jumlahKali,
-                              topik: form.topik && form.topik.trim() ? form.topik.trim() : null,
-                              dosen_ids: Array.isArray(form.pengampu) ? form.pengampu : [], // Pengampu (non-koordinator)
-                              koordinator_ids: Array.isArray(form.koordinator) ? form.koordinator : [], // Koordinator (opsional)
-                              kelompok_besar_id: form.kelompokBesar ? Number(form.kelompokBesar) : null,
-                              ruangan_id: form.useRuangan ? Number(form.lokasi) : null,
+                              topik:
+                                form.topik && form.topik.trim()
+                                  ? form.topik.trim()
+                                  : null,
+                              dosen_ids: Array.isArray(form.pengampu)
+                                ? form.pengampu
+                                : [], // Pengampu (non-koordinator)
+                              koordinator_ids: Array.isArray(form.koordinator)
+                                ? form.koordinator
+                                : [], // Koordinator (wajib)
+                              kelompok_besar_id: form.kelompokBesar
+                                ? Number(form.kelompokBesar)
+                                : null,
+                              ruangan_id: form.useRuangan
+                                ? Number(form.lokasi)
+                                : null,
                               use_ruangan: form.useRuangan,
                             };
                             await handleTambahJadwalSeminarPleno(payload);
@@ -24007,6 +24517,8 @@ export default function DetailBlok() {
                           !form.jamSelesai ||
                           !Array.isArray(form.pengampu) ||
                           form.pengampu.length === 0 ||
+                          !Array.isArray(form.koordinator) ||
+                          form.koordinator.length === 0 ||
                           (form.useRuangan && !form.lokasi)))
                     }
                   >
@@ -25709,7 +26221,12 @@ export default function DetailBlok() {
                         )
                       }
                       role="checkbox"
-                      onClick={() => handleSelectAll("persamaan-persepsi", jadwalPersamaanPersepsi)}
+                      onClick={() =>
+                        handleSelectAll(
+                          "persamaan-persepsi",
+                          jadwalPersamaanPersepsi
+                        )
+                      }
                       className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
                         jadwalPersamaanPersepsi.length > 0 &&
                         jadwalPersamaanPersepsi.every((item) =>
@@ -25775,11 +26292,16 @@ export default function DetailBlok() {
                   getPaginatedData(
                     jadwalPersamaanPersepsi
                       .slice()
-                      .sort((a: JadwalPersamaanPersepsiType, b: JadwalPersamaanPersepsiType) => {
-                        const dateA = new Date(a.tanggal);
-                        const dateB = new Date(b.tanggal);
-                        return dateA.getTime() - dateB.getTime();
-                      }),
+                      .sort(
+                        (
+                          a: JadwalPersamaanPersepsiType,
+                          b: JadwalPersamaanPersepsiType
+                        ) => {
+                          const dateA = new Date(a.tanggal);
+                          const dateB = new Date(b.tanggal);
+                          return dateA.getTime() - dateB.getTime();
+                        }
+                      ),
                     persamaanPersepsiPage,
                     persamaanPersepsiPageSize
                   ).map((row: JadwalPersamaanPersepsiType, i: number) => (
@@ -25791,9 +26313,13 @@ export default function DetailBlok() {
                     >
                       <td className="px-4 py-4 text-center">
                         <button
-                          aria-checked={selectedPersamaanPersepsiItems.includes(row.id!)}
+                          aria-checked={selectedPersamaanPersepsiItems.includes(
+                            row.id!
+                          )}
                           role="checkbox"
-                          onClick={() => handleSelectItem("persamaan-persepsi", row.id!)}
+                          onClick={() =>
+                            handleSelectItem("persamaan-persepsi", row.id!)
+                          }
                           className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${
                             selectedPersamaanPersepsiItems.includes(row.id!)
                               ? "bg-brand-500 border-brand-500"
@@ -25814,13 +26340,17 @@ export default function DetailBlok() {
                         </button>
                       </td>
                       <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                        {(persamaanPersepsiPage - 1) * persamaanPersepsiPageSize + i + 1}
+                        {(persamaanPersepsiPage - 1) *
+                          persamaanPersepsiPageSize +
+                          i +
+                          1}
                       </td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {row.tanggal ? formatTanggalKonsisten(row.tanggal) : ""}
                       </td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                        {formatJamTanpaDetik(row.jam_mulai)}–{formatJamTanpaDetik(row.jam_selesai)}
+                        {formatJamTanpaDetik(row.jam_mulai)}–
+                        {formatJamTanpaDetik(row.jam_selesai)}
                       </td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {row.jumlah_sesi || 1} x 50 menit
@@ -25838,8 +26368,12 @@ export default function DetailBlok() {
                       </td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                         {(() => {
-                          const ruangan = allRuanganList.find((r) => r.id === row.ruangan_id);
-                          return (row.use_ruangan && ruangan?.nama) ? ruangan.nama : "Online";
+                          const ruangan = allRuanganList.find(
+                            (r) => r.id === row.ruangan_id
+                          );
+                          return row.use_ruangan && ruangan?.nama
+                            ? ruangan.nama
+                            : "Online";
                         })()}
                       </td>
                       <td className="px-4 py-4 text-center whitespace-nowrap">
@@ -25893,28 +26427,49 @@ export default function DetailBlok() {
                           })()}
                           <button
                             onClick={() => {
-                              const idx = jadwalPersamaanPersepsi.findIndex((j) => j.id === row.id);
+                              const idx = jadwalPersamaanPersepsi.findIndex(
+                                (j) => j.id === row.id
+                              );
                               if (idx >= 0) {
                                 const actualRow = jadwalPersamaanPersepsi[idx];
-                                
+
                                 // Extract koordinator_ids from koordinator_ids or dosen_with_roles
                                 let koordinatorIds: number[] = [];
-                                if (actualRow.koordinator_ids && Array.isArray(actualRow.koordinator_ids)) {
+                                if (
+                                  actualRow.koordinator_ids &&
+                                  Array.isArray(actualRow.koordinator_ids)
+                                ) {
                                   koordinatorIds = actualRow.koordinator_ids;
-                                } else if (actualRow.dosen_with_roles && Array.isArray(actualRow.dosen_with_roles)) {
+                                } else if (
+                                  actualRow.dosen_with_roles &&
+                                  Array.isArray(actualRow.dosen_with_roles)
+                                ) {
                                   koordinatorIds = actualRow.dosen_with_roles
-                                    .filter((d: any) => d.peran === "koordinator" || d.peran_display === "Koordinator" || d.is_koordinator)
+                                    .filter(
+                                      (d: any) =>
+                                        d.peran === "koordinator" ||
+                                        d.peran_display === "Koordinator" ||
+                                        d.is_koordinator
+                                    )
                                     .map((d: any) => d.id);
                                 }
-                                
+
                                 // Extract pengampu_ids (non-koordinator) from dosen_ids
-                                const allDosenIds = Array.isArray(actualRow.dosen_ids) ? actualRow.dosen_ids : [];
-                                const pengampuIds = allDosenIds.filter((id: number) => !koordinatorIds.includes(id));
-                                
+                                const allDosenIds = Array.isArray(
+                                  actualRow.dosen_ids
+                                )
+                                  ? actualRow.dosen_ids
+                                  : [];
+                                const pengampuIds = allDosenIds.filter(
+                                  (id: number) => !koordinatorIds.includes(id)
+                                );
+
                                 setForm({
                                   hariTanggal: actualRow.tanggal || "",
                                   jamMulai: actualRow.jam_mulai || "",
-                                  jumlahKali: Number(actualRow.jumlah_sesi || 1),
+                                  jumlahKali: Number(
+                                    actualRow.jumlah_sesi || 1
+                                  ),
                                   jamSelesai: actualRow.jam_selesai || "",
                                   pengampu: pengampuIds, // Pengampu (non-koordinator)
                                   koordinator: koordinatorIds, // Koordinator
@@ -25928,7 +26483,12 @@ export default function DetailBlok() {
                                   modul: null,
                                   kelompok: "",
                                   kelompokBesar: null,
-                                  useRuangan: actualRow.use_ruangan !== undefined ? actualRow.use_ruangan : (actualRow.ruangan_id ? true : false),
+                                  useRuangan:
+                                    actualRow.use_ruangan !== undefined
+                                      ? actualRow.use_ruangan
+                                      : actualRow.ruangan_id
+                                      ? true
+                                      : false,
                                   fileJurnal: null,
                                 });
                                 setEditIndex(idx);
@@ -25948,7 +26508,9 @@ export default function DetailBlok() {
                           </button>
                           <button
                             onClick={() => {
-                              const idx = jadwalPersamaanPersepsi.findIndex((j) => j.id === row.id);
+                              const idx = jadwalPersamaanPersepsi.findIndex(
+                                (j) => j.id === row.id
+                              );
                               if (idx >= 0) {
                                 setSelectedDeletePersamaanPersepsiIndex(idx);
                                 setShowDeletePersamaanPersepsiModal(true);
@@ -25997,9 +26559,13 @@ export default function DetailBlok() {
           <div className="flex items-center justify-between mt-6">
             <div className="flex items-center gap-4">
               <span className="text-sm text-gray-600 dark:text-gray-400">
-                Menampilkan {(persamaanPersepsiPage - 1) * persamaanPersepsiPageSize + 1} -{" "}
-                {Math.min(persamaanPersepsiPage * persamaanPersepsiPageSize, jadwalPersamaanPersepsi.length)} dari{" "}
-                {jadwalPersamaanPersepsi.length} data
+                Menampilkan{" "}
+                {(persamaanPersepsiPage - 1) * persamaanPersepsiPageSize + 1} -{" "}
+                {Math.min(
+                  persamaanPersepsiPage * persamaanPersepsiPageSize,
+                  jadwalPersamaanPersepsi.length
+                )}{" "}
+                dari {jadwalPersamaanPersepsi.length} data
               </span>
               <select
                 value={persamaanPersepsiPageSize}
@@ -26018,13 +26584,18 @@ export default function DetailBlok() {
             </div>
             <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
               <button
-                onClick={() => setPersamaanPersepsiPage((p) => Math.max(1, p - 1))}
+                onClick={() =>
+                  setPersamaanPersepsiPage((p) => Math.max(1, p - 1))
+                }
                 disabled={persamaanPersepsiPage === 1}
                 className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
               >
                 Previous
               </button>
-              {getTotalPages(jadwalPersamaanPersepsi.length, persamaanPersepsiPageSize) > 1 && (
+              {getTotalPages(
+                jadwalPersamaanPersepsi.length,
+                persamaanPersepsiPageSize
+              ) > 1 && (
                 <button
                   onClick={() => setPersamaanPersepsiPage(1)}
                   className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
@@ -26037,12 +26608,21 @@ export default function DetailBlok() {
                 </button>
               )}
               {Array.from(
-                { length: getTotalPages(jadwalPersamaanPersepsi.length, persamaanPersepsiPageSize) },
+                {
+                  length: getTotalPages(
+                    jadwalPersamaanPersepsi.length,
+                    persamaanPersepsiPageSize
+                  ),
+                },
                 (_, i) => {
                   const pageNum = i + 1;
                   const shouldShow =
                     pageNum > 1 &&
-                    pageNum < getTotalPages(jadwalPersamaanPersepsi.length, persamaanPersepsiPageSize) &&
+                    pageNum <
+                      getTotalPages(
+                        jadwalPersamaanPersepsi.length,
+                        persamaanPersepsiPageSize
+                      ) &&
                     pageNum >= persamaanPersepsiPage - 2 &&
                     pageNum <= persamaanPersepsiPage + 2;
                   if (!shouldShow) return null;
@@ -26061,30 +26641,64 @@ export default function DetailBlok() {
                   );
                 }
               )}
-              {persamaanPersepsiPage < getTotalPages(jadwalPersamaanPersepsi.length, persamaanPersepsiPageSize) - 3 && (
-                <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
+              {persamaanPersepsiPage <
+                getTotalPages(
+                  jadwalPersamaanPersepsi.length,
+                  persamaanPersepsiPageSize
+                ) -
+                  3 && (
+                <span className="px-2 text-gray-500 dark:text-gray-400">
+                  ...
+                </span>
               )}
-              {getTotalPages(jadwalPersamaanPersepsi.length, persamaanPersepsiPageSize) > 1 && (
+              {getTotalPages(
+                jadwalPersamaanPersepsi.length,
+                persamaanPersepsiPageSize
+              ) > 1 && (
                 <button
                   onClick={() =>
-                    setPersamaanPersepsiPage(getTotalPages(jadwalPersamaanPersepsi.length, persamaanPersepsiPageSize))
+                    setPersamaanPersepsiPage(
+                      getTotalPages(
+                        jadwalPersamaanPersepsi.length,
+                        persamaanPersepsiPageSize
+                      )
+                    )
                   }
                   className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    persamaanPersepsiPage === getTotalPages(jadwalPersamaanPersepsi.length, persamaanPersepsiPageSize)
+                    persamaanPersepsiPage ===
+                    getTotalPages(
+                      jadwalPersamaanPersepsi.length,
+                      persamaanPersepsiPageSize
+                    )
                       ? "bg-brand-500 text-white"
                       : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                   }`}
                 >
-                  {getTotalPages(jadwalPersamaanPersepsi.length, persamaanPersepsiPageSize)}
+                  {getTotalPages(
+                    jadwalPersamaanPersepsi.length,
+                    persamaanPersepsiPageSize
+                  )}
                 </button>
               )}
               <button
                 onClick={() =>
                   setPersamaanPersepsiPage((p) =>
-                    Math.min(getTotalPages(jadwalPersamaanPersepsi.length, persamaanPersepsiPageSize), p + 1)
+                    Math.min(
+                      getTotalPages(
+                        jadwalPersamaanPersepsi.length,
+                        persamaanPersepsiPageSize
+                      ),
+                      p + 1
+                    )
                   )
                 }
-                disabled={persamaanPersepsiPage === getTotalPages(jadwalPersamaanPersepsi.length, persamaanPersepsiPageSize)}
+                disabled={
+                  persamaanPersepsiPage ===
+                  getTotalPages(
+                    jadwalPersamaanPersepsi.length,
+                    persamaanPersepsiPageSize
+                  )
+                }
                 className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
               >
                 Next
@@ -27917,7 +28531,8 @@ export default function DetailBlok() {
                                       : siakadCellErrors
                                   ).find(
                                     (err) =>
-                                      err.row === actualIndex && err.field === field
+                                      err.row === actualIndex &&
+                                      err.field === field
                                   );
 
                                   return (
@@ -31124,7 +31739,8 @@ export default function DetailBlok() {
                         {persamaanPersepsiImportFile.name}
                       </p>
                       <p className="text-sm text-blue-600 dark:text-blue-300">
-                        {(persamaanPersepsiImportFile.size / 1024).toFixed(1)} KB
+                        {(persamaanPersepsiImportFile.size / 1024).toFixed(1)}{" "}
+                        KB
                       </p>
                     </div>
                     <button
@@ -31244,13 +31860,15 @@ export default function DetailBlok() {
                               isNumeric = false
                             ) => {
                               const isEditing =
-                                persamaanPersepsiEditingCell?.row === actualIndex &&
+                                persamaanPersepsiEditingCell?.row ===
+                                  actualIndex &&
                                 persamaanPersepsiEditingCell?.key === field;
-                              const cellError = persamaanPersepsiCellErrors.find(
-                                (err) =>
-                                  err.row === actualIndex + 1 &&
-                                  err.field === field
-                              );
+                              const cellError =
+                                persamaanPersepsiCellErrors.find(
+                                  (err) =>
+                                    err.row === actualIndex + 1 &&
+                                    err.field === field
+                                );
 
                               return (
                                 <td
@@ -31323,10 +31941,20 @@ export default function DetailBlok() {
                                 </td>
                                 {renderEditableCell("tanggal", row.tanggal)}
                                 {renderEditableCell("jam_mulai", row.jam_mulai)}
-                                {renderEditableCell("jumlah_sesi", row.jumlah_sesi, true)}
+                                {renderEditableCell(
+                                  "jumlah_sesi",
+                                  row.jumlah_sesi,
+                                  true
+                                )}
                                 {renderEditableCell("topik", row.topik)}
-                                {renderEditableCell("koordinator_ids", row.nama_koordinator)}
-                                {renderEditableCell("dosen_ids", row.nama_dosen)}
+                                {renderEditableCell(
+                                  "koordinator_ids",
+                                  row.nama_koordinator
+                                )}
+                                {renderEditableCell(
+                                  "dosen_ids",
+                                  row.nama_dosen
+                                )}
                                 {renderEditableCell(
                                   "ruangan_id",
                                   row.nama_ruangan
@@ -31386,7 +32014,8 @@ export default function DetailBlok() {
                             icon={faUpload}
                             className="w-4 h-4"
                           />
-                          Import Data ({persamaanPersepsiImportData.length} jadwal)
+                          Import Data ({persamaanPersepsiImportData.length}{" "}
+                          jadwal)
                         </>
                       )}
                     </button>
@@ -31397,78 +32026,77 @@ export default function DetailBlok() {
         )}
       </AnimatePresence>
 
-        {/* Modal Konfirmasi Bulk Delete */}
-        <AnimatePresence>
-          {showBulkDeleteModal && (
-            <div className="fixed inset-0 z-[100000] flex items-center justify-center">
-              <div
-                className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
-                onClick={() => setShowBulkDeleteModal(false)}
-              ></div>
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.2 }}
-                className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
-              >
-                <div className="flex items-center justify-between pb-6">
-                  <h2 className="text-xl font-bold text-gray-800 dark:text-white">
-                    Konfirmasi Hapus Data
-                  </h2>
-                </div>
-                <div>
-                  <p className="mb-6 text-gray-500 dark:text-gray-400">
-                    Apakah Anda yakin ingin menghapus{" "}
-                    <span className="font-semibold text-gray-800 dark:text-white">
-                      {bulkDeleteType === "kuliah-besar" &&
-                        selectedKuliahBesarItems.length}
-                      {bulkDeleteType === "praktikum" &&
-                        selectedPraktikumItems.length}
-                      {bulkDeleteType === "agenda-khusus" &&
-                        selectedAgendaKhususItems.length}
-                      {bulkDeleteType === "pbl" && selectedPBLItems.length}
-                      {bulkDeleteType === "jurnal-reading" &&
-                        selectedJurnalReadingItems.length}
-                      {bulkDeleteType === "persamaan-persepsi" &&
-                        selectedPersamaanPersepsiItems.length}
-                    </span>{" "}
-                    jadwal {bulkDeleteType === "kuliah-besar" && "kuliah besar"}
-                    {bulkDeleteType === "praktikum" && "praktikum"}
-                    {bulkDeleteType === "agenda-khusus" && "agenda khusus"}
-                    {bulkDeleteType === "pbl" && "PBL"}
+      {/* Modal Konfirmasi Bulk Delete */}
+      <AnimatePresence>
+        {showBulkDeleteModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            <div
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowBulkDeleteModal(false)}
+            ></div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+            >
+              <div className="flex items-center justify-between pb-6">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                  Konfirmasi Hapus Data
+                </h2>
+              </div>
+              <div>
+                <p className="mb-6 text-gray-500 dark:text-gray-400">
+                  Apakah Anda yakin ingin menghapus{" "}
+                  <span className="font-semibold text-gray-800 dark:text-white">
+                    {bulkDeleteType === "kuliah-besar" &&
+                      selectedKuliahBesarItems.length}
+                    {bulkDeleteType === "praktikum" &&
+                      selectedPraktikumItems.length}
+                    {bulkDeleteType === "agenda-khusus" &&
+                      selectedAgendaKhususItems.length}
+                    {bulkDeleteType === "pbl" && selectedPBLItems.length}
                     {bulkDeleteType === "jurnal-reading" &&
-                      "jurnal reading"}
+                      selectedJurnalReadingItems.length}
                     {bulkDeleteType === "persamaan-persepsi" &&
-                      "persamaan persepsi"}{" "}
-                    terpilih? Data yang dihapus tidak dapat dikembalikan.
-                  </p>
-                  <div className="flex justify-end gap-2 pt-2">
-                    <button
-                      onClick={() => setShowBulkDeleteModal(false)}
-                      className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
-                    >
-                      Batal
-                    </button>
-                    <button
-                      onClick={confirmBulkDelete}
-                      className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition flex items-center justify-center"
-                      disabled={isBulkDeleting}
-                    >
-                      {isBulkDeleting ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                          Menghapus...
-                        </>
-                      ) : (
-                        "Hapus"
-                      )}
-                    </button>
-                  </div>
+                      selectedPersamaanPersepsiItems.length}
+                  </span>{" "}
+                  jadwal {bulkDeleteType === "kuliah-besar" && "kuliah besar"}
+                  {bulkDeleteType === "praktikum" && "praktikum"}
+                  {bulkDeleteType === "agenda-khusus" && "agenda khusus"}
+                  {bulkDeleteType === "pbl" && "PBL"}
+                  {bulkDeleteType === "jurnal-reading" && "jurnal reading"}
+                  {bulkDeleteType === "persamaan-persepsi" &&
+                    "persamaan persepsi"}{" "}
+                  terpilih? Data yang dihapus tidak dapat dikembalikan.
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    onClick={() => setShowBulkDeleteModal(false)}
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={confirmBulkDelete}
+                    className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition flex items-center justify-center"
+                    disabled={isBulkDeleting}
+                  >
+                    {isBulkDeleting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                        Menghapus...
+                      </>
+                    ) : (
+                      "Hapus"
+                    )}
+                  </button>
                 </div>
-              </motion.div>
-            </div>
-          )}
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
 
       {/* Hidden file input for praktikum import */}
@@ -32196,7 +32824,8 @@ export default function DetailBlok() {
               )}
 
               {/* Error Messages - Tampilkan hanya jika ada error */}
-              {(seminarPlenoImportErrors.length > 0 || seminarPlenoCellErrors.length > 0) && (
+              {(seminarPlenoImportErrors.length > 0 ||
+                seminarPlenoCellErrors.length > 0) && (
                 <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg">
                   <div className="flex items-center gap-2 mb-3">
                     <FontAwesomeIcon
@@ -32215,7 +32844,9 @@ export default function DetailBlok() {
                   {seminarPlenoImportErrors.length > 0 && (
                     <ul className="list-disc list-inside space-y-2 text-sm text-red-700 dark:text-red-300 max-h-60 overflow-y-auto mb-3">
                       {seminarPlenoImportErrors.map((error, idx) => (
-                        <li key={idx} className="font-medium">{error}</li>
+                        <li key={idx} className="font-medium">
+                          {error}
+                        </li>
                       ))}
                     </ul>
                   )}
@@ -32235,34 +32866,41 @@ export default function DetailBlok() {
                   )}
                   <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                     <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                      <strong>💡 Tips:</strong> Perbaiki error di atas terlebih dahulu. Error juga ditandai dengan warna merah di tabel preview di bawah. Klik pada cell yang error untuk melihat detail error. Setelah memperbaiki, error akan hilang secara otomatis.
+                      <strong>💡 Tips:</strong> Perbaiki error di atas terlebih
+                      dahulu. Error juga ditandai dengan warna merah di tabel
+                      preview di bawah. Klik pada cell yang error untuk melihat
+                      detail error. Setelah memperbaiki, error akan hilang
+                      secara otomatis.
                     </p>
                   </div>
                 </div>
               )}
-              
+
               {/* Success Message - Tampilkan jika tidak ada error */}
-              {seminarPlenoImportData.length > 0 && 
-               seminarPlenoImportErrors.length === 0 && 
-               seminarPlenoCellErrors.length === 0 && (
-                <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border-2 border-green-300 dark:border-green-700 rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <FontAwesomeIcon
-                      icon={faCheckCircle}
-                      className="w-6 h-6 text-green-600 dark:text-green-400"
-                    />
-                    <h3 className="font-bold text-lg text-green-800 dark:text-green-200">
-                      ✅ Data Valid
-                    </h3>
+              {seminarPlenoImportData.length > 0 &&
+                seminarPlenoImportErrors.length === 0 &&
+                seminarPlenoCellErrors.length === 0 && (
+                  <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border-2 border-green-300 dark:border-green-700 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <FontAwesomeIcon
+                        icon={faCheckCircle}
+                        className="w-6 h-6 text-green-600 dark:text-green-400"
+                      />
+                      <h3 className="font-bold text-lg text-green-800 dark:text-green-200">
+                        ✅ Data Valid
+                      </h3>
+                    </div>
+                    <p className="text-sm text-green-700 dark:text-green-300">
+                      Semua data sudah valid dan siap untuk diimport. Klik
+                      tombol "Import Data" untuk menyimpan data ke sistem.
+                    </p>
+                    <p className="text-xs text-green-600 dark:text-green-400 mt-2 italic">
+                      Catatan: Sistem akan memvalidasi bentrok jadwal saat
+                      import. Jika ada bentrok, error akan ditampilkan setelah
+                      klik "Import Data".
+                    </p>
                   </div>
-                  <p className="text-sm text-green-700 dark:text-green-300">
-                    Semua data sudah valid dan siap untuk diimport. Klik tombol "Import Data" untuk menyimpan data ke sistem.
-                  </p>
-                  <p className="text-xs text-green-600 dark:text-green-400 mt-2 italic">
-                    Catatan: Sistem akan memvalidasi bentrok jadwal saat import. Jika ada bentrok, error akan ditampilkan setelah klik "Import Data".
-                  </p>
-                </div>
-              )}
+                )}
 
               {/* Preview Table */}
               {seminarPlenoImportData.length > 0 && (
@@ -32400,7 +33038,10 @@ export default function DetailBlok() {
                                   "koordinator",
                                   row.koordinator || ""
                                 )}
-                                {renderEditableCell("pengampu", row.pengampu || "")}
+                                {renderEditableCell(
+                                  "pengampu",
+                                  row.pengampu || ""
+                                )}
                                 {renderEditableCell(
                                   "nama_ruangan",
                                   row.nama_ruangan || ""
@@ -32457,8 +33098,12 @@ export default function DetailBlok() {
                 >
                   {isSeminarPlenoImporting
                     ? "Mengimport..."
-                    : seminarPlenoCellErrors.length > 0 || seminarPlenoImportErrors.length > 0
-                    ? `Import Data (${seminarPlenoCellErrors.length + seminarPlenoImportErrors.length} error)`
+                    : seminarPlenoCellErrors.length > 0 ||
+                      seminarPlenoImportErrors.length > 0
+                    ? `Import Data (${
+                        seminarPlenoCellErrors.length +
+                        seminarPlenoImportErrors.length
+                      } error)`
                     : "Import Data"}
                 </button>
               </div>
@@ -32489,7 +33134,8 @@ export default function DetailBlok() {
                 Konfirmasi Hapus
               </h2>
               <p className="mb-6 text-gray-500 dark:text-gray-300">
-                Apakah Anda yakin ingin menghapus jadwal Persamaan Persepsi ini? Data yang dihapus tidak dapat dikembalikan.
+                Apakah Anda yakin ingin menghapus jadwal Persamaan Persepsi ini?
+                Data yang dihapus tidak dapat dikembalikan.
               </p>
               <div className="flex justify-end gap-2">
                 <button
@@ -32504,7 +33150,9 @@ export default function DetailBlok() {
                 <button
                   onClick={() => {
                     if (selectedDeletePersamaanPersepsiIndex !== null) {
-                      handleDeleteJadwalPersamaanPersepsi(selectedDeletePersamaanPersepsiIndex);
+                      handleDeleteJadwalPersamaanPersepsi(
+                        selectedDeletePersamaanPersepsiIndex
+                      );
                       setShowDeletePersamaanPersepsiModal(false);
                       setSelectedDeletePersamaanPersepsiIndex(null);
                     }
@@ -32541,7 +33189,8 @@ export default function DetailBlok() {
                 Konfirmasi Hapus
               </h2>
               <p className="mb-6 text-gray-500 dark:text-gray-300">
-                Apakah Anda yakin ingin menghapus jadwal Seminar Pleno ini? Data yang dihapus tidak dapat dikembalikan.
+                Apakah Anda yakin ingin menghapus jadwal Seminar Pleno ini? Data
+                yang dihapus tidak dapat dikembalikan.
               </p>
               <div className="flex justify-end gap-2">
                 <button
@@ -32556,7 +33205,9 @@ export default function DetailBlok() {
                 <button
                   onClick={() => {
                     if (selectedDeleteSeminarPlenoIndex !== null) {
-                      handleDeleteJadwalSeminarPleno(selectedDeleteSeminarPlenoIndex);
+                      handleDeleteJadwalSeminarPleno(
+                        selectedDeleteSeminarPlenoIndex
+                      );
                       setShowDeleteSeminarPlenoModal(false);
                       setSelectedDeleteSeminarPlenoIndex(null);
                     }

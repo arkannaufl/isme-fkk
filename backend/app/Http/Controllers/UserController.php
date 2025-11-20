@@ -237,20 +237,32 @@ class UserController extends Controller
 
         // Handle dosen_peran jika ada
         if ($request->has('dosen_peran') && is_array($request->dosen_peran)) {
-            // Hapus semua dosen_peran yang ada untuk user ini
-            DosenPeran::where('user_id', $user->id)->delete();
+            // Hapus hanya dosen_peran dengan tipe_peran koordinator atau tim_blok
+            // Jangan hapus dosen_mengajar karena itu di-generate otomatis dari assignment
+            DosenPeran::where('user_id', $user->id)
+                ->whereIn('tipe_peran', ['koordinator', 'tim_blok'])
+                ->delete();
 
-            // Tambahkan dosen_peran yang baru
+            // Tambahkan dosen_peran yang baru (hanya koordinator dan tim_blok)
             foreach ($request->dosen_peran as $peran) {
-                DosenPeran::create([
-                    'user_id' => $user->id,
-                    'mata_kuliah_kode' => $peran['mata_kuliah_kode'],
-                    'peran_kurikulum' => $peran['peran_kurikulum'],
-                    'blok' => $peran['blok'] ?? null,
-                    'semester' => $peran['semester'] ?? null,
-                    'tipe_peran' => $peran['tipe_peran'],
-                ]);
+                // Pastikan hanya koordinator dan tim_blok yang disimpan
+                if (in_array($peran['tipe_peran'] ?? '', ['koordinator', 'tim_blok'])) {
+                    DosenPeran::create([
+                        'user_id' => $user->id,
+                        'mata_kuliah_kode' => $peran['mata_kuliah_kode'],
+                        'peran_kurikulum' => $peran['peran_kurikulum'],
+                        'blok' => $peran['blok'] ?? null,
+                        'semester' => $peran['semester'] ?? null,
+                        'tipe_peran' => $peran['tipe_peran'],
+                    ]);
+                }
             }
+        } else {
+            // Jika dosen_peran tidak ada di request (selectedPeranType === "none"),
+            // hapus hanya koordinator dan tim_blok, biarkan dosen_mengajar tetap ada
+            DosenPeran::where('user_id', $user->id)
+                ->whereIn('tipe_peran', ['koordinator', 'tim_blok'])
+                ->delete();
         }
 
         return response()->json($user);
@@ -467,25 +479,106 @@ class UserController extends Controller
 
                 if (isset($kuliahBesarData->data)) {
                     $jadwalKuliahBesar = collect($kuliahBesarData->data)->map(function ($item) {
+                        // Handle item bisa array atau object
+                        $isArray = is_array($item);
+
+                        // Ambil mata_kuliah_kode untuk fetch dari database
+                        $mataKuliahKode = $isArray ? ($item['mata_kuliah_kode'] ?? '') : ($item->mata_kuliah_kode ?? '');
+
+                        // Fetch mata kuliah dari database untuk konsistensi
+                        $mataKuliah = null;
+                        if ($mataKuliahKode) {
+                            try {
+                                $mataKuliah = \App\Models\MataKuliah::where('kode', $mataKuliahKode)->first();
+                            } catch (\Exception $e) {
+                                Log::error("Error fetching mata kuliah for kuliah besar: " . $e->getMessage());
+                            }
+                        }
+
+                        // Handle ruangan_nama (bisa dari array atau object)
+                        $ruanganNama = '';
+                        if ($isArray) {
+                            if (isset($item['ruangan']) && is_array($item['ruangan'])) {
+                                $ruanganNama = $item['ruangan']['nama'] ?? '';
+                            }
+                        } else {
+                            if ($item->ruangan) {
+                                if (is_object($item->ruangan)) {
+                                    $ruanganNama = $item->ruangan->nama ?? '';
+                                } elseif (is_array($item->ruangan)) {
+                                    $ruanganNama = $item->ruangan['nama'] ?? '';
+                                }
+                            }
+                        }
+
+                        // Handle tanggal (bisa format d/m/Y dari response)
+                        $tanggal = $isArray ? ($item['tanggal'] ?? '') : ($item->tanggal ?? '');
+                        if ($tanggal && strpos($tanggal, '/') !== false) {
+                            // Convert dari d/m/Y ke Y-m-d
+                            $dateParts = explode('/', $tanggal);
+                            if (count($dateParts) === 3) {
+                                $tanggal = $dateParts[2] . '-' . $dateParts[1] . '-' . $dateParts[0];
+                            }
+                        }
+
+                        // Handle kelompok_besar dan kelompok_kecil
+                        $kelompokBesar = null;
+                        $kelompokKecil = '';
+
+                        if ($isArray) {
+                            if (isset($item['kelompok_besar']) && is_array($item['kelompok_besar'])) {
+                                $kelompokBesar = (object) $item['kelompok_besar'];
+                                $kelompokKecil = $item['kelompok_besar']['nama_kelompok'] ?? '';
+                            }
+                            // Fallback jika tidak ada kelompok_besar object
+                            if (empty($kelompokKecil) && isset($item['kelompok_besar_id'])) {
+                                // kelompok_besar_id bisa berisi ID atau semester, coba ambil dari kelompok_besar jika ada
+                                $kelompokKecil = 'Kelompok Besar Semester ' . $item['kelompok_besar_id'];
+                            }
+                        } else {
+                            if ($item->kelompok_besar) {
+                                if (is_object($item->kelompok_besar)) {
+                                    $kelompokBesar = $item->kelompok_besar;
+                                    $kelompokKecil = $item->kelompok_besar->nama_kelompok ?? '';
+                                } elseif (is_array($item->kelompok_besar)) {
+                                    $kelompokBesar = (object) $item->kelompok_besar;
+                                    $kelompokKecil = $item->kelompok_besar['nama_kelompok'] ?? '';
+                                }
+                            }
+                            // Fallback jika tidak ada kelompok_besar object
+                            if (empty($kelompokKecil) && isset($item->kelompok_besar_id)) {
+                                $kelompokKecil = 'Kelompok Besar Semester ' . $item->kelompok_besar_id;
+                            }
+                        }
+
                         return (object) [
-                            'id' => $item->id,
-                            'mata_kuliah_kode' => $item->mata_kuliah_kode,
-                            'mata_kuliah_nama' => $item->mata_kuliah->nama ?? '',
-                            'tanggal' => $item->tanggal,
-                            'jam_mulai' => $item->jam_mulai,
-                            'jam_selesai' => $item->jam_selesai,
+                            'id' => $isArray ? ($item['id'] ?? 0) : ($item->id ?? 0),
+                            'mata_kuliah_kode' => $mataKuliahKode,
+                            'mata_kuliah_nama' => $isArray ? ($item['mata_kuliah_nama'] ?? '') : ($item->mata_kuliah_nama ?? ($mataKuliah ? $mataKuliah->nama : '')),
+                            'tanggal' => $tanggal,
+                            'jam_mulai' => $isArray ? ($item['jam_mulai'] ?? '') : ($item->jam_mulai ?? ''),
+                            'jam_selesai' => $isArray ? ($item['jam_selesai'] ?? '') : ($item->jam_selesai ?? ''),
                             'jenis_jadwal' => 'kuliah_besar',
-                            'topik' => $item->materi ?? $item->topik,
-                            'ruangan_nama' => $item->ruangan->nama ?? '',
-                            'jumlah_sesi' => $item->jumlah_sesi,
-                            'semester' => $item->mata_kuliah->semester ?? '',
-                            'blok' => $item->mata_kuliah->blok ?? null,
-                            'kelompok_kecil' => $item->kelompok_besar_antara->nama_kelompok ?? 'Semester ' . $item->kelompok_besar_id,
-                            'kelompok_besar_id' => $item->kelompok_besar_id,
-                            'status_konfirmasi' => $item->status_konfirmasi ?? 'belum_konfirmasi',
-                            'alasan_konfirmasi' => $item->alasan_konfirmasi ?? null,
-                            'status_reschedule' => $item->status_reschedule ?? null,
-                            'reschedule_reason' => $item->reschedule_reason ?? null
+                            'topik' => $isArray ? ($item['materi'] ?? $item['topik'] ?? '') : ($item->materi ?? $item->topik ?? ''),
+                            'ruangan_nama' => $ruanganNama,
+                            'jumlah_sesi' => $isArray ? ($item['jumlah_sesi'] ?? 1) : ($item->jumlah_sesi ?? 1),
+                            'semester' => $mataKuliah ? $mataKuliah->semester : ($isArray ? '' : ''),
+                            'blok' => $mataKuliah ? $mataKuliah->blok : null,
+                            'kelompok_kecil' => $kelompokKecil,
+                            'kelompok_besar' => $kelompokBesar, // Tambahkan object kelompok_besar
+                            'kelompok_besar_id' => $isArray ? ($item['kelompok_besar_id'] ?? null) : ($item->kelompok_besar_id ?? null),
+                            'status_konfirmasi' => $isArray ? ($item['status_konfirmasi'] ?? 'belum_konfirmasi') : ($item->status_konfirmasi ?? 'belum_konfirmasi'),
+                            'alasan_konfirmasi' => $isArray ? ($item['alasan_konfirmasi'] ?? null) : ($item->alasan_konfirmasi ?? null),
+                            'status_reschedule' => $isArray ? ($item['status_reschedule'] ?? null) : ($item->status_reschedule ?? null),
+                            'reschedule_reason' => $isArray ? ($item['reschedule_reason'] ?? null) : ($item->reschedule_reason ?? null),
+                            'semester_type' => $isArray ? ($item['semester_type'] ?? 'reguler') : ($item->semester_type ?? 'reguler'),
+                            'penilaian_submitted' => $isArray ? (bool)($item['penilaian_submitted'] ?? false) : (bool)($item->penilaian_submitted ?? false),
+                            'mata_kuliah' => $mataKuliah ? (object) [
+                                'kode' => $mataKuliah->kode,
+                                'nama' => $mataKuliah->nama,
+                                'semester' => $mataKuliah->semester,
+                                'blok' => $mataKuliah->blok,
+                            ] : null,
                         ];
                     });
                     $jadwalMengajar = $jadwalMengajar->concat($jadwalKuliahBesar);
@@ -690,8 +783,7 @@ class UserController extends Controller
                             'status_reschedule' => $isArray ? ($item['status_reschedule'] ?? null) : ($item->status_reschedule ?? null),
                             'reschedule_reason' => $isArray ? ($item['reschedule_reason'] ?? null) : ($item->reschedule_reason ?? null),
                             'semester_type' => $isArray ?
-                                (isset($item['kelompok_besar_antara']) && !empty($item['kelompok_besar_antara']) ? 'antara' : 'reguler') :
-                                (isset($item->kelompok_besar_antara) && !empty($item->kelompok_besar_antara) ? 'antara' : 'reguler'),
+                                (isset($item['kelompok_besar_antara']) && !empty($item['kelompok_besar_antara']) ? 'antara' : 'reguler') : (isset($item->kelompok_besar_antara) && !empty($item->kelompok_besar_antara) ? 'antara' : 'reguler'),
                             'mata_kuliah' => $isArray ? ($item['mata_kuliah'] ?? null) : ($item->mata_kuliah ?? null)
                         ];
                     });
@@ -716,11 +808,11 @@ class UserController extends Controller
                     $jadwalPersepsi = collect($persepsiData->data)->map(function ($item) use ($id) {
                         // Handle both array and object data
                         $isArray = is_array($item);
-                        
+
                         // Get jadwal ID for absensi check
                         $jadwalId = $isArray ? $item['id'] : $item->id;
                         $mataKuliahKode = $isArray ? $item['mata_kuliah_kode'] : $item->mata_kuliah_kode;
-                        
+
                         // Parse koordinator_ids dan dosen_ids
                         $koordinatorIds = [];
                         $dosenIds = [];
@@ -731,7 +823,7 @@ class UserController extends Controller
                             $koordinatorIds = $item->koordinator_ids ?? [];
                             $dosenIds = $item->dosen_ids ?? [];
                         }
-                        
+
                         // Ensure arrays
                         if (!is_array($koordinatorIds)) {
                             $koordinatorIds = is_string($koordinatorIds) ? json_decode($koordinatorIds, true) : [];
@@ -739,49 +831,43 @@ class UserController extends Controller
                         if (!is_array($dosenIds)) {
                             $dosenIds = is_string($dosenIds) ? json_decode($dosenIds, true) : [];
                         }
-                        
+
                         // Check if dosen is koordinator or pengampu
                         $isKoordinator = in_array($id, $koordinatorIds);
                         $roleType = $isKoordinator ? 'koordinator' : 'pengampu';
-                        
+
                         // Get penilaian_submitted dari jadwal terlebih dahulu
                         $penilaianSubmitted = false;
                         $absensiHadir = false;
                         $absensiStatus = 'menunggu'; // Default: menunggu
-                        
+
                         try {
                             // Cek penilaian_submitted dari jadwal
                             $jadwalPP = \App\Models\JadwalPersamaanPersepsi::find($jadwalId);
                             if ($jadwalPP) {
                                 $penilaianSubmitted = (bool)($jadwalPP->penilaian_submitted ?? false);
                             }
-                            
+
                             // Tentukan status absensi berdasarkan penilaian_submitted dan absensi data
+                            // Logic: Jika sudah disubmit, koordinator selalu hadir, pengampu cek dari absensi
                             if ($penilaianSubmitted) {
-                                // Jika sudah submitted, cek absensi untuk pengampu
-                                $absensiData = \App\Models\AbsensiPersamaanPersepsi::where('jadwal_persamaan_persepsi_id', $jadwalId)
-                                    ->where('dosen_id', $id)
-                                    ->first();
-                                
-                                if ($absensiData) {
-                                    // Ada data absensi
-                                    if (!$isKoordinator) {
-                                        // Untuk pengampu: cek apakah hadir
+                                // Jika sudah submitted, koordinator selalu hadir
+                                if ($isKoordinator) {
+                                    // Untuk koordinator: absensi_hadir selalu true jika sudah disubmit
+                                    $absensiHadir = true;
+                                    $absensiStatus = 'hadir';
+                                } else {
+                                    // Untuk pengampu: cek data absensi
+                                    $absensiData = \App\Models\AbsensiPersamaanPersepsi::where('jadwal_persamaan_persepsi_id', $jadwalId)
+                                        ->where('dosen_id', $id)
+                                        ->first();
+
+                                    if ($absensiData) {
+                                        // Ada data absensi, cek apakah hadir
                                         $absensiHadir = (bool)($absensiData->hadir ?? false);
                                         $absensiStatus = $absensiHadir ? 'hadir' : 'tidak_hadir';
                                     } else {
-                                        // Untuk koordinator: absensi_hadir selalu true jika sudah disubmit
-                                        $absensiHadir = true;
-                                        $absensiStatus = 'hadir';
-                                    }
-                                } else {
-                                    // Belum ada data absensi tapi sudah submitted
-                                    if ($isKoordinator) {
-                                        // Untuk koordinator: otomatis hadir = true
-                                        $absensiHadir = true;
-                                        $absensiStatus = 'hadir';
-                                    } else {
-                                        // Untuk pengampu: belum ada data, status menunggu
+                                        // Belum ada data absensi untuk pengampu, status menunggu
                                         $absensiHadir = false;
                                         $absensiStatus = 'menunggu';
                                     }
@@ -804,11 +890,11 @@ class UserController extends Controller
                             'jam_selesai' => $isArray ? $item['jam_selesai'] : $item->jam_selesai,
                             'jenis_jadwal' => 'persamaan_persepsi',
                             'topik' => $isArray ? ($item['topik'] ?? '') : ($item->topik ?? ''),
-                            'ruangan_nama' => (function() use ($isArray, $item) {
+                            'ruangan_nama' => (function () use ($isArray, $item) {
                                 // Cek use_ruangan
                                 $useRuangan = false;
                                 $ruanganNama = '';
-                                
+
                                 if ($isArray) {
                                     $useRuangan = $item['use_ruangan'] ?? false;
                                     // Handle ruangan bisa array atau object
@@ -830,7 +916,7 @@ class UserController extends Controller
                                         }
                                     }
                                 }
-                                
+
                                 // Jika use_ruangan = false atau ruangan kosong, return "Online"
                                 if (!$useRuangan || empty($ruanganNama)) {
                                     return 'Online';
@@ -838,7 +924,7 @@ class UserController extends Controller
                                 return $ruanganNama;
                             })(),
                             'jumlah_sesi' => $isArray ? ($item['jumlah_sesi'] ?? 1) : ($item->jumlah_sesi ?? 1),
-                            'semester' => (function() use ($isArray, $item, $mataKuliahKode) {
+                            'semester' => (function () use ($isArray, $item, $mataKuliahKode) {
                                 // Response dari getJadwalForDosen tidak include mataKuliah object
                                 // Kita perlu fetch dari database atau gunakan semester_type
                                 try {
@@ -852,7 +938,7 @@ class UserController extends Controller
                                 // Fallback: return empty string
                                 return '';
                             })(),
-                            'blok' => (function() use ($isArray, $item, $mataKuliahKode) {
+                            'blok' => (function () use ($isArray, $item, $mataKuliahKode) {
                                 // Response dari getJadwalForDosen tidak include mataKuliah object
                                 // Kita perlu fetch dari database
                                 try {
@@ -878,7 +964,7 @@ class UserController extends Controller
                             'absensi_hadir' => $absensiHadir,
                             'role_type' => $roleType, // 'koordinator' atau 'pengampu'
                             'absensi_status' => $absensiStatus, // 'menunggu', 'hadir', atau 'tidak_hadir'
-                            'mata_kuliah' => (function() use ($mataKuliahKode) {
+                            'mata_kuliah' => (function () use ($mataKuliahKode) {
                                 // Fetch mata_kuliah object untuk konsistensi
                                 try {
                                     $mataKuliah = \App\Models\MataKuliah::where('kode', $mataKuliahKode)->first();
@@ -918,24 +1004,93 @@ class UserController extends Controller
                         // Handle both array and object data
                         $isArray = is_array($item);
 
-                        // Tentukan peran dosen: koordinator atau pengampu
+                        // Get jadwal ID for absensi check
+                        $jadwalId = $isArray ? $item['id'] : $item->id;
+                        $mataKuliahKode = $isArray ? $item['mata_kuliah_kode'] : $item->mata_kuliah_kode;
+
+                        // Parse koordinator_ids dan dosen_ids
                         $koordinatorIds = [];
+                        $dosenIds = [];
                         if ($isArray) {
-                            $koordinatorIds = isset($item['koordinator_ids']) && is_array($item['koordinator_ids']) 
-                                ? $item['koordinator_ids'] 
+                            $koordinatorIds = isset($item['koordinator_ids']) && is_array($item['koordinator_ids'])
+                                ? $item['koordinator_ids']
                                 : (isset($item['koordinator_ids']) ? json_decode($item['koordinator_ids'], true) : []);
+                            $dosenIds = isset($item['dosen_ids']) && is_array($item['dosen_ids'])
+                                ? $item['dosen_ids']
+                                : (isset($item['dosen_ids']) ? json_decode($item['dosen_ids'], true) : []);
                         } else {
                             $koordinatorIds = isset($item->koordinator_ids) && is_array($item->koordinator_ids)
                                 ? $item->koordinator_ids
                                 : (isset($item->koordinator_ids) ? json_decode($item->koordinator_ids, true) : []);
+                            $dosenIds = isset($item->dosen_ids) && is_array($item->dosen_ids)
+                                ? $item->dosen_ids
+                                : (isset($item->dosen_ids) ? json_decode($item->dosen_ids, true) : []);
                         }
                         if (!is_array($koordinatorIds)) {
                             $koordinatorIds = [];
                         }
+                        if (!is_array($dosenIds)) {
+                            $dosenIds = [];
+                        }
 
+                        // Check if dosen is koordinator or pengampu
                         $isKoordinator = in_array($id, $koordinatorIds);
+                        $roleType = $isKoordinator ? 'koordinator' : 'pengampu';
                         $peran = $isKoordinator ? 'koordinator' : 'pengampu';
                         $peran_display = $isKoordinator ? 'Koordinator' : 'Pengampu';
+
+                        // Get penilaian_submitted dari jadwal terlebih dahulu
+                        $penilaianSubmitted = false;
+                        $absensiHadir = false;
+                        $absensiStatus = 'menunggu'; // Default: menunggu
+
+                        try {
+                            // Cek penilaian_submitted dari jadwal
+                            // Gunakan fresh() untuk memastikan mendapatkan data terbaru dari database
+                            $jadwalSP = \App\Models\JadwalSeminarPleno::find($jadwalId);
+                            if ($jadwalSP) {
+                                // Gunakan fresh() untuk mendapatkan data terbaru setelah submit
+                                $jadwalSP = $jadwalSP->fresh();
+                                $penilaianSubmitted = (bool)($jadwalSP->penilaian_submitted ?? false);
+                            } else {
+                                // Jika tidak ditemukan dari response, cek dari response data juga
+                                $penilaianSubmitted = $isArray
+                                    ? (bool)($item['penilaian_submitted'] ?? false)
+                                    : (bool)($item->penilaian_submitted ?? false);
+                            }
+
+                            // Tentukan status absensi berdasarkan penilaian_submitted dan absensi data
+                            // Logic: Jika sudah disubmit, koordinator selalu hadir, pengampu cek dari absensi
+                            if ($penilaianSubmitted) {
+                                // Jika sudah submitted, koordinator selalu hadir
+                                if ($isKoordinator) {
+                                    // Untuk koordinator: absensi_hadir selalu true jika sudah disubmit
+                                    $absensiHadir = true;
+                                    $absensiStatus = 'hadir';
+                                } else {
+                                    // Untuk pengampu: cek data absensi
+                                    $absensiData = \App\Models\AbsensiSeminarPleno::where('jadwal_seminar_pleno_id', $jadwalId)
+                                        ->where('dosen_id', $id)
+                                        ->first();
+
+                                    if ($absensiData) {
+                                        // Ada data absensi, cek apakah hadir
+                                        $absensiHadir = (bool)($absensiData->hadir ?? false);
+                                        $absensiStatus = $absensiHadir ? 'hadir' : 'tidak_hadir';
+                                    } else {
+                                        // Belum ada data absensi untuk pengampu, status menunggu
+                                        $absensiHadir = false;
+                                        $absensiStatus = 'menunggu';
+                                    }
+                                }
+                            } else {
+                                // Belum submitted, status menunggu
+                                $absensiStatus = 'menunggu';
+                                $absensiHadir = false;
+                            }
+                        } catch (\Exception $e) {
+                            Log::warning("Error fetching absensi for seminar pleno jadwal {$jadwalId}: " . $e->getMessage());
+                        }
 
                         // Get kelompok besar
                         $kelompokBesarId = null;
@@ -953,19 +1108,79 @@ class UserController extends Controller
                             }
                         }
 
+                        // Handle ruangan (mirip dengan Persamaan Persepsi)
+                        $ruanganNama = '';
+                        $useRuangan = false;
+                        if ($isArray) {
+                            $useRuangan = $item['use_ruangan'] ?? false;
+                            if (isset($item['ruangan'])) {
+                                if (is_array($item['ruangan'])) {
+                                    $ruanganNama = $item['ruangan']['nama'] ?? '';
+                                } else {
+                                    $ruanganNama = $item['ruangan']->nama ?? '';
+                                }
+                            }
+                        } else {
+                            $useRuangan = $item->use_ruangan ?? false;
+                            if ($item->ruangan) {
+                                if (is_object($item->ruangan)) {
+                                    $ruanganNama = $item->ruangan->nama ?? '';
+                                } else {
+                                    $ruanganNama = $item->ruangan;
+                                }
+                            }
+                        }
+
+                        // Jika use_ruangan = false atau ruangan kosong, return "Online"
+                        if (!$useRuangan || empty($ruanganNama)) {
+                            $ruanganNama = 'Online';
+                        }
+
                         return (object) [
-                            'id' => $isArray ? $item['id'] : $item->id,
-                            'mata_kuliah_kode' => $isArray ? $item['mata_kuliah_kode'] : $item->mata_kuliah_kode,
+                            'id' => $jadwalId,
+                            'mata_kuliah_kode' => $mataKuliahKode,
                             'mata_kuliah_nama' => $isArray ? ($item['mata_kuliah_nama'] ?? '') : ($item->mata_kuliah_nama ?? ''),
                             'tanggal' => $isArray ? $item['tanggal'] : $item->tanggal,
                             'jam_mulai' => $isArray ? $item['jam_mulai'] : $item->jam_mulai,
                             'jam_selesai' => $isArray ? $item['jam_selesai'] : $item->jam_selesai,
                             'jenis_jadwal' => 'seminar_pleno',
                             'topik' => $isArray ? ($item['topik'] ?? null) : ($item->topik ?? null),
-                            'ruangan_nama' => $isArray ? ($item['ruangan']['nama'] ?? '') : ($item->ruangan->nama ?? ''),
+                            'ruangan_nama' => $ruanganNama,
                             'jumlah_sesi' => $isArray ? ($item['jumlah_sesi'] ?? 1) : ($item->jumlah_sesi ?? 1),
-                            'semester' => $isArray ? ($item['mata_kuliah']['semester'] ?? '') : ($item->mata_kuliah->semester ?? ''),
-                            'blok' => $isArray ? ($item['mata_kuliah']['blok'] ?? null) : ($item->mata_kuliah->blok ?? null),
+                            'semester' => (function () use ($isArray, $item, $mataKuliahKode) {
+                                // Fetch dari database untuk konsistensi
+                                try {
+                                    $mataKuliah = \App\Models\MataKuliah::where('kode', $mataKuliahKode)->first(['semester']);
+                                    if ($mataKuliah && $mataKuliah->semester) {
+                                        return $mataKuliah->semester;
+                                    }
+                                } catch (\Exception $e) {
+                                    Log::warning("Error fetching mata kuliah semester for {$mataKuliahKode}: " . $e->getMessage());
+                                }
+                                // Fallback
+                                if ($isArray) {
+                                    return $item['mata_kuliah']['semester'] ?? '';
+                                } else {
+                                    return $item->mata_kuliah->semester ?? '';
+                                }
+                            })(),
+                            'blok' => (function () use ($isArray, $item, $mataKuliahKode) {
+                                // Fetch dari database untuk konsistensi
+                                try {
+                                    $mataKuliah = \App\Models\MataKuliah::where('kode', $mataKuliahKode)->first(['blok']);
+                                    if ($mataKuliah && $mataKuliah->blok !== null) {
+                                        return $mataKuliah->blok;
+                                    }
+                                } catch (\Exception $e) {
+                                    Log::warning("Error fetching mata kuliah blok for {$mataKuliahKode}: " . $e->getMessage());
+                                }
+                                // Fallback
+                                if ($isArray) {
+                                    return $item['mata_kuliah']['blok'] ?? null;
+                                } else {
+                                    return $item->mata_kuliah->blok ?? null;
+                                }
+                            })(),
                             'kelompok_kecil' => '',
                             'kelompok_besar_id' => $kelompokBesarId,
                             'status_konfirmasi' => $isArray ? ($item['status_konfirmasi'] ?? 'bisa') : ($item->status_konfirmasi ?? 'bisa'),
@@ -973,9 +1188,29 @@ class UserController extends Controller
                             'status_reschedule' => $isArray ? ($item['status_reschedule'] ?? null) : ($item->status_reschedule ?? null),
                             'reschedule_reason' => $isArray ? ($item['reschedule_reason'] ?? null) : ($item->reschedule_reason ?? null),
                             'semester_type' => $isArray ? ($item['semester_type'] ?? 'reguler') : ($item->semester_type ?? 'reguler'),
-                            'mata_kuliah' => $isArray ? ($item['mata_kuliah'] ?? null) : ($item->mata_kuliah ?? null),
+                            'penilaian_submitted' => $penilaianSubmitted,
+                            'dosen_ids' => $dosenIds,
+                            'koordinator_ids' => $koordinatorIds,
+                            'absensi_hadir' => $absensiHadir,
+                            'role_type' => $roleType, // 'koordinator' atau 'pengampu'
+                            'absensi_status' => $absensiStatus, // 'menunggu', 'hadir', atau 'tidak_hadir'
                             'peran' => $peran,
-                            'peran_display' => $peran_display
+                            'peran_display' => $peran_display,
+                            'mata_kuliah' => (function () use ($mataKuliahKode) {
+                                // Fetch mata_kuliah object untuk konsistensi
+                                try {
+                                    $mataKuliah = \App\Models\MataKuliah::where('kode', $mataKuliahKode)->first();
+                                    return $mataKuliah ? (object) [
+                                        'kode' => $mataKuliah->kode,
+                                        'nama' => $mataKuliah->nama,
+                                        'semester' => $mataKuliah->semester,
+                                        'blok' => $mataKuliah->blok,
+                                    ] : null;
+                                } catch (\Exception $e) {
+                                    Log::warning("Error fetching mata kuliah object for {$mataKuliahKode}: " . $e->getMessage());
+                                    return null;
+                                }
+                            })()
                         ];
                     });
                     $jadwalMengajar = $jadwalMengajar->concat($jadwalSeminarPleno);

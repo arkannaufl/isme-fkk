@@ -4111,6 +4111,149 @@ export default function PBL() {
                                           k.toLowerCase().includes("standby")
                                       );
 
+                                      // VALIDASI: Cek apakah sudah ada Tim Blok atau Koordinator di PBL ini
+                                      if (pbl.id && assignedDosen[pbl.id]) {
+                                        // Tentukan role dari draggedDosen berdasarkan dosen_peran
+                                        let draggedDosenRole = "dosen_mengajar"; // default
+                                        if (
+                                          draggedDosen.dosen_peran &&
+                                          Array.isArray(draggedDosen.dosen_peran)
+                                        ) {
+                                          const matchingPeran =
+                                            draggedDosen.dosen_peran.find(
+                                              (peran: any) => {
+                                                if (
+                                                  peran.semester ===
+                                                  String(mk.semester)
+                                                ) {
+                                                  const peranMkName =
+                                                    peran.mata_kuliah_nama?.toLowerCase() ||
+                                                    "";
+                                                  const mkName =
+                                                    mk.nama.toLowerCase();
+                                                  const mkKode =
+                                                    mk.kode.toLowerCase();
+
+                                                  return (
+                                                    (peranMkName.includes(
+                                                      mkName
+                                                    ) ||
+                                                      mkName.includes(
+                                                        peranMkName
+                                                      ) ||
+                                                      peranMkName.includes(
+                                                        mkKode
+                                                      ) ||
+                                                      mkKode.includes(
+                                                        peranMkName
+                                                      )) &&
+                                                    (peran.tipe_peran ===
+                                                      "koordinator" ||
+                                                      peran.tipe_peran ===
+                                                        "tim_blok")
+                                                  );
+                                                }
+                                                return false;
+                                              }
+                                            );
+
+                                          if (matchingPeran) {
+                                            draggedDosenRole =
+                                              matchingPeran.tipe_peran;
+                                          }
+                                        }
+
+                                        // Cek apakah sudah ada dosen dengan role yang sama di PBL ini
+                                        const existingDosenWithSameRole =
+                                          assignedDosen[pbl.id].find(
+                                            (assigned: any) => {
+                                              // Skip jika itu dosen yang sama
+                                              if (assigned.id === draggedDosen.id) {
+                                                return false;
+                                              }
+
+                                              // Tentukan role dari assigned dosen
+                                              let assignedDosenRole =
+                                                assigned.pbl_role ||
+                                                "dosen_mengajar";
+
+                                              // Jika pbl_role tidak ada, cek dosen_peran
+                                              if (
+                                                !assigned.pbl_role &&
+                                                assigned.dosen_peran
+                                              ) {
+                                                const assignedPeran =
+                                                  assigned.dosen_peran.find(
+                                                    (peran: any) => {
+                                                      if (
+                                                        peran.semester ===
+                                                        String(mk.semester)
+                                                      ) {
+                                                        const peranMkName =
+                                                          peran.mata_kuliah_nama?.toLowerCase() ||
+                                                          "";
+                                                        const mkName =
+                                                          mk.nama.toLowerCase();
+                                                        const mkKode =
+                                                          mk.kode.toLowerCase();
+
+                                                        return (
+                                                          (peranMkName.includes(
+                                                            mkName
+                                                          ) ||
+                                                            mkName.includes(
+                                                              peranMkName
+                                                            ) ||
+                                                            peranMkName.includes(
+                                                              mkKode
+                                                            ) ||
+                                                            mkKode.includes(
+                                                              peranMkName
+                                                            )) &&
+                                                          (peran.tipe_peran ===
+                                                            "koordinator" ||
+                                                            peran.tipe_peran ===
+                                                              "tim_blok")
+                                                        );
+                                                      }
+                                                      return false;
+                                                    }
+                                                  );
+
+                                                if (assignedPeran) {
+                                                  assignedDosenRole =
+                                                    assignedPeran.tipe_peran;
+                                                }
+                                              }
+
+                                              // Cek apakah role sama
+                                              return (
+                                                draggedDosenRole ===
+                                                  "koordinator" &&
+                                                assignedDosenRole ===
+                                                  "koordinator"
+                                              ) ||
+                                                (draggedDosenRole ===
+                                                  "tim_blok" &&
+                                                  assignedDosenRole ===
+                                                    "tim_blok");
+                                            }
+                                          );
+
+                                        if (existingDosenWithSameRole) {
+                                          const roleLabel =
+                                            draggedDosenRole === "koordinator"
+                                              ? "Koordinator"
+                                              : draggedDosenRole === "tim_blok"
+                                              ? "Tim Blok"
+                                              : "Dosen";
+                                          setError(
+                                            `${roleLabel} sudah ada di PBL ini. ${existingDosenWithSameRole.name} sudah terdaftar sebagai ${roleLabel}. Tidak bisa menambahkan ${roleLabel} lagi.`
+                                          );
+                                          return;
+                                        }
+                                      }
+
                                       // Jika keahlian tidak sesuai, tampilkan popup konfirmasi
                                       if (!isKeahlianMatch) {
                                         setPendingAssignment({

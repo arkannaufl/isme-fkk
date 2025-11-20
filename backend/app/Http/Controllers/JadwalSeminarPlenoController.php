@@ -1478,6 +1478,7 @@ class JadwalSeminarPlenoController extends Controller
                     'is_in_history' => $isInHistory,
                     'jumlah_sesi' => $jadwal->jumlah_sesi ?? 1,
                     'semester_type' => $semesterType,
+                    'penilaian_submitted' => (bool)($jadwal->penilaian_submitted ?? false),
                     'created_at' => $jadwal->created_at,
                     'kelompok_besar' => $kelompokBesar,
                     'kelompok_besar_antara' => $jadwal->kelompokBesarAntara ? (object) [
@@ -2574,6 +2575,7 @@ class JadwalSeminarPlenoController extends Controller
                 ->get();
 
             // Konversi ke format yang diharapkan frontend (key by dosen_id)
+            // Format bisa berupa object dengan dosen_id sebagai key, atau array
             $absensi = [];
             foreach ($absensiRecords as $record) {
                 $absensi[$record->dosen_id] = [
@@ -2582,8 +2584,24 @@ class JadwalSeminarPlenoController extends Controller
                 ];
             }
 
+            // Ambil informasi apakah sudah submitted (sama seperti Persamaan Persepsi)
+            $penilaianSubmitted = $jadwal->penilaian_submitted ?? false;
+
+            // Konversi ke array jika diperlukan (untuk kompatibilitas dengan format array)
+            $absensiArray = [];
+            foreach ($absensiRecords as $record) {
+                $absensiArray[] = [
+                    'dosen_id' => $record->dosen_id,
+                    'hadir' => $record->hadir,
+                    'catatan' => $record->catatan ?? ''
+                ];
+            }
+
             return response()->json([
-                'absensi' => $absensi
+                'absensi' => $absensi, // Object format (key by dosen_id)
+                'penilaian_submitted' => $penilaianSubmitted,
+                'report_submitted' => $penilaianSubmitted,
+                'submitted' => $penilaianSubmitted,
             ]);
         } catch (\Exception $e) {
             Log::error("Error getting absensi dosen for Seminar Pleno: " . $e->getMessage());
@@ -2635,6 +2653,7 @@ class JadwalSeminarPlenoController extends Controller
                 'absensi.*.dosen_id' => 'required|exists:users,id',
                 'absensi.*.hadir' => 'required|boolean',
                 'absensi.*.catatan' => 'nullable|string|max:1000',
+                'penilaian_submitted' => 'nullable|boolean',
             ]);
 
             // Ambil semua dosen_id yang valid untuk jadwal ini
@@ -2650,6 +2669,13 @@ class JadwalSeminarPlenoController extends Controller
                         'message' => 'Dosen dengan ID ' . $absen['dosen_id'] . ' tidak terdaftar dalam jadwal ini'
                     ], 400);
                 }
+            }
+
+            // Update jadwal Seminar Pleno dengan status penilaian_submitted (sama seperti Persamaan Persepsi)
+            if ($request->has('penilaian_submitted') && $request->penilaian_submitted === true) {
+                $jadwal->update([
+                    'penilaian_submitted' => true
+                ]);
             }
 
             // Hapus absensi lama untuk dosen-dosen ini
@@ -2671,7 +2697,8 @@ class JadwalSeminarPlenoController extends Controller
             Log::info('Absensi dosen saved for Seminar Pleno', [
                 'jadwal_id' => $jadwalId,
                 'user_id' => $user->id,
-                'count' => count($request->absensi)
+                'count' => count($request->absensi),
+                'penilaian_submitted' => $request->has('penilaian_submitted') ? $request->penilaian_submitted : false
             ]);
 
             return response()->json([

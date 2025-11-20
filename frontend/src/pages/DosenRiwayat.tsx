@@ -73,6 +73,11 @@ type JadwalMengajar = {
   ruangan_nama: string;
   kelompok_kecil?: string;
   kelompok_besar_id?: number | null;
+  kelompok_besar?: {
+    id?: number;
+    semester?: number;
+    nama_kelompok?: string;
+  } | null;
   modul_pbl?: string;
   pbl_tipe?: string;
   kategori_csr?: string;
@@ -429,7 +434,9 @@ export default function DosenRiwayat() {
   };
 
   // Function to calculate Persamaan Persepsi perencanaan per blok
-  const getPersamaanPersepsiPerencanaanPerBlok = (blokNumber: number): number => {
+  const getPersamaanPersepsiPerencanaanPerBlok = (
+    blokNumber: number
+  ): number => {
     // Filter jadwal persamaan persepsi untuk blok tertentu
     const persepsiJadwalBlok = jadwalMengajar.filter((j) => {
       const blokMataKuliah = getBlokFromMataKuliah(j.mata_kuliah_kode);
@@ -456,6 +463,74 @@ export default function DosenRiwayat() {
 
     // Perencanaan = jumlah sesi dari jadwal (1 sesi = 1 perencanaan, 2 sesi = 2 perencanaan)
     const perencanaan = persepsiJadwal.reduce((total, jadwal) => {
+      return total + (jadwal.jumlah_sesi || 0);
+    }, 0);
+
+    return perencanaan;
+  };
+
+  // Function to calculate Seminar Pleno perencanaan per blok
+  const getSeminarPlenoPerencanaanPerBlok = (blokNumber: number): number => {
+    // Filter jadwal seminar pleno untuk blok tertentu
+    const seminarPlenoJadwalBlok = jadwalMengajar.filter((j) => {
+      const blokMataKuliah = getBlokFromMataKuliah(j.mata_kuliah_kode);
+      return (
+        j.jenis_jadwal === "seminar_pleno" &&
+        blokMataKuliah === blokNumber.toString()
+      );
+    });
+
+    // Perencanaan = jumlah sesi dari jadwal (1 sesi = 1 perencanaan, 2 sesi = 2 perencanaan)
+    const perencanaan = seminarPlenoJadwalBlok.reduce((total, jadwal) => {
+      return total + (jadwal.jumlah_sesi || 0);
+    }, 0);
+
+    return perencanaan;
+  };
+
+  // Function to calculate total Seminar Pleno perencanaan for all blocks
+  const getTotalSeminarPlenoPerencanaan = (): number => {
+    // Filter jadwal seminar pleno untuk semua blok
+    const seminarPlenoJadwal = jadwalMengajar.filter(
+      (j) => j.jenis_jadwal === "seminar_pleno"
+    );
+
+    // Perencanaan = jumlah sesi dari jadwal (1 sesi = 1 perencanaan, 2 sesi = 2 perencanaan)
+    const perencanaan = seminarPlenoJadwal.reduce((total, jadwal) => {
+      return total + (jadwal.jumlah_sesi || 0);
+    }, 0);
+
+    return perencanaan;
+  };
+
+  // Function to calculate Kuliah Besar perencanaan per blok
+  const getKuliahBesarPerencanaanPerBlok = (blokNumber: number): number => {
+    // Filter jadwal kuliah besar untuk blok tertentu
+    const kuliahBesarJadwalBlok = jadwalMengajar.filter((j) => {
+      const blokMataKuliah = getBlokFromMataKuliah(j.mata_kuliah_kode);
+      return (
+        j.jenis_jadwal === "kuliah_besar" &&
+        blokMataKuliah === blokNumber.toString()
+      );
+    });
+
+    // Perencanaan = jumlah sesi dari jadwal (1 sesi = 1 perencanaan, 2 sesi = 2 perencanaan)
+    const perencanaan = kuliahBesarJadwalBlok.reduce((total, jadwal) => {
+      return total + (jadwal.jumlah_sesi || 0);
+    }, 0);
+
+    return perencanaan;
+  };
+
+  // Function to calculate total Kuliah Besar perencanaan for all blocks
+  const getTotalKuliahBesarPerencanaan = (): number => {
+    // Filter jadwal kuliah besar untuk semua blok
+    const kuliahBesarJadwal = jadwalMengajar.filter(
+      (j) => j.jenis_jadwal === "kuliah_besar"
+    );
+
+    // Perencanaan = jumlah sesi dari jadwal (1 sesi = 1 perencanaan, 2 sesi = 2 perencanaan)
+    const perencanaan = kuliahBesarJadwal.reduce((total, jadwal) => {
       return total + (jadwal.jumlah_sesi || 0);
     }, 0);
 
@@ -573,9 +648,10 @@ export default function DosenRiwayat() {
         return j.status_konfirmasi === "bisa";
       }
 
-      // Filter realisasi Kuliah Besar: hanya hitung jika status_konfirmasi = "bisa"
+      // Filter realisasi Kuliah Besar: hanya hitung jika penilaian_submitted = true
       if (j.jenis_jadwal === "kuliah_besar") {
-        return j.status_konfirmasi === "bisa";
+        const submitted = j.penilaian_submitted === true;
+        return submitted;
       }
 
       // Filter realisasi Non Blok Non CSR: hanya hitung jika status_konfirmasi = "bisa"
@@ -589,9 +665,27 @@ export default function DosenRiwayat() {
         return j.status_konfirmasi === "bisa";
       }
 
-      // Filter realisasi Seminar Pleno: hanya hitung jika status_konfirmasi = "bisa" (langsung bisa mengajar)
+      // Filter realisasi Seminar Pleno:
+      // - Harus sudah disubmit (penilaian_submitted = true)
+      // - Untuk dosen pengampu: harus hadir (absensi_hadir = true)
+      // - Untuk koordinator: cukup sudah disubmit
       if (j.jenis_jadwal === "seminar_pleno") {
-        return j.status_konfirmasi === "bisa";
+        const submitted = j.penilaian_submitted === true;
+        if (!submitted) return false;
+
+        // Cek apakah dosen adalah koordinator
+        const dosenId = dosenData?.id;
+        const isKoordinator =
+          dosenId && j.koordinator_ids && j.koordinator_ids.includes(dosenId);
+
+        // Jika koordinator, cukup sudah disubmit
+        if (isKoordinator) {
+          return submitted;
+        }
+
+        // Jika pengampu, harus hadir juga
+        const hadir = j.absensi_hadir === true;
+        return submitted && hadir;
       }
 
       // Filter realisasi Persamaan Persepsi:
@@ -604,7 +698,8 @@ export default function DosenRiwayat() {
 
         // Cek apakah dosen adalah koordinator
         const dosenId = dosenData?.id;
-        const isKoordinator = dosenId && j.koordinator_ids && j.koordinator_ids.includes(dosenId);
+        const isKoordinator =
+          dosenId && j.koordinator_ids && j.koordinator_ids.includes(dosenId);
 
         // Jika koordinator, cukup sudah disubmit
         if (isKoordinator) {
@@ -704,7 +799,10 @@ export default function DosenRiwayat() {
       };
 
       // LOAD WATERMARK LOGO
-      const loadWatermarkLogo = async (): Promise<{ dataUrl: string; aspectRatio: number }> => {
+      const loadWatermarkLogo = async (): Promise<{
+        dataUrl: string;
+        aspectRatio: number;
+      }> => {
         try {
           const response = await fetch("/images/logo/logo-icon.svg");
           if (!response.ok) {
@@ -718,12 +816,12 @@ export default function DosenRiwayat() {
             img.onload = () => {
               // Hitung aspect ratio dari gambar asli
               const aspectRatio = img.width / img.height;
-              
+
               // Tentukan ukuran maksimum untuk watermark
               const maxSize = 200;
               let canvasWidth: number;
               let canvasHeight: number;
-              
+
               // Pertahankan aspect ratio
               if (img.width > img.height) {
                 canvasWidth = maxSize;
@@ -732,7 +830,7 @@ export default function DosenRiwayat() {
                 canvasHeight = maxSize;
                 canvasWidth = maxSize * aspectRatio;
               }
-              
+
               const canvas = document.createElement("canvas");
               const ctx = canvas.getContext("2d");
               canvas.width = canvasWidth;
@@ -744,7 +842,7 @@ export default function DosenRiwayat() {
                 ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
                 resolve({
                   dataUrl: canvas.toDataURL("image/png"),
-                  aspectRatio: aspectRatio
+                  aspectRatio: aspectRatio,
                 });
               } else {
                 resolve({ dataUrl: "", aspectRatio: 1 });
@@ -1034,9 +1132,8 @@ export default function DosenRiwayat() {
         { jenis: "jurnal_reading", label: "Jurnal Reading" },
         { jenis: "csr", label: "CSR" },
         { jenis: "persamaan_persepsi", label: "Persamaan Persepsi" },
-        { jenis: "materi", label: "Materi" },
-        { jenis: "persamaan_persepsi", label: "Persamaan Persepsi" },
         { jenis: "seminar_pleno", label: "Seminar Pleno" },
+        { jenis: "materi", label: "Materi" },
       ];
 
       semuaJenisKegiatan.forEach((jenisKegiatan) => {
@@ -1070,22 +1167,25 @@ export default function DosenRiwayat() {
         } else {
           doc.text(jenisKegiatan.label, colJenis, yPos);
         }
-        // Kolom Perencanaan: "-" untuk kuliah_besar, praktikum, materi; sesi untuk PBL; "0" untuk yang lain
+        // Kolom Perencanaan: "-" untuk praktikum, materi; sesi untuk PBL; jumlah_sesi untuk yang lain
         let perencanaanValue = "0";
         if (
-          jenisKegiatan.jenis === "kuliah_besar" ||
           jenisKegiatan.jenis === "praktikum" ||
           jenisKegiatan.jenis === "materi"
         ) {
           perencanaanValue = "-";
         } else if (jenisKegiatan.jenis === "pbl") {
           perencanaanValue = getTotalPblSesi().toString();
+        } else if (jenisKegiatan.jenis === "kuliah_besar") {
+          perencanaanValue = getTotalKuliahBesarPerencanaan().toString();
         } else if (jenisKegiatan.jenis === "jurnal_reading") {
           perencanaanValue = getTotalJurnalReadingPerencanaan().toString();
         } else if (jenisKegiatan.jenis === "csr") {
           perencanaanValue = getTotalCSRPerencanaan().toString();
         } else if (jenisKegiatan.jenis === "persamaan_persepsi") {
           perencanaanValue = getTotalPersamaanPersepsiPerencanaan().toString();
+        } else if (jenisKegiatan.jenis === "seminar_pleno") {
+          perencanaanValue = getTotalSeminarPlenoPerencanaan().toString();
         }
         doc.text(perencanaanValue, colPerencanaan, yPos);
         doc.text(`${dataJenis.jumlah}`, colPertemuan, yPos);
@@ -1167,6 +1267,7 @@ export default function DosenRiwayat() {
           { jenis: "csr", label: "CSR" },
           { jenis: "persamaan_persepsi", label: "Persamaan Persepsi" },
           { jenis: "seminar_pleno", label: "Seminar Pleno" },
+          { jenis: "materi", label: "Materi" },
         ];
 
         semuaJenisKegiatan.forEach((jenisKegiatan) => {
@@ -1200,10 +1301,9 @@ export default function DosenRiwayat() {
           } else {
             doc.text(jenisKegiatan.label, colJenis, yPos);
           }
-          // Kolom Perencanaan: "-" untuk kuliah_besar, praktikum, materi; sesi untuk PBL; "0" untuk yang lain
+          // Kolom Perencanaan: "-" untuk praktikum, materi; sesi untuk PBL; jumlah_sesi untuk yang lain
           let perencanaanValue = "0";
           if (
-            jenisKegiatan.jenis === "kuliah_besar" ||
             jenisKegiatan.jenis === "praktikum" ||
             jenisKegiatan.jenis === "materi"
           ) {
@@ -1211,6 +1311,10 @@ export default function DosenRiwayat() {
           } else if (jenisKegiatan.jenis === "pbl") {
             const sesiBlok = getPblSesiPerBlok(blokNumber);
             perencanaanValue = sesiBlok.toString();
+          } else if (jenisKegiatan.jenis === "kuliah_besar") {
+            const perencanaanKuliahBesar =
+              getKuliahBesarPerencanaanPerBlok(blokNumber);
+            perencanaanValue = perencanaanKuliahBesar.toString();
           } else if (jenisKegiatan.jenis === "jurnal_reading") {
             const perencanaanJurnal =
               getJurnalReadingPerencanaanPerBlok(blokNumber);
@@ -1219,8 +1323,13 @@ export default function DosenRiwayat() {
             const perencanaanCSR = getCSRPerencanaanPerBlok(blokNumber);
             perencanaanValue = perencanaanCSR.toString();
           } else if (jenisKegiatan.jenis === "persamaan_persepsi") {
-            const perencanaanPersepsi = getPersamaanPersepsiPerencanaanPerBlok(blokNumber);
+            const perencanaanPersepsi =
+              getPersamaanPersepsiPerencanaanPerBlok(blokNumber);
             perencanaanValue = perencanaanPersepsi.toString();
+          } else if (jenisKegiatan.jenis === "seminar_pleno") {
+            const perencanaanSeminarPleno =
+              getSeminarPlenoPerencanaanPerBlok(blokNumber);
+            perencanaanValue = perencanaanSeminarPleno.toString();
           }
           doc.text(perencanaanValue, colPerencanaan, yPos);
           doc.text(`${dataJenis.jumlah}`, colPertemuan, yPos);
@@ -1305,6 +1414,7 @@ export default function DosenRiwayat() {
           { jenis: "csr", label: "CSR" },
           { jenis: "persamaan_persepsi", label: "Persamaan Persepsi" },
           { jenis: "seminar_pleno", label: "Seminar Pleno" },
+          { jenis: "materi", label: "Materi" },
         ];
 
         semuaJenisKegiatan.forEach((jenisKegiatan) => {
@@ -1338,10 +1448,9 @@ export default function DosenRiwayat() {
           } else {
             doc.text(jenisKegiatan.label, colJenis, yPos);
           }
-          // Kolom Perencanaan: "-" untuk kuliah_besar, praktikum, materi; sesi untuk PBL; "0" untuk yang lain
+          // Kolom Perencanaan: "-" untuk praktikum, materi; sesi untuk PBL; jumlah_sesi untuk yang lain
           let perencanaanValue = "0";
           if (
-            jenisKegiatan.jenis === "kuliah_besar" ||
             jenisKegiatan.jenis === "praktikum" ||
             jenisKegiatan.jenis === "materi"
           ) {
@@ -1349,6 +1458,10 @@ export default function DosenRiwayat() {
           } else if (jenisKegiatan.jenis === "pbl") {
             const sesiBlok = getPblSesiPerBlok(blokNumber);
             perencanaanValue = sesiBlok.toString();
+          } else if (jenisKegiatan.jenis === "kuliah_besar") {
+            const perencanaanKuliahBesar =
+              getKuliahBesarPerencanaanPerBlok(blokNumber);
+            perencanaanValue = perencanaanKuliahBesar.toString();
           } else if (jenisKegiatan.jenis === "jurnal_reading") {
             const perencanaanJurnal =
               getJurnalReadingPerencanaanPerBlok(blokNumber);
@@ -1357,8 +1470,13 @@ export default function DosenRiwayat() {
             const perencanaanCSR = getCSRPerencanaanPerBlok(blokNumber);
             perencanaanValue = perencanaanCSR.toString();
           } else if (jenisKegiatan.jenis === "persamaan_persepsi") {
-            const perencanaanPersepsi = getPersamaanPersepsiPerencanaanPerBlok(blokNumber);
+            const perencanaanPersepsi =
+              getPersamaanPersepsiPerencanaanPerBlok(blokNumber);
             perencanaanValue = perencanaanPersepsi.toString();
+          } else if (jenisKegiatan.jenis === "seminar_pleno") {
+            const perencanaanSeminarPleno =
+              getSeminarPlenoPerencanaanPerBlok(blokNumber);
+            perencanaanValue = perencanaanSeminarPleno.toString();
           }
           doc.text(perencanaanValue, colPerencanaan, yPos);
           doc.text(`${dataJenis.jumlah}`, colPertemuan, yPos);
@@ -1381,18 +1499,18 @@ export default function DosenRiwayat() {
       const totalPages = doc.internal.pages.length;
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
-        
+
         // Tambahkan 3 watermark logo di setiap halaman (semua rata tengah)
         if (watermarkLogoDataUrl) {
           try {
             const pageWidth = doc.internal.pageSize.width;
             const pageHeight = doc.internal.pageSize.height;
             const maxWatermarkSize = 90; // Ukuran maksimum watermark (diperkecil)
-            
+
             // Hitung ukuran watermark dengan mempertahankan aspect ratio
             let watermarkWidth: number;
             let watermarkHeight: number;
-            
+
             if (watermarkAspectRatio >= 1) {
               // Lebar lebih besar atau sama dengan tinggi
               watermarkWidth = maxWatermarkSize;
@@ -1402,17 +1520,17 @@ export default function DosenRiwayat() {
               watermarkHeight = maxWatermarkSize;
               watermarkWidth = maxWatermarkSize * watermarkAspectRatio;
             }
-            
+
             // Semua watermark rata tengah horizontal
             const watermarkX = (pageWidth - watermarkWidth) / 2;
-            
+
             // Jarak antar watermark (lebih dekat)
             const spacing = watermarkHeight + 10; // Jarak antar watermark (diperkecil dari 20 ke 10)
-            
+
             // Hitung posisi vertikal untuk 3 watermark yang rata tengah
-            const totalHeight = (watermarkHeight * 3) + (spacing * 2); // Total tinggi 3 watermark + 2 spacing
+            const totalHeight = watermarkHeight * 3 + spacing * 2; // Total tinggi 3 watermark + 2 spacing
             const startY = (pageHeight - totalHeight) / 2; // Mulai dari tengah dikurangi setengah total tinggi
-            
+
             // Watermark 1: Paling atas
             const watermarkY1 = startY;
             doc.addImage(
@@ -1426,7 +1544,7 @@ export default function DosenRiwayat() {
               "FAST",
               0
             );
-            
+
             // Watermark 2: Tengah
             const watermarkY2 = startY + watermarkHeight + spacing;
             doc.addImage(
@@ -1440,7 +1558,7 @@ export default function DosenRiwayat() {
               "FAST",
               0
             );
-            
+
             // Watermark 3: Paling bawah
             const watermarkY3 = startY + (watermarkHeight + spacing) * 2;
             doc.addImage(
@@ -1458,7 +1576,7 @@ export default function DosenRiwayat() {
             console.error("Error adding watermark to PDF:", watermarkError);
           }
         }
-        
+
         doc.setFontSize(8);
         doc.setFont("times", "normal");
         doc.text(
@@ -1623,12 +1741,12 @@ export default function DosenRiwayat() {
       }
     }
 
-    // Untuk Kuliah Besar, realisasi hanya dihitung bila status_konfirmasi = "bisa"
-    if (
-      jadwal.jenis_jadwal === "kuliah_besar" &&
-      jadwal.status_konfirmasi !== "bisa"
-    ) {
-      return total;
+    // Untuk Kuliah Besar, realisasi hanya dihitung bila penilaian_submitted = true
+    if (jadwal.jenis_jadwal === "kuliah_besar") {
+      const submitted = jadwal.penilaian_submitted === true;
+      if (!submitted) {
+        return total;
+      }
     }
 
     // Untuk Non Blok Non CSR, realisasi hanya dihitung bila status_konfirmasi = "bisa"
@@ -1647,15 +1765,38 @@ export default function DosenRiwayat() {
       return total;
     }
 
-    // Untuk Seminar Pleno, realisasi hanya dihitung bila status_konfirmasi = "bisa" (langsung bisa mengajar)
-    if (
-      jadwal.jenis_jadwal === "seminar_pleno" &&
-      jadwal.status_konfirmasi !== "bisa"
-    ) {
-      return total;
+    // Untuk Seminar Pleno, realisasi hanya dihitung bila:
+    // - penilaian_submitted = true DAN
+    // - Untuk pengampu: absensi_hadir = true
+    // - Untuk koordinator: cukup penilaian_submitted = true
+    if (jadwal.jenis_jadwal === "seminar_pleno") {
+      const submitted = jadwal.penilaian_submitted === true;
+      if (!submitted) {
+        return total;
+      }
+
+      // Cek apakah dosen adalah koordinator
+      const dosenId = dosenData?.id;
+      const isKoordinator =
+        dosenId &&
+        jadwal.koordinator_ids &&
+        jadwal.koordinator_ids.includes(dosenId);
+
+      // Jika koordinator, cukup sudah disubmit
+      if (isKoordinator) {
+        // Hitung jam berdasarkan jumlah sesi (1 sesi = 50 menit = 0.833 jam)
+        const jamPerSesi = 50 / 60;
+        return total + jadwal.jumlah_sesi * jamPerSesi;
+      }
+
+      // Jika pengampu, harus hadir juga
+      const hadir = jadwal.absensi_hadir === true;
+      if (!hadir) {
+        return total;
+      }
     }
 
-     // Untuk Persamaan Persepsi, realisasi hanya dihitung bila:
+    // Untuk Persamaan Persepsi, realisasi hanya dihitung bila:
     // - penilaian_submitted = true DAN
     // - Untuk pengampu: absensi_hadir = true
     // - Untuk koordinator: cukup penilaian_submitted = true
@@ -1667,7 +1808,10 @@ export default function DosenRiwayat() {
 
       // Cek apakah dosen adalah koordinator
       const dosenId = dosenData?.id;
-      const isKoordinator = dosenId && jadwal.koordinator_ids && jadwal.koordinator_ids.includes(dosenId);
+      const isKoordinator =
+        dosenId &&
+        jadwal.koordinator_ids &&
+        jadwal.koordinator_ids.includes(dosenId);
 
       // Jika koordinator, cukup sudah disubmit
       if (isKoordinator) {
@@ -1713,9 +1857,12 @@ export default function DosenRiwayat() {
       }
     }
 
-    // Untuk Kuliah Besar, realisasi hanya dihitung bila status_konfirmasi = "bisa"
-    if (jenis === "kuliah_besar" && jadwal.status_konfirmasi !== "bisa") {
-      return acc;
+    // Untuk Kuliah Besar, realisasi hanya dihitung bila penilaian_submitted = true
+    if (jenis === "kuliah_besar") {
+      const submitted = jadwal.penilaian_submitted === true;
+      if (!submitted) {
+        return acc;
+      }
     }
 
     // Untuk Non Blok Non CSR, realisasi hanya dihitung bila status_konfirmasi = "bisa"
@@ -1731,9 +1878,30 @@ export default function DosenRiwayat() {
       return acc;
     }
 
-    // Untuk Seminar Pleno, realisasi hanya dihitung bila status_konfirmasi = "bisa" (langsung bisa mengajar)
-    if (jenis === "seminar_pleno" && jadwal.status_konfirmasi !== "bisa") {
-      return acc;
+    // Untuk Seminar Pleno, realisasi hanya dihitung bila:
+    // - penilaian_submitted = true DAN
+    // - Untuk pengampu: absensi_hadir = true
+    // - Untuk koordinator: cukup penilaian_submitted = true
+    if (jenis === "seminar_pleno") {
+      const submitted = jadwal.penilaian_submitted === true;
+      if (!submitted) {
+        return acc;
+      }
+
+      // Cek apakah dosen adalah koordinator
+      const dosenId = dosenData?.id;
+      const isKoordinator =
+        dosenId &&
+        jadwal.koordinator_ids &&
+        jadwal.koordinator_ids.includes(dosenId);
+
+      // Jika pengampu, harus hadir juga
+      if (!isKoordinator) {
+        const hadir = jadwal.absensi_hadir === true;
+        if (!hadir) {
+          return acc;
+        }
+      }
     }
 
     // Untuk Persamaan Persepsi, realisasi hanya dihitung bila:
@@ -1748,7 +1916,10 @@ export default function DosenRiwayat() {
 
       // Cek apakah dosen adalah koordinator
       const dosenId = dosenData?.id;
-      const isKoordinator = dosenId && jadwal.koordinator_ids && jadwal.koordinator_ids.includes(dosenId);
+      const isKoordinator =
+        dosenId &&
+        jadwal.koordinator_ids &&
+        jadwal.koordinator_ids.includes(dosenId);
 
       // Jika pengampu, harus hadir juga
       if (!isKoordinator) {
@@ -2123,7 +2294,6 @@ export default function DosenRiwayat() {
               <option value="persamaan_persepsi">Persamaan Persepsi</option>
               <option value="materi">Materi</option>
               <option value="agenda">Agenda</option>
-              <option value="persamaan_persepsi">Persamaan Persepsi</option>
               <option value="seminar_pleno">Seminar Pleno</option>
             </select>
           </div>
@@ -2187,12 +2357,6 @@ export default function DosenRiwayat() {
                 "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
             },
             {
-              jenis: "persamaan_persepsi",
-              label: "Persamaan Persepsi",
-              color:
-                "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
-            },
-            {
               jenis: "seminar_pleno",
               label: "Seminar Pleno",
               color:
@@ -2251,7 +2415,6 @@ export default function DosenRiwayat() {
             "persamaan_persepsi",
             "materi",
             "agenda_khusus",
-            "persamaan_persepsi",
             "seminar_pleno",
           ];
 
@@ -2331,7 +2494,12 @@ export default function DosenRiwayat() {
                             )}
                             {jenis === "seminar_pleno" && (
                               <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                                Peran
+                                Type
+                              </th>
+                            )}
+                            {jenis === "seminar_pleno" && (
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Status Absensi
                               </th>
                             )}
                             {jenis === "persamaan_persepsi" && (
@@ -2415,15 +2583,37 @@ export default function DosenRiwayat() {
                                 </td>
                               )}
                               {jenis === "seminar_pleno" && (
-                                <td className="px-6 py-4 whitespace-nowrap text-gray-500 dark:text-gray-400">
+                                <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-white/90">
                                   <span
                                     className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                      jadwal.peran === "koordinator"
-                                        ? "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300"
-                                        : "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300"
+                                      jadwal.role_type === "koordinator"
+                                        ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border border-purple-200 dark:border-purple-700"
+                                        : "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-700"
                                     }`}
                                   >
-                                    {jadwal.peran_display || (jadwal.peran === "koordinator" ? "Koordinator" : "Pengampu")}
+                                    {jadwal.role_type === "koordinator"
+                                      ? "Koordinator"
+                                      : "Pengampu"}
+                                  </span>
+                                </td>
+                              )}
+                              {jenis === "seminar_pleno" && (
+                                <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-white/90">
+                                  <span
+                                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                      jadwal.absensi_status === "hadir"
+                                        ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-700"
+                                        : jadwal.absensi_status ===
+                                          "tidak_hadir"
+                                        ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-700"
+                                        : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700"
+                                    }`}
+                                  >
+                                    {jadwal.absensi_status === "hadir"
+                                      ? "Hadir"
+                                      : jadwal.absensi_status === "tidak_hadir"
+                                      ? "Tidak Hadir"
+                                      : "Menunggu"}
                                   </span>
                                 </td>
                               )}
@@ -2448,7 +2638,8 @@ export default function DosenRiwayat() {
                                     className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                                       jadwal.absensi_status === "hadir"
                                         ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-700"
-                                        : jadwal.absensi_status === "tidak_hadir"
+                                        : jadwal.absensi_status ===
+                                          "tidak_hadir"
                                         ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-700"
                                         : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700"
                                     }`}
@@ -2516,12 +2707,12 @@ export default function DosenRiwayat() {
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-gray-500 dark:text-gray-400">
                                 {jenis === "kuliah_besar"
-                                  ? jadwal.kelompok_besar_id
-                                    ? `Kelompok Besar Semester ${
-                                        jadwal.semester ||
-                                        jadwal.semester_type ||
-                                        "Unknown"
-                                      }`
+                                  ? jadwal.kelompok_besar?.semester
+                                    ? `Kelompok Besar Semester ${jadwal.kelompok_besar.semester}`
+                                    : jadwal.kelompok_besar?.nama_kelompok
+                                    ? jadwal.kelompok_besar.nama_kelompok
+                                    : jadwal.kelompok_kecil
+                                    ? jadwal.kelompok_kecil
                                     : "-"
                                   : jadwal.kelompok_kecil || "-"}
                               </td>
@@ -2573,7 +2764,7 @@ export default function DosenRiwayat() {
 
                                   // Jika ada status_reschedule = "approved", prioritaskan itu
                                   if (reschedule === "approved") {
-                                  if (status === "bisa") {
+                                    if (status === "bisa") {
                                       return (
                                         <div className="min-w-[180px]">
                                           <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-700">
@@ -2585,7 +2776,7 @@ export default function DosenRiwayat() {
                                           </div>
                                         </div>
                                       );
-                                  } else if (status === "tidak_bisa") {
+                                    } else if (status === "tidak_bisa") {
                                       return (
                                         <div className="min-w-[180px]">
                                           <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-700">
@@ -2616,17 +2807,17 @@ export default function DosenRiwayat() {
                                   // Jika tidak ada status_reschedule = "approved", gunakan logika normal
                                   switch (status) {
                                     case "bisa":
-                                  return (
-                                    <div className="min-w-[180px]">
+                                      return (
+                                        <div className="min-w-[180px]">
                                           <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-700">
                                             <FontAwesomeIcon
                                               icon={faCheckCircle}
                                               className="w-3 h-3 mr-1"
                                             />
                                             Bisa
-                                      </div>
-                                    </div>
-                                  );
+                                          </div>
+                                        </div>
+                                      );
                                     case "tidak_bisa":
                                       return (
                                         <div className="min-w-[180px]">

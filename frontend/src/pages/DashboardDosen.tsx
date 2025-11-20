@@ -3577,6 +3577,35 @@ export default function DashboardDosen() {
                 )}
               </motion.div>
 
+              {/* Seminar Pleno */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.55 }}
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+              >
+                {renderJadwalTable(
+                  "Seminar Pleno",
+                  faUsers,
+                  jadwalSeminarPleno,
+                  [
+                    "NO",
+                    "HARI/TANGGAL",
+                    "PUKUL",
+                    "WAKTU",
+                    "TOPIK",
+                    "KOORDINATOR DOSEN",
+                    "PENGAMPU",
+                    "KELOMPOK BESAR",
+                    "LOKASI",
+                    "JENIS SEMESTER",
+                    "AKSI",
+                  ],
+                  "seminar_pleno",
+                  "Tidak ada data Seminar Pleno"
+                )}
+              </motion.div>
+
               {/* Praktikum - Hanya tampil untuk semester reguler */}
               {activeSemesterType !== "antara" && (
                 <motion.div
@@ -3665,35 +3694,6 @@ export default function DashboardDosen() {
                   ],
                   "persamaan_persepsi",
                   "Tidak ada data Persamaan Persepsi"
-                )}
-              </motion.div>
-
-              {/* Seminar Pleno */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.8 }}
-                className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
-              >
-                {renderJadwalTable(
-                  "Seminar Pleno",
-                  faUsers,
-                  jadwalSeminarPleno,
-                  [
-                    "NO",
-                    "HARI/TANGGAL",
-                    "PUKUL",
-                    "WAKTU",
-                    "TOPIK",
-                    "KOORDINATOR DOSEN",
-                    "PENGAMPU",
-                    "KELOMPOK BESAR",
-                    "LOKASI",
-                    "JENIS SEMESTER",
-                    "AKSI",
-                  ],
-                  "seminar_pleno",
-                  "Tidak ada data Seminar Pleno"
                 )}
               </motion.div>
 

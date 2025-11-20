@@ -1745,6 +1745,7 @@ class JadwalKuliahBesarController extends Controller
                     'jumlah_sesi' => $item->jumlah_sesi ?? 1,
                     'semester_type' => $semesterTypeValue,
                     'kelompok_besar' => $kelompokBesar,
+                    'penilaian_submitted' => (bool)($item->penilaian_submitted ?? false),
                     'created_at' => $item->created_at,
                 ];
             });
@@ -2597,9 +2598,14 @@ class JadwalKuliahBesarController extends Controller
                 })
                 ->toArray();
 
+            $penilaianSubmitted = $jadwal->penilaian_submitted ?? false;
+
             return response()->json([
                 'absensi' => $absensi,
-                'qr_enabled' => $jadwal->qr_enabled ?? false
+                'qr_enabled' => $jadwal->qr_enabled ?? false,
+                'penilaian_submitted' => $penilaianSubmitted,
+                'report_submitted' => $penilaianSubmitted,
+                'submitted' => $penilaianSubmitted,
             ]);
         } catch (\Exception $e) {
             Log::error("Error getting absensi for Kuliah Besar: " . $e->getMessage());
@@ -2681,7 +2687,8 @@ class JadwalKuliahBesarController extends Controller
                 'absensi' => 'required|array',
                 'absensi.*.mahasiswa_nim' => 'required|string',
                 'absensi.*.hadir' => 'required|boolean',
-                'absensi.*.catatan' => 'nullable|string'
+                'absensi.*.catatan' => 'nullable|string',
+                'penilaian_submitted' => 'nullable|boolean',
             ]);
 
             $absensiData = $request->input('absensi', []);
@@ -2758,6 +2765,13 @@ class JadwalKuliahBesarController extends Controller
                     'message' => 'Beberapa mahasiswa tidak terdaftar di jadwal ini: ' . implode(', ', $invalidNims),
                     'invalid_nims' => $invalidNims
                 ], 422);
+            }
+
+            // Update jadwal Kuliah Besar dengan status penilaian_submitted (hanya untuk dosen)
+            if ($isDosen && $request->has('penilaian_submitted')) {
+                $jadwal->update([
+                    'penilaian_submitted' => $request->penilaian_submitted
+                ]);
             }
 
             // Upsert absensi (update jika ada, insert jika belum ada)

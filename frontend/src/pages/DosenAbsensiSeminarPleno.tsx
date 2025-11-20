@@ -67,6 +67,10 @@ export default function AbsensiSeminarPlenoPage() {
   const [pageSizeDosen, setPageSizeDosen] = useState(PAGE_SIZE_OPTIONS[0]);
   const [showCatatanModalDosen, setShowCatatanModalDosen] = useState(false);
   const [selectedDosen, setSelectedDosen] = useState<Dosen | null>(null);
+  const [isReportSubmitted, setIsReportSubmitted] = useState(false);
+  const [includeInReport, setIncludeInReport] = useState(false);
+  const [showConfirmModalDosen, setShowConfirmModalDosen] = useState(false);
+  const [showSuccessMessageDosen, setShowSuccessMessageDosen] = useState(false);
   const [qrCodeData, setQrCodeData] = useState<string>('');
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingChange, setPendingChange] = useState<{ nim: string; desired: boolean } | null>(null);
@@ -648,7 +652,37 @@ export default function AbsensiSeminarPlenoPage() {
               });
             }
           }
-          setAbsensiDosen(existingAbsensiDosen);
+          
+          // Auto-check koordinator sebagai hadir
+          const updatedAbsensiDosen: AbsensiDosen = { ...existingAbsensiDosen };
+          allDosen.forEach((dosen) => {
+            if (dosen.is_koordinator) {
+              // Jika koordinator belum ada di absensi atau belum di-set sebagai hadir, set otomatis hadir
+              if (!updatedAbsensiDosen[dosen.id.toString()] || !updatedAbsensiDosen[dosen.id.toString()].hadir) {
+                updatedAbsensiDosen[dosen.id.toString()] = {
+                  hadir: true,
+                  catatan: updatedAbsensiDosen[dosen.id.toString()]?.catatan || "",
+                };
+              }
+            }
+          });
+          
+          setAbsensiDosen(updatedAbsensiDosen);
+          
+          // Cek apakah laporan sudah pernah disubmit
+          // Hanya percaya pada flag dari backend, jangan gunakan fallback berdasarkan data absensi
+          // karena auto-check koordinator bisa membuat false positive
+          // Backend selalu memberikan flag (true/false), jadi hanya percaya pada backend
+          const penilaianSubmitted = absensiDosenResponse.data.penilaian_submitted === true;
+          const reportSubmitted = absensiDosenResponse.data.report_submitted === true;
+          const submitted = absensiDosenResponse.data.submitted === true;
+          
+          // Hanya set submitted jika backend secara eksplisit mengembalikan true
+          // Jika false/null/undefined, berarti belum submitted
+          const isSubmitted = penilaianSubmitted || reportSubmitted || submitted;
+
+          setIsReportSubmitted(isSubmitted);
+          setIncludeInReport(isSubmitted);
         } catch (err: any) {
           // Endpoint belum tersedia atau belum ada data - ini normal
           console.log('No existing absensi dosen data or endpoint not available yet');
@@ -782,6 +816,16 @@ export default function AbsensiSeminarPlenoPage() {
 
   // Fungsi untuk handle perubahan absensi dosen
   const handleAbsensiDosenChange = (dosenId: number, hadir: boolean) => {
+    // Cek apakah dosen adalah koordinator
+    const dosen = dosenList.find((d) => d.id === dosenId);
+    const isKoordinatorDosen = dosen?.is_koordinator || false;
+
+    // Jika koordinator dan user mencoba uncheck, jangan izinkan
+    if (isKoordinatorDosen && !hadir) {
+      // Koordinator selalu hadir, tidak bisa di-uncheck
+      return;
+    }
+
     setAbsensiDosen((prev) => ({
       ...prev,
       [dosenId.toString()]: {
@@ -822,9 +866,38 @@ export default function AbsensiSeminarPlenoPage() {
     handleCloseCatatanModalDosen();
   };
 
+  // Fungsi untuk membuka modal konfirmasi
+  const handleOpenConfirmModalDosen = () => {
+    if (!kode || !jadwalId) return;
+
+    if (!includeInReport) {
+      alert(
+        'Centang "Masukkan ke Laporan" untuk menyimpan dan memasukkan realisasi ke PDF.'
+      );
+      return;
+    }
+
+    setShowConfirmModalDosen(true);
+  };
+
+  // Fungsi untuk menutup modal konfirmasi
+  const handleCloseConfirmModalDosen = () => {
+    setShowConfirmModalDosen(false);
+  };
+
   // Fungsi untuk menyimpan absensi dosen
   const handleSaveAbsensiDosen = async () => {
     if (!kode || !jadwalId) return;
+
+    if (!includeInReport) {
+      alert(
+        'Centang "Masukkan ke Laporan" untuk menyimpan dan memasukkan realisasi ke PDF.'
+      );
+      return;
+    }
+
+    // Tutup modal konfirmasi
+    setShowConfirmModalDosen(false);
 
     setSavingAbsensiDosen(true);
     try {
@@ -834,6 +907,7 @@ export default function AbsensiSeminarPlenoPage() {
           hadir: absensiDosen[d.id.toString()]?.hadir || false,
           catatan: absensiDosen[d.id.toString()]?.catatan || "",
         })),
+        penilaian_submitted: true,
       };
 
       await api.post(`/seminar-pleno/${kode}/jadwal/${jadwalId}/absensi-dosen`, payload);
@@ -862,8 +936,17 @@ export default function AbsensiSeminarPlenoPage() {
       }
       setAbsensiDosen(existingAbsensiDosen);
 
+      // Update status laporan sudah disubmit
+      setIsReportSubmitted(true);
+      setIncludeInReport(true);
+
       // Tampilkan pesan sukses
-      alert('Absensi dosen berhasil disimpan!');
+      setShowSuccessMessageDosen(true);
+
+      // Auto-hide pesan sukses setelah 3 detik
+      setTimeout(() => {
+        setShowSuccessMessageDosen(false);
+      }, 3000);
     } catch (error: any) {
       console.error("Error saving absensi dosen:", error);
       setError(handleApiError(error, "Menyimpan absensi dosen"));
@@ -3015,6 +3098,44 @@ export default function AbsensiSeminarPlenoPage() {
       ) : activeTab === 'dosen' && (isKoordinator || isSuperAdmin) ? (
         <div className="bg-white dark:bg-white/[0.03] rounded-b-xl shadow-md border border-t-0 border-gray-200 dark:border-gray-800">
           <div className="p-6">
+            {/* Success Message */}
+            <AnimatePresence>
+              {showSuccessMessageDosen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl p-4"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                      <svg
+                        className="w-5 h-5 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-green-800 dark:text-green-200">
+                        Absensi Berhasil Disimpan!
+                      </h3>
+                      <p className="text-green-600 dark:text-green-300 text-sm">
+                        Data absensi telah tersimpan dan akan dimasukkan ke dalam laporan.
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Stats Cards untuk Dosen */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl shadow-sm p-4">
@@ -3041,6 +3162,105 @@ export default function AbsensiSeminarPlenoPage() {
                 </div>
               </div>
             </div>
+
+            {/* Masuk Laporan Section */}
+            <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex-1">
+                  <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                    Masuk Laporan
+                  </h4>
+                  <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base leading-none">
+                        {isReportSubmitted ? "✅" : "⚠️"}
+                      </span>
+                      <div>
+                        <span className="font-medium text-gray-700 dark:text-gray-300">
+                          {isReportSubmitted
+                            ? "Laporan sudah disubmit dan tersimpan"
+                            : "Wajib dicentang untuk menyimpan absensi"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex-shrink-0">
+                  <label
+                    className={`flex items-center gap-3 cursor-pointer ${
+                      isReportSubmitted ? "cursor-not-allowed" : ""
+                    }`}
+                  >
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        checked={includeInReport}
+                        onChange={(e) =>
+                          !isReportSubmitted &&
+                          setIncludeInReport(e.target.checked)
+                        }
+                        disabled={isReportSubmitted}
+                        className="sr-only"
+                      />
+                      <div
+                        className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all duration-200 ${
+                          includeInReport
+                            ? isReportSubmitted
+                              ? "bg-green-500 border-green-500"
+                              : "bg-brand-500 border-brand-500"
+                            : "border-gray-300 dark:border-gray-600 hover:border-brand-400"
+                        } ${isReportSubmitted ? "cursor-not-allowed" : ""}`}
+                      >
+                        {includeInReport && (
+                          <svg
+                            className="w-3 h-3 text-white"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      Masuk Laporan {!isReportSubmitted && <span className="text-red-500">*</span>}
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Warning untuk mengingatkan user mengabsen diri sendiri */}
+            {(() => {
+              const currentUser = getUser();
+              const currentUserId = currentUser ? Number(currentUser.id) : null;
+              const currentUserAbsensi = currentUserId ? absensiDosen[currentUserId.toString()] : null;
+              const currentUserHadir = currentUserAbsensi?.hadir || false;
+              const showWarning = currentUserId && !isReportSubmitted && !currentUserHadir && dosenList.some(d => d.id === currentUserId);
+              
+              if (showWarning) {
+                return (
+                  <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <span className="text-xl leading-none">⚠️</span>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                          Jangan lupa untuk mengabsen diri Anda sendiri!
+                        </p>
+                        <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                          Pastikan Anda telah mencentang checkbox hadir untuk nama Anda sendiri sebelum menyimpan laporan. Absensi Anda diperlukan agar masuk ke dalam laporan.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
 
             {/* Dosen List Table */}
             <div className="bg-white dark:bg-white/[0.03] rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
@@ -3176,10 +3396,11 @@ export default function AbsensiSeminarPlenoPage() {
                                         onChange={(e) =>
                                           handleAbsensiDosenChange(d.id, e.target.checked)
                                         }
-                                        disabled={savingAbsensiDosen}
+                                        disabled={savingAbsensiDosen || isReportSubmitted || d.is_koordinator}
                                         className={`w-6 h-6 appearance-none rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 relative
                                           ${hadir ? "border-brand-500 bg-brand-500" : "border-gray-300 bg-white dark:bg-gray-900 dark:border-gray-700"} disabled:opacity-50 disabled:cursor-not-allowed`}
                                         style={{ outline: "none" }}
+                                        title={d.is_koordinator ? "Koordinator otomatis hadir" : ""}
                                       />
                                       {hadir && (
                                         <span style={{ position: "absolute", left: 0, top: 0, width: 24, height: 24, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
@@ -3191,8 +3412,11 @@ export default function AbsensiSeminarPlenoPage() {
                                     </div>
                                     <button
                                       onClick={() => handleOpenCatatanModalDosen(d)}
-                                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-lg transition-all duration-200"
-                                      title="Tambah/Edit Catatan"
+                                      disabled={isReportSubmitted}
+                                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-lg transition-all duration-200 ${
+                                        isReportSubmitted ? "opacity-50 cursor-not-allowed" : ""
+                                      }`}
+                                      title={isReportSubmitted ? "Tidak bisa diubah setelah submit" : "Tambah/Edit Catatan"}
                                     >
                                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -3299,9 +3523,18 @@ export default function AbsensiSeminarPlenoPage() {
                 Batal
               </button>
               <button
-                onClick={handleSaveAbsensiDosen}
-                disabled={savingAbsensiDosen || dosenList.length === 0}
-                className={`px-6 py-3 rounded-xl text-white text-sm font-medium shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 bg-brand-500 hover:bg-brand-600`}
+                onClick={handleOpenConfirmModalDosen}
+                disabled={
+                  savingAbsensiDosen ||
+                  dosenList.length === 0 ||
+                  !includeInReport ||
+                  isReportSubmitted
+                }
+                className={`px-6 py-3 rounded-xl text-white text-sm font-medium shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ${
+                  isReportSubmitted
+                    ? "bg-green-500 hover:bg-green-600"
+                    : "bg-brand-500 hover:bg-brand-600"
+                }`}
               >
                 {savingAbsensiDosen && (
                   <svg
@@ -3324,12 +3557,127 @@ export default function AbsensiSeminarPlenoPage() {
                     ></path>
                   </svg>
                 )}
-                {savingAbsensiDosen ? "Menyimpan..." : "Simpan Absensi Dosen"}
+                {savingAbsensiDosen
+                  ? "Menyimpan..."
+                  : isReportSubmitted
+                  ? "Laporan Sudah Disubmit ✓"
+                  : !includeInReport
+                  ? "Centang 'Masuk Laporan' terlebih dahulu"
+                  : "Simpan Absensi Dosen"}
               </button>
             </div>
           </div>
         </div>
       ) : null}
+
+      {/* Modal Konfirmasi Submit Absensi Dosen */}
+      <AnimatePresence>
+        {showConfirmModalDosen && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => handleCloseConfirmModalDosen()}
+            ></motion.div>
+            {/* Modal Content */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => handleCloseConfirmModalDosen()}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+              
+              <div className="text-center">
+                <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-amber-100 dark:bg-amber-900/20 mb-4">
+                  <svg
+                    className="h-8 w-8 text-amber-600 dark:text-amber-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
+                  Konfirmasi Submit Absensi Dosen
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                  Apakah Anda yakin ingin menyimpan absensi dosen ini?
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-500 mb-6">
+                  Setelah disubmit, data absensi tidak dapat diubah lagi. Pastikan semua data sudah benar.
+                </p>
+
+                <div className="flex justify-center gap-3">
+                  <button
+                    onClick={() => handleCloseConfirmModalDosen()}
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-200"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={handleSaveAbsensiDosen}
+                    disabled={savingAbsensiDosen}
+                    className="px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {savingAbsensiDosen && (
+                      <svg
+                        className="w-4 h-4 animate-spin"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                    )}
+                    Ya, Simpan
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Save button dihapus - tidak diperlukan */}
       {/* Confirmation Modal */}
@@ -3453,10 +3801,13 @@ export default function AbsensiSeminarPlenoPage() {
                           },
                         }));
                       }}
+                      disabled={isReportSubmitted}
                       placeholder="Masukkan catatan untuk dosen ini..."
-                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl dark:bg-gray-700 dark:text-white resize-none"
+                      className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl dark:bg-gray-700 dark:text-white resize-none ${
+                        isReportSubmitted ? "opacity-50 cursor-not-allowed" : ""
+                      }`}
                       rows={4}
-                      autoFocus
+                      autoFocus={!isReportSubmitted}
                     />
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                       Catatan ini akan tersimpan bersama data absensi
@@ -3473,7 +3824,10 @@ export default function AbsensiSeminarPlenoPage() {
                   </button>
                   <button
                     onClick={() => handleSaveCatatanDosen(absensiDosen[selectedDosen.id.toString()]?.catatan || "")}
-                    className="px-3 sm:px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-xs sm:text-sm font-medium transition-all duration-300 ease-in-out"
+                    disabled={isReportSubmitted}
+                    className={`px-3 sm:px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-xs sm:text-sm font-medium transition-all duration-300 ease-in-out ${
+                      isReportSubmitted ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
                   >
                     Simpan Catatan
                   </button>

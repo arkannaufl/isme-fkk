@@ -54,6 +54,10 @@ export default function AbsensiKuliahBesarPage() {
   const [qrCodeKey, setQrCodeKey] = useState<number>(0); // Key untuk animasi QR code
   const [showNewBadge, setShowNewBadge] = useState<boolean>(false);
   const [showParticles, setShowParticles] = useState<boolean>(false);
+  const [includeInReport, setIncludeInReport] = useState(false);
+  const [isReportSubmitted, setIsReportSubmitted] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const fetchQrTokenRef = useRef<(() => Promise<void>) | null>(null);
   const tokenRefreshCalledRef = useRef<boolean>(false);
   const newBadgeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -450,6 +454,19 @@ export default function AbsensiKuliahBesarPage() {
           });
         }
         setAbsensi(existingAbsensi);
+
+        // Cek apakah laporan sudah pernah disubmit
+        // Hanya set true jika backend secara eksplisit mengembalikan true
+        const penilaianSubmitted = absensiResponse.data.penilaian_submitted === true;
+        const reportSubmitted = absensiResponse.data.report_submitted === true;
+        const submitted = absensiResponse.data.submitted === true;
+        
+        // Hanya set submitted jika salah satu benar-benar true
+        const isSubmitted = penilaianSubmitted === true || reportSubmitted === true || submitted === true;
+
+        // Pastikan hanya set true jika benar-benar true, default false
+        setIsReportSubmitted(isSubmitted === true ? true : false);
+        setIncludeInReport(isSubmitted === true ? true : false);
       } catch (err) {
         // No existing absensi data
       }
@@ -520,6 +537,89 @@ export default function AbsensiKuliahBesarPage() {
       };
     }
   }, [confirmOpen]);
+
+  // Fungsi untuk membuka modal konfirmasi
+  const handleOpenConfirmModal = () => {
+    if (!kode || !jadwalId) return;
+
+    if (!includeInReport) {
+      alert(
+        'Centang "Masukkan ke Laporan" untuk menyimpan dan memasukkan realisasi ke PDF.'
+      );
+      return;
+    }
+
+    setShowConfirmModal(true);
+  };
+
+  // Fungsi untuk menutup modal konfirmasi
+  const handleCloseConfirmModal = () => {
+    setShowConfirmModal(false);
+  };
+
+  // Fungsi untuk menyimpan absensi dengan submit
+  const handleSaveAbsensi = async () => {
+    if (!kode || !jadwalId) return;
+
+    if (!includeInReport) {
+      alert(
+        'Centang "Masukkan ke Laporan" untuk menyimpan dan memasukkan realisasi ke PDF.'
+      );
+      return;
+    }
+
+    // Tutup modal konfirmasi
+    setShowConfirmModal(false);
+
+    setIsSyncing(true);
+    try {
+      // Siapkan semua absensi untuk dikirim
+      const absensiArray = mahasiswaList.map((m) => ({
+        mahasiswa_nim: m.nim,
+        hadir: absensi[m.nim]?.hadir || false,
+        catatan: '',
+      }));
+
+      const payload = {
+        absensi: absensiArray,
+        penilaian_submitted: true,
+      };
+
+      await api.post(`/kuliah-besar/${kode}/jadwal/${jadwalId}/absensi`, payload);
+
+      // Refresh data absensi dari server setelah berhasil disimpan
+      const absensiResponse = await api.get(`/kuliah-besar/${kode}/jadwal/${jadwalId}/absensi`);
+      const existingAbsensi: AbsensiData = {};
+      
+      if (absensiResponse.data?.absensi) {
+        Object.keys(absensiResponse.data.absensi).forEach((n) => {
+          const absen = absensiResponse.data.absensi[n];
+          existingAbsensi[n] = {
+            hadir: absen.hadir || false
+          };
+        });
+      }
+      setAbsensi(existingAbsensi);
+
+      // Update status laporan sudah disubmit
+      setIsReportSubmitted(true);
+      setIncludeInReport(true);
+
+      // Tampilkan pesan sukses
+      setShowSuccessMessage(true);
+
+      // Auto-hide pesan sukses setelah 3 detik
+      setTimeout(() => {
+        setShowSuccessMessage(false);
+      }, 3000);
+    } catch (err: any) {
+      console.error('Error saving absensi:', err);
+      const errorMessage = err?.response?.data?.message || 'Gagal menyimpan absensi. Silakan coba lagi.';
+      setError(errorMessage);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Simpan satu baris absensi untuk mencegah revert oleh polling
   const saveSingleAttendance = async (nim: string, hadir: boolean) => {
@@ -1593,6 +1693,44 @@ export default function AbsensiKuliahBesarPage() {
 
   return (
     <div className="w-full mx-auto">
+      {/* Success Message */}
+      <AnimatePresence>
+        {showSuccessMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl p-4"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                <svg
+                  className="w-5 h-5 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-green-800 dark:text-green-200">
+                  Absensi Berhasil Disimpan!
+                </h3>
+                <p className="text-green-600 dark:text-green-300 text-sm">
+                  Data absensi telah tersimpan dan akan dimasukkan ke dalam laporan.
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <div className="mb-8">
         <button
@@ -1672,6 +1810,77 @@ export default function AbsensiKuliahBesarPage() {
         <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl shadow-sm p-4">
           <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Persentase</div>
           <div className="text-2xl font-bold text-purple-600">{stats.persentase}%</div>
+        </div>
+      </div>
+
+      {/* Masuk Laporan Section */}
+      <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex-1">
+            <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">
+              Masuk Laporan
+            </h4>
+            <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
+              <div className="flex items-center gap-2">
+                <span className="text-base leading-none">
+                  {isReportSubmitted ? "✅" : "⚠️"}
+                </span>
+                <div>
+                  <span className="font-medium text-gray-700 dark:text-gray-300">
+                    {isReportSubmitted
+                      ? "Laporan sudah disubmit dan tersimpan"
+                      : "Wajib dicentang untuk menyimpan absensi"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="flex-shrink-0">
+            <label
+              className={`flex items-center gap-3 cursor-pointer ${
+                isReportSubmitted ? "cursor-not-allowed" : ""
+              }`}
+            >
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={includeInReport}
+                  onChange={(e) =>
+                    !isReportSubmitted &&
+                    setIncludeInReport(e.target.checked)
+                  }
+                  disabled={isReportSubmitted}
+                  className="sr-only"
+                />
+                <div
+                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all duration-200 ${
+                    includeInReport
+                      ? isReportSubmitted
+                        ? "bg-green-500 border-green-500"
+                        : "bg-brand-500 border-brand-500"
+                      : "border-gray-300 dark:border-gray-600 hover:border-brand-400"
+                  } ${isReportSubmitted ? "cursor-not-allowed" : ""}`}
+                >
+                  {includeInReport && (
+                    <svg
+                      className="w-3 h-3 text-white"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  )}
+                </div>
+              </div>
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                Masuk Laporan {!isReportSubmitted && <span className="text-red-500">*</span>}
+              </span>
+            </label>
+          </div>
         </div>
       </div>
 
@@ -1839,7 +2048,7 @@ export default function AbsensiKuliahBesarPage() {
                                   type="checkbox"
                                   checked={hadir}
                                   onChange={(e) => handleAbsensiToggle(m.nim, e.target.checked)}
-                                  disabled={isSyncing || loading}
+                                  disabled={isSyncing || loading || isReportSubmitted}
                                   className={`w-6 h-6 appearance-none rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 relative
                                     ${hadir ? 'border-brand-500 bg-brand-500' : 'border-gray-300 bg-white dark:bg-gray-900 dark:border-gray-700'} disabled:opacity-50 disabled:cursor-not-allowed`}
                                   style={{ outline: 'none' }}
@@ -2029,6 +2238,76 @@ export default function AbsensiKuliahBesarPage() {
       ) : (
         <div className="bg-white dark:bg-white/[0.03] rounded-b-2xl shadow-sm border border-t-0 border-gray-200 dark:border-gray-800 p-4 sm:p-6">
           <div className="max-w-3xl mx-auto">
+            {/* Submit Button untuk QR Tab - di atas QR code */}
+            {!isReportSubmitted && (
+              <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                      Masuk Laporan
+                    </h4>
+                    <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base leading-none">⚠️</span>
+                        <div>
+                          <span className="font-medium text-gray-700 dark:text-gray-300">
+                            Wajib menyimpan absensi terlebih dahulu sebelum dapat mengaktifkan QR code
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0">
+                    {(() => {
+                      // Tombol hanya disabled jika sudah submit atau sedang sync
+                      const isButtonDisabled = isReportSubmitted === true || isSyncing === true;
+                      
+                      return (
+                        <button
+                          onClick={handleOpenConfirmModal}
+                          disabled={isButtonDisabled}
+                          className={`px-6 py-3 rounded-xl text-white text-sm font-medium shadow-sm transition-all duration-200 flex items-center gap-2 ${
+                            isButtonDisabled
+                              ? "bg-gray-400 hover:bg-gray-400 cursor-not-allowed opacity-60"
+                              : "bg-brand-500 hover:bg-brand-600 shadow-md"
+                          }`}
+                        >
+                          {isSyncing && (
+                            <svg
+                              className="w-4 h-4 animate-spin"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              ></path>
+                            </svg>
+                          )}
+                          {isSyncing
+                            ? "Menyimpan..."
+                            : isReportSubmitted
+                            ? "Laporan Sudah Disubmit ✓"
+                            : !includeInReport
+                            ? "Centang 'Masuk Laporan' terlebih dahulu"
+                            : "Simpan Absensi"}
+                        </button>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Header Section */}
             <div className="text-center mb-4 sm:mb-6">
               <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-brand-500 rounded-xl mb-2 sm:mb-3">
@@ -2069,6 +2348,10 @@ export default function AbsensiKuliahBesarPage() {
                 <button
                   onClick={async () => {
                     if (!kode || !jadwalId) return;
+                    if (isReportSubmitted === false) {
+                      alert('Anda harus menyimpan absensi dan memasukkan ke laporan terlebih dahulu sebelum dapat mengaktifkan QR code.');
+                      return;
+                    }
                     setTogglingQR(true);
                     try {
                       const response = await api.put(`/kuliah-besar/${kode}/jadwal/${jadwalId}/toggle-qr`);
@@ -2080,12 +2363,14 @@ export default function AbsensiKuliahBesarPage() {
                       setTogglingQR(false);
                     }
                   }}
-                  disabled={togglingQR}
+                  disabled={togglingQR === true || isReportSubmitted === false}
                   className={`w-full sm:w-auto px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors ${
-                    qrEnabled
+                    (togglingQR === true || isReportSubmitted === false)
+                      ? 'bg-gray-400 hover:bg-gray-400 text-white opacity-60 cursor-not-allowed'
+                      : qrEnabled
                       ? 'bg-red-500 hover:bg-red-600 text-white'
                       : 'bg-brand-500 hover:bg-brand-600 text-white'
-                  } ${togglingQR ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  }`}
                 >
                   {togglingQR ? (
                     <span className="flex items-center justify-center gap-2">
@@ -2367,8 +2652,116 @@ export default function AbsensiKuliahBesarPage() {
         </div>
       )}
 
-      {/* Save button dihapus - tidak diperlukan */}
-      {/* Confirmation Modal */}
+      {/* Modal Konfirmasi Submit */}
+      <AnimatePresence>
+        {showConfirmModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => handleCloseConfirmModal()}
+            ></motion.div>
+            {/* Modal Content */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => handleCloseConfirmModal()}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+              
+              <div className="text-center">
+                <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-amber-100 dark:bg-amber-900/20 mb-4">
+                  <svg
+                    className="h-8 w-8 text-amber-600 dark:text-amber-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
+                  Konfirmasi Submit Absensi
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                  Apakah Anda yakin ingin menyimpan absensi ini?
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-500 mb-6">
+                  Setelah disubmit, data absensi tidak dapat diubah lagi. Pastikan semua data sudah benar.
+                </p>
+
+                <div className="flex justify-center gap-3">
+                  <button
+                    onClick={() => handleCloseConfirmModal()}
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-200"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={handleSaveAbsensi}
+                    disabled={isSyncing}
+                    className="px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {isSyncing && (
+                      <svg
+                        className="w-4 h-4 animate-spin"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                    )}
+                    Ya, Simpan
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirmation Modal untuk toggle absensi */}
       <AnimatePresence>
         {confirmOpen && (
           <div className="fixed inset-0 z-[100000] flex items-center justify-center">

@@ -11,6 +11,8 @@ import {
   faInfoCircle,
   faEye,
   faImage,
+  faPlus,
+  faMinus,
 } from "@fortawesome/free-solid-svg-icons";
 import { AnimatePresence, motion } from "framer-motion";
 import api, { handleApiError } from "../utils/api";
@@ -72,6 +74,13 @@ interface PeranKurikulumOption {
   semester: string;
   tipePeran: string; // "koordinator" or "tim_blok"
   originalName: string; // nama asli dari database
+}
+
+// Interface untuk section-based peran
+interface PeranSection {
+  id: string; // unique id untuk section
+  mataKuliahKode: string; // kode mata kuliah yang dipilih
+  peranKurikulumKey: string; // key format: "mataKuliahKode-originalName-blok-semester"
 }
 
 export default function Dosen() {
@@ -165,11 +174,14 @@ export default function Dosen() {
   // 1. State untuk peran selection
   const [selectedPeranType, setSelectedPeranType] = useState<string>("none"); // "none", "peran"
   const [selectedMataKuliah, setSelectedMataKuliah] = useState<string>("");
-  // Multi-select peran kurikulum
+  // Section-based peran kurikulum (1 peran per section)
+  const [peranSections, setPeranSections] = useState<PeranSection[]>([]);
+  // State untuk menyimpan dosen_peran dari data yang sedang diedit (untuk fallback di dropdown)
+  const [currentEditingDosenPeran, setCurrentEditingDosenPeran] = useState<any[]>([]);
+  // Legacy state (untuk backward compatibility, akan dihapus nanti)
   const [selectedPeranKurikulumList, setSelectedPeranKurikulumList] = useState<
     string[]
   >([]);
-  // Multi-select mata kuliah untuk multiple blok
   const [selectedMataKuliahList, setSelectedMataKuliahList] = useState<
     string[]
   >([]);
@@ -419,6 +431,8 @@ export default function Dosen() {
     setSelectedMataKuliah("");
     setSelectedMataKuliahList([]);
     setSelectedPeranKurikulumList([]);
+    setPeranSections([]); // Reset peran sections
+    setCurrentEditingDosenPeran([]); // Reset current editing dosen peran
   };
 
   const userToDelete = data?.find(
@@ -811,37 +825,38 @@ export default function Dosen() {
     setIsSaving(true);
     setModalError("");
     try {
-      // Validasi frontend peran
-      if (
-        selectedPeranType !== "none" &&
-        (selectedMataKuliahList.length === 0 ||
-          selectedPeranKurikulumList.length === 0)
-      ) {
+      // Validasi frontend peran (section-based)
+      if (selectedPeranType !== "none" && peranSections.length === 0) {
         throw new Error(
-          "Pilih mata kuliah dan peran kurikulum jika memilih peran khusus."
+          "Tambahkan minimal satu peran kurikulum jika memilih peran khusus."
         );
       }
 
+      // Validasi setiap section harus memiliki mata kuliah dan peran kurikulum
+      for (const section of peranSections) {
+        if (!section.mataKuliahKode || !section.peranKurikulumKey) {
+          throw new Error(
+            "Setiap peran harus memiliki blok dan peran kurikulum yang dipilih."
+          );
+        }
+      }
+
       // Validasi keahlian jika ada peran khusus
-      if (
-        selectedPeranType !== "none" &&
-        selectedMataKuliahList.length > 0 &&
-        form.keahlian
-      ) {
+      if (selectedPeranType !== "none" && peranSections.length > 0 && form.keahlian) {
         const keahlianArray = Array.isArray(form.keahlian)
           ? form.keahlian
           : typeof form.keahlian === "string"
           ? [form.keahlian]
           : [];
 
-        // Validasi keahlian untuk setiap mata kuliah yang dipilih
-        for (const mataKuliahKode of selectedMataKuliahList) {
+        // Validasi keahlian untuk setiap mata kuliah di sections
+        for (const section of peranSections) {
           const isValidKeahlian = validateKeahlian(
             keahlianArray,
-            mataKuliahKode
+            section.mataKuliahKode
           );
           if (!isValidKeahlian) {
-            const matkul = matkulList.find((mk) => mk.kode === mataKuliahKode);
+            const matkul = matkulList.find((mk) => mk.kode === section.mataKuliahKode);
             throw new Error(
               `Keahlian dosen tidak sesuai dengan keahlian yang dibutuhkan di mata kuliah "${matkul?.nama}".`
             );
@@ -849,36 +864,52 @@ export default function Dosen() {
         }
       }
 
-      // Validasi: Dosen tidak boleh memiliki peran yang sama di blok yang sama
-      if (selectedPeranType !== "none" && selectedMataKuliahList.length > 0) {
-        for (const mataKuliahKode of selectedMataKuliahList) {
-          const selectedMatkul = matkulList.find(
-            (mk) => mk.kode === mataKuliahKode
-          );
+      // Validasi: Koordinator maksimal 1 per blok + semester
+      if (selectedPeranType !== "none" && peranSections.length > 0) {
+        for (const section of peranSections) {
+          // Parse peranKey untuk mendapatkan blok dan semester
+          const parts = section.peranKurikulumKey.split('-');
+          if (parts.length >= 4) {
+            const [, , blok, semester] = parts;
+            const selectedMatkul = matkulList.find(
+              (mk) => mk.kode === section.mataKuliahKode
+            );
 
-          if (selectedMatkul) {
-            // Cek apakah dosen sudah memiliki peran yang sama di blok yang sama
-            const existingPeran = data.find((dosen) => {
-              // Cek dosen yang sama (baik add maupun edit mode)
-              if (dosen.id === form.id) {
-                return dosen.dosen_peran?.some((peran: any) => {
-                  // Cek semua tipe peran (tidak ada filterisasi)
-                  let tipePeranMatch = true;
-
-                  return (
-                    tipePeranMatch &&
-                    peran.blok === String(selectedMatkul.blok) &&
-                    peran.semester === String(selectedMatkul.semester)
-                  );
-                });
-              }
-              return false;
-            });
-
-            if (existingPeran) {
-              throw new Error(
-                `Dosen sudah memiliki peran "${selectedPeranType}" di Blok ${selectedMatkul.blok} Semester ${selectedMatkul.semester}. Tidak boleh memiliki peran yang sama di blok yang sama.`
+            if (selectedMatkul) {
+              // Cek apakah peran ini adalah koordinator
+              const peranOption = filteredPeranKurikulumOptions.find(
+                (opt) => `${opt.mataKuliahKode}-${opt.originalName}-${opt.blok}-${opt.semester}` === section.peranKurikulumKey
               );
+
+              if (peranOption && peranOption.tipePeran === "koordinator") {
+                // Cek apakah sudah ada koordinator lain di blok + semester yang sama
+                const conflictDosen = data.find((dosen) => {
+                  // Skip dosen yang sedang diedit
+                  if (editMode && dosen.id === form.id) {
+                    return false;
+                  }
+
+                  return dosen.dosen_peran?.some((peran: any) => {
+                    const peranBlok = typeof peran.blok === "string" ? parseInt(peran.blok) : peran.blok;
+                    const peranSemester = typeof peran.semester === "string" ? parseInt(peran.semester) : peran.semester;
+                    const optionBlok = parseInt(blok);
+                    const optionSemester = parseInt(semester);
+
+                    return (
+                      peran.tipe_peran === "koordinator" &&
+                      peran.mata_kuliah_kode === section.mataKuliahKode &&
+                      peranBlok === optionBlok &&
+                      peranSemester === optionSemester
+                    );
+                  });
+                });
+
+                if (conflictDosen) {
+                  throw new Error(
+                    `Koordinator untuk Blok ${blok} Semester ${semester} sudah dipilih oleh ${conflictDosen.name}. Maksimal 1 koordinator per blok dan semester.`
+                  );
+                }
+              }
             }
           }
         }
@@ -893,31 +924,37 @@ export default function Dosen() {
         peran_utama: peranUtama === "standby" ? "standby" : "dosen_mengajar",
       };
       // Hanya kirim dosen_peran jika peranUtama 'aktif' dan ada peran khusus
-      if (peranUtama === "aktif" && selectedPeranType !== "none") {
-        // Buat banyak entri peran kurikulum untuk setiap mata kuliah yang dipilih
-        payload.dosen_peran = [];
-        for (const mataKuliahKode of selectedMataKuliahList) {
-          const selectedMatkul = matkulList.find(
-            (mk) => mk.kode === mataKuliahKode
-          );
-
-          // Buat entri untuk setiap peran kurikulum di setiap mata kuliah
-          const peranEntries = selectedPeranKurikulumList
-            .filter((peranKey) => peranKey.startsWith(`${mataKuliahKode}-`))
-            .map((peranKey) => {
-              // Parse key back to object properties
-              const [mataKuliahKodeFromKey, originalName, blok, semester] = peranKey.split('-');
-              return {
-              mata_kuliah_kode: mataKuliahKode,
+      if (peranUtama === "aktif" && selectedPeranType !== "none" && peranSections.length > 0) {
+        // Buat entri peran kurikulum dari sections
+        payload.dosen_peran = peranSections.map((section) => {
+          // Parse peranKey untuk mendapatkan data
+          // Format: mataKuliahKode-originalName-blok-semester
+          // Note: originalName mungkin mengandung '-', jadi kita perlu parsing yang lebih aman
+          const parts = section.peranKurikulumKey.split('-');
+          if (parts.length >= 4) {
+            // Ambil 2 bagian terakhir untuk blok dan semester
+            const semester = parts[parts.length - 1];
+            const blok = parts[parts.length - 2];
+            // Sisanya adalah mataKuliahKode dan originalName
+            const mataKuliahKodeFromKey = parts[0];
+            const originalName = parts.slice(1, -2).join('-'); // Gabungkan semua bagian di tengah
+            
+            // Cari tipe_peran dari filteredPeranKurikulumOptions atau dari sectionOptions
+            const sectionOptions = getPeranKurikulumOptionsForSection(section.mataKuliahKode);
+            const peranOption = sectionOptions.find(
+              (opt) => `${opt.mataKuliahKode}-${opt.originalName}-${opt.blok}-${opt.semester}` === section.peranKurikulumKey
+            );
+            
+            return {
+              mata_kuliah_kode: section.mataKuliahKode,
               peran_kurikulum: originalName,
               blok: blok,
               semester: semester,
-              tipe_peran: "tim_blok", // Default, bisa disesuaikan jika diperlukan
+              tipe_peran: peranOption?.tipePeran || "tim_blok",
             };
-            });
-
-          payload.dosen_peran.push(...peranEntries);
-        }
+          }
+          return null;
+        }).filter((item) => item !== null);
       } else {
         payload.dosen_peran = [];
       }
@@ -961,6 +998,8 @@ export default function Dosen() {
       setSelectedPeranType("none");
       setSelectedMataKuliah("");
       setSelectedPeranKurikulumList([]);
+      setPeranSections([]); // Reset peran sections
+      setCurrentEditingDosenPeran([]); // Reset current editing dosen peran
       // Legacy note removed
     } catch (err: any) {
       // Cek error dari backend (axios)
@@ -1035,88 +1074,64 @@ export default function Dosen() {
     // Hapus legacy state terkait peran mengajar/ketua/anggota
 
     // Set peran dari backend - dukung multiple peran_kurikulum (prefill multi-select saat edit)
+    // Simpan dosen_peran untuk digunakan di getPeranKurikulumOptionsForSection
+    setCurrentEditingDosenPeran(Array.isArray(d.dosen_peran) ? d.dosen_peran : []);
 
     if (Array.isArray(d.dosen_peran) && d.dosen_peran.length > 0) {
       // Ambil hanya peran non-mengajar untuk UI ini
+      // Filter: koordinator dan tim_blok saja (bukan mengajar atau dosen_mengajar)
       const nonMengajar = d.dosen_peran.filter(
-        (p) => p.tipe_peran && p.tipe_peran !== "mengajar"
+        (p) => p.tipe_peran && 
+               p.tipe_peran !== "mengajar" && 
+               p.tipe_peran !== "dosen_mengajar" &&
+               (p.tipe_peran === "koordinator" || p.tipe_peran === "tim_blok")
       );
 
 
       if (nonMengajar.length > 0) {
-        // Ambil SEMUA mata kuliah yang sudah ada (multi-select)
-        const allMataKuliah = Array.from(
-          new Set(nonMengajar.map((p) => p.mata_kuliah_kode))
-        );
-
-        // Ambil SEMUA peran kurikulum yang sudah ada
-        const allPeranKurikulum: string[] = [];
-        for (const p of nonMengajar) {
-          // peran_kurikulum kemungkinan string tunggal atau dipisah koma
-          if (typeof p.peran_kurikulum === "string") {
-            const parts = p.peran_kurikulum
-              .split(",")
-              .map((s) => s.trim())
-              .filter((s) => s);
-            allPeranKurikulum.push(
-              ...(parts.length ? parts : [p.peran_kurikulum])
-            );
-          } else if (Array.isArray((p as any).peran_kurikulum)) {
-            const arr = ((p as any).peran_kurikulum as any[]) || [];
-            for (const s of arr) {
-              const val = String(s).trim();
-              if (val) allPeranKurikulum.push(val);
+        // Load data ke peranSections (section-based)
+        // HILANGKAN DUPLIKASI: Unique berdasarkan kombinasi mata_kuliah_kode + blok + semester + peran_kurikulum
+        setTimeout(() => {
+          const sections: PeranSection[] = [];
+          const seenKeys = new Set<string>();
+          
+          nonMengajar.forEach((peranData, index) => {
+            const mataKuliahKode = peranData.mata_kuliah_kode || "";
+            const matkul = matkulList.find((mk) => mk.kode === mataKuliahKode);
+            if (matkul && peranData.peran_kurikulum) {
+              const peranName = typeof peranData.peran_kurikulum === "string" 
+                ? peranData.peran_kurikulum 
+                : String(peranData.peran_kurikulum);
+              const blok = String(peranData.blok || matkul.blok || "");
+              const semester = String(peranData.semester || matkul.semester || "");
+              
+              // Buat unique key untuk deduplication
+              const uniqueKey = `${mataKuliahKode}-${peranName}-${blok}-${semester}`;
+              
+              // Skip jika sudah ada (duplikat)
+              if (seenKeys.has(uniqueKey)) {
+                return;
+              }
+              seenKeys.add(uniqueKey);
+              
+              const peranKey = uniqueKey;
+              
+              sections.push({
+                id: `section-${Date.now()}-${index}`,
+                mataKuliahKode: mataKuliahKode,
+                peranKurikulumKey: peranKey,
+              });
             }
-          }
-        }
-
-        const uniquePeran = Array.from(new Set(allPeranKurikulum));
+          });
+          setPeranSections(sections);
+        }, 200); // Delay untuk memastikan matkulList sudah ter-load
 
         // Hindari efek reset membersihkan pilihan saat set MK secara programatik
         skipNextPeranResetRef.current = true;
         setSelectedPeranType("peran"); // Set peran khusus ke "peran"
-        setSelectedMataKuliahList(allMataKuliah); // Set SEMUA mata kuliah yang sudah ada
-
-        // Prefill peran kurikulum yang sudah ada
-        setTimeout(() => {
-          // Konversi string array menjadi PeranKurikulumOption array
-          const peranKurikulumOptions: PeranKurikulumOption[] = [];
-
-          // Untuk setiap mata kuliah yang dipilih, buat PeranKurikulumOption untuk setiap peran
-          allMataKuliah.forEach((mataKuliahKode) => {
-            const matkul = matkulList.find((mk) => mk.kode === mataKuliahKode);
-            if (matkul) {
-              // Cari semua peran yang ada untuk mata kuliah ini dari data dosen_peran
-              const peranForMataKuliah = nonMengajar.filter(p => p.mata_kuliah_kode === mataKuliahKode);
-              
-              peranForMataKuliah.forEach((peranData) => {
-                const peranName = peranData.peran_kurikulum;
-                const tipePeran = peranData.tipe_peran;
-
-                const peranOption: PeranKurikulumOption = {
-                  name: `${peranName} (Blok ${matkul.blok} Semester ${matkul.semester})`,
-                  mataKuliahKode: mataKuliahKode,
-                  blok: String(matkul.blok),
-                  semester: String(matkul.semester),
-                  tipePeran: tipePeran,
-                  originalName: peranName,
-                };
-
-                peranKurikulumOptions.push(peranOption);
-              });
-            }
-          });
-
-          // Convert to string keys for HeadlessUI comparison
-          const peranKurikulumKeys = peranKurikulumOptions.map(peran => 
-            `${peran.mataKuliahKode}-${peran.originalName}-${peran.blok}-${peran.semester}`
-          );
-          setSelectedPeranKurikulumList(peranKurikulumKeys);
-        }, 200); // Delay lebih lama untuk memastikan matkulList sudah ter-load
       } else {
         setSelectedPeranType("none");
-        setSelectedMataKuliahList([]); // Set sebagai array kosong untuk multi-select
-        setSelectedPeranKurikulumList([]);
+        setPeranSections([]);
       }
     } else {
       setSelectedPeranType("none");
@@ -2128,11 +2143,26 @@ export default function Dosen() {
     }
   }, [selectedMataKuliahList]);
 
+  // Auto-add section saat memilih "peran" untuk pertama kali
+  useEffect(() => {
+    if (selectedPeranType === "peran" && peranSections.length === 0) {
+      const newSection: PeranSection = {
+        id: `section-${Date.now()}-${Math.random()}`,
+        mataKuliahKode: "",
+        peranKurikulumKey: "",
+      };
+      setPeranSections([newSection]);
+    } else if (selectedPeranType === "none") {
+      setPeranSections([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPeranType]);
+
   // Validasi keahlian ketika ada perubahan pada keahlian dosen atau mata kuliah yang dipilih
   useEffect(() => {
     if (
       form.keahlian &&
-      selectedMataKuliahList.length > 0 &&
+      peranSections.length > 0 &&
       selectedPeranType !== "none"
     ) {
       const keahlianArray = Array.isArray(form.keahlian)
@@ -2140,12 +2170,15 @@ export default function Dosen() {
         : typeof form.keahlian === "string"
         ? [form.keahlian]
         : [];
-      // Validasi untuk mata kuliah pertama yang dipilih (untuk display)
-      validateKeahlian(keahlianArray, selectedMataKuliahList[0]);
+      // Validasi untuk mata kuliah pertama di sections (untuk display)
+      const firstSection = peranSections.find(s => s.mataKuliahKode);
+      if (firstSection) {
+        validateKeahlian(keahlianArray, firstSection.mataKuliahKode);
+      }
     } else {
       setKeahlianValidationMessage("");
     }
-  }, [form.keahlian, selectedMataKuliahList, selectedPeranType, matkulList]);
+  }, [form.keahlian, peranSections, selectedPeranType, matkulList]);
 
   // Catatan legacy dihapus
 
@@ -2177,6 +2210,45 @@ export default function Dosen() {
     // Hanya berlaku untuk koordinator
     if (option.tipePeran !== "koordinator") {
       return { isDisabled: false };
+    }
+
+    // Cek apakah sudah ada koordinator lain di blok + semester yang sama di sections lain
+    const conflictInSections = peranSections.some((section) => {
+      if (!section.peranKurikulumKey) return false;
+      
+      const parts = section.peranKurikulumKey.split('-');
+      if (parts.length >= 4) {
+        // Ambil 2 bagian terakhir untuk blok dan semester
+        const semester = parts[parts.length - 1];
+        const blok = parts[parts.length - 2];
+        const mataKuliahKodeFromKey = parts[0];
+        
+        const optionBlok = parseInt(option.blok);
+        const optionSemester = parseInt(option.semester);
+        const sectionBlok = parseInt(blok);
+        const sectionSemester = parseInt(semester);
+
+        // Cek apakah section ini adalah koordinator di blok + semester yang sama
+        const sectionOptions = getPeranKurikulumOptionsForSection(section.mataKuliahKode);
+        const sectionOption = sectionOptions.find(
+          (opt) => `${opt.mataKuliahKode}-${opt.originalName}-${opt.blok}-${opt.semester}` === section.peranKurikulumKey
+        );
+
+        return (
+          sectionOption?.tipePeran === "koordinator" &&
+          mataKuliahKodeFromKey === option.mataKuliahKode &&
+          sectionBlok === optionBlok &&
+          sectionSemester === optionSemester
+        );
+      }
+      return false;
+    });
+
+    if (conflictInSections) {
+      return {
+        isDisabled: true,
+        conflictDosenName: "Peran lain di form ini",
+      };
     }
 
     // Cek apakah sudah ada dosen lain yang memilih koordinator untuk mata kuliah, blok, dan semester yang sama
@@ -2218,6 +2290,186 @@ export default function Dosen() {
     }
 
     return { isDisabled: false };
+  };
+
+  // Helper functions untuk section-based peran
+  const addPeranSection = () => {
+    const newSection: PeranSection = {
+      id: `section-${Date.now()}-${Math.random()}`,
+      mataKuliahKode: "",
+      peranKurikulumKey: "",
+    };
+    setPeranSections([...peranSections, newSection]);
+  };
+
+  const removePeranSection = (sectionId: string) => {
+    setPeranSections(peranSections.filter((s) => s.id !== sectionId));
+  };
+
+  const updatePeranSection = (
+    sectionId: string,
+    updates: Partial<PeranSection>
+  ) => {
+    setPeranSections(
+      peranSections.map((s) => (s.id === sectionId ? { ...s, ...updates } : s))
+    );
+  };
+
+  // Fungsi untuk mendapatkan peran kurikulum options berdasarkan mata kuliah yang dipilih di section
+  const getPeranKurikulumOptionsForSection = (
+    mataKuliahKode: string
+  ): PeranKurikulumOption[] => {
+    if (!mataKuliahKode) return [];
+
+    const matkul = matkulList.find((mk) => mk.kode === mataKuliahKode);
+    if (!matkul) return [];
+
+    const mataKuliahPeranKurikulum = matkul.peran_dalam_kurikulum || [];
+    const options: PeranKurikulumOption[] = [];
+    const addedPeranNames = new Set<string>(); // Untuk tracking peran yang sudah ditambahkan
+
+    // 1. Tambahkan peran dari mata kuliah spesifik
+    if (Array.isArray(mataKuliahPeranKurikulum)) {
+      mataKuliahPeranKurikulum.forEach((peran) => {
+        let tipePeran = "tim_blok";
+        const peranLower = peran.toLowerCase();
+
+        if (peranLower.includes("koordinator")) {
+          tipePeran = "koordinator";
+        } else if (
+          peranLower.includes("tim blok") ||
+          peranLower.includes("tim_blok") ||
+          peranLower.includes("penguji") ||
+          peranLower.includes("asisten") ||
+          peranLower.includes("tutor")
+        ) {
+          tipePeran = "tim_blok";
+        }
+
+        options.push({
+          name: `${peran} (Blok ${matkul.blok} Semester ${matkul.semester})`,
+          mataKuliahKode: mataKuliahKode,
+          blok: String(matkul.blok || ""),
+          semester: String(matkul.semester || ""),
+          tipePeran: tipePeran,
+          originalName: peran,
+        });
+        addedPeranNames.add(peran.toLowerCase());
+      });
+    }
+
+    // 2. PENTING: Tambahkan peran yang sudah ada di database untuk dosen ini (jika sedang edit)
+    // Ini memastikan peran yang sudah disimpan di database selalu muncul di dropdown
+    // bahkan jika tidak ada di peran_dalam_kurikulum mata kuliah
+    if (editMode && Array.isArray(currentEditingDosenPeran) && currentEditingDosenPeran.length > 0) {
+      currentEditingDosenPeran.forEach((peranData: any) => {
+        // Hanya tambahkan jika:
+        // - Mata kuliah sama
+        // - Blok dan semester sama (atau sesuai dengan matkul)
+        // - Belum ada di options
+        // - Peran kurikulum ada
+        if (
+          peranData.mata_kuliah_kode === mataKuliahKode &&
+          peranData.peran_kurikulum
+        ) {
+          // Cek apakah blok dan semester match (atau tidak ada di peranData, gunakan dari matkul)
+          const peranBlok = String(peranData.blok || matkul.blok || "");
+          const peranSemester = String(peranData.semester || matkul.semester || "");
+          const matkulBlok = String(matkul.blok || "");
+          const matkulSemester = String(matkul.semester || "");
+
+          // Match jika blok dan semester sama, atau jika peranData tidak punya blok/semester
+          const blokMatch = !peranData.blok || peranBlok === matkulBlok;
+          const semesterMatch = !peranData.semester || peranSemester === matkulSemester;
+
+          if (blokMatch && semesterMatch) {
+            const peranName = String(peranData.peran_kurikulum);
+            const peranKey = peranName.toLowerCase();
+
+            // Skip jika sudah ada
+            if (!addedPeranNames.has(peranKey)) {
+              let tipePeran = peranData.tipe_peran || "tim_blok";
+              const peranLower = peranName.toLowerCase();
+
+              // Tentukan tipe peran jika belum ada atau dosen_mengajar
+              if (!tipePeran || tipePeran === "dosen_mengajar" || tipePeran === "mengajar") {
+                if (peranLower.includes("koordinator")) {
+                  tipePeran = "koordinator";
+                } else {
+                  tipePeran = "tim_blok";
+                }
+              }
+
+              // Hanya tambahkan jika koordinator atau tim_blok (bukan dosen_mengajar)
+              if (tipePeran === "koordinator" || tipePeran === "tim_blok") {
+                options.push({
+                  name: `${peranName} (Blok ${matkul.blok} Semester ${matkul.semester})`,
+                  mataKuliahKode: mataKuliahKode,
+                  blok: peranBlok,
+                  semester: peranSemester,
+                  tipePeran: tipePeran,
+                  originalName: peranName,
+                });
+                addedPeranNames.add(peranKey);
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // 3. Fallback ke peranKurikulumOptions jika masih belum ada
+    if (options.length === 0) {
+      peranKurikulumOptions.forEach((peran) => {
+        const peranLower = peran.toLowerCase();
+        const semester = matkul.semester;
+        const blok = matkul.blok;
+
+        // Skip jika sudah ditambahkan
+        if (addedPeranNames.has(peranLower)) {
+          return;
+        }
+
+        const semesterPatterns = [
+          `semester ${semester}`,
+          `sem ${semester}`,
+          `smt ${semester}`,
+        ];
+
+        const hasCorrectSemester = semesterPatterns.some((pattern) =>
+          peranLower.includes(pattern)
+        );
+
+        if (hasCorrectSemester) {
+          let hasCorrectBlok = true;
+          if (blok) {
+            const blokPatterns = [`blok ${blok}`, `blok ke-${blok}`];
+            hasCorrectBlok = blokPatterns.some((pattern) =>
+              peranLower.includes(pattern)
+            );
+          }
+
+          if (hasCorrectBlok) {
+            let tipePeran = "tim_blok";
+            if (peranLower.includes("koordinator")) {
+              tipePeran = "koordinator";
+            }
+
+            options.push({
+              name: `${peran} (Blok ${blok} Semester ${semester})`,
+              mataKuliahKode: mataKuliahKode,
+              blok: String(blok || ""),
+              semester: String(semester || ""),
+              tipePeran: tipePeran,
+              originalName: peran,
+            });
+            addedPeranNames.add(peranLower);
+          }
+        }
+      });
+    }
+
+    return options;
   };
 
   // Function untuk validasi keahlian dosen dengan mata kuliah
@@ -3744,12 +3996,13 @@ export default function Dosen() {
                               .filter((p) => p.tipe_peran === "koordinator")
                               .filter(
                                 (p, index, self) =>
-                                  // HILANGKAN DUPLIKASI: Unique berdasarkan mata_kuliah_kode
+                                  // HILANGKAN DUPLIKASI: Unique berdasarkan kombinasi mata_kuliah_kode + blok + semester
                                   index ===
                                   self.findIndex(
                                     (peran) =>
-                                      peran.mata_kuliah_kode ===
-                                      p.mata_kuliah_kode
+                                      peran.mata_kuliah_kode === p.mata_kuliah_kode &&
+                                      String(peran.blok || "") === String(p.blok || "") &&
+                                      String(peran.semester || "") === String(p.semester || "")
                                   )
                               )
                           : [];
@@ -3800,11 +4053,11 @@ export default function Dosen() {
                                           Semester {p.semester} | Blok {p.blok}
                                         </div>
                                         <div className="text-xs text-gray-500">
-                                          {p.tipe_peran === "koordinator"
+                                          {p.peran_kurikulum || (p.tipe_peran === "koordinator"
                                             ? "Koordinator"
                                             : p.tipe_peran === "tim_blok"
                                             ? "Tim Blok"
-                                            : p.peran_kurikulum}
+                                            : "-")}
                                         </div>
                                       </div>
                                     </li>
@@ -3857,12 +4110,13 @@ export default function Dosen() {
                               .filter((p) => p.tipe_peran === "tim_blok")
                               .filter(
                                 (p, index, self) =>
-                                  // HILANGKAN DUPLIKASI: Unique berdasarkan mata_kuliah_kode
+                                  // HILANGKAN DUPLIKASI: Unique berdasarkan kombinasi mata_kuliah_kode + blok + semester
                                   index ===
                                   self.findIndex(
                                     (peran) =>
-                                      peran.mata_kuliah_kode ===
-                                      p.mata_kuliah_kode
+                                      peran.mata_kuliah_kode === p.mata_kuliah_kode &&
+                                      String(peran.blok || "") === String(p.blok || "") &&
+                                      String(peran.semester || "") === String(p.semester || "")
                                   )
                               )
                           : [];
@@ -3913,11 +4167,11 @@ export default function Dosen() {
                                           Semester {p.semester} | Blok {p.blok}
                                         </div>
                                         <div className="text-xs text-gray-500">
-                                          {p.tipe_peran === "koordinator"
+                                          {p.peran_kurikulum || (p.tipe_peran === "koordinator"
                                             ? "Koordinator"
                                             : p.tipe_peran === "tim_blok"
                                             ? "Tim Blok"
-                                            : p.peran_kurikulum}
+                                            : "-")}
                                         </div>
                                       </div>
                                     </li>
@@ -4530,316 +4784,400 @@ export default function Dosen() {
                                 )}
                               </Listbox>
                             </div>
-                            {/* Dropdown Mata Kuliah - hanya muncul jika peran bukan none */}
+                            {/* Section-based Peran - hanya muncul jika peran bukan none */}
                             {selectedPeranType !== "none" && (
                               <div className="mb-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg w-full">
-                                <div className="mb-2">
-                                  <span className="text-xs text-gray-500">
-                                    Pilih Mata Kuliah (bisa lebih dari 1)
-                                    {selectedMataKuliahList.length > 0 && (
-                                      <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">
-                                        ({selectedMataKuliahList.length}{" "}
-                                        dipilih)
-                                      </span>
-                                    )}
+                                <div className="mb-3 flex items-center justify-between">
+                                  <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                                    Peran Kurikulum ({peranSections.length})
                                   </span>
+                                  <button
+                                    type="button"
+                                    onClick={addPeranSection}
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-brand-500 hover:bg-brand-600 rounded-lg transition"
+                                  >
+                                    <FontAwesomeIcon icon={faPlus} className="w-3 h-3" />
+                                    Tambah Peran
+                                  </button>
                                 </div>
-                                {/* Listbox Matkul Multi-select */}
-                                <Listbox
-                                  value={selectedMataKuliahList}
-                                  onChange={setSelectedMataKuliahList}
-                                  multiple
-                                >
-                                  {({ open }) => (
-                                    <div className="relative mb-2">
-                                      <Listbox.Button className="relative w-full cursor-default rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-2 pl-3 pr-10 text-left text-gray-800 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 sm:text-sm">
-                                        <span className="block truncate">
-                                          {selectedMataKuliahList.length > 0
-                                            ? selectedMataKuliahList
-                                                .map((kode) => {
-                                                  const matkul =
-                                                    matkulList.find(
-                                                      (mk) => mk.kode === kode
-                                                    );
-                                                  return matkul
-                                                    ? `Blok ${matkul.blok}: ${matkul.nama}`
-                                                    : kode;
-                                                })
-                                                .join(", ")
-                                            : "Pilih Mata Kuliah"}
-                                        </span>
-                                        <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                                          <FontAwesomeIcon
-                                            icon={faChevronDown}
-                                            className="h-5 w-5 text-gray-400"
-                                          />
-                                        </span>
-                                      </Listbox.Button>
-                                      <Transition
-                                        show={open}
-                                        as={"div"}
-                                        leave="transition ease-in duration-100"
-                                        leaveFrom="opacity-100"
-                                        leaveTo="opacity-0"
-                                        className="absolute z-50 mt-1 w-full overflow-auto rounded-md bg-white dark:bg-gray-800 py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm max-h-60 hide-scroll"
-                                      >
-                                        <Listbox.Options static>
-                                          {(() => {
-                                            const blokMataKuliah = matkulList
-                                              .filter(
-                                                (mk) => mk.jenis === "Blok"
-                                              )
-                                              .sort((a, b) => {
-                                                if (a.semester !== b.semester)
-                                                  return (
-                                                    a.semester - b.semester
-                                                  );
-                                                return (
-                                                  (a.blok || 0) - (b.blok || 0)
-                                                );
-                                              });
 
-                                            const groupedBySemester =
-                                              blokMataKuliah.reduce(
-                                                (acc, mk) => {
-                                                  if (!acc[mk.semester])
-                                                    acc[mk.semester] = [];
-                                                  acc[mk.semester].push(mk);
-                                                  return acc;
-                                                },
-                                                {} as Record<
-                                                  number,
-                                                  typeof blokMataKuliah
-                                                >
-                                              );
+                                {/* List Sections */}
+                                {peranSections.length === 0 ? (
+                                  <div className="text-center py-6 text-sm text-gray-400 dark:text-gray-500">
+                                    Belum ada peran. Klik "Tambah Peran" untuk menambahkan.
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3">
+                                    {peranSections.map((section, index) => {
+                                      const sectionOptions = getPeranKurikulumOptionsForSection(
+                                        section.mataKuliahKode
+                                      );
+                                      const selectedPeranOption = sectionOptions.find(
+                                        (opt) =>
+                                          `${opt.mataKuliahKode}-${opt.originalName}-${opt.blok}-${opt.semester}` ===
+                                          section.peranKurikulumKey
+                                      );
 
-                                            return Object.entries(
-                                              groupedBySemester
-                                            ).map(([semester, mataKuliah]) => (
-                                              <div key={semester}>
-                                                <div className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700">
-                                                  Semester {semester}
-                                                </div>
-                                                {mataKuliah.map((mk) => (
-                                                  <Listbox.Option
-                                                    key={mk.kode}
-                                                    className={({ active }) =>
-                                                      `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
-                                                        active
-                                                          ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
-                                                          : "text-gray-900 dark:text-gray-100"
-                                                      }`
-                                                    }
-                                                    value={mk.kode}
+                                      return (
+                                        <div
+                                          key={section.id}
+                                          className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
+                                        >
+                                          <div className="flex items-start justify-between mb-2">
+                                            <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                                              Peran {index + 1}
+                                            </span>
+                                            {peranSections.length > 1 && (
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  removePeranSection(section.id)
+                                                }
+                                                className="text-red-500 hover:text-red-700 dark:hover:text-red-400 transition"
+                                                title="Hapus peran ini"
+                                              >
+                                                <FontAwesomeIcon
+                                                  icon={faTrash}
+                                                  className="w-4 h-4"
+                                                />
+                                              </button>
+                                            )}
+                                          </div>
+
+                                          {/* Pilih Blok (Mata Kuliah) */}
+                                          <div className="mb-3">
+                                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">
+                                              Pilih Blok
+                                            </label>
+                                            <Listbox
+                                              value={section.mataKuliahKode}
+                                              onChange={(value) => {
+                                                updatePeranSection(section.id, {
+                                                  mataKuliahKode: value,
+                                                  peranKurikulumKey: "", // Reset peran saat ganti blok
+                                                });
+                                              }}
+                                            >
+                                              {({ open }) => (
+                                                <div className="relative">
+                                                  <Listbox.Button className="relative w-full cursor-default rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 py-2 pl-3 pr-10 text-left text-gray-800 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 sm:text-sm">
+                                                    <span className="block truncate">
+                                                      {section.mataKuliahKode
+                                                        ? (() => {
+                                                            const matkul =
+                                                              matkulList.find(
+                                                                (mk) =>
+                                                                  mk.kode ===
+                                                                  section.mataKuliahKode
+                                                              );
+                                                            return matkul
+                                                              ? `Blok ${matkul.blok}: ${matkul.nama}`
+                                                              : section.mataKuliahKode;
+                                                          })()
+                                                        : "Pilih Blok"}
+                                                    </span>
+                                                    <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                                                      <FontAwesomeIcon
+                                                        icon={faChevronDown}
+                                                        className="h-5 w-5 text-gray-400"
+                                                      />
+                                                    </span>
+                                                  </Listbox.Button>
+                                                  <Transition
+                                                    show={open}
+                                                    as={"div"}
+                                                    leave="transition ease-in duration-100"
+                                                    leaveFrom="opacity-100"
+                                                    leaveTo="opacity-0"
+                                                    className="absolute z-50 mt-1 w-full overflow-auto rounded-md bg-white dark:bg-gray-800 py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm max-h-60 hide-scroll"
                                                   >
-                                                    {({ selected }) => (
-                                                      <div className="flex items-center justify-between">
-                                                        <span
-                                                          className={`block truncate ${
-                                                            selected
-                                                              ? "font-medium"
-                                                              : "font-normal"
-                                                          }`}
-                                                        >
-                                                          Blok {mk.blok}:{" "}
-                                                          {mk.nama}
-                                                        </span>
-                                                        {selected && (
-                                                          <span className="text-brand-500">
-                                                            <svg
-                                                              className="w-5 h-5"
-                                                              fill="none"
-                                                              stroke="currentColor"
-                                                              viewBox="0 0 24 24"
+                                                    <Listbox.Options static>
+                                                      {(() => {
+                                                        const blokMataKuliah =
+                                                          matkulList
+                                                            .filter(
+                                                              (mk) =>
+                                                                mk.jenis ===
+                                                                "Blok"
+                                                            )
+                                                            .sort((a, b) => {
+                                                              if (
+                                                                a.semester !==
+                                                                b.semester
+                                                              )
+                                                                return (
+                                                                  a.semester -
+                                                                  b.semester
+                                                                );
+                                                              return (
+                                                                (a.blok || 0) -
+                                                                (b.blok || 0)
+                                                              );
+                                                            });
+
+                                                        const groupedBySemester =
+                                                          blokMataKuliah.reduce(
+                                                            (
+                                                              acc,
+                                                              mk
+                                                            ) => {
+                                                              if (
+                                                                !acc[
+                                                                  mk.semester
+                                                                ]
+                                                              )
+                                                                acc[
+                                                                  mk.semester
+                                                                ] = [];
+                                                              acc[
+                                                                mk.semester
+                                                              ].push(mk);
+                                                              return acc;
+                                                            },
+                                                            {} as Record<
+                                                              number,
+                                                              typeof blokMataKuliah
                                                             >
-                                                              <path
-                                                                strokeLinecap="round"
-                                                                strokeLinejoin="round"
-                                                                strokeWidth={2}
-                                                                d="M5 13l4 4L19 7"
-                                                              />
-                                                            </svg>
-                                                          </span>
+                                                          );
+
+                                                        return Object.entries(
+                                                          groupedBySemester
+                                                        ).map(
+                                                          ([
+                                                            semester,
+                                                            mataKuliah,
+                                                          ]) => (
+                                                            <div
+                                                              key={semester}
+                                                            >
+                                                              <div className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700">
+                                                                Semester{" "}
+                                                                {semester}
+                                                              </div>
+                                                              {mataKuliah.map(
+                                                                (mk) => (
+                                                                  <Listbox.Option
+                                                                    key={
+                                                                      mk.kode
+                                                                    }
+                                                                    className={({
+                                                                      active,
+                                                                    }) =>
+                                                                      `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
+                                                                        active
+                                                                          ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
+                                                                          : "text-gray-900 dark:text-gray-100"
+                                                                      }`
+                                                                    }
+                                                                    value={
+                                                                      mk.kode
+                                                                    }
+                                                                  >
+                                                                    {({
+                                                                      selected,
+                                                                    }) => (
+                                                                      <div className="flex items-center justify-between">
+                                                                        <span
+                                                                          className={`block truncate ${
+                                                                            selected
+                                                                              ? "font-medium"
+                                                                              : "font-normal"
+                                                                          }`}
+                                                                        >
+                                                                          Blok{" "}
+                                                                          {
+                                                                            mk.blok
+                                                                          }
+                                                                          :{" "}
+                                                                          {
+                                                                            mk.nama
+                                                                          }
+                                                                        </span>
+                                                                        {selected && (
+                                                                          <span className="text-brand-500">
+                                                                            <svg
+                                                                              className="w-5 h-5"
+                                                                              fill="none"
+                                                                              stroke="currentColor"
+                                                                              viewBox="0 0 24 24"
+                                                                            >
+                                                                              <path
+                                                                                strokeLinecap="round"
+                                                                                strokeLinejoin="round"
+                                                                                strokeWidth={
+                                                                                  2
+                                                                                }
+                                                                                d="M5 13l4 4L19 7"
+                                                                              />
+                                                                            </svg>
+                                                                          </span>
+                                                                        )}
+                                                                      </div>
+                                                                    )}
+                                                                  </Listbox.Option>
+                                                                )
+                                                              )}
+                                                            </div>
+                                                          )
+                                                        );
+                                                      })()}
+                                                    </Listbox.Options>
+                                                  </Transition>
+                                                </div>
+                                              )}
+                                            </Listbox>
+                                          </div>
+
+                                          {/* Pilih Peran Kurikulum */}
+                                          {section.mataKuliahKode && (
+                                            <div>
+                                              <label className="block text-xs font-medium text-gray-700 dark:text-gray-200 mb-1">
+                                                Pilih Peran Kurikulum
+                                              </label>
+                                              <Listbox
+                                                value={section.peranKurikulumKey}
+                                                onChange={(value) => {
+                                                  updatePeranSection(
+                                                    section.id,
+                                                    {
+                                                      peranKurikulumKey: value,
+                                                    }
+                                                  );
+                                                }}
+                                              >
+                                                {({ open }) => (
+                                                  <div className="relative">
+                                                    <Listbox.Button className="relative w-full cursor-default rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 py-2 pl-3 pr-10 text-left text-gray-800 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 sm:text-sm">
+                                                      <span className="block truncate">
+                                                        {selectedPeranOption
+                                                          ? selectedPeranOption.originalName
+                                                          : "Pilih Peran Kurikulum"}
+                                                      </span>
+                                                      <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                                                        <FontAwesomeIcon
+                                                          icon={faChevronDown}
+                                                          className="h-5 w-5 text-gray-400"
+                                                        />
+                                                      </span>
+                                                    </Listbox.Button>
+                                                    <Transition
+                                                      show={open}
+                                                      as={"div"}
+                                                      leave="transition ease-in duration-100"
+                                                      leaveFrom="opacity-100"
+                                                      leaveTo="opacity-0"
+                                                      className="absolute z-50 mt-1 w-full overflow-auto rounded-md bg-white dark:bg-gray-800 py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm max-h-60 hide-scroll"
+                                                    >
+                                                      <Listbox.Options static>
+                                                        {sectionOptions.length ===
+                                                        0 ? (
+                                                          <Listbox.Option
+                                                            className="relative cursor-default select-none py-2.5 pl-4 pr-4 text-gray-400 dark:text-gray-500"
+                                                            value=""
+                                                            disabled
+                                                          >
+                                                            Tidak ada peran
+                                                            kurikulum untuk blok
+                                                            ini
+                                                          </Listbox.Option>
+                                                        ) : (
+                                                          sectionOptions.map(
+                                                            (peran) => {
+                                                              // Cek konflik koordinator
+                                                              const koordinatorConflict =
+                                                                getKoordinatorConflict(
+                                                                  peran
+                                                                );
+                                                              const peranKey = `${peran.mataKuliahKode}-${peran.originalName}-${peran.blok}-${peran.semester}`;
+                                                              const isDisabled =
+                                                                koordinatorConflict.isDisabled;
+
+                                                              return (
+                                                                <Listbox.Option
+                                                                  key={peranKey}
+                                                                  className={({
+                                                                    active,
+                                                                  }) =>
+                                                                    `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
+                                                                      isDisabled
+                                                                        ? "opacity-50 cursor-not-allowed text-gray-400 dark:text-gray-500"
+                                                                        : active
+                                                                        ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
+                                                                        : "text-gray-900 dark:text-gray-100"
+                                                                    }`
+                                                                  }
+                                                                  value={peranKey}
+                                                                  disabled={
+                                                                    isDisabled
+                                                                  }
+                                                                >
+                                                                  {({
+                                                                    selected,
+                                                                  }) => (
+                                                                    <div className="flex items-center justify-between">
+                                                                      <div className="flex flex-col">
+                                                                        <span
+                                                                          className={`block truncate ${
+                                                                            selected
+                                                                              ? "font-medium"
+                                                                              : "font-normal"
+                                                                          }`}
+                                                                        >
+                                                                          {
+                                                                            peran.originalName
+                                                                          }
+                                                                        </span>
+                                                                        {isDisabled &&
+                                                                          koordinatorConflict.conflictDosenName && (
+                                                                            <span className="text-xs text-orange-500 mt-1">
+                                                                              (Sudah
+                                                                              dipilih
+                                                                              oleh:{" "}
+                                                                              {
+                                                                                koordinatorConflict.conflictDosenName
+                                                                              }
+                                                                              )
+                                                                            </span>
+                                                                          )}
+                                                                      </div>
+                                                                      {selected && (
+                                                                        <span className="text-brand-500">
+                                                                          <svg
+                                                                            className="w-5 h-5"
+                                                                            fill="none"
+                                                                            stroke="currentColor"
+                                                                            viewBox="0 0 24 24"
+                                                                          >
+                                                                            <path
+                                                                              strokeLinecap="round"
+                                                                              strokeLinejoin="round"
+                                                                              strokeWidth={
+                                                                                2
+                                                                              }
+                                                                              d="M5 13l4 4L19 7"
+                                                                            />
+                                                                          </svg>
+                                                                        </span>
+                                                                      )}
+                                                                    </div>
+                                                                  )}
+                                                                </Listbox.Option>
+                                                              );
+                                                            }
+                                                          )
                                                         )}
-                                                      </div>
-                                                    )}
-                                                  </Listbox.Option>
-                                                ))}
-                                              </div>
-                                            ));
-                                          })()}
-                                        </Listbox.Options>
-                                      </Transition>
-                                    </div>
-                                  )}
-                                </Listbox>
-                                {/* Listbox Peran Kurikulum */}
-                                <div className="mb-2">
-                                  <span className="text-xs text-gray-500">
-                                    Pilih Peran Kurikulum (bisa lebih dari 1)
-                                    {selectedMataKuliahList.length > 0 && (
-                                      <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">
-                                        (Difilter berdasarkan mata kuliah yang
-                                        dipilih -{" "}
-                                        {filteredPeranKurikulumOptions.length}{" "}
-                                        tersedia)
-                                      </span>
-                                    )}
-                                  </span>
-                                </div>
-                                {/* Multi-select peran kurikulum */}
-                                <Listbox
-                                  value={selectedPeranKurikulumList}
-                                  onChange={setSelectedPeranKurikulumList}
-                                  multiple
-                                >
-                                  {({ open }) => {
-                                    return (
-                                    <div className="relative">
-                                      <Listbox.Button className="relative w-full cursor-default rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-2 pl-3 pr-10 text-left text-gray-800 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 sm:text-sm">
-                                        <span className="block truncate">
-                                          {selectedPeranKurikulumList.length > 0
-                                            ? selectedPeranKurikulumList
-                                                .map((peranKey) => {
-                                                  // Extract name from key (format: "MKB101-Penguji Skill Lab-1-1")
-                                                  const parts = peranKey.split('-');
-                                                  return parts.slice(1, -2).join('-'); // Get the name part
-                                                })
-                                                .join(", ")
-                                            : selectedMataKuliahList.length > 0
-                                            ? `Pilih Peran Kurikulum untuk ${selectedMataKuliahList.length} mata kuliah`
-                                            : "Pilih Peran Kurikulum"}
-                                        </span>
-                                        <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                                          <FontAwesomeIcon
-                                            icon={faChevronDown}
-                                            className="h-5 w-5 text-gray-400"
-                                          />
-                                        </span>
-                                      </Listbox.Button>
-                                      <Transition
-                                        show={open}
-                                        as={"div"}
-                                        leave="transition ease-in duration-100"
-                                        leaveFrom="opacity-100"
-                                        leaveTo="opacity-0"
-                                        className="absolute z-50 mt-1 w-full overflow-auto rounded-md bg-white dark:bg-gray-800 py-1 text-base shadow-lg ring-1 ring-black/5 focus:outline-none sm:text-sm max-h-60 hide-scroll"
-                                      >
-                                        <Listbox.Options static>
-                                          {/* Header informasi mata kuliah yang dipilih */}
-                                          {selectedMataKuliahList.length >
-                                            0 && (
-                                            <div className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
-                                              Peran kurikulum untuk:{" "}
-                                              {selectedMataKuliahList.length}{" "}
-                                              mata kuliah yang dipilih
+                                                      </Listbox.Options>
+                                                    </Transition>
+                                                  </div>
+                                                )}
+                                              </Listbox>
                                             </div>
                                           )}
-                                          {filteredPeranKurikulumOptions.length ===
-                                          0 ? (
-                                            <Listbox.Option
-                                              className="relative cursor-default select-none py-2.5 pl-4 pr-4 text-gray-400 dark:text-gray-500"
-                                              value=""
-                                              disabled
-                                            >
-                                              {selectedMataKuliahList.length > 0
-                                                ? "Tidak ada peran kurikulum untuk mata kuliah ini"
-                                                : "Belum ada peran kurikulum"}
-                                            </Listbox.Option>
-                                          ) : (
-                                            filteredPeranKurikulumOptions.map(
-                                              (peran) => {
-                                                const isDisabled =
-                                                  isPeranKurikulumDisabled(
-                                                    peran
-                                                  );
-
-                                                // Cek konflik koordinator
-                                                const koordinatorConflict =
-                                                  getKoordinatorConflict(peran);
-                                                const finalDisabled =
-                                                  isDisabled ||
-                                                  koordinatorConflict.isDisabled;
-
-                                                return (
-                                                  <Listbox.Option
-                                                    key={`${peran.mataKuliahKode}-${peran.originalName}-${peran.blok}-${peran.semester}`}
-                                                    className={({ active }) =>
-                                                      `relative cursor-default select-none py-2.5 pl-4 pr-4 ${
-                                                        finalDisabled
-                                                          ? "opacity-50 cursor-not-allowed text-gray-400 dark:text-gray-500"
-                                                          : active
-                                                          ? "bg-brand-100 text-brand-900 dark:bg-brand-700/20 dark:text-white"
-                                                          : "text-gray-900 dark:text-gray-100"
-                                                      }`
-                                                    }
-                                                    value={`${peran.mataKuliahKode}-${peran.originalName}-${peran.blok}-${peran.semester}`}
-                                                    disabled={finalDisabled}
-                                                  >
-                                                    {({ selected }) => {
-                                                      // Debug: Log untuk melihat selected status dan objek yang dibandingkan
-                                                      const peranKey = `${peran.mataKuliahKode}-${peran.originalName}-${peran.blok}-${peran.semester}`;
-                                                      return (
-                                                      <div className="flex items-center justify-between">
-                                                        <div className="flex flex-col">
-                                                          <span
-                                                            className={`block truncate ${
-                                                              selected
-                                                                ? "font-medium"
-                                                                : "font-normal"
-                                                            }`}
-                                                          >
-                                                            {peran.name}
-                                                          </span>
-                                                          {isDisabled && (
-                                                            <span className="text-xs text-red-500 mt-1">
-                                                              (Konflik dengan
-                                                              peran lain)
-                                                            </span>
-                                                          )}
-                                                          {koordinatorConflict.isDisabled &&
-                                                            koordinatorConflict.conflictDosenName && (
-                                                              <span className="text-xs text-orange-500 mt-1">
-                                                                (Sudah dipilih
-                                                                oleh:{" "}
-                                                                {
-                                                                  koordinatorConflict.conflictDosenName
-                                                                }
-                                                                )
-                                                              </span>
-                                                            )}
-                                                        </div>
-                                                        {selected && (
-                                                          <span className="text-brand-500">
-                                                            <svg
-                                                              className="w-5 h-5"
-                                                              fill="none"
-                                                              stroke="currentColor"
-                                                              viewBox="0 0 24 24"
-                                                            >
-                                                              <path
-                                                                strokeLinecap="round"
-                                                                strokeLinejoin="round"
-                                                                strokeWidth={2}
-                                                                d="M5 13l4 4L19 7"
-                                                              />
-                                                            </svg>
-                                                          </span>
-                                                        )}
-                                                      </div>
-                                                      );
-                                                    }}
-                                                  </Listbox.Option>
-                                                );
-                                              }
-                                            )
-                                          )}
-                                        </Listbox.Options>
-                                      </Transition>
-                                    </div>
-                                    );
-                                  }}
-                                </Listbox>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
