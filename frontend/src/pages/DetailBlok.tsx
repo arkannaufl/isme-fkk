@@ -11100,8 +11100,15 @@ export default function DetailBlok() {
         });
       }
 
-      // Validasi koordinator hanya boleh 1 orang untuk Seminar Pleno
-      if (row.koordinator && row.koordinator.trim() !== "") {
+      // Validasi koordinator wajib diisi
+      if (!row.koordinator || row.koordinator.trim() === "") {
+        cellErrors.push({
+          row: rowNumber,
+          field: "koordinator",
+          message: `Koordinator Dosen wajib diisi (Baris ${rowNumber}, Kolom Koordinator Dosen)`,
+        });
+      } else {
+        // Validasi koordinator hanya boleh 1 orang untuk Seminar Pleno
         const koordinatorNames = row.koordinator
           .split(",")
           .map((n: string) => n.trim())
@@ -11110,7 +11117,7 @@ export default function DetailBlok() {
           cellErrors.push({
             row: rowNumber,
             field: "koordinator",
-            message: "Koordinator Seminar Pleno hanya boleh 1 orang",
+            message: `Koordinator Seminar Pleno hanya boleh 1 orang (Baris ${rowNumber}, Kolom Koordinator Dosen)`,
           });
         } else {
           // Validasi apakah nama koordinator valid (terdaftar di assignedDosenPBL)
@@ -11712,14 +11719,33 @@ export default function DetailBlok() {
             setSeminarPlenoImportErrors([]);
           }
         } catch (err: any) {
-          // Jika error validasi, tampilkan error
+          // Jika error validasi, tampilkan error (filter error generic)
           const errorResponse = err?.response?.data;
           const errorDetails = errorResponse?.errors || [];
           if (errorDetails.length > 0) {
-            setSeminarPlenoImportErrors([
-              errorResponse?.message || "Gagal memvalidasi data",
-              ...errorDetails,
-            ]);
+            // Filter error generic yang tidak perlu ditampilkan
+            const filteredErrors = errorDetails.filter((error: string) => {
+              // Skip error generic Laravel validation
+              if (error.includes("data.") && error.includes("field is required")) return false;
+              if (error.includes("Terjadi kesalahan saat memvalidasi data")) return false;
+              return true;
+            });
+            
+            const errorMessage = errorResponse?.message;
+            const filteredMessage = errorMessage && !errorMessage.includes("Terjadi kesalahan saat memvalidasi data")
+              ? errorMessage
+              : null;
+            
+            // Hanya tampilkan error yang sudah di-filter
+            if (filteredErrors.length > 0 || filteredMessage) {
+              setSeminarPlenoImportErrors(
+                filteredMessage 
+                  ? [filteredMessage, ...filteredErrors]
+                  : filteredErrors
+              );
+            } else {
+              setSeminarPlenoImportErrors([]);
+            }
           }
         }
       }
@@ -12066,15 +12092,23 @@ export default function DetailBlok() {
         // Refresh data
         await fetchBatchData();
       } else {
-        // Tampilkan error dari backend dengan detail
+        // Tampilkan error dari backend dengan detail (filter error generic)
         const backendErrors = response.data.errors || [];
         const backendMessage =
           response.data.message || "Gagal mengimport data seminar pleno";
 
-        // Gabungkan semua error
-        const allErrors = backendMessage
-          ? [backendMessage, ...backendErrors]
-          : backendErrors;
+        // Filter error generic yang tidak perlu ditampilkan
+        const filteredBackendErrors = backendErrors.filter((error: string) => {
+          // Skip error generic Laravel validation
+          if (error.includes("data.") && error.includes("field is required")) return false;
+          if (error.includes("Terjadi kesalahan saat memvalidasi data")) return false;
+          return true;
+        });
+
+        // Gabungkan semua error (hanya yang sudah di-filter)
+        const allErrors = backendMessage && !backendMessage.includes("Terjadi kesalahan saat memvalidasi data")
+          ? [backendMessage, ...filteredBackendErrors]
+          : filteredBackendErrors;
         setSeminarPlenoImportErrors(allErrors);
 
         // Jika ada error per baris, convert ke cellErrors untuk ditampilkan di tabel
@@ -12126,12 +12160,24 @@ export default function DetailBlok() {
         "Gagal mengimport data seminar pleno. Silakan coba lagi.";
       const errorDetails = errorResponse?.errors || [];
 
-      // Gabungkan semua error
-      const allErrors = errorMessage
-        ? [errorMessage, ...errorDetails]
-        : errorDetails;
+      // Filter error generic yang tidak perlu ditampilkan
+      const filteredErrorDetails = errorDetails.filter((error: string) => {
+        // Skip error generic Laravel validation
+        if (error.includes("data.") && error.includes("field is required")) return false;
+        if (error.includes("Terjadi kesalahan saat memvalidasi data")) return false;
+        return true;
+      });
+      
+      const filteredErrorMessage = errorMessage.includes("Terjadi kesalahan saat memvalidasi data") 
+        ? null 
+        : errorMessage;
+      
+      // Gabungkan semua error (hanya yang sudah di-filter)
+      const allErrors = filteredErrorMessage
+        ? [filteredErrorMessage, ...filteredErrorDetails]
+        : filteredErrorDetails;
       setSeminarPlenoImportErrors(
-        allErrors.length > 0 ? allErrors : [errorMessage]
+        allErrors.length > 0 ? allErrors : (filteredErrorMessage ? [filteredErrorMessage] : [])
       );
 
       // Jika ada error per baris, convert ke cellErrors
