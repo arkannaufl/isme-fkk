@@ -11229,8 +11229,15 @@ export default function DetailBlok() {
         row.ruangan_id = null;
       }
 
-      // Validasi kelompok besar (opsional)
-      if (row.kelompok_besar && row.kelompok_besar.trim() !== "") {
+      // Validasi kelompok besar (wajib diisi)
+      if (!row.kelompok_besar || row.kelompok_besar.trim() === "") {
+        cellErrors.push({
+          row: rowNumber,
+          field: "kelompok_besar",
+          message: `Kelompok Besar wajib diisi (Baris ${rowNumber}, Kolom KELOMPOK_BESAR)`,
+        });
+        row.kelompok_besar_id = null;
+      } else {
         const inputValue = row.kelompok_besar.trim();
         
         // Helper untuk extract semester dari berbagai format
@@ -11265,13 +11272,27 @@ export default function DetailBlok() {
           cellErrors.push({
             row: rowNumber,
             field: "kelompok_besar",
-            message: `Kelompok Besar "${inputValue}" tidak ditemukan. Gunakan format: "Semester 1" atau "1" atau lihat daftar ketersediaan`,
+            message: `Kelompok Besar "${inputValue}" tidak ditemukan. Gunakan format: "Semester 1" atau "1" atau lihat daftar ketersediaan (Baris ${rowNumber}, Kolom KELOMPOK_BESAR)`,
           });
+          row.kelompok_besar_id = null;
         } else {
           row.kelompok_besar_id = Number(kelompokBesar.id);
+          
+          // Validasi semester harus sesuai dengan semester mata kuliah
+          const mataKuliahSemester = data?.semester;
+          if (mataKuliahSemester) {
+            const kelompokBesarSemester = extractSemester(kelompokBesar.label);
+            // Pastikan kedua nilai dalam tipe yang sama (number) untuk perbandingan
+            const mataKuliahSemesterNum = Number(mataKuliahSemester);
+            if (kelompokBesarSemester !== null && kelompokBesarSemester !== mataKuliahSemesterNum) {
+              cellErrors.push({
+                row: rowNumber,
+                field: "kelompok_besar",
+                message: `Kelompok Besar Semester ${kelompokBesarSemester} tidak sesuai dengan semester mata kuliah (${mataKuliahSemesterNum}). Hanya boleh menggunakan kelompok besar semester ${mataKuliahSemesterNum} (Baris ${rowNumber}, Kolom KELOMPOK_BESAR)`,
+              });
+            }
+          }
         }
-      } else {
-        row.kelompok_besar_id = null;
       }
     });
 
@@ -33038,7 +33059,7 @@ export default function DetailBlok() {
                               const cellError = seminarPlenoCellErrors.find(
                                 (err) =>
                                   err.row === actualIndex + 1 &&
-                                  err.field === field
+                                  (err.field === field || (field === "nama_ruangan" && err.field === "ruangan"))
                               );
 
                               return (
@@ -33060,7 +33081,11 @@ export default function DetailBlok() {
                                 >
                                   {isEditing ? (
                                     <input
-                                      className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
+                                      className={`w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent ${
+                                        cellError
+                                          ? "text-red-500"
+                                          : "text-gray-800 dark:text-white/90"
+                                      }`}
                                       type={isNumeric ? "number" : "text"}
                                       value={value || ""}
                                       onChange={(e) =>
@@ -33083,7 +33108,15 @@ export default function DetailBlok() {
                                       autoFocus
                                     />
                                   ) : (
-                                    <span>{value || "-"}</span>
+                                    <span
+                                      className={
+                                        cellError
+                                          ? "text-red-500"
+                                          : "text-gray-800 dark:text-white/90"
+                                      }
+                                    >
+                                      {value || "-"}
+                                    </span>
                                   )}
                                 </td>
                               );
