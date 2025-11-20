@@ -33193,7 +33193,7 @@ export default function DetailBlok() {
                                         isEditing ? "border-2 border-brand-500" : ""
                                       } ${
                                         cellError
-                                          ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700"
+                                          ? "bg-red-50 dark:bg-red-900/20"
                                           : ""
                                       }`}
                                       onClick={() =>
