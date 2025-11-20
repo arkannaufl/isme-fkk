@@ -32903,90 +32903,77 @@ export default function DetailBlok() {
                     </div>
                     <button
                       onClick={handleSeminarPlenoRemoveFile}
-                      className="px-3 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition"
+                      className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                      title="Hapus file"
                     >
-                      Hapus File
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* Error Messages - Tampilkan hanya jika ada error */}
+              {/* Error Messages */}
               {(seminarPlenoImportErrors.length > 0 ||
                 seminarPlenoCellErrors.length > 0) && (
-                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg">
-                  <div className="flex items-center gap-2 mb-3">
-                    <FontAwesomeIcon
-                      icon={faExclamationTriangle}
-                      className="w-6 h-6 text-red-600 dark:text-red-400"
-                    />
-                    <h3 className="font-bold text-lg text-red-800 dark:text-red-200">
-                      ⚠️ Error Import Data
-                    </h3>
-                  </div>
-                  <div className="bg-red-100 dark:bg-red-900/30 p-3 rounded-lg mb-3">
-                    <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
-                      Data tidak dapat diimport karena terdapat error berikut:
-                    </p>
-                  </div>
-                  {seminarPlenoImportErrors.length > 0 && (
-                    <ul className="list-disc list-inside space-y-2 text-sm text-red-700 dark:text-red-300 max-h-60 overflow-y-auto mb-3">
-                      {seminarPlenoImportErrors.map((error, idx) => (
-                        <li key={idx} className="font-medium">
-                          {error}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {seminarPlenoCellErrors.length > 0 && (
-                    <div className="mb-3">
-                      <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
-                        Error pada data:
-                      </p>
-                      <ul className="list-disc list-inside space-y-1 text-sm text-red-700 dark:text-red-300 max-h-40 overflow-y-auto">
-                        {seminarPlenoCellErrors.map((error, idx) => (
-                          <li key={idx}>
-                            Baris {error.row}: {error.message}
-                          </li>
-                        ))}
-                      </ul>
+                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0">
+                      <FontAwesomeIcon
+                        icon={faExclamationTriangle}
+                        className="w-5 h-5 text-red-500"
+                      />
                     </div>
-                  )}
-                  <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                    <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                      <strong>💡 Tips:</strong> Perbaiki error di atas terlebih
-                      dahulu. Error juga ditandai dengan warna merah di tabel
-                      preview di bawah. Klik pada cell yang error untuk melihat
-                      detail error. Setelah memperbaiki, error akan hilang
-                      secara otomatis.
-                    </p>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                        Error Validasi (
+                        {seminarPlenoCellErrors.length + 
+                         seminarPlenoImportErrors.filter((err) => {
+                           // Filter error generic yang tidak perlu ditampilkan
+                           if (err.includes("data.") && err.includes("field is required")) return false;
+                           if (err.includes("Terjadi kesalahan saat memvalidasi data")) return false;
+                           return true;
+                         }).length}{" "}
+                        error)
+                      </h3>
+                      <div className="max-h-40 overflow-y-auto">
+                        {seminarPlenoImportErrors
+                          .filter((err) => {
+                            // Filter error generic yang tidak perlu ditampilkan
+                            if (err.includes("data.") && err.includes("field is required")) return false;
+                            if (err.includes("Terjadi kesalahan saat memvalidasi data")) return false;
+                            return true;
+                          })
+                          .map((err, idx) => (
+                            <p
+                              key={idx}
+                              className="text-sm text-red-600 dark:text-red-400 mb-1"
+                            >
+                              • {err}
+                            </p>
+                          ))}
+                        {seminarPlenoCellErrors.map((err, idx) => (
+                          <p
+                            key={idx}
+                            className="text-sm text-red-600 dark:text-red-400 mb-1"
+                          >
+                            • {err.message}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              )}
-              
-              {/* Success Message - Tampilkan jika tidak ada error */}
-              {seminarPlenoImportData.length > 0 && 
-               seminarPlenoImportErrors.length === 0 && 
-               seminarPlenoCellErrors.length === 0 && (
-                <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border-2 border-green-300 dark:border-green-700 rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <FontAwesomeIcon
-                      icon={faCheckCircle}
-                      className="w-6 h-6 text-green-600 dark:text-green-400"
-                    />
-                    <h3 className="font-bold text-lg text-green-800 dark:text-green-200">
-                      ✅ Data Valid
-                    </h3>
-                  </div>
-                  <p className="text-sm text-green-700 dark:text-green-300">
-                      Semua data sudah valid dan siap untuk diimport. Klik
-                      tombol "Import Data" untuk menyimpan data ke sistem.
-                  </p>
-                  <p className="text-xs text-green-600 dark:text-green-400 mt-2 italic">
-                      Catatan: Sistem akan memvalidasi bentrok jadwal saat
-                      import. Jika ada bentrok, error akan ditampilkan setelah
-                      klik "Import Data".
-                  </p>
                 </div>
               )}
 
@@ -33149,51 +33136,56 @@ export default function DetailBlok() {
               )}
 
               {/* Action Buttons */}
-              <div className="flex justify-end gap-2 pt-6 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex justify-end gap-2 pt-6">
                 <button
                   onClick={handleSeminarPlenoCloseImportModal}
-                  className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                  className="px-6 py-3 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
                 >
                   Batal
                 </button>
-                <button
-                  onClick={handleSeminarPlenoSubmitImport}
-                  disabled={
-                    isSeminarPlenoImporting ||
-                    seminarPlenoImportData.length === 0 ||
-                    seminarPlenoCellErrors.length > 0 ||
-                    seminarPlenoImportErrors.length > 0
-                  }
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-                    isSeminarPlenoImporting ||
-                    seminarPlenoImportData.length === 0 ||
-                    seminarPlenoCellErrors.length > 0 ||
-                    seminarPlenoImportErrors.length > 0
-                      ? "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
-                      : "bg-brand-500 text-white hover:bg-brand-600"
-                  }`}
-                  title={
-                    isSeminarPlenoImporting
-                      ? "Sedang mengimport data..."
-                      : seminarPlenoImportData.length === 0
-                      ? "Tidak ada data untuk diimport"
-                      : seminarPlenoCellErrors.length > 0
-                      ? `Terdapat ${seminarPlenoCellErrors.length} error. Perbaiki error terlebih dahulu sebelum import.`
-                      : seminarPlenoImportErrors.length > 0
-                      ? `Terdapat error dari backend. Perbaiki error terlebih dahulu sebelum import.`
-                      : "Import data ke sistem"
-                  }
-                >
-                  {isSeminarPlenoImporting
-                    ? "Mengimport..."
-                    : seminarPlenoCellErrors.length > 0 ||
-                      seminarPlenoImportErrors.length > 0
-                    ? `Import Data (${
-                        seminarPlenoCellErrors.length +
-                        seminarPlenoImportErrors.length
-                      } error)`
-                    : "Import Data"}
-                </button>
+                {seminarPlenoImportData.length > 0 &&
+                  seminarPlenoCellErrors.length === 0 && (
+                    <button
+                      onClick={handleSeminarPlenoSubmitImport}
+                      disabled={isSeminarPlenoImporting}
+                      className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {isSeminarPlenoImporting ? (
+                        <>
+                          <svg
+                            className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            ></path>
+                          </svg>
+                          Mengimport...
+                        </>
+                      ) : (
+                        <>
+                          <FontAwesomeIcon
+                            icon={faUpload}
+                            className="w-4 h-4"
+                          />
+                          Import Data ({seminarPlenoImportData.length}{" "}
+                          jadwal)
+                        </>
+                      )}
+                    </button>
+                  )}
               </div>
             </motion.div>
           </div>
