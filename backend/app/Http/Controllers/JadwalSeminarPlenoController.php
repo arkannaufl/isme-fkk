@@ -2356,15 +2356,19 @@ class JadwalSeminarPlenoController extends Controller
                 if (!$isSemesterAntara) {
                     $semester = null;
 
-                    // Ambil semester dari kelompok_besar_id (menyimpan semester langsung)
-                    if ($jadwal->kelompok_besar_id) {
-                        $semester = $jadwal->kelompok_besar_id;
+                    // Ambil semester dari relasi kelompokBesar atau mataKuliah
+                    if ($jadwal->kelompokBesar && $jadwal->kelompokBesar->semester) {
+                        // Ambil semester dari relasi kelompokBesar
+                        $semester = $jadwal->kelompokBesar->semester;
                     } elseif ($jadwal->mataKuliah && $jadwal->mataKuliah->semester) {
                         // Fallback: ambil dari mata kuliah
                         $semester = $jadwal->mataKuliah->semester;
                     }
 
                     if ($semester && $semester !== 'Antara') {
+                        // Pastikan semester adalah integer untuk perbandingan yang benar
+                        $semester = (int)$semester;
+                        
                         // Get mahasiswa dari kelompok besar berdasarkan semester
                         $kelompokBesar = KelompokBesar::where('semester', $semester)->get();
 
