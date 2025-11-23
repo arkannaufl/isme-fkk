@@ -942,6 +942,16 @@ class WhatsAppController extends Controller
             return response()->json([
                 'message' => 'Laporan pesan berhasil diambil',
                 'data' => $result['data'],
+                'rate_limited' => $result['rate_limited'] ?? false,
+            ], 200);
+        }
+
+        // Jika rate limited, return 200 dengan data kosong (bukan error)
+        if ($result && isset($result['rate_limited']) && $result['rate_limited']) {
+            return response()->json([
+                'message' => 'Rate limit exceeded. Silakan tunggu beberapa saat.',
+                'data' => $result['data'] ?? ['status' => true, 'message' => [], 'totalData' => 0],
+                'rate_limited' => true,
             ], 200);
         }
 

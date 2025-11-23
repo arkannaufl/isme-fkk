@@ -19,6 +19,8 @@ import {
   faReply,
   faFolderPlus,
   faTrash,
+  faSearch,
+  faTimes,
 } from "@fortawesome/free-solid-svg-icons";
 import api from "../utils/api";
 
@@ -183,6 +185,9 @@ const AdminNotifications: React.FC = () => {
   const [pendingDosenBlok, setPendingDosenBlok] = useState<string>("");
   const [pendingDosenReminderType, setPendingDosenReminderType] =
     useState<string>("all");
+  // PERBAIKAN: Tambahkan state untuk filter jadwal type dan search
+  const [pendingDosenJadwalType, setPendingDosenJadwalType] = useState<string>("");
+  const [pendingDosenSearchQuery, setPendingDosenSearchQuery] = useState<string>("");
   // Selected dosen for reminder (Set of dosen keys: `${jadwal_id}_${dosen_id}`)
   const [selectedReminderDosen, setSelectedReminderDosen] = useState<
     Set<string>
@@ -754,7 +759,8 @@ const AdminNotifications: React.FC = () => {
     pageSize = 5,
     semester = "",
     blok = "",
-    reminderType = "all"
+    reminderType = "all",
+    jadwalType = "" // PERBAIKAN: Tambahkan parameter jadwal type
   ) => {
     setLoadingPendingDosen(true);
     try {
@@ -764,6 +770,8 @@ const AdminNotifications: React.FC = () => {
       if (semester) params.append("semester", semester);
       if (blok) params.append("blok", blok);
       if (reminderType) params.append("reminder_type", reminderType);
+      // PERBAIKAN: Tambahkan parameter jadwal type jika ada
+      if (jadwalType) params.append("jadwal_type", jadwalType);
 
       const response = await api.get(
         `/notifications/pending-dosen?${params.toString()}`
@@ -810,7 +818,27 @@ const AdminNotifications: React.FC = () => {
 
   // Handle select all dosen for reminder
   const handleSelectAllReminderDosen = () => {
-    const allKeys = pendingDosenList.map((dosen) => {
+    // PERBAIKAN: Filter berdasarkan search query jika ada
+    const listToUse = pendingDosenSearchQuery.trim()
+      ? pendingDosenList.filter((dosen) => {
+          const searchLower = pendingDosenSearchQuery.toLowerCase().trim();
+          const dosenName = (dosen.name || "").toLowerCase();
+          const mataKuliah = (dosen.mata_kuliah || "").toLowerCase();
+          const jadwalType = (dosen.jadwal_type || "").toLowerCase();
+          const email = (dosen.email || "").toLowerCase();
+          const nid = (dosen.nid || "").toLowerCase();
+          
+          return (
+            dosenName.includes(searchLower) ||
+            mataKuliah.includes(searchLower) ||
+            jadwalType.includes(searchLower) ||
+            email.includes(searchLower) ||
+            nid.includes(searchLower)
+          );
+        })
+      : pendingDosenList;
+    
+    const allKeys = listToUse.map((dosen) => {
       const cleanJadwalId =
         typeof dosen.jadwal_id === "string" && dosen.jadwal_id.includes(":")
           ? dosen.jadwal_id.split(":")[0]
@@ -4153,6 +4181,32 @@ const AdminNotifications: React.FC = () => {
                       </div>
                     </div>
 
+                    {/* PERBAIKAN: Filter Jadwal Type */}
+                    <div className="mb-4">
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Tipe Jadwal
+                      </label>
+                      <select
+                        value={pendingDosenJadwalType}
+                        onChange={(e) => {
+                          setPendingDosenJadwalType(e.target.value);
+                          setPendingDosenPage(1);
+                          setSelectedReminderDosen(new Set()); // Reset selection when filter changes
+                        }}
+                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                      >
+                        <option value="">Semua Tipe Jadwal</option>
+                        <option value="pbl">PBL</option>
+                        <option value="kuliah_besar">Kuliah Besar</option>
+                        <option value="praktikum">Praktikum</option>
+                        <option value="jurnal_reading">Jurnal Reading</option>
+                        <option value="csr">CSR</option>
+                        <option value="non_blok_non_csr">Non Blok Non CSR</option>
+                        <option value="persamaan_persepsi">Persamaan Persepsi</option>
+                        <option value="seminar_pleno">Seminar Pleno</option>
+                      </select>
+                    </div>
+
                     {/* Filter Tipe Pengingat */}
                     <div className="mb-4">
                       <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -4321,13 +4375,45 @@ const AdminNotifications: React.FC = () => {
                               pendingDosenPageSize,
                               pendingDosenSemester,
                               pendingDosenBlok,
-                              pendingDosenReminderType
+                              pendingDosenReminderType,
+                              pendingDosenJadwalType // PERBAIKAN: Include jadwal type filter
                           );
                         }}
                         className="px-3 sm:px-4 py-2 rounded-lg bg-orange-500 text-white text-xs sm:text-sm font-medium hover:bg-orange-600 transition-all duration-300 ease-in-out"
                         >
                           Filter
                         </button>
+                    </div>
+
+                    {/* PERBAIKAN: Search Box untuk pencarian real-time */}
+                    <div className="mb-4">
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Cari Dosen / Mata Kuliah
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={pendingDosenSearchQuery}
+                          onChange={(e) => {
+                            setPendingDosenSearchQuery(e.target.value);
+                            // Real-time search: tidak perlu klik filter, langsung filter di frontend
+                          }}
+                          placeholder="Cari berdasarkan nama dosen, mata kuliah, atau jadwal..."
+                          className="w-full px-3 py-2 pl-10 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                        />
+                        <FontAwesomeIcon
+                          icon={faSearch}
+                          className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4"
+                        />
+                        {pendingDosenSearchQuery && (
+                          <button
+                            onClick={() => setPendingDosenSearchQuery("")}
+                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                          >
+                            <FontAwesomeIcon icon={faTimes} className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {loadingPendingDosen ? (
@@ -4337,15 +4423,36 @@ const AdminNotifications: React.FC = () => {
                           Memuat daftar dosen...
                         </span>
                       </div>
-                    ) : pendingDosenList.length > 0 ? (
+                    ) : (() => {
+                      // PERBAIKAN: Filter real-time berdasarkan search query
+                      const filteredDosenList = pendingDosenList.filter((dosen) => {
+                        if (!pendingDosenSearchQuery.trim()) return true;
+                        
+                        const searchLower = pendingDosenSearchQuery.toLowerCase().trim();
+                        const dosenName = (dosen.name || "").toLowerCase();
+                        const mataKuliah = (dosen.mata_kuliah || "").toLowerCase();
+                        const jadwalType = (dosen.jadwal_type || "").toLowerCase();
+                        const email = (dosen.email || "").toLowerCase();
+                        const nid = (dosen.nid || "").toLowerCase();
+                        
+                        return (
+                          dosenName.includes(searchLower) ||
+                          mataKuliah.includes(searchLower) ||
+                          jadwalType.includes(searchLower) ||
+                          email.includes(searchLower) ||
+                          nid.includes(searchLower)
+                        );
+                      });
+                      
+                      return filteredDosenList.length > 0 ? (
                       <div className="space-y-3 max-h-96 overflow-y-auto">
                         {/* Select All Checkbox */}
                         <div className="sticky top-0 bg-white dark:bg-gray-900 z-10 pb-2 border-b border-gray-200 dark:border-gray-700 mb-3">
                           <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-all">
                             <div
                               className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
-                                pendingDosenList.length > 0 &&
-                                pendingDosenList.every((dosen) => {
+                                filteredDosenList.length > 0 &&
+                                filteredDosenList.every((dosen) => {
                                   const cleanJadwalId =
                                     typeof dosen.jadwal_id === "string" &&
                                     dosen.jadwal_id.includes(":")
@@ -4364,8 +4471,8 @@ const AdminNotifications: React.FC = () => {
                                   : "border-gray-300 dark:border-gray-600"
                               }`}
                             >
-                              {pendingDosenList.length > 0 &&
-                                pendingDosenList.every((dosen) => {
+                              {filteredDosenList.length > 0 &&
+                                filteredDosenList.every((dosen) => {
                                   const cleanJadwalId =
                                     typeof dosen.jadwal_id === "string" &&
                                     dosen.jadwal_id.includes(":")
@@ -4418,11 +4525,16 @@ const AdminNotifications: React.FC = () => {
                             />
                             <span className="text-sm font-semibold text-gray-900 dark:text-white">
                               Pilih Semua ({selectedReminderDosen.size} dari{" "}
-                              {pendingDosenList.length} dipilih)
+                              {filteredDosenList.length} dipilih)
+                              {pendingDosenSearchQuery && (
+                                <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                                  (dari {pendingDosenList.length} total)
+                                </span>
+                              )}
                             </span>
                           </label>
                         </div>
-                        {pendingDosenList.map((dosen) => {
+                        {filteredDosenList.map((dosen) => {
                           const isEmailValid =
                             dosen.email &&
                             dosen.email.trim() !== "" &&
@@ -4684,24 +4796,42 @@ const AdminNotifications: React.FC = () => {
                         })}
                       </div>
                     ) : (
-                      <div className="text-center py-4">
-                        <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-2">
-                          <FontAwesomeIcon
-                            icon={faBell}
-                            className="w-6 h-6 text-gray-500 dark:text-gray-400"
-                          />
+                      pendingDosenList.length === 0 ? (
+                        <div className="text-center py-4">
+                          <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-2">
+                            <FontAwesomeIcon
+                              icon={faBell}
+                              className="w-6 h-6 text-gray-500 dark:text-gray-400"
+                            />
+                          </div>
+                          <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">
+                            Tidak ada dosen yang perlu dikirim pengingat
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Semua dosen sudah konfirmasi atau tidak ada jadwal
+                            yang menunggu konfirmasi
+                          </p>
                         </div>
-                        <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">
-                          Tidak ada dosen yang perlu dikirim pengingat
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          Semua dosen sudah konfirmasi atau tidak ada jadwal
-                          yang menunggu konfirmasi
-                        </p>
-                      </div>
-                    )}
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-8 text-center">
+                          <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
+                            <FontAwesomeIcon
+                              icon={faSearch}
+                              className="w-8 h-8 text-gray-400 dark:text-gray-500"
+                            />
+                          </div>
+                          <p className="text-sm text-gray-700 dark:text-gray-300 font-medium">
+                            Tidak ada hasil pencarian
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Coba gunakan kata kunci lain atau hapus filter pencarian
+                          </p>
+                        </div>
+                      )
+                    );
+                    })()}
 
-                    {pendingDosenList.length > 0 && (
+                    {(pendingDosenList.length > 0 || pendingDosenSearchQuery) && (
                       <div className="mt-3 pt-3 border-t border-orange-200 dark:border-orange-700">
                         <p className="text-xs text-orange-600 dark:text-orange-400 mb-4">
                           {selectedReminderDosen.size > 0 ? (

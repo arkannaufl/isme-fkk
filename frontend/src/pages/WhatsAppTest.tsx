@@ -221,63 +221,93 @@ export default function WhatsAppTest() {
       // Jangan clear error saat reload, biarkan user tahu jika ada masalah sebelumnya
       // setError(null); // Removed - keep previous error message if exists
 
-      const response = await api.get("/whatsapp/report-realtime", {
-        params: { limit: 20 },
-      });
+      // Gunakan endpoint /whatsapp/report-realtime
+      // Endpoint ini otomatis filter untuk hari ini ("report only today" sesuai dokumentasi Wablas)
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD format
+      
+      // Fetch semua halaman jika ada lebih dari 100 data
+      // Catatan: Wablas API memiliki rate limit 1 request per menit, jadi kita perlu hati-hati
+      let allRealtimeData: any[] = [];
+      let currentPage = 1;
+      let totalPages = 1;
+      const limit = 100; // Max limit dari Wablas adalah 1000, tapi kita pakai 100 untuk menghindari rate limit
+      
+      do {
+        // Tambahkan delay 1 detik antara request untuk menghindari rate limit
+        if (currentPage > 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        const response = await api.get("/whatsapp/report-realtime", {
+          params: { 
+            limit: limit,
+            page: currentPage,
+          },
+        });
 
-      // Handle rate limit - jangan reset data jika rate limited
-      if (response.data?.rate_limited) {
-        // Cek apakah ada data di localStorage jika state kosong
-        setReportRealtime((prev) => {
-          if (prev.length === 0) {
-            // Coba load dari localStorage
-            try {
-              const saved = localStorage.getItem("whatsapp_realtime_reports");
-              if (saved) {
-                const parsed = JSON.parse(saved);
-                if (parsed.length > 0) {
-                  return parsed; // Return data dari localStorage
+        // Handle rate limit - jangan reset data jika rate limited
+        if (response.data?.rate_limited) {
+          // Cek apakah ada data di localStorage jika state kosong
+          setReportRealtime((prev) => {
+            if (prev.length === 0) {
+              // Coba load dari localStorage
+              try {
+                const saved = localStorage.getItem("whatsapp_realtime_reports");
+                if (saved) {
+                  const parsed = JSON.parse(saved);
+                  if (parsed.length > 0) {
+                    return parsed; // Return data dari localStorage
+                  }
                 }
+              } catch (err) {
+                console.error(
+                  "[loadReportRealtime] Error loading from localStorage:",
+                  err
+                );
               }
-            } catch (err) {
-              console.error(
-                "[loadReportRealtime] Error loading from localStorage:",
-                err
+              // Jika tidak ada data di localStorage juga, set error
+              setError(
+                "Rate limit exceeded. Silakan tunggu beberapa saat sebelum refresh lagi."
               );
             }
-            // Jika tidak ada data di localStorage juga, set error
-            setError(
-              "Rate limit exceeded. Silakan tunggu beberapa saat sebelum refresh lagi."
-            );
-          }
-          return prev; // Keep existing data
-        });
-        // Jangan reset data, keep existing data
-        setLoadingRealtime(false);
-        return;
-      }
+            return prev; // Keep existing data
+          });
+          // Jangan reset data, keep existing data
+          setLoadingRealtime(false);
+          return;
+        }
 
-      if (response.data && response.data.data) {
-        // Format response dari Wablas:
-        // { status: true, message: "success...", data: [...], ... }
-        // Array data sebenarnya ada di field "data", bukan "message"
+        if (response.data && response.data.data) {
+        // Format response dari Wablas (sesuai dokumentasi):
+        // {
+        //   "status": true,
+        //   "message": "success, report only today",
+        //   "device_id": "...",
+        //   "page": "1",
+        //   "totalPage": 1,
+        //   "totalData": 2,
+        //   "message": [ {...}, {...} ]  <- Array data ada di sini
+        // }
         const responseData = response.data.data;
 
         // Handle berbagai format response
         let realtimeData = [];
+        
+        // PRIORITAS 1: Ambil dari field "data" (untuk endpoint /report-realtime)
         if (
           responseData.data &&
           Array.isArray(responseData.data) &&
           responseData.data.length > 0
         ) {
-          // Format: { status: true, data: [...] }
+          // Format: { status: true, data: [...] } - untuk /report-realtime
           realtimeData = responseData.data;
         } else if (
           Array.isArray(responseData.message) &&
           responseData.message.length > 0 &&
           typeof responseData.message[0] === "object" // Pastikan ini array of objects, bukan string
         ) {
-          // Format: { status: true, message: [...] } - tapi hanya jika message adalah array of objects
+          // Format: { status: true, message: [...] } - untuk /report/message
           realtimeData = responseData.message;
         } else if (Array.isArray(responseData) && responseData.length > 0) {
           // Format: langsung array
@@ -289,93 +319,99 @@ export default function WhatsAppTest() {
         ) {
           realtimeData = responseData.messages;
         }
-
-        // Clear error jika berhasil dan ada data
-        if (realtimeData.length > 0) {
-          setError(null);
-        }
-
-        // Filter to only show today's messages
-        const today = new Date();
-        const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
-        const filteredData = realtimeData.filter((report: any) => {
-          let reportDate: string | null = null;
-          
-          // Try to extract date from various formats
-          if (report.date) {
-            if (typeof report.date === "object" && report.date.created_at) {
-              reportDate = report.date.created_at;
-            } else {
-              reportDate = String(report.date);
-            }
-          } else if (report.created_at) {
-            reportDate = String(report.created_at);
-          } else if (report.timestamp) {
-            reportDate = String(report.timestamp);
-          }
-          
-          if (!reportDate) return false;
-          
-          // Parse date and compare with today
-          try {
-            const reportDateObj = new Date(reportDate);
-            const reportDateStr = reportDateObj.toISOString().split('T')[0];
-            return reportDateStr === todayStr;
-          } catch (e) {
-            return false;
-          }
-        });
         
-        setReportRealtime(filteredData);
-        // Update last refresh time
-        setLastRefreshTime(Date.now());
-        // Update current day
-        const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-        const dayName = dayNames[today.getDay()];
-        const dateStr = today.toLocaleDateString('id-ID', { 
-          day: 'numeric', 
-          month: 'long', 
-          year: 'numeric' 
-        });
-        setCurrentDay(`${dayName}, ${dateStr}`);
-        
-        // Save to localStorage with today's date
-        try {
-          localStorage.setItem(
-            "whatsapp_realtime_reports",
-            JSON.stringify(filteredData)
-          );
-          localStorage.setItem(
-            "whatsapp_realtime_reports_date",
-            today.toISOString()
-          );
-        } catch (err) {
-          // Error saving to localStorage - silent fail
-        }
-      } else {
-        // Jangan reset data jika tidak ada data baru, keep existing
-        // Hanya reset jika memang belum ada data sama sekali
-        setReportRealtime((prev) => {
-          if (prev.length === 0) {
-            // Coba load dari localStorage
-            try {
-              const saved = localStorage.getItem("whatsapp_realtime_reports");
-              if (saved) {
-                const parsed = JSON.parse(saved);
-                if (parsed.length > 0) {
-                  return parsed; // Return data dari localStorage
-                }
-              }
-            } catch (err) {
-              console.error(
-                "[loadReportRealtime] Error loading from localStorage:",
-                err
-              );
-            }
-            return []; // Clear jika memang tidak ada data
+          // Debug log untuk melihat struktur data
+          console.log(`[loadReportRealtime] Page ${currentPage} Response structure:`, {
+            hasMessage: Array.isArray(responseData.message),
+            messageLength: Array.isArray(responseData.message) ? responseData.message.length : 0,
+            hasData: Array.isArray(responseData.data),
+            dataLength: Array.isArray(responseData.data) ? responseData.data.length : 0,
+            isArray: Array.isArray(responseData),
+            responseDataKeys: Object.keys(responseData),
+            totalData: responseData.totalData,
+            totalPage: responseData.totalPage,
+            page: responseData.page,
+            fullResponseData: responseData, // Log full response untuk debugging
+            realtimeDataLength: realtimeData.length,
+            realtimeDataSample: realtimeData.length > 0 ? realtimeData[0] : null,
+          });
+
+          // Accumulate data dari semua halaman
+          allRealtimeData = [...allRealtimeData, ...realtimeData];
+          
+          // Update totalPages dari response
+          if (responseData.totalPage) {
+            totalPages = parseInt(responseData.totalPage) || 1;
+          } else if (responseData.totalData && realtimeData.length > 0) {
+            // Calculate total pages jika tidak ada di response
+            totalPages = Math.ceil(parseInt(responseData.totalData) / limit);
           }
-          return prev; // Keep existing data
-        });
+          
+          // Jika sudah dapat semua data atau tidak ada data lagi, break
+          if (realtimeData.length === 0 || currentPage >= totalPages) {
+            break;
+          }
+          
+          currentPage++;
+        } else {
+          // Jika tidak ada data di response, break loop
+          break;
+        }
+        
+        // Safety check: jangan fetch lebih dari 10 halaman untuk menghindari rate limit
+        if (currentPage > 10) {
+          console.warn('[loadReportRealtime] Stopped fetching after 10 pages to avoid rate limit');
+          break;
+        }
+      } while (currentPage <= totalPages);
+
+      // Clear error jika berhasil dan ada data
+      if (allRealtimeData.length > 0) {
+        setError(null);
+      }
+
+      // Endpoint /report-realtime sudah otomatis filter untuk hari ini ("report only today")
+      // Jadi kita tidak perlu filter lagi di frontend, langsung gunakan semua data
+      const filteredData = allRealtimeData;
+      
+      // Debug log untuk melihat hasil filter
+      console.log('[loadReportRealtime] Final results:', {
+        totalRealtimeData: allRealtimeData.length,
+        filteredDataLength: filteredData.length,
+        todayStr,
+        totalPages,
+        sampleReport: allRealtimeData.length > 0 ? allRealtimeData[0] : null,
+        allRealtimeData: allRealtimeData, // Log semua data untuk debugging
+      });
+      
+      // Update state dengan semua data yang sudah di-accumulate
+      setReportRealtime(filteredData);
+      
+      // Update last refresh time
+      setLastRefreshTime(Date.now());
+      
+      // Update current day
+      const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+      const dayName = dayNames[today.getDay()];
+      const dateStr = today.toLocaleDateString('id-ID', { 
+        day: 'numeric', 
+        month: 'long', 
+        year: 'numeric' 
+      });
+      setCurrentDay(`${dayName}, ${dateStr}`);
+      
+      // Save to localStorage with today's date
+      try {
+        localStorage.setItem(
+          "whatsapp_realtime_reports",
+          JSON.stringify(filteredData)
+        );
+        localStorage.setItem(
+          "whatsapp_realtime_reports_date",
+          today.toISOString()
+        );
+      } catch (err) {
+        // Error saving to localStorage - silent fail
       }
     } catch (err: any) {
       console.error(
@@ -612,11 +648,25 @@ export default function WhatsAppTest() {
       setTestResult(response.data);
 
       // Refresh realtime reports setelah berhasil mengirim pesan
-      // Tunggu 3 detik dulu untuk memastikan pesan sudah terdaftar di Wablas
-      setTimeout(() => {
+      // Tunggu beberapa detik dulu untuk memastikan pesan sudah terdaftar di Wablas API
+      // Wablas API butuh waktu untuk update report, jadi kita refresh beberapa kali
+      let refreshAttempts = 0;
+      const maxAttempts = 3;
+      
+      const refreshReport = () => {
+        refreshAttempts++;
+        console.log(`[testSendMessage] Refreshing report (attempt ${refreshAttempts}/${maxAttempts})...`);
         setLastRefreshTime(Date.now());
         loadReportRealtime();
-      }, 3000);
+        
+        // Jika belum mencapai max attempts, refresh lagi setelah delay
+        if (refreshAttempts < maxAttempts) {
+          setTimeout(refreshReport, 5000); // Refresh setiap 5 detik
+        }
+      };
+      
+      // Mulai refresh setelah 3 detik pertama
+      setTimeout(refreshReport, 3000);
     } catch (err: any) {
       const errorMessage = handleApiError(err, "Test Send Message");
       setError(errorMessage);

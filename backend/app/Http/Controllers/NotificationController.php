@@ -4144,8 +4144,20 @@ class NotificationController extends Controller
             $page = $request->get('page', 1);
             $pageSize = $request->get('page_size', 5);
             $reminderType = $request->get('reminder_type', 'all'); // 'unconfirmed', 'upcoming', 'all'
+            // PERBAIKAN: Tambahkan filter jadwal_type
+            $filterJadwalType = $request->get('jadwal_type', ''); // Filter berdasarkan tipe jadwal
 
-            foreach ($jadwalTypes as $jadwalType) {
+            // PERBAIKAN: Jika ada filter jadwal_type, hanya loop jadwal type yang dipilih
+            $jadwalTypesToProcess = $filterJadwalType 
+                ? [strtolower($filterJadwalType)] // Hanya proses jadwal type yang dipilih
+                : $jadwalTypes; // Jika tidak ada filter, proses semua
+
+            foreach ($jadwalTypesToProcess as $jadwalType) {
+                // Skip jika jadwal type tidak valid
+                if (!in_array($jadwalType, $jadwalTypes)) {
+                    continue;
+                }
+
                 // Get unconfirmed dosen
                 if ($reminderType === 'all' || $reminderType === 'unconfirmed') {
                     $typeDosen = $this->getPendingDosenForJadwalType($jadwalType, $semester, $blok, 'unconfirmed');

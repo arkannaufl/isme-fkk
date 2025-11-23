@@ -247,15 +247,15 @@ class UserController extends Controller
             foreach ($request->dosen_peran as $peran) {
                 // Pastikan hanya koordinator dan tim_blok yang disimpan
                 if (in_array($peran['tipe_peran'] ?? '', ['koordinator', 'tim_blok'])) {
-                    DosenPeran::create([
-                        'user_id' => $user->id,
-                        'mata_kuliah_kode' => $peran['mata_kuliah_kode'],
-                        'peran_kurikulum' => $peran['peran_kurikulum'],
-                        'blok' => $peran['blok'] ?? null,
-                        'semester' => $peran['semester'] ?? null,
-                        'tipe_peran' => $peran['tipe_peran'],
-                    ]);
-                }
+                DosenPeran::create([
+                    'user_id' => $user->id,
+                    'mata_kuliah_kode' => $peran['mata_kuliah_kode'],
+                    'peran_kurikulum' => $peran['peran_kurikulum'],
+                    'blok' => $peran['blok'] ?? null,
+                    'semester' => $peran['semester'] ?? null,
+                    'tipe_peran' => $peran['tipe_peran'],
+                ]);
+            }
             }
         } else {
             // Jika dosen_peran tidak ada di request (selectedPeranType === "none"),

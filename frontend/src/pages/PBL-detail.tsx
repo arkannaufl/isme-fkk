@@ -580,33 +580,32 @@ export default function PBL() {
           return matches;
         });
 
+      // PERBAIKAN: Tentukan role berdasarkan dosen_peran untuk semester yang sama
+      // Tentukan di luar scope agar bisa digunakan untuk state update juga
+      let determinedRole = "dosen_mengajar"; // default
+      const dosenPeranForSemester = dosen.dosen_peran?.find((peran: any) => {
+        // Cek semester (konversi ke string untuk perbandingan)
+        const peranSemester = String(peran.semester);
+        const currentSemesterStr = String(currentSemester);
+
+        // Cek apakah dosen punya peran koordinator/tim_blok di semester yang sama
+        const hasRole =
+          peran.tipe_peran === "koordinator" || peran.tipe_peran === "tim_blok";
+
+        return peranSemester === currentSemesterStr && hasRole;
+      });
+      if (dosenPeranForSemester) {
+        determinedRole = dosenPeranForSemester.tipe_peran;
+      }
+
       // Assign dosen ke PBL dalam semester dan blok yang sama
       const assignPromises = (semesterPBLs || []).map(async (semesterPbl) => {
         try {
-          // PERBAIKAN: Tentukan role berdasarkan dosen_peran untuk semester dan blok yang sama
-          let role = "dosen_mengajar"; // default
-          const dosenPeran = dosen.dosen_peran?.find(
-            (peran: any) => {
-              // Cek semester (konversi ke string untuk perbandingan)
-              const peranSemester = String(peran.semester);
-              const currentSemesterStr = String(currentSemester);
-              
-              // Cek apakah dosen punya peran koordinator/tim_blok di semester yang sama
-              const hasRole = peran.tipe_peran === "koordinator" || 
-                             peran.tipe_peran === "tim_blok";
-              
-              return peranSemester === currentSemesterStr && hasRole;
-            }
-          );
-          if (dosenPeran) {
-            role = dosenPeran.tipe_peran;
-           }
-
           const response = await api.post(
             `/pbls/${semesterPbl.id}/assign-dosen`,
             {
               dosen_id: dosen.id,
-              role: role,
+              role: determinedRole, // Gunakan role yang sudah ditentukan
             }
           );
 
@@ -646,11 +645,12 @@ export default function PBL() {
 
                 if (!isAlreadyAssigned) {
                   // Tambahkan dosen dengan data lengkap
+                  // PERBAIKAN: Gunakan role yang sudah ditentukan (bisa koordinator/tim_blok/dosen_mengajar)
                   const newDosenData = {
                     id: dosen.id,
                     name: dosen.name,
                     nid: dosen.nid,
-                    pbl_role: "dosen_mengajar", // Default untuk manual assignment
+                    pbl_role: determinedRole, // Gunakan role yang sudah ditentukan berdasarkan dosen_peran
                     pbl_assignment_count: dosen.pbl_assignment_count || 0,
                     keahlian: dosen.keahlian || [],
                     dosen_peran: dosen.dosen_peran || [],
@@ -674,17 +674,9 @@ export default function PBL() {
           [pblId: number]: { koordinator?: number[]; timBlok?: number[] };
         } = { ...roleAssignments };
 
-        // Tentukan peran dosen berdasarkan dosen_peran dari database
-        // Untuk manual assignment, kita perlu menentukan peran berdasarkan dosen_peran
-        // karena pbl_role belum tersedia saat assignment baru
-        const dosenPeran = dosen.dosen_peran?.find(
-          (peran: any) =>
-            peran.semester === currentSemester &&
-            (peran.tipe_peran === "koordinator" ||
-              peran.tipe_peran === "tim_blok")
-        );
-
-        if (dosenPeran) {
+        // PERBAIKAN: Gunakan role yang sudah ditentukan sebelumnya (determinedRole)
+        // Tidak perlu cari lagi karena sudah ditentukan di atas
+        if (dosenPeranForSemester) {
           successfulAssignments
             .map((r) => r.pblId)
             .forEach((pblId) => {
@@ -693,7 +685,7 @@ export default function PBL() {
                   newRoleAssignments[pblId] = {};
                 }
 
-                if (dosenPeran.tipe_peran === "koordinator") {
+                if (dosenPeranForSemester.tipe_peran === "koordinator") {
                   if (!newRoleAssignments[pblId].koordinator) {
                     newRoleAssignments[pblId].koordinator = [];
                   }
@@ -702,7 +694,7 @@ export default function PBL() {
                   ) {
                     newRoleAssignments[pblId].koordinator!.push(dosen.id);
                   }
-                } else if (dosenPeran.tipe_peran === "tim_blok") {
+                } else if (dosenPeranForSemester.tipe_peran === "tim_blok") {
                   if (!newRoleAssignments[pblId].timBlok) {
                     newRoleAssignments[pblId].timBlok = [];
                   }
@@ -2386,11 +2378,9 @@ export default function PBL() {
       try {
         const jurnalRes = await api.get("/jurnal-readings/all");
         const jurnalData = jurnalRes.data || {};
-        Object.entries(jurnalData).forEach(
-          ([kode, item]: [string, any]) => {
-            jurnalReadingData[kode] = item?.jurnal_readings || [];
-          }
-        );
+        Object.entries(jurnalData).forEach(([kode, item]: [string, any]) => {
+          jurnalReadingData[kode] = item?.jurnal_readings || [];
+        });
       } catch (error) {
         // Jika gagal, lanjutkan tanpa jurnal reading
       }
@@ -2449,12 +2439,27 @@ export default function PBL() {
         fitToWidth: 1,
         fitToHeight: 0,
         orientation: "landscape",
-        margins: { left: 0.2, right: 0.2, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 },
+        margins: {
+          left: 0.2,
+          right: 0.2,
+          top: 0.4,
+          bottom: 0.4,
+          header: 0.2,
+          footer: 0.2,
+        },
       };
       if (totalColumns > 0) {
         const mainHeaderRow = worksheet.getRow(currentRow);
-        mainHeaderRow.getCell(1).value = `MAPPING DOSEN BLOK ${overallBlok} SEMESTER ${semesterAktif?.toUpperCase() || ""} T.A. ${tahunAjaran}`;
-        mainHeaderRow.font = { bold: true, size: 16, color: { argb: "FF1F4E79" } };
+        mainHeaderRow.getCell(
+          1
+        ).value = `MAPPING DOSEN BLOK ${overallBlok} SEMESTER ${
+          semesterAktif?.toUpperCase() || ""
+        } T.A. ${tahunAjaran}`;
+        mainHeaderRow.font = {
+          bold: true,
+          size: 16,
+          color: { argb: "FF1F4E79" },
+        };
         mainHeaderRow.alignment = { horizontal: "center" };
         worksheet.mergeCells(currentRow, 1, currentRow, totalColumns);
         mainHeaderRow.height = 28;
@@ -2489,7 +2494,9 @@ export default function PBL() {
 
         // Header utama untuk semester ini
         const titleRow = worksheet.getRow(titleRowIndex);
-        titleRow.getCell(startCol).value = `SEMESTER ${semester} (${semesterAktif.toUpperCase()})`;
+        titleRow.getCell(
+          startCol
+        ).value = `SEMESTER ${semester} (${semesterAktif.toUpperCase()})`;
         titleRow.font = { bold: true, size: 14 };
         titleRow.alignment = { horizontal: "center" };
         worksheet.mergeCells(
@@ -2592,7 +2599,11 @@ export default function PBL() {
           // Header mata kuliah
           const headerCell = headerRow.getCell(startCol + idx);
           headerCell.value = mk.nama.toUpperCase();
-          headerCell.font = { bold: true, size: 12, color: { argb: "FF000000" } };
+          headerCell.font = {
+            bold: true,
+            size: 12,
+            color: { argb: "FF000000" },
+          };
           headerCell.fill = {
             type: "pattern",
             pattern: "solid",
@@ -2615,7 +2626,10 @@ export default function PBL() {
             pattern: "solid",
             fgColor: { argb: headerColors[colorIndex]?.bg || "FFE8E8E8" },
           };
-          subHeaderCell1.alignment = { horizontal: "center", vertical: "middle" };
+          subHeaderCell1.alignment = {
+            horizontal: "center",
+            vertical: "middle",
+          };
           subHeaderCell1.border = {
             top: { style: "thin" },
             left: { style: "thin" },
@@ -2645,7 +2659,10 @@ export default function PBL() {
             pattern: "solid",
             fgColor: { argb: headerColors[colorIndex]?.bg || "FFE8E8E8" },
           };
-          subHeaderCell2.alignment = { horizontal: "center", vertical: "middle" };
+          subHeaderCell2.alignment = {
+            horizontal: "center",
+            vertical: "middle",
+          };
           subHeaderCell2.border = {
             top: { style: "thin" },
             left: { style: "thin" },
@@ -2754,7 +2771,11 @@ export default function PBL() {
 
         const standbyHeaderRow = worksheet.getRow(standbyHeaderRowIndex);
         standbyHeaderRow.getCell(standbyStartCol).value = "Standby Tutor";
-        standbyHeaderRow.font = { bold: true, size: 14, color: { argb: "FF1F4E79" } };
+        standbyHeaderRow.font = {
+          bold: true,
+          size: 14,
+          color: { argb: "FF1F4E79" },
+        };
         standbyHeaderRow.alignment = { horizontal: "center" };
         worksheet.mergeCells(
           standbyHeaderRowIndex,
@@ -2767,7 +2788,9 @@ export default function PBL() {
         // Tambahkan 1 baris kosong di bawah header sebagai jarak
         worksheet.getRow(standbyHeaderRowIndex + 1);
 
-        const standbyPerKolom = Math.ceil(standbyDosen.length / standbyColCount);
+        const standbyPerKolom = Math.ceil(
+          standbyDosen.length / standbyColCount
+        );
         const standbyDataStartRow = standbyHeaderRowIndex + 2;
 
         for (let rowIdx = 0; rowIdx < standbyPerKolom; rowIdx++) {
@@ -2811,7 +2834,14 @@ export default function PBL() {
           fitToPage: true,
           fitToWidth: 1,
           fitToHeight: 0,
-          margins: { left: 0.3, right: 0.3, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
+          margins: {
+            left: 0.3,
+            right: 0.3,
+            top: 0.5,
+            bottom: 0.5,
+            header: 0.2,
+            footer: 0.2,
+          },
         };
         // Lebarkan kolom agar judul benar-benar center dan tidak terpotong
         infoSheet.columns = [
@@ -2824,7 +2854,11 @@ export default function PBL() {
         infoSheet.mergeCells(infoTitleRowIndex, 1, infoTitleRowIndex, 2);
         const infoTitleCell = infoSheet.getCell(infoTitleRowIndex, 1);
         infoTitleCell.value = `Informasi Export - Mapping Dosen Blok ${overallBlok}`;
-        infoTitleCell.font = { bold: true, size: 16, color: { argb: "FF1F4E79" } };
+        infoTitleCell.font = {
+          bold: true,
+          size: 16,
+          color: { argb: "FF1F4E79" },
+        };
         infoTitleCell.alignment = { horizontal: "center", vertical: "middle" };
         infoSheet.getRow(infoTitleRowIndex).height = 28;
         // Baris kosong setelah judul
@@ -2843,7 +2877,10 @@ export default function PBL() {
           ["Total Tim Blok (unik)", String(timBlokSet.size)],
           ["Total Dosen Mengajar (unik)", String(dosenMengajarSet.size)],
           ["Total Standby Tutor", String(standbyDosen.length)],
-          ["Daftar Semester", exportedSemesters.sort((a,b)=>a-b).join(", ")],
+          [
+            "Daftar Semester",
+            exportedSemesters.sort((a, b) => a - b).join(", "),
+          ],
           [
             "Cakupan Data",
             "File ini hanya memuat semester sesuai filter aktif (Ganjil/Genap) pada saat export. Semester atau mata kuliah yang tidak tampil di halaman, tidak akan diekspor.",
@@ -2856,10 +2893,7 @@ export default function PBL() {
             "Saran Penggunaan",
             "Koordinator ditandai latar biru dengan teks tebal. Tim Blok dilatar biru tanpa tebal. Dosen Mengajar berwarna putih. Manfaatkan filter/pencarian Excel bila diperlukan. Mohon verifikasi data sebelum distribusi.",
           ],
-          [
-            "Kontak",
-            "Support Center Isme - Sistem ISME FKK",
-          ],
+          ["Kontak", "Support Center Isme - Sistem ISME FKK"],
         ];
 
         rows.forEach(([label, value]) => {
@@ -2886,7 +2920,9 @@ export default function PBL() {
         });
 
         infoSheet.addRow([]);
-        const footer = infoSheet.addRow(["Dokumen ini dihasilkan otomatis oleh Sistem ISME FKK."]);
+        const footer = infoSheet.addRow([
+          "Dokumen ini dihasilkan otomatis oleh Sistem ISME FKK.",
+        ]);
         footer.font = { italic: true, color: { argb: "FF666666" } };
         infoSheet.mergeCells(`A${footer.number}:B${footer.number}`);
       } catch {}
@@ -2906,7 +2942,9 @@ export default function PBL() {
       setTimeout(() => setSuccess(null), 3000);
     } catch (error: any) {
       console.error("Error exporting Excel:", error);
-      setError("Gagal mengekspor data ke Excel: " + (error.message || "Unknown error"));
+      setError(
+        "Gagal mengekspor data ke Excel: " + (error.message || "Unknown error")
+      );
       setTimeout(() => setError(null), 5000);
     }
   };
@@ -3206,31 +3244,31 @@ export default function PBL() {
       <div className="mb-8">
         <div className="flex items-start justify-between gap-4">
           <div>
-        <button
-          onClick={() => navigate("/pbl", { replace: true })}
-          className="flex items-center gap-2 text-brand-500 hover:text-brand-600 transition-all duration-300 ease-out hover:scale-105 transform mb-4"
-        >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-          Kembali
-        </button>
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90 mb-2">
-          Problem Based Learning (PBL)
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400">
-          Pengelolaan modul PBL dan penugasan dosen berdasarkan keahlian
-        </p>
+            <button
+              onClick={() => navigate("/pbl", { replace: true })}
+              className="flex items-center gap-2 text-brand-500 hover:text-brand-600 transition-all duration-300 ease-out hover:scale-105 transform mb-4"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+              Kembali
+            </button>
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90 mb-2">
+              Problem Based Learning (PBL)
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Pengelolaan modul PBL dan penugasan dosen berdasarkan keahlian
+            </p>
           </div>
         </div>
         <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
@@ -3251,7 +3289,7 @@ export default function PBL() {
             </div>
           </div>
         </div>
-        
+
         {/* Section Aksi Utama */}
         <div className="mt-4 p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -3261,17 +3299,38 @@ export default function PBL() {
               </h4>
               <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
                 <div className="flex items-start gap-2">
-                  <FontAwesomeIcon icon={faFileExcel} className="w-4 h-4 text-green-600 dark:text-green-400 mt-0.5" />
+                  <FontAwesomeIcon
+                    icon={faFileExcel}
+                    className="w-4 h-4 text-green-600 dark:text-green-400 mt-0.5"
+                  />
                   <div>
-                    <span className="font-medium text-gray-700 dark:text-gray-300">Export Excel:</span> Ekspor data mapping dosen ke file Excel dengan format terstruktur per semester dan mata kuliah.
+                    <span className="font-medium text-gray-700 dark:text-gray-300">
+                      Export Excel:
+                    </span>{" "}
+                    Ekspor data mapping dosen ke file Excel dengan format
+                    terstruktur per semester dan mata kuliah.
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
-                  <svg className="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  <svg
+                    className="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                    />
                   </svg>
                   <div>
-                    <span className="font-medium text-gray-700 dark:text-gray-300">Clear Cache:</span> Reset cache status generate PBL untuk memaksa sistem mengambil data fresh dari database.
+                    <span className="font-medium text-gray-700 dark:text-gray-300">
+                      Clear Cache:
+                    </span>{" "}
+                    Reset cache status generate PBL untuk memaksa sistem
+                    mengambil data fresh dari database.
                   </div>
                 </div>
               </div>
@@ -3289,8 +3348,18 @@ export default function PBL() {
                 onClick={handleClearCache}
                 className="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors duration-200 flex items-center gap-2"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
                 </svg>
                 Clear Cache
               </button>
@@ -4117,7 +4186,9 @@ export default function PBL() {
                                         let draggedDosenRole = "dosen_mengajar"; // default
                                         if (
                                           draggedDosen.dosen_peran &&
-                                          Array.isArray(draggedDosen.dosen_peran)
+                                          Array.isArray(
+                                            draggedDosen.dosen_peran
+                                          )
                                         ) {
                                           const matchingPeran =
                                             draggedDosen.dosen_peran.find(
@@ -4168,7 +4239,9 @@ export default function PBL() {
                                           assignedDosen[pbl.id].find(
                                             (assigned: any) => {
                                               // Skip jika itu dosen yang sama
-                                              if (assigned.id === draggedDosen.id) {
+                                              if (
+                                                assigned.id === draggedDosen.id
+                                              ) {
                                                 return false;
                                               }
 
@@ -4228,15 +4301,15 @@ export default function PBL() {
 
                                               // Cek apakah role sama
                                               return (
-                                                draggedDosenRole ===
+                                                (draggedDosenRole ===
                                                   "koordinator" &&
-                                                assignedDosenRole ===
-                                                  "koordinator"
-                                              ) ||
+                                                  assignedDosenRole ===
+                                                    "koordinator") ||
                                                 (draggedDosenRole ===
                                                   "tim_blok" &&
                                                   assignedDosenRole ===
-                                                    "tim_blok");
+                                                    "tim_blok")
+                                              );
                                             }
                                           );
 
@@ -5012,23 +5085,19 @@ export default function PBL() {
                                                   {/* Tombol unassign untuk semua dosen, termasuk standby */}
                                                   <button
                                                     className={`ml-2 p-1 rounded-full transition text-xs ${
-                                                      pblRole ===
-                                                        "koordinator" ||
-                                                      pblRole === "tim_blok"
+                                                      pblRole === "koordinator"
                                                         ? "text-gray-400 cursor-not-allowed opacity-50"
                                                         : "text-red-500 hover:bg-red-100 dark:hover:bg-red-900/20 cursor-pointer"
                                                     }`}
                                                     title={
                                                       pblRole === "koordinator"
                                                         ? "Koordinator tidak dapat dihapus (setting admin)"
-                                                        : pblRole === "tim_blok"
-                                                        ? "Tim Blok tidak dapat dihapus (setting admin)"
                                                         : "Hapus penugasan"
                                                     }
                                                     onClick={async (e) => {
                                                       e.stopPropagation();
 
-                                                      // VALIDASI: Tidak bisa hapus Koordinator atau Tim Blok
+                                                      // VALIDASI: Hanya Koordinator yang tidak bisa dihapus
                                                       if (
                                                         pblRole ===
                                                         "koordinator"
@@ -5042,17 +5111,7 @@ export default function PBL() {
                                                         return;
                                                       }
 
-                                                      if (
-                                                        pblRole === "tim_blok"
-                                                      ) {
-                                                        setError(
-                                                          `Tidak dapat menghapus ${dosen.name} karena merupakan Tim Blok yang sudah di-setting oleh admin. Silakan hubungi admin untuk mengubah pengaturan.`
-                                                        );
-                                                        setTimeout(() => {
-                                                          setError(null);
-                                                        }, 5000);
-                                                        return;
-                                                      }
+                                                      // Tim Blok dan Dosen Mengajar bisa dihapus
 
                                                       // PERBAIKAN BARU: Validasi yang lebih fleksibel - cek apakah ada data PBL
                                                       const hasPblData =
@@ -5069,7 +5128,8 @@ export default function PBL() {
                                                         // PERBAIKAN: Cari PBL dalam semester DAN blok yang sama (bukan semua blok dalam semester)
                                                         const currentSemester =
                                                           mk.semester;
-                                                        const currentBlok = mk.blok;
+                                                        const currentBlok =
+                                                          mk.blok;
 
                                                         const blokPBLs =
                                                           Object.values(
@@ -5090,16 +5150,15 @@ export default function PBL() {
                                                                 mk &&
                                                                 mk.semester ==
                                                                   currentSemester &&
-                                                                mk.blok === currentBlok;
+                                                                mk.blok ===
+                                                                  currentBlok;
                                                               return isMatch;
                                                             });
 
                                                         const removePromises = (
                                                           blokPBLs || []
                                                         ).map(
-                                                          async (
-                                                            blokPbl
-                                                          ) => {
+                                                          async (blokPbl) => {
                                                             const blokAssigned =
                                                               assignedDosen[
                                                                 blokPbl.id!
@@ -5177,56 +5236,48 @@ export default function PBL() {
                                                         // Hapus dosen dari role assignments
                                                         (
                                                           blokPBLs || []
-                                                        ).forEach(
-                                                          (blokPbl) => {
+                                                        ).forEach((blokPbl) => {
+                                                          if (blokPbl.id) {
                                                             if (
-                                                              blokPbl.id
+                                                              newRoleAssignments[
+                                                                blokPbl.id
+                                                              ]
                                                             ) {
                                                               if (
                                                                 newRoleAssignments[
                                                                   blokPbl.id
-                                                                ]
+                                                                ].koordinator
                                                               ) {
-                                                                if (
-                                                                  newRoleAssignments[
-                                                                    blokPbl
-                                                                      .id
-                                                                  ].koordinator
-                                                                ) {
+                                                                newRoleAssignments[
+                                                                  blokPbl.id
+                                                                ].koordinator =
                                                                   newRoleAssignments[
                                                                     blokPbl.id
-                                                                  ].koordinator =
-                                                                    newRoleAssignments[
-                                                                      blokPbl
-                                                                        .id
-                                                                    ].koordinator!.filter(
-                                                                      (id) =>
-                                                                        id !==
-                                                                        dosen.id
-                                                                    );
-                                                                }
-                                                                if (
-                                                                  newRoleAssignments[
-                                                                    blokPbl
-                                                                      .id
-                                                                  ].timBlok
-                                                                ) {
+                                                                  ].koordinator!.filter(
+                                                                    (id) =>
+                                                                      id !==
+                                                                      dosen.id
+                                                                  );
+                                                              }
+                                                              if (
+                                                                newRoleAssignments[
+                                                                  blokPbl.id
+                                                                ].timBlok
+                                                              ) {
+                                                                newRoleAssignments[
+                                                                  blokPbl.id
+                                                                ].timBlok =
                                                                   newRoleAssignments[
                                                                     blokPbl.id
-                                                                  ].timBlok =
-                                                                    newRoleAssignments[
-                                                                      blokPbl
-                                                                        .id
-                                                                    ].timBlok!.filter(
-                                                                      (id) =>
-                                                                        id !==
-                                                                        dosen.id
-                                                                    );
-                                                                }
+                                                                  ].timBlok!.filter(
+                                                                    (id) =>
+                                                                      id !==
+                                                                      dosen.id
+                                                                  );
                                                               }
                                                             }
                                                           }
-                                                        );
+                                                        });
 
                                                         setRoleAssignments(
                                                           newRoleAssignments
@@ -5287,8 +5338,7 @@ export default function PBL() {
                                                                   mk.semester,
                                                                 blok: mk.blok,
                                                                 pblIds: (
-                                                                  blokPBLs ||
-                                                                  []
+                                                                  blokPBLs || []
                                                                 )
                                                                   .map(
                                                                     (p) => p.id
