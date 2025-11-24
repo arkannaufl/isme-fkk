@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 use App\Models\MataKuliah;
 use App\Models\JadwalPBL;
 use App\Models\JadwalKuliahBesar;
@@ -27,8 +28,11 @@ class DetailBlokController extends Controller
     public function getBatchData($kode)
     {
         try {
-            // Get mata kuliah data
-            $mataKuliah = MataKuliah::where('kode', $kode)->first();
+            // Get mata kuliah data - optimized with cache
+            $cacheKey = 'mata_kuliah_' . $kode;
+            $mataKuliah = Cache::remember($cacheKey, 3600, function () use ($kode) {
+                return MataKuliah::where('kode', $kode)->first();
+            });
             if (!$mataKuliah) {
                 return response()->json(['error' => 'Mata kuliah tidak ditemukan'], 404);
             }
@@ -152,12 +156,25 @@ class DetailBlokController extends Controller
 
     private function getJadwalPBL($kode)
     {
-        return JadwalPBL::where('mata_kuliah_kode', $kode)
+        $jadwalPBL = JadwalPBL::where('mata_kuliah_kode', $kode)
             ->with(['modulPBL', 'kelompokKecil', 'kelompokKecilAntara', 'dosen', 'ruangan'])
             ->orderBy('tanggal', 'asc')
             ->orderBy('jam_mulai', 'asc')
-            ->get()
-            ->map(function ($jadwal) {
+            ->get();
+        
+        // Optimized: Batch load all dosen IDs to avoid N+1 queries
+        $allDosenIds = [];
+        foreach ($jadwalPBL as $jadwal) {
+            if ($jadwal->dosen_ids && is_array($jadwal->dosen_ids)) {
+                $allDosenIds = array_merge($allDosenIds, $jadwal->dosen_ids);
+            }
+        }
+        $allDosenIds = array_unique($allDosenIds);
+        $dosenMap = !empty($allDosenIds) 
+            ? User::whereIn('id', $allDosenIds)->get()->keyBy('id') 
+            : collect();
+        
+        return $jadwalPBL->map(function ($jadwal) use ($dosenMap) {
                 // Transform jam format for frontend compatibility
                 if ($jadwal->jam_mulai) {
                     $jadwal->jam_mulai = $this->formatJamForFrontend($jadwal->jam_mulai);
@@ -178,9 +195,14 @@ class DetailBlokController extends Controller
                     }
                 }
 
-                // Add dosen_names for frontend compatibility
+                // Add dosen_names for frontend compatibility - optimized with batch loading
                 if ($jadwal->dosen_ids && is_array($jadwal->dosen_ids)) {
-                    $dosenNames = User::whereIn('id', $jadwal->dosen_ids)->pluck('name')->toArray();
+                    $dosenNames = collect($jadwal->dosen_ids)
+                        ->map(function ($id) use ($dosenMap) {
+                            return $dosenMap->get($id)?->name;
+                        })
+                        ->filter()
+                        ->toArray();
                     $jadwal->dosen_names = implode(', ', $dosenNames);
                 }
 
@@ -326,12 +348,25 @@ class DetailBlokController extends Controller
 
     private function getJadwalJurnalReading($kode)
     {
-        return JadwalJurnalReading::where('mata_kuliah_kode', $kode)
+        $jadwalJurnalReading = JadwalJurnalReading::where('mata_kuliah_kode', $kode)
             ->with(['kelompokKecil', 'kelompokKecilAntara', 'dosen', 'ruangan'])
             ->orderBy('tanggal', 'asc')
             ->orderBy('jam_mulai', 'asc')
-            ->get()
-            ->map(function ($jadwal) {
+            ->get();
+        
+        // Optimized: Batch load all dosen IDs to avoid N+1 queries
+        $allDosenIds = [];
+        foreach ($jadwalJurnalReading as $jadwal) {
+            if ($jadwal->dosen_ids && is_array($jadwal->dosen_ids)) {
+                $allDosenIds = array_merge($allDosenIds, $jadwal->dosen_ids);
+            }
+        }
+        $allDosenIds = array_unique($allDosenIds);
+        $dosenMap = !empty($allDosenIds) 
+            ? User::whereIn('id', $allDosenIds)->get()->keyBy('id') 
+            : collect();
+        
+        return $jadwalJurnalReading->map(function ($jadwal) use ($dosenMap) {
                 if ($jadwal->jam_mulai) {
                     $jadwal->jam_mulai = $this->formatJamForFrontend($jadwal->jam_mulai);
                 }
@@ -346,9 +381,14 @@ class DetailBlokController extends Controller
                     $jadwal->nama_kelompok = $jadwal->kelompok_kecil->nama_kelompok;
                 }
 
-                // Add dosen_names for frontend compatibility
+                // Add dosen_names for frontend compatibility - optimized with batch loading
                 if ($jadwal->dosen_ids && is_array($jadwal->dosen_ids)) {
-                    $dosenNames = User::whereIn('id', $jadwal->dosen_ids)->pluck('name')->toArray();
+                    $dosenNames = collect($jadwal->dosen_ids)
+                        ->map(function ($id) use ($dosenMap) {
+                            return $dosenMap->get($id)?->name;
+                        })
+                        ->filter()
+                        ->toArray();
                     $jadwal->dosen_names = implode(', ', $dosenNames);
                 }
 
@@ -394,12 +434,25 @@ class DetailBlokController extends Controller
 
     private function getJadwalPersamaanPersepsi($kode)
     {
-        return JadwalPersamaanPersepsi::where('mata_kuliah_kode', $kode)
+        $jadwalPersamaanPersepsi = JadwalPersamaanPersepsi::where('mata_kuliah_kode', $kode)
             ->with(['ruangan', 'mataKuliah'])
             ->orderBy('tanggal', 'asc')
             ->orderBy('jam_mulai', 'asc')
-            ->get()
-            ->map(function ($jadwal) {
+            ->get();
+        
+        // Optimized: Batch load all dosen IDs to avoid N+1 queries
+        $allDosenIds = [];
+        foreach ($jadwalPersamaanPersepsi as $jadwal) {
+            $koordinatorIds = $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) ? $jadwal->koordinator_ids : [];
+            $dosenIds = $jadwal->dosen_ids && is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : [];
+            $allDosenIds = array_merge($allDosenIds, $koordinatorIds, $dosenIds);
+        }
+        $allDosenIds = array_unique($allDosenIds);
+        $dosenMap = !empty($allDosenIds) 
+            ? User::whereIn('id', $allDosenIds)->get()->keyBy('id') 
+            : collect();
+        
+        return $jadwalPersamaanPersepsi->map(function ($jadwal) use ($dosenMap) {
                 if ($jadwal->jam_mulai) {
                     $jadwal->jam_mulai = $this->formatJamForFrontend($jadwal->jam_mulai);
                 }
@@ -411,18 +464,28 @@ class DetailBlokController extends Controller
                 $koordinatorIds = $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) ? $jadwal->koordinator_ids : [];
                 $dosenIds = $jadwal->dosen_ids && is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : [];
 
-                // Get koordinator names
+                // Get koordinator names - optimized with batch loading
                 if (!empty($koordinatorIds)) {
-                    $koordinatorNames = User::whereIn('id', $koordinatorIds)->pluck('name')->toArray();
+                    $koordinatorNames = collect($koordinatorIds)
+                        ->map(function ($id) use ($dosenMap) {
+                            return $dosenMap->get($id)?->name;
+                        })
+                        ->filter()
+                        ->toArray();
                     $jadwal->koordinator_names = implode(', ', $koordinatorNames);
                 } else {
                     $jadwal->koordinator_names = '';
                 }
 
-                // Get pengampu names (non-koordinator)
+                // Get pengampu names (non-koordinator) - optimized with batch loading
                 $pengampuIds = array_diff($dosenIds, $koordinatorIds);
                 if (!empty($pengampuIds)) {
-                    $pengampuNames = User::whereIn('id', $pengampuIds)->pluck('name')->toArray();
+                    $pengampuNames = collect($pengampuIds)
+                        ->map(function ($id) use ($dosenMap) {
+                            return $dosenMap->get($id)?->name;
+                        })
+                        ->filter()
+                        ->toArray();
                     $jadwal->pengampu_names = implode(', ', $pengampuNames);
                 } else {
                     $jadwal->pengampu_names = '';
@@ -439,12 +502,25 @@ class DetailBlokController extends Controller
 
     private function getJadwalSeminarPleno($kode)
     {
-        return JadwalSeminarPleno::where('mata_kuliah_kode', $kode)
+        $jadwalSeminarPleno = JadwalSeminarPleno::where('mata_kuliah_kode', $kode)
             ->with(['ruangan', 'mataKuliah', 'kelompokBesar', 'kelompokBesarAntara'])
             ->orderBy('tanggal', 'asc')
             ->orderBy('jam_mulai', 'asc')
-            ->get()
-            ->map(function ($jadwal) {
+            ->get();
+        
+        // Optimized: Batch load all dosen IDs to avoid N+1 queries
+        $allDosenIds = [];
+        foreach ($jadwalSeminarPleno as $jadwal) {
+            $koordinatorIds = $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) ? $jadwal->koordinator_ids : [];
+            $dosenIds = $jadwal->dosen_ids && is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : [];
+            $allDosenIds = array_merge($allDosenIds, $koordinatorIds, $dosenIds);
+        }
+        $allDosenIds = array_unique($allDosenIds);
+        $dosenMap = !empty($allDosenIds) 
+            ? User::whereIn('id', $allDosenIds)->get()->keyBy('id') 
+            : collect();
+        
+        return $jadwalSeminarPleno->map(function ($jadwal) use ($dosenMap) {
                 if ($jadwal->jam_mulai) {
                     $jadwal->jam_mulai = $this->formatJamForFrontend($jadwal->jam_mulai);
                 }
@@ -456,18 +532,28 @@ class DetailBlokController extends Controller
                 $koordinatorIds = $jadwal->koordinator_ids && is_array($jadwal->koordinator_ids) ? $jadwal->koordinator_ids : [];
                 $dosenIds = $jadwal->dosen_ids && is_array($jadwal->dosen_ids) ? $jadwal->dosen_ids : [];
 
-                // Get koordinator names
+                // Get koordinator names - optimized with batch loading
                 if (!empty($koordinatorIds)) {
-                    $koordinatorNames = User::whereIn('id', $koordinatorIds)->pluck('name')->toArray();
+                    $koordinatorNames = collect($koordinatorIds)
+                        ->map(function ($id) use ($dosenMap) {
+                            return $dosenMap->get($id)?->name;
+                        })
+                        ->filter()
+                        ->toArray();
                     $jadwal->koordinator_names = implode(', ', $koordinatorNames);
                 } else {
                     $jadwal->koordinator_names = '';
                 }
 
-                // Get pengampu names (non-koordinator)
+                // Get pengampu names (non-koordinator) - optimized with batch loading
                 $pengampuIds = array_diff($dosenIds, $koordinatorIds);
                 if (!empty($pengampuIds)) {
-                    $pengampuNames = User::whereIn('id', $pengampuIds)->pluck('name')->toArray();
+                    $pengampuNames = collect($pengampuIds)
+                        ->map(function ($id) use ($dosenMap) {
+                            return $dosenMap->get($id)?->name;
+                        })
+                        ->filter()
+                        ->toArray();
                     $jadwal->pengampu_names = implode(', ', $pengampuNames);
                 } else {
                     $jadwal->pengampu_names = '';
@@ -509,34 +595,47 @@ class DetailBlokController extends Controller
 
     private function getKelompokKecil($semester)
     {
-        return KelompokKecil::where('semester', $semester)->get();
+        // Optimized: Use cache for kelompok kecil data
+        $cacheKey = 'kelompok_kecil_semester_' . $semester;
+        return Cache::remember($cacheKey, 1800, function () use ($semester) {
+            return KelompokKecil::where('semester', $semester)->get();
+        });
     }
 
     private function getKelompokBesar($semester)
     {
-        // Ambil semua semester yang memiliki kelompok besar
-        $semesters = KelompokBesar::distinct()->pluck('semester')->toArray();
+        // Optimized: Use cache for kelompok besar data
+        $cacheKey = 'kelompok_besar_all_semesters';
+        $kelompokBesarData = Cache::remember($cacheKey, 1800, function () {
+            // Ambil semua semester yang memiliki kelompok besar
+            $semesters = KelompokBesar::distinct()->pluck('semester')->toArray();
 
-        $kelompokBesarData = [];
+            $data = [];
 
-        foreach ($semesters as $sem) {
-            $jumlahMahasiswa = KelompokBesar::where('semester', $sem)->count();
+            foreach ($semesters as $sem) {
+                $jumlahMahasiswa = KelompokBesar::where('semester', $sem)->count();
 
-            if ($jumlahMahasiswa > 0) {
-                $kelompokBesarData[] = [
-                    'id' => $sem, // Gunakan semester sebagai ID
-                    'label' => "Kelompok Besar Semester {$sem} ({$jumlahMahasiswa} mahasiswa)",
-                    'jumlah_mahasiswa' => $jumlahMahasiswa
-                ];
+                if ($jumlahMahasiswa > 0) {
+                    $data[] = [
+                        'id' => $sem, // Gunakan semester sebagai ID
+                        'label' => "Kelompok Besar Semester {$sem} ({$jumlahMahasiswa} mahasiswa)",
+                        'jumlah_mahasiswa' => $jumlahMahasiswa
+                    ];
+                }
             }
-        }
+
+            return $data;
+        });
 
         return $kelompokBesarData;
     }
 
     private function getDosen($mataKuliah)
     {
-        $allDosen = User::where('role', 'dosen')->get();
+        // Optimized: Use cache for dosen list
+        $allDosen = Cache::remember('dosen_list_all', 1800, function () {
+            return User::where('role', 'dosen')->get();
+        });
 
         // Filter dosen berdasarkan keahlian jika ada
         if ($mataKuliah->keahlian_required && !empty($mataKuliah->keahlian_required)) {
@@ -566,7 +665,10 @@ class DetailBlokController extends Controller
 
     private function getRuangan()
     {
-        return Ruangan::all();
+        // Optimized: Use cache for ruangan list
+        return Cache::remember('ruangan_list_all', 1800, function () {
+            return Ruangan::all();
+        });
     }
 
     /**

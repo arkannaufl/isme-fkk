@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import api, { API_BASE_URL, handleApiError } from '../utils/api';
 import { ChevronLeftIcon } from '../icons';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -195,18 +195,21 @@ export default function DetailBlokAntara() {
   const [jurnalReadingPage, setJurnalReadingPage] = useState(1);
   const [jurnalReadingPageSize, setJurnalReadingPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
   
-  // Pagination logic functions
-  const getPaginatedData = (data: any[], page: number, pageSize: number): any[] => {
+  // Memoized ruangan options untuk optimisasi performa
+  const ruanganOptions = useMemo(() => getRuanganOptions(ruanganList || []), [ruanganList]);
+
+  // Pagination logic functions - optimized with useCallback
+  const getPaginatedData = useCallback((data: any[], page: number, pageSize: number): any[] => {
     const startIndex = (page - 1) * pageSize;
     const endIndex = startIndex + pageSize;
     return data.slice(startIndex, endIndex);
-  };
+  }, []);
 
-  const getTotalPages = (dataLength: number, pageSize: number): number => {
+  const getTotalPages = useCallback((dataLength: number, pageSize: number): number => {
     return Math.ceil(dataLength / pageSize);
-  };
+  }, []);
 
-  const resetPagination = (scheduleType: 'kuliahBesar' | 'praktikum' | 'agendaKhusus' | 'pbl' | 'jurnalReading') => {
+  const resetPagination = useCallback((scheduleType: 'kuliahBesar' | 'praktikum' | 'agendaKhusus' | 'pbl' | 'jurnalReading') => {
     switch (scheduleType) {
       case 'kuliahBesar':
         setKuliahBesarPage(1);
@@ -224,7 +227,7 @@ export default function DetailBlokAntara() {
         setJurnalReadingPage(1);
         break;
     }
-  };
+  }, []);
   
   // State untuk loading assigned PBL - untuk semester antara menggunakan allDosenOptions
   const [loadingAssignedPBL, setLoadingAssignedPBL] = useState(false);
@@ -582,8 +585,8 @@ export default function DetailBlokAntara() {
   }, [form.jenisBaris]);
 
 
-  // Fungsi untuk format tanggal yang konsisten seperti di Agenda Khusus
-  function formatTanggalKonsisten(dateStr: string) {
+  // Helper functions - optimized with useCallback
+  const formatTanggalKonsisten = useCallback((dateStr: string) => {
     if (!dateStr) return '';
     
     const date = new Date(dateStr);
@@ -596,9 +599,9 @@ export default function DetailBlokAntara() {
     const year = date.getFullYear();
     
     return `${hariIndo}, ${day}/${month}/${year}`;
-  }
+  }, []);
 
-  function hitungJamSelesai(jamMulai: string, jumlahKali: number) {
+  const hitungJamSelesai = useCallback((jamMulai: string, jumlahKali: number) => {
     if (!jamMulai) return '';
     const [jamStr, menitStr] = jamMulai.split(/[.:]/);
     const jam = Number(jamStr);
@@ -608,9 +611,9 @@ export default function DetailBlokAntara() {
     const jamAkhir = Math.floor(totalMenit / 60).toString().padStart(2, '0');
     const menitAkhir = (totalMenit % 60).toString().padStart(2, '0');
     return `${jamAkhir}.${menitAkhir}`;
-  }
+  }, []);
 
-  function formatJamTanpaDetik(jam: string) {
+  const formatJamTanpaDetik = useCallback((jam: string) => {
     if (!jam) return '';
     // Jika format sudah HH:MM, return as is
     if (/^\d{2}:\d{2}$/.test(jam)) return jam;
@@ -623,10 +626,10 @@ export default function DetailBlokAntara() {
       return jam.replace('.', ':');
     }
     return jam;
-  }
+  }, []);
 
-  // Helper function untuk truncate filename
-  function truncateFileName(fileName: string, maxLength: number = 20) {
+  // Helper function untuk truncate filename - optimized with useCallback
+  const truncateFileName = useCallback((fileName: string, maxLength: number = 20) => {
     if (!fileName) return '';
     if (fileName.length <= maxLength) return fileName;
     
@@ -636,18 +639,18 @@ export default function DetailBlokAntara() {
     const ext = fileName.slice(dotIdx);
     const base = fileName.slice(0, maxLength - 3 - ext.length);
     return base + '...' + ext;
-  }
+  }, []);
 
-  // Helper function untuk reset error form
-  function resetErrorForm() {
+  // Helper function untuk reset error form - optimized with useCallback
+  const resetErrorForm = useCallback(() => {
     if (errorForm && !errorForm.includes('Tanggal tidak boleh') && !errorForm.includes('Hari/Tanggal sudah ada')) {
       setErrorForm('');
     }
     setErrorBackend(''); // Reset error backend
-  }
+  }, [errorForm]);
 
-  // Helper function untuk reset form dengan semua field yang diperlukan
-  function resetForm(jenisBaris: 'materi' | 'agenda' | 'praktikum' | 'pbl' | 'jurnal' = 'materi') {
+  // Helper function untuk reset form dengan semua field yang diperlukan - optimized with useCallback
+  const resetForm = useCallback((jenisBaris: 'materi' | 'agenda' | 'praktikum' | 'pbl' | 'jurnal' = 'materi') => {
     setForm({
       hariTanggal: '',
       jamMulai: '',
@@ -667,12 +670,8 @@ export default function DetailBlokAntara() {
       useRuangan: true,
       fileJurnal: null,
     });
-  }
+  }, []);
 
-  // Helper function untuk membuat options ruangan
-  const getRuanganOptionsLocal = () => {
-    return getRuanganOptions(ruanganList || []);
-  };
 
   function handleFormChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     const { name, value } = e.target;
@@ -3148,8 +3147,7 @@ export default function DetailBlokAntara() {
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                           Pengampu ({allDosenOptions.length} dosen tersedia)
                         </label>
-                        {true ? (
-                          <>
+                        <>
                           {/* Multiple select untuk Semester Antara */}
                           <Select
                             isMulti
@@ -3258,95 +3256,6 @@ export default function DetailBlokAntara() {
                             </div>
                           )}
                           </>
-                        ) : (
-                          // This shouldn't happen in semester antara
-                          form.materi && pengampuOptions.length === 0 ? (
-                            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
-                              <div className="flex items-center gap-2">
-                                <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                                </svg>
-                                <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                                  Belum ada dosen yang memiliki keahlian "{form.materi}" untuk mata kuliah ini
-                                </span>
-                              </div>
-                              <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                                Silakan tambahkan dosen dengan keahlian "{form.materi}" terlebih dahulu di halaman Dosen Detail
-                              </p>
-                            </div>
-                          ) : (
-                            <Select
-                              options={pengampuOptions.map(d => ({ value: d.id, label: d.name }))}
-                              value={pengampuOptions.map(d => ({ value: d.id, label: d.name })).find(opt => opt.value === form.pengampu) || null}
-                              onChange={opt => {
-                                setForm(f => ({ ...f, pengampu: opt ? Number(opt.value) : null }));
-                                resetErrorForm();
-                              }}
-                              placeholder={form.materi ? "Pilih Dosen" : "Pilih materi terlebih dahulu"}
-                              isDisabled={!form.materi}
-                              isClearable
-                              classNamePrefix="react-select"
-                              className="react-select-container"
-                              styles={{
-                                control: (base, state) => ({
-                                  ...base,
-                                  backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#f9fafb',
-                                  borderColor: state.isFocused
-                                    ? '#3b82f6'
-                                    : (document.documentElement.classList.contains('dark') ? '#334155' : '#d1d5db'),
-                                  color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                                  boxShadow: state.isFocused ? '0 0 0 2px #3b82f633' : undefined,
-                                  borderRadius: '0.75rem',
-                                  minHeight: '2.5rem',
-                                  fontSize: '1rem',
-                                  paddingLeft: '0.75rem',
-                                  paddingRight: '0.75rem',
-                                  '&:hover': { borderColor: '#3b82f6' },
-                                }),
-                                menu: base => ({
-                                  ...base,
-                                  zIndex: 9999,
-                                  fontSize: '1rem',
-                                  backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff',
-                                  color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                                }),
-                                option: (base, state) => ({
-                                  ...base,
-                                  backgroundColor: state.isSelected
-                                    ? '#3b82f6'
-                                    : state.isFocused
-                                    ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                                    : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
-                                  color: state.isSelected
-                                    ? '#fff'
-                                    : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
-                                  fontSize: '1rem',
-                                }),
-                                singleValue: base => ({
-                                  ...base,
-                                  color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                                }),
-                                placeholder: base => ({
-                                  ...base,
-                                  color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                                }),
-                                input: base => ({
-                                  ...base,
-                                  color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                                }),
-                                dropdownIndicator: base => ({
-                                  ...base,
-                                  color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                                  '&:hover': { color: '#3b82f6' },
-                                }),
-                                indicatorSeparator: base => ({
-                                  ...base,
-                                  backgroundColor: 'transparent',
-                                }),
-                              }}
-                            />
-                          )
-                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Topik</label>
@@ -3354,9 +3263,8 @@ export default function DetailBlokAntara() {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kelompok Besar</label>
-                        {true ? (
-                          // Kelompok besar antara untuk Semester Antara
-                          kelompokBesarAntaraOptions.length === 0 ? (
+                        {/* Kelompok besar antara untuk Semester Antara */}
+                        {kelompokBesarAntaraOptions.length === 0 ? (
                             <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
                               <div className="flex items-center gap-2">
                                 <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
@@ -3441,30 +3349,6 @@ export default function DetailBlokAntara() {
                               }),
                             }}
                           />
-                        )
-                        ) : (
-                          // Kelompok besar semester reguler tidak digunakan di semester antara
-                          false ? (
-                            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
-                              <div className="flex items-center gap-2">
-                                <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                                </svg>
-                                <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                                  Belum ada kelompok besar yang ditambahkan untuk mata kuliah ini
-                                </span>
-                              </div>
-                              <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                                Silakan tambahkan kelompok besar terlebih dahulu di halaman Kelompok Detail
-                              </p>
-                            </div>
-                          ) : (
-                            <div className="bg-gray-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-800 rounded-xl p-4">
-                              <span className="text-gray-700 dark:text-gray-300 text-sm">
-                                Kelompok semester reguler tidak digunakan di semester antara
-                              </span>
-                            </div>
-                          )
                         )}
                       </div>
                       <div>
@@ -3485,8 +3369,8 @@ export default function DetailBlokAntara() {
                           </div>
                         ) : (
                           <Select
-                            options={getRuanganOptionsLocal()}
-                            value={getRuanganOptionsLocal().find(opt => opt.value === form.lokasi) || null}
+                            options={ruanganOptions}
+                            value={ruanganOptions.find(opt => opt.value === form.lokasi) || null}
                             onChange={opt => {
                               setForm(f => ({ ...f, lokasi: opt ? Number(opt.value) : null }));
                               resetErrorForm();
@@ -4140,8 +4024,8 @@ export default function DetailBlokAntara() {
                           </div>
                         ) : (
                           <Select
-                            options={getRuanganOptionsLocal()}
-                            value={getRuanganOptionsLocal().find(opt => opt.value === form.lokasi) || null}
+                            options={ruanganOptions}
+                            value={ruanganOptions.find(opt => opt.value === form.lokasi) || null}
                             onChange={opt => setForm(f => ({ ...f, lokasi: opt ? Number(opt.value) : null }))}
                             placeholder="Pilih Ruangan"
                             isClearable
@@ -4318,9 +4202,8 @@ export default function DetailBlokAntara() {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kelompok Besar</label>
-                        {true ? (
-                          // Kelompok besar antara untuk Semester Antara
-                          kelompokBesarAntaraOptions.length === 0 ? (
+                        {/* Kelompok besar antara untuk Semester Antara */}
+                        {kelompokBesarAntaraOptions.length === 0 ? (
                             <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
                               <div className="flex items-center gap-2">
                                 <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
@@ -4402,31 +4285,7 @@ export default function DetailBlokAntara() {
                                 }),
                               }}
                             />
-                          )
-                        ) : (
-                          // Kelompok besar agenda semester reguler tidak digunakan di semester antara
-                          false ? (
-                            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
-                              <div className="flex items-center gap-2">
-                                <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                                </svg>
-                                <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                                  Belum ada kelompok besar yang ditambahkan untuk mata kuliah ini
-                                </span>
-                              </div>
-                              <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                                Silakan tambahkan kelompok besar terlebih dahulu di halaman Kelompok Detail
-                              </p>
-                            </div>
-                          ) : (
-                            <div className="bg-gray-50 dark:bg-gray-900/20 border border-gray-200 dark:border-gray-800 rounded-xl p-4">
-                              <span className="text-gray-700 dark:text-gray-300 text-sm">
-                                Kelompok semester reguler tidak digunakan di semester antara
-                              </span>
-                            </div>
-                          )
-                        )}
+                          )}
                       </div>
                       <div>
                         <label className="flex items-center gap-2 cursor-pointer select-none text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -4488,8 +4347,8 @@ export default function DetailBlokAntara() {
                             </div>
                           ) : (
                             <Select
-                              options={getRuanganOptionsLocal()}
-                              value={getRuanganOptionsLocal().find(opt => opt.value === form.lokasi) || null}
+                              options={ruanganOptions}
+                              value={ruanganOptions.find(opt => opt.value === form.lokasi) || null}
                               onChange={opt => setForm(f => ({ ...f, lokasi: opt ? Number(opt.value) : null }))}
                               placeholder="Pilih Ruangan"
                               isClearable
@@ -5017,8 +4876,8 @@ export default function DetailBlokAntara() {
                           </div>
                         ) : (
                           <Select
-                            options={getRuanganOptionsLocal()}
-                            value={getRuanganOptionsLocal().find(opt => opt.value === form.lokasi) || null}
+                            options={ruanganOptions}
+                            value={ruanganOptions.find(opt => opt.value === form.lokasi) || null}
                             onChange={opt => setForm(f => ({ ...f, lokasi: opt ? Number(opt.value) : null }))}
                             placeholder="Pilih Ruangan"
                             isClearable
@@ -5527,8 +5386,8 @@ export default function DetailBlokAntara() {
                           </div>
                         ) : (
                           <Select
-                            options={getRuanganOptionsLocal()}
-                            value={getRuanganOptionsLocal().find(opt => opt.value === form.lokasi) || null}
+                            options={ruanganOptions}
+                            value={ruanganOptions.find(opt => opt.value === form.lokasi) || null}
                             onChange={opt => setForm(f => ({ ...f, lokasi: opt ? Number(opt.value) : null }))}
                             placeholder="Pilih Ruangan"
                             isClearable

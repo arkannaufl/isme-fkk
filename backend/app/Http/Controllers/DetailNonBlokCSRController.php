@@ -11,14 +11,18 @@ use App\Models\CSR;
 use App\Models\CSRMapping;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
 class DetailNonBlokCSRController extends Controller
 {
     public function getBatchData($kode)
     {
         try {
-            // Get mata kuliah data
-            $mataKuliah = MataKuliah::where('kode', $kode)->first();
+            // Get mata kuliah data - optimized with cache
+            $cacheKey = 'mata_kuliah_' . $kode;
+            $mataKuliah = Cache::remember($cacheKey, 3600, function () use ($kode) {
+                return MataKuliah::where('kode', $kode)->first();
+            });
             if (!$mataKuliah) {
                 return response()->json(['message' => 'Mata kuliah tidak ditemukan'], 404);
             }
@@ -88,21 +92,31 @@ class DetailNonBlokCSRController extends Controller
                 return $item;
             });
 
-            // Get kategori CSR untuk mata kuliah ini
-            $kategoriList = CSR::where('mata_kuliah_kode', $kode)
-                ->select('id', 'nama', 'nomor_csr', 'keahlian_required')
-                ->orderBy('nomor_csr', 'asc')
-                ->get();
-
-            // Get dosen yang sudah di-mapping untuk CSR kategori ini
-            $dosenList = collect();
-            foreach ($kategoriList as $kategori) {
-                $mappings = CSRMapping::with('dosen')
-                    ->where('csr_id', $kategori->id)
+            // Get kategori CSR untuk mata kuliah ini - optimized with cache
+            $cacheKeyKategori = 'csr_kategori_' . $kode;
+            $kategoriList = Cache::remember($cacheKeyKategori, 1800, function () use ($kode) {
+                return CSR::where('mata_kuliah_kode', $kode)
+                    ->select('id', 'nama', 'nomor_csr', 'keahlian_required')
+                    ->orderBy('nomor_csr', 'asc')
                     ->get();
+            });
+
+            // Get dosen yang sudah di-mapping untuk CSR kategori ini - optimized with batch loading
+            $dosenList = collect();
+            if ($kategoriList->isNotEmpty()) {
+                // Batch load all CSR mappings to avoid N+1 queries
+                $kategoriIds = $kategoriList->pluck('id')->toArray();
+                $mappings = CSRMapping::with('dosen')
+                    ->whereIn('csr_id', $kategoriIds)
+                    ->get()
+                    ->keyBy('id');
+                
+                // Create kategori map for quick lookup
+                $kategoriMap = $kategoriList->keyBy('id');
                 
                 foreach ($mappings as $mapping) {
-                    if ($mapping->dosen) {
+                    if ($mapping->dosen && $kategoriMap->has($mapping->csr_id)) {
+                        $kategori = $kategoriMap->get($mapping->csr_id);
                         // Add keahlian info to dosen data
                         $dosenData = [
                             'id' => $mapping->dosen->id,
@@ -132,16 +146,22 @@ class DetailNonBlokCSRController extends Controller
             // Sort dosen by name
             $dosenList = $dosenList->sortBy('name')->values();
 
-            $ruanganList = Ruangan::select('id', 'nama', 'kapasitas', 'gedung')
-                ->orderBy('nama', 'asc')
-                ->get();
+            // Get ruangan list - optimized with cache
+            $ruanganList = Cache::remember('ruangan_list_all', 1800, function () {
+                return Ruangan::select('id', 'nama', 'kapasitas', 'gedung')
+                    ->orderBy('nama', 'asc')
+                    ->get();
+            });
 
-            // Get kelompok kecil berdasarkan semester mata kuliah
-            $kelompokKecilList = KelompokKecil::where('semester', $mataKuliah->semester)
-                ->select('id', 'nama_kelompok')
-                ->distinct()
-                ->orderBy('nama_kelompok', 'asc')
-                ->get();
+            // Get kelompok kecil berdasarkan semester mata kuliah - optimized with cache
+            $cacheKeyKelompok = 'kelompok_kecil_semester_' . $mataKuliah->semester;
+            $kelompokKecilList = Cache::remember($cacheKeyKelompok, 1800, function () use ($mataKuliah) {
+                return KelompokKecil::where('semester', $mataKuliah->semester)
+                    ->select('id', 'nama_kelompok')
+                    ->distinct()
+                    ->orderBy('nama_kelompok', 'asc')
+                    ->get();
+            });
 
             // Get jam options (hardcoded for now, can be moved to config)
             $jamOptions = [

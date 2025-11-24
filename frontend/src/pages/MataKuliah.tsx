@@ -168,29 +168,8 @@ const getSemesterOptionsForActivePeriod = (
   // Ambil semua semester unik dari data
   const allSemesters = Array.from(new Set(allData.map((d) => d.semester)));
 
-  // Jika tidak ada semester aktif, tampilkan semua semester
-  if (!activeSemesterJenis) {
+  // Tampilkan semua semester tanpa filter berdasarkan periode aktif
     return allSemesters.sort((a, b) => {
-      if (a === "Antara") return -1;
-      if (b === "Antara") return 1;
-      return Number(a) - Number(b);
-    });
-  }
-
-  // Filter semester berdasarkan periode aktif
-  const filteredSemesters = allSemesters.filter((semester) => {
-    // Selalu include Semester Antara
-    if (semester === "Antara") return true;
-
-    // Cari mata kuliah dengan semester ini
-    const mataKuliah = allData.find((mk) => mk.semester === semester);
-    if (!mataKuliah) return false;
-
-    // Include jika periode sama dengan semester aktif
-    return mataKuliah.periode === activeSemesterJenis;
-  });
-
-  return filteredSemesters.sort((a, b) => {
     if (a === "Antara") return -1;
     if (b === "Antara") return 1;
     return Number(a) - Number(b);
@@ -1369,13 +1348,7 @@ export default function MataKuliah() {
   // Filter & Search
   const filteredData = sortDataByBlok(
     (Array.isArray(data) ? data : []).filter((mk) => {
-      // Filter berdasarkan semester aktif (periode) - kecuali untuk Semester Antara
-      if (
-        activeSemesterJenis &&
-        mk.periode !== activeSemesterJenis &&
-        mk.semester !== "Antara"
-      )
-        return false;
+      // Tidak ada filter berdasarkan semester aktif - semua mata kuliah ditampilkan
       const q = search.toLowerCase();
       const matchSearch =
         mk.kode?.toLowerCase().includes(q) ||
@@ -2688,7 +2661,7 @@ export default function MataKuliah() {
         Daftar Mata Kuliah
       </h1>
 
-      {/* Info Semester Aktif */}
+      {/* Info Semester Aktif - Diinformasikan tapi tidak memfilter data */}
       {activeSemesterJenis && (
         <div className="mb-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
           <div className="flex items-center gap-2">
@@ -2697,8 +2670,7 @@ export default function MataKuliah() {
               Semester Aktif: {activeSemesterJenis}
             </span>
             <span className="text-xs text-blue-600 dark:text-blue-400">
-              (Filter semester menampilkan mata kuliah periode{" "}
-              {activeSemesterJenis})
+              (Semua mata kuliah ditampilkan, tidak difilter berdasarkan periode)
             </span>
           </div>
         </div>
@@ -2789,23 +2761,11 @@ export default function MataKuliah() {
             >
               <option value="all">Semua Semester</option>
               {semesterOptions.map((semester) => {
-                // Cek apakah semester ini sesuai dengan periode aktif
-                const isActivePeriod =
-                  semester === "Antara" ||
-                  (Array.isArray(data) &&
-                    data.find((mk) => mk.semester === semester)?.periode ===
-                      activeSemesterJenis);
-
                 return (
                   <option key={semester} value={semester}>
                     {semester === "Antara"
                       ? "Semester Antara"
                       : `Semester ${semester}`}
-                    {isActivePeriod &&
-                    activeSemesterJenis &&
-                    semester !== "Antara"
-                      ? ` (${activeSemesterJenis})`
-                      : ""}
                   </option>
                 );
               })}

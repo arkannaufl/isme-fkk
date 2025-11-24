@@ -24,9 +24,13 @@ class JadwalNonBlokNonCSR extends Model
         'materi',
         'dosen_id',
         'dosen_ids',
+        'pembimbing_id',
+        'komentator_ids',
+        'penguji_ids',
         'ruangan_id',
         'kelompok_besar_id',
         'kelompok_besar_antara_id',
+        'mahasiswa_nims',
         'use_ruangan',
         'status_konfirmasi',
         'alasan_konfirmasi',
@@ -42,6 +46,9 @@ class JadwalNonBlokNonCSR extends Model
         'jam_selesai' => 'string',
         'use_ruangan' => 'boolean',
         'dosen_ids' => 'array',
+        'komentator_ids' => 'array',
+        'penguji_ids' => 'array',
+        'mahasiswa_nims' => 'array',
         'qr_enabled' => 'boolean',
     ];
 
@@ -53,6 +60,35 @@ class JadwalNonBlokNonCSR extends Model
     public function dosen()
     {
         return $this->belongsTo(User::class, 'dosen_id');
+    }
+
+    public function pembimbing()
+    {
+        return $this->belongsTo(User::class, 'pembimbing_id');
+    }
+
+    public function komentator()
+    {
+        // Relasi ke komentator berdasarkan komentator_ids (array)
+        if ($this->komentator_ids && is_array($this->komentator_ids)) {
+            return User::whereIn('id', $this->komentator_ids);
+        }
+        return User::whereRaw('1 = 0'); // Return empty query if no komentator_ids
+    }
+
+    public function penguji()
+    {
+        // Relasi ke penguji berdasarkan penguji_ids (array)
+        if ($this->penguji_ids && is_array($this->penguji_ids)) {
+            return User::whereIn('id', $this->penguji_ids);
+        }
+        return User::whereRaw('1 = 0'); // Return empty query if no penguji_ids
+    }
+
+    public function mahasiswa()
+    {
+        // Relasi ke mahasiswa berdasarkan NIM
+        return User::whereIn('nim', $this->mahasiswa_nims ?? [])->where('role', 'mahasiswa');
     }
 
     public function ruangan()

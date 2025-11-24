@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import api, { handleApiError } from '../utils/api';
 import { ChevronLeftIcon } from '../icons';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -13,20 +13,19 @@ import * as XLSX from 'xlsx';
 const SESSION_DURATION_MINUTES = 50;
 const MAX_SESSIONS = 6;
 const MIN_SESSIONS = 1;
-const TEMPLATE_DISPLAY_LIMIT = 10;
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
 const EXCEL_COLUMN_WIDTHS = {
   TANGGAL: 12,
   JAM_MULAI: 10,
-  JENIS_BARIS: 12,
   SESI: 6,
   KELOMPOK_BESAR: 15,
   DOSEN: 20,
   MATERI: 25,
   RUANGAN: 15,
   AGENDA: 20,
-  INFO_COLUMN: 50
+  INFO_COLUMN: 50,
+  INFO_COLUMN_LEFT: 30
 };
 
 interface MataKuliah {
@@ -50,10 +49,14 @@ interface JadwalNonBlokNonCSR {
   jam_mulai: string;
   jam_selesai: string;
   jumlah_sesi: number;
-  jenis_baris: 'materi' | 'agenda';
+  jenis_baris: 'materi' | 'agenda' | 'seminar_proposal' | 'sidang_skripsi';
   agenda?: string;
   materi?: string;
   dosen_id?: number;
+  pembimbing_id?: number;
+  komentator_ids?: number[];
+  penguji_ids?: number[];
+  mahasiswa_nims?: string[];
   ruangan_id: number | null;
   kelompok_besar_id?: number | null;
   use_ruangan?: boolean;
@@ -63,6 +66,21 @@ interface JadwalNonBlokNonCSR {
     name: string;
     nid: string;
   };
+  pembimbing?: {
+    id: number;
+    name: string;
+    nid: string;
+  };
+  komentator?: Array<{
+    id: number;
+    name: string;
+    nid: string;
+  }>;
+  penguji?: Array<{
+    id: number;
+    name: string;
+    nid: string;
+  }>;
   ruangan?: {
     id: number;
     nama: string;
@@ -88,17 +106,32 @@ interface JadwalNonBlokNonCSRType {
   tanggal: string;
   jam_mulai: string;
   jam_selesai: string;
-  jenis_baris: 'materi' | 'agenda';
+  jenis_baris: 'materi' | 'agenda' | 'seminar_proposal' | 'sidang_skripsi';
   jumlah_sesi: number;
-  kelompok_besar_id: number | null;
+  kelompok_besar_id?: number | null;
   nama_kelompok_besar?: string;
-  dosen_id: number | null;
+  dosen_id?: number | null;
   nama_dosen?: string;
+  pembimbing_id?: number | null;
+  nama_pembimbing?: string;
+  komentator_ids?: number[];
+  nama_komentator?: string[];
+  penguji_ids?: number[];
+  nama_penguji?: string[];
+  mahasiswa_nims?: string[];
+  nama_mahasiswa?: string[];
   materi?: string;
   ruangan_id: number | null;
   nama_ruangan?: string;
   agenda?: string;
   use_ruangan?: boolean;
+}
+
+interface MahasiswaOption {
+  id: number;
+  nim: string;
+  name: string;
+  label: string;
 }
 
 export default function DetailNonBlokNonCSR() {
@@ -108,9 +141,12 @@ export default function DetailNonBlokNonCSR() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // State untuk modal input jadwal materi
+  // State untuk modal input jadwal
   const [showModal, setShowModal] = useState(false);
-  const [jadwalMateri, setJadwalMateri] = useState<JadwalNonBlokNonCSR[]>([]);
+  const [jadwalMateriKuliah, setJadwalMateriKuliah] = useState<JadwalNonBlokNonCSR[]>([]);
+  const [jadwalAgendaKhusus, setJadwalAgendaKhusus] = useState<JadwalNonBlokNonCSR[]>([]);
+  const [jadwalSeminarProposal, setJadwalSeminarProposal] = useState<JadwalNonBlokNonCSR[]>([]);
+  const [jadwalSidangSkripsi, setJadwalSidangSkripsi] = useState<JadwalNonBlokNonCSR[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [form, setForm] = useState({
     hariTanggal: '',
@@ -120,9 +156,13 @@ export default function DetailNonBlokNonCSR() {
     pengampu: null as number | null,
     materi: '',
     lokasi: null as number | null,
-    jenisBaris: 'materi' as 'materi' | 'agenda',
+    jenisBaris: 'materi' as 'materi' | 'agenda' | 'seminar_proposal' | 'sidang_skripsi',
     agenda: '', // hanya untuk agenda khusus
     kelompokBesar: null as number | null,
+    pembimbing: null as number | null, // untuk seminar proposal dan sidang skripsi
+    komentator: [] as number[], // hanya untuk seminar proposal, maksimal 2
+    penguji: [] as number[], // hanya untuk sidang skripsi, maksimal 2
+    mahasiswa: [] as string[], // untuk seminar proposal dan sidang skripsi, array NIM
     useRuangan: true,
   });
   const [errorForm, setErrorForm] = useState(''); // Error frontend (validasi form)
@@ -130,21 +170,24 @@ export default function DetailNonBlokNonCSR() {
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedDeleteIndex, setSelectedDeleteIndex] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   
-  // Pagination logic functions
-  const getPaginatedData = (data: any[], page: number, pageSize: number): any[] => {
+  // Helper function untuk format tanggal ke YYYY-MM-DD
+  const formatDateToISO = (date: string | Date | null | undefined): string => {
+    if (!date) return '';
+    return new Date(date).toISOString().split('T')[0];
+  };
+  
+  // Pagination logic functions - optimized with useCallback
+  const getPaginatedData = useCallback(<T,>(data: T[], page: number, pageSize: number): T[] => {
     const startIndex = (page - 1) * pageSize;
     const endIndex = startIndex + pageSize;
     return data.slice(startIndex, endIndex);
-  };
+  }, []);
 
-  const getTotalPages = (dataLength: number, pageSize: number): number => {
+  const getTotalPages = useCallback((dataLength: number, pageSize: number): number => {
     return Math.ceil(dataLength / pageSize);
-  };
-
-  const resetPagination = () => {
-    setNonCsrPage(1);
-  };
+  }, []);
   
   // State untuk dropdown options
   const [dosenList, setDosenList] = useState<DosenOption[]>([]);
@@ -152,32 +195,117 @@ export default function DetailNonBlokNonCSR() {
   const [jamOptions, setJamOptions] = useState<string[]>([]);
   const [kelompokBesarAgendaOptions, setKelompokBesarAgendaOptions] = useState<{id: string | number, label: string, jumlah_mahasiswa: number}[]>([]);
   const [kelompokBesarMateriOptions, setKelompokBesarMateriOptions] = useState<{id: string | number, label: string, jumlah_mahasiswa: number}[]>([]);
+  const [mahasiswaList, setMahasiswaList] = useState<MahasiswaOption[]>([]);
 
-  // Pagination state for Non-CSR schedule
-  const [nonCsrPage, setNonCsrPage] = useState(1);
-  const [nonCsrPageSize, setNonCsrPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
+  // Pagination state for Materi Kuliah
+  const [materiPage, setMateriPage] = useState(1);
+  const [materiPageSize, setMateriPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
+  
+  // Pagination state for Agenda Khusus
+  const [agendaPage, setAgendaPage] = useState(1);
+  const [agendaPageSize, setAgendaPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
 
-  // State untuk import Excel Non-Blok Non-CSR
-  const [showNonBlokImportModal, setShowNonBlokImportModal] = useState(false);
-  const [nonBlokImportFile, setNonBlokImportFile] = useState<File | null>(null);
-  const [nonBlokImportData, setNonBlokImportData] = useState<JadwalNonBlokNonCSRType[]>([]);
-  const [nonBlokImportErrors, setNonBlokImportErrors] = useState<string[]>([]);
-  const [nonBlokCellErrors, setNonBlokCellErrors] = useState<{ row: number, field: string, message: string }[]>([]);
-  const [nonBlokEditingCell, setNonBlokEditingCell] = useState<{ row: number, key: string } | null>(null);
-  const [nonBlokImportPage, setNonBlokImportPage] = useState(1);
-  const [nonBlokImportPageSize, setNonBlokImportPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const [nonBlokImportedCount, setNonBlokImportedCount] = useState(0);
-  const nonBlokFileInputRef = useRef<HTMLInputElement>(null);
-  const [isNonBlokImporting, setIsNonBlokImporting] = useState(false);
+  // State untuk import Excel Materi Kuliah
+  const [showMateriUploadModal, setShowMateriUploadModal] = useState(false); // Modal upload file
+  const [showMateriImportModal, setShowMateriImportModal] = useState(false); // Modal preview
+  const [materiImportFile, setMateriImportFile] = useState<File | null>(null); // Persistence: file tetap ada
+  const [materiImportData, setMateriImportData] = useState<JadwalNonBlokNonCSRType[]>([]); // Persistence: data tetap ada
+  const [materiImportErrors, setMateriImportErrors] = useState<string[]>([]);
+  const [materiCellErrors, setMateriCellErrors] = useState<{ row: number, field: string, message: string }[]>([]);
+  const [materiEditingCell, setMateriEditingCell] = useState<{ row: number, key: string } | null>(null);
+  const [materiImportPage, setMateriImportPage] = useState(1);
+  const [materiImportPageSize, setMateriImportPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [materiImportedCount, setMateriImportedCount] = useState(0);
+  const materiFileInputRef = useRef<HTMLInputElement>(null);
+  const [isMateriImporting, setIsMateriImporting] = useState(false);
 
-  // State untuk bulk delete Non Blok Non CSR
-  const [selectedNonBlokItems, setSelectedNonBlokItems] = useState<number[]>([]);
-  const [showNonBlokBulkDeleteModal, setShowNonBlokBulkDeleteModal] = useState(false);
-  const [isNonBlokDeleting, setIsNonBlokDeleting] = useState(false);
-  const [nonBlokSuccess, setNonBlokSuccess] = useState<string | null>(null);
+  // State untuk import Excel Agenda Khusus
+  const [showAgendaUploadModal, setShowAgendaUploadModal] = useState(false); // Modal upload file
+  const [showAgendaImportModal, setShowAgendaImportModal] = useState(false); // Modal preview
+  const [agendaImportFile, setAgendaImportFile] = useState<File | null>(null); // Persistence: file tetap ada
+  const [agendaImportData, setAgendaImportData] = useState<JadwalNonBlokNonCSRType[]>([]); // Persistence: data tetap ada
+  const [agendaImportErrors, setAgendaImportErrors] = useState<string[]>([]);
+  const [agendaCellErrors, setAgendaCellErrors] = useState<{ row: number, field: string, message: string }[]>([]);
+  const [agendaEditingCell, setAgendaEditingCell] = useState<{ row: number, key: string } | null>(null);
+  const [agendaImportPage, setAgendaImportPage] = useState(1);
+  const [agendaImportPageSize, setAgendaImportPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [agendaImportedCount, setAgendaImportedCount] = useState(0);
+  const agendaFileInputRef = useRef<HTMLInputElement>(null);
+  const [isAgendaImporting, setIsAgendaImporting] = useState(false);
 
-  // Reset form function
-  const resetForm = () => {
+
+  // State untuk bulk delete Materi Kuliah
+  const [selectedMateriItems, setSelectedMateriItems] = useState<number[]>([]);
+  const [isMateriDeleting, setIsMateriDeleting] = useState(false);
+  const [materiSuccess, setMateriSuccess] = useState<string | null>(null);
+  const [showMateriBulkDeleteModal, setShowMateriBulkDeleteModal] = useState(false);
+  
+  // State untuk bulk delete Agenda Khusus
+  const [selectedAgendaItems, setSelectedAgendaItems] = useState<number[]>([]);
+  const [isAgendaDeleting, setIsAgendaDeleting] = useState(false);
+  const [agendaSuccess, setAgendaSuccess] = useState<string | null>(null);
+  const [showAgendaBulkDeleteModal, setShowAgendaBulkDeleteModal] = useState(false);
+
+  // Pagination state for Seminar Proposal
+  const [seminarPage, setSeminarPage] = useState(1);
+  const [seminarPageSize, setSeminarPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
+
+  // State untuk import Excel Seminar Proposal
+  const [showSeminarUploadModal, setShowSeminarUploadModal] = useState(false);
+  const [seminarImportFile, setSeminarImportFile] = useState<File | null>(null);
+  const [seminarImportData, setSeminarImportData] = useState<JadwalNonBlokNonCSRType[]>([]);
+  const [seminarImportErrors, setSeminarImportErrors] = useState<string[]>([]);
+  const [seminarCellErrors, setSeminarCellErrors] = useState<{ row: number, field: string, message: string }[]>([]);
+  const [seminarEditingCell, setSeminarEditingCell] = useState<{ row: number, key: string } | null>(null);
+  const [seminarImportPage, setSeminarImportPage] = useState(1);
+  const [seminarImportPageSize, setSeminarImportPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [seminarImportedCount, setSeminarImportedCount] = useState(0);
+  const seminarFileInputRef = useRef<HTMLInputElement>(null);
+  const seminarImportDataRef = useRef<JadwalNonBlokNonCSRType[]>([]);
+  const [isSeminarImporting, setIsSeminarImporting] = useState(false);
+
+  // State untuk bulk delete Seminar Proposal
+  const [selectedSeminarItems, setSelectedSeminarItems] = useState<number[]>([]);
+  const [isSeminarDeleting, setIsSeminarDeleting] = useState(false);
+  const [seminarSuccess, setSeminarSuccess] = useState<string | null>(null);
+  const [showSeminarBulkDeleteModal, setShowSeminarBulkDeleteModal] = useState(false);
+
+  // Pagination state for Sidang Skripsi
+  const [sidangPage, setSidangPage] = useState(1);
+  const [sidangPageSize, setSidangPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
+
+  // State untuk import Excel Sidang Skripsi
+  const [showSidangUploadModal, setShowSidangUploadModal] = useState(false);
+  const [sidangImportFile, setSidangImportFile] = useState<File | null>(null);
+  const [sidangImportData, setSidangImportData] = useState<JadwalNonBlokNonCSRType[]>([]);
+  const [sidangImportErrors, setSidangImportErrors] = useState<string[]>([]);
+  const [sidangCellErrors, setSidangCellErrors] = useState<{ row: number, field: string, message: string }[]>([]);
+  const [sidangEditingCell, setSidangEditingCell] = useState<{ row: number, key: string } | null>(null);
+  const [sidangImportPage, setSidangImportPage] = useState(1);
+  const [sidangImportPageSize, setSidangImportPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [sidangImportedCount, setSidangImportedCount] = useState(0);
+  const sidangFileInputRef = useRef<HTMLInputElement>(null);
+  const sidangImportDataRef = useRef<JadwalNonBlokNonCSRType[]>([]);
+  const [isSidangImporting, setIsSidangImporting] = useState(false);
+
+  // State untuk bulk delete Sidang Skripsi
+  const [selectedSidangItems, setSelectedSidangItems] = useState<number[]>([]);
+  const [isSidangDeleting, setIsSidangDeleting] = useState(false);
+  const [sidangSuccess, setSidangSuccess] = useState<string | null>(null);
+  const [showSidangBulkDeleteModal, setShowSidangBulkDeleteModal] = useState(false);
+
+  // State untuk modal daftar mahasiswa
+  const [showMahasiswaModal, setShowMahasiswaModal] = useState(false);
+  const [selectedMahasiswaList, setSelectedMahasiswaList] = useState<MahasiswaOption[]>([]);
+  const [mahasiswaSearchQuery, setMahasiswaSearchQuery] = useState('');
+  const [mahasiswaModalPage, setMahasiswaModalPage] = useState(1);
+  const [mahasiswaModalPageSize, setMahasiswaModalPageSize] = useState(10);
+
+  // Memoized ruangan options untuk optimisasi performa
+  const ruanganOptions = useMemo(() => getRuanganOptions(ruanganList || []), [ruanganList]);
+
+  // Reset form function - optimized with useCallback
+  const resetForm = useCallback(() => {
     setForm({
       hariTanggal: '',
       jamMulai: '',
@@ -186,44 +314,24 @@ export default function DetailNonBlokNonCSR() {
       pengampu: null,
       materi: '',
       lokasi: null,
-      jenisBaris: 'materi' as 'materi' | 'agenda',
+      jenisBaris: 'materi' as 'materi' | 'agenda' | 'seminar_proposal' | 'sidang_skripsi',
       agenda: '',
       kelompokBesar: null,
+      pembimbing: null,
+      komentator: [],
+      penguji: [],
+      mahasiswa: [],
       useRuangan: true,
     });
     setEditIndex(null);
     setErrorForm('');
     setErrorBackend('');
-  };
+  }, []);
 
 
-  // Fetch batch data untuk optimasi performa
-  const fetchBatchData = async () => {
-    if (!kode) return;
-    
-    try {
-      const response = await api.get(`/non-blok-non-csr/${kode}/batch-data`);
-      const batchData = response.data;
-      
-      // Set mata kuliah data
-      setData(batchData.mata_kuliah);
-      
-      // Set jadwal Non-Blok Non-CSR data
-      setJadwalMateri(batchData.jadwal_non_blok_non_csr);
-      
-      // Set reference data
-      setDosenList(batchData.dosen_list);
-      setRuanganList(batchData.ruangan_list);
-      setJamOptions(batchData.jam_options);
-      setKelompokBesarAgendaOptions(batchData.kelompok_besar_agenda_options || []);
-      setKelompokBesarMateriOptions(batchData.kelompok_besar_materi_options || []);
-      
-    } catch (error: any) {
-      setError(handleApiError(error, 'Memuat data batch'));
-    }
-  };
 
-  function formatTanggalKonsisten(dateStr: string) {
+  // Helper functions - optimized with useCallback
+  const formatTanggalKonsisten = useCallback((dateStr: string) => {
     if (!dateStr) return '';
     
     const date = new Date(dateStr);
@@ -236,9 +344,9 @@ export default function DetailNonBlokNonCSR() {
     const year = date.getFullYear();
     
     return `${hariIndo}, ${day}/${month}/${year}`;
-  }
+  }, []);
 
-  function formatJamTanpaDetik(jam: string) {
+  const formatJamTanpaDetik = useCallback((jam: string) => {
     if (!jam) return '';
     // Jika format sudah HH:MM, return as is
     if (/^\d{2}:\d{2}$/.test(jam)) return jam;
@@ -251,10 +359,10 @@ export default function DetailNonBlokNonCSR() {
       return jam.replace('.', ':');
     }
     return jam;
-  }
+  }, []);
 
-  // Hitung jam selesai otomatis
-  function hitungJamSelesai(jamMulai: string, jumlahKali: number) {
+  // Hitung jam selesai otomatis - optimized with useCallback
+  const hitungJamSelesai = useCallback((jamMulai: string, jumlahKali: number) => {
     if (!jamMulai) return '';
     // Support format jam dengan titik (misal 09.00, 07.20)
     const [jamStr, menitStr] = jamMulai.split(/[.:]/); // support titik atau titik dua
@@ -265,84 +373,22 @@ export default function DetailNonBlokNonCSR() {
     const jamAkhir = Math.floor(totalMenit / 60).toString().padStart(2, '0');
     const menitAkhir = (totalMenit % 60).toString().padStart(2, '0');
     return `${jamAkhir}.${menitAkhir}`;
-  }
+  }, []);
 
   // Download template Excel untuk Non-Blok Non-CSR
-  const downloadNonBlokTemplate = async () => {
-    if (!data) return;
+  // Helper function untuk membuat Sheet Tips dan Info
+  const createTipsAndInfoSheet = (jenis: 'materi' | 'agenda'): any[][] => {
+    if (!data) return [];
 
-    try {
-      // Generate example dates within mata kuliah date range
         const startDate = new Date(data.tanggal_mulai || '');
         const endDate = new Date(data.tanggal_akhir || '');
-      const exampleDate1 = new Date(startDate.getTime() + (1 * 24 * 60 * 60 * 1000)); // +1 day
-      const exampleDate2 = new Date(startDate.getTime() + (2 * 24 * 60 * 60 * 1000)); // +2 days
-
-      // Template data
-      const templateData = [
-        ['Tanggal', 'Jam Mulai', 'Jenis Baris', 'Sesi', 'Kelompok Besar', 'Dosen', 'Materi', 'Ruangan', 'Keterangan Agenda'],
-        [
-          exampleDate1.toISOString().split('T')[0],
-          '07.20',
-          'materi',
-          '1',
-          '1',
-          dosenList[0]?.name || 'Dosen 1',
-          'Pengantar Mata Kuliah',
-          ruanganList[0]?.nama || 'Ruang 1'
-        ],
-        [
-          exampleDate2.toISOString().split('T')[0],
-          '08.20',
-          'agenda',
-          '2',
-          '1',
-          '',
-          '',
-          ruanganList[0]?.nama || 'Ruang 1',
-          'Ujian Tengah Semester'
-        ],
-        [
-          exampleDate2.toISOString().split('T')[0],
-          '10.40',
-          'agenda',
-          '2',
-          '1',
-          '',
-          '',
-          '',
-          'Seminar Kesehatan Online'
-        ]
-      ];
-
-      // Create workbook
-      const wb = XLSX.utils.book_new();
-      
-      // Add template sheet
-      const ws = XLSX.utils.aoa_to_sheet(templateData);
-      
-      // Set column widths
-      const colWidths = [
-        { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
-        { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
-        { wch: EXCEL_COLUMN_WIDTHS.JENIS_BARIS },
-        { wch: EXCEL_COLUMN_WIDTHS.SESI },
-        { wch: EXCEL_COLUMN_WIDTHS.KELOMPOK_BESAR },
-        { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
-        { wch: EXCEL_COLUMN_WIDTHS.MATERI },
-        { wch: EXCEL_COLUMN_WIDTHS.RUANGAN },
-        { wch: EXCEL_COLUMN_WIDTHS.AGENDA }
-      ];
-      ws['!cols'] = colWidths;
-
-      XLSX.utils.book_append_sheet(wb, ws, 'Template Non-Blok Non-CSR');
-
-      // Add Tips dan Info sheet
-      const infoData = [
-        ['TIPS DAN INFORMASI IMPORT JADWAL NON-BLOK NON-CSR'],
+    const isMateri = jenis === 'materi';
+    
+    return [
+      [`TIPS DAN INFORMASI IMPORT JADWAL ${isMateri ? 'MATERI KULIAH' : 'AGENDA KHUSUS'}`],
         [''],
         ['📋 CARA UPLOAD FILE:'],
-        ['1. Download template ini dan isi dengan data jadwal non-blok non-CSR'],
+      [`1. Download template ini dan isi dengan data jadwal ${isMateri ? 'Materi Kuliah' : 'Agenda Khusus'}`],
         ['2. Pastikan semua kolom wajib diisi dengan benar'],
         ['3. Upload file Excel yang sudah diisi ke sistem'],
         ['4. Periksa preview data dan perbaiki error jika ada'],
@@ -359,21 +405,29 @@ export default function DetailNonBlokNonCSR() {
         ['⏰ JAM YANG TERSEDIA:'],
         ...jamOptions.map(jam => [`• ${jam}`]),
         [''],
-        ['👥 KELOMPOK BESAR YANG TERSEDIA:'],
-        ...(kelompokBesarAgendaOptions.length > 0 ? 
-          kelompokBesarAgendaOptions.map(kb => [`• ${kb.label}`]) :
+      [`👥 KELOMPOK BESAR YANG TERSEDIA (Semester ${data.semester}):`],
+      ...(isMateri ? 
+        (kelompokBesarMateriOptions.length > 0 ? 
+          kelompokBesarMateriOptions.map(kb => [`• ${kb.label} (${kb.jumlah_mahasiswa} mahasiswa)`]) :
           [['• Belum ada data kelompok besar']]
+        ) :
+        (kelompokBesarAgendaOptions.length > 0 ? 
+          kelompokBesarAgendaOptions.map(kb => [`• ${kb.label} (${kb.jumlah_mahasiswa} mahasiswa)`]) :
+          [['• Belum ada data kelompok besar']]
+        )
         ),
+      ...(isMateri ? [
         [''],
         ['👨‍🏫 DOSEN YANG TERSEDIA:'],
         ...(dosenList.length > 0 ? 
-          dosenList.map(dosen => [`• ${dosen.name} (${dosen.nid})`]) :
+          dosenList.map(dosen => [`• ${dosen.name}${dosen.nid ? ` (${dosen.nid})` : ''}`]) :
           [['• Belum ada data dosen']]
-        ),
+        )
+      ] : []),
         [''],
         ['🏢 RUANGAN YANG TERSEDIA:'],
         ...(ruanganList.length > 0 ? 
-          ruanganList.map(ruangan => [`• ${ruangan.nama} (Kapasitas: ${ruangan.kapasitas || 'N/A'})`]) :
+        ruanganList.map(ruangan => [`• ${ruangan.nama}${ruangan.kapasitas ? ` (Kapasitas: ${ruangan.kapasitas} orang)` : ''}${ruangan.gedung ? ` - ${ruangan.gedung}` : ''}`]) :
           [['• Belum ada data ruangan']]
         ),
         [''],
@@ -382,69 +436,432 @@ export default function DetailNonBlokNonCSR() {
         ['📅 VALIDASI TANGGAL:'],
         ['• Format: YYYY-MM-DD (contoh: 2024-01-15)'],
         ['• Wajib dalam rentang mata kuliah:'],
-        [`  - Mulai: ${startDate.toLocaleDateString('id-ID')}`],
-        [`  - Akhir: ${endDate.toLocaleDateString('id-ID')}`],
+      [`  - Mulai: ${startDate.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
+      [`  - Akhir: ${endDate.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`],
         [''],
         ['⏰ VALIDASI JAM:'],
         ['• Format: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
         ['• Jam mulai harus sesuai opsi yang tersedia'],
-        ['• Jam selesai akan divalidasi berdasarkan perhitungan:'],
-        ['  Jam selesai = Jam mulai + (Jumlah sesi x 50 menit)'],
-        ['  Contoh: 07:20 + (2 x 50 menit) = 09:00'],
+      ['• Jam selesai akan dihitung otomatis:'],
+      ['  Jam selesai = Jam mulai + (Jumlah sesi × 50 menit)'],
+      ['  Contoh: 07:20 + (2 × 50 menit) = 09:00'],
         [''],
-        ['📝 VALIDASI JENIS BARIS:'],
-        ['• Jenis baris: materi atau agenda'],
-        ['• materi: Untuk jadwal materi kuliah (wajib isi Dosen, Materi, Ruangan)'],
-        ['• agenda: Untuk agenda khusus (wajib isi Keterangan Agenda, Ruangan opsional)'],
-        [''],
-        ['📝 VALIDASI AGENDA:'],
-        ['• Agenda wajib diisi untuk jenis baris "agenda"'],
-        ['• Isi dengan deskripsi agenda yang jelas'],
-        ['• Agenda dapat diisi dengan teks bebas'],
+      ...(isMateri ? [
+        ['📝 VALIDASI MATERI KULIAH:'],
+        ['• Untuk Materi Kuliah (wajib isi: Dosen, Materi, Ruangan)'],
+        ['• Dosen, Materi, dan Ruangan tidak boleh kosong']
+      ] : [
+        ['📝 VALIDASI AGENDA KHUSUS:'],
+        ['• Untuk Agenda Khusus (wajib isi: Keterangan Agenda)'],
+        ['• Ruangan opsional (boleh dikosongkan untuk agenda online)']
+      ]),
         [''],
         ['🔢 VALIDASI SESI:'],
-        [`• Jumlah sesi: ${MIN_SESSIONS}-${MAX_SESSIONS}`],
-        ['• Digunakan untuk menghitung jam selesai'],
-        ['• 1 sesi = 50 menit'],
+      [`• Jumlah sesi: ${MIN_SESSIONS}-${MAX_SESSIONS} (1 sesi = 50 menit)`],
+      ['• Digunakan untuk menghitung jam selesai otomatis'],
         [''],
+      ...(isMateri ? [
         ['👨‍🏫 VALIDASI DOSEN:'],
-        ['• Dosen wajib diisi untuk jenis baris "materi"'],
-        ['• Nama dosen harus ada di database'],
+        ['• Dosen wajib diisi untuk Materi Kuliah'],
+        ['• Nama dosen harus sesuai dengan data di sistem'],
         ['• Pastikan dosen tersedia untuk jadwal tersebut'],
         [''],
-        ['🏢 VALIDASI RUANGAN:'],
-        ['• Ruangan wajib diisi untuk jenis baris "materi"'],
-        ['• Ruangan boleh dikosongkan untuk agenda online/tidak memerlukan ruangan'],
-        ['• Jika diisi, nama ruangan harus ada di database'],
-        ['• Pastikan ruangan tersedia untuk jadwal tersebut'],
+        ['📚 VALIDASI MATERI:'],
+        ['• Materi wajib diisi untuk Materi Kuliah'],
+        ['• Isi dengan nama materi yang akan diajarkan'],
         [''],
+        ['🏢 VALIDASI RUANGAN:'],
+        ['• Ruangan wajib diisi untuk Materi Kuliah'],
+        ['• Nama ruangan harus sesuai dengan data di sistem'],
+        ['• Pastikan kapasitas ruangan mencukupi (mahasiswa + 1 dosen)'],
+        ['• Sistem akan validasi kapasitas otomatis'],
+        ['']
+      ] : [
+        ['📝 VALIDASI KETERANGAN AGENDA:'],
+        ['• Keterangan Agenda wajib diisi untuk Agenda Khusus'],
+        ['• Isi dengan deskripsi agenda yang jelas'],
+        ['• Contoh: "Ujian Tengah Semester", "Seminar Kesehatan", dll'],
+        [''],
+        ['🏢 VALIDASI RUANGAN (OPSIONAL):'],
+        ['• Ruangan boleh dikosongkan untuk agenda online'],
+        ['• Jika diisi, nama ruangan harus sesuai dengan data di sistem'],
+        ['']
+      ]),
         ['👥 VALIDASI KELOMPOK BESAR:'],
-        ['• Kelompok besar wajib diisi'],
-        ['• Nama kelompok besar harus ada di database'],
-        ['• Harus sesuai dengan semester mata kuliah'],
+      [`• Kelompok besar wajib diisi (harus semester ${data.semester})`],
+      ['• ID kelompok besar harus sesuai dengan semester mata kuliah'],
+      ['• Sistem akan validasi otomatis'],
         [''],
         ['💡 TIPS PENTING:'],
         ['• Gunakan data yang ada di list ketersediaan di atas'],
         ['• Periksa preview sebelum import'],
         ['• Edit langsung di tabel preview jika ada error'],
         ['• Sistem akan highlight error dengan warna merah'],
-        ['• Tooltip akan menampilkan pesan error detail']
+      ['• Tooltip akan menampilkan pesan error detail'],
+      ...(isMateri ? [
+        ['• Pastikan kapasitas ruangan mencukupi (jumlah mahasiswa + 1 dosen)'],
+        ['• Sistem akan cek konflik jadwal (dosen, ruangan, kelompok besar)']
+      ] : [
+        ['• Ruangan boleh dikosongkan jika agenda tidak memerlukan ruangan']
+      ])
+    ];
+  };
+
+  // Fungsi download template Excel untuk Materi Kuliah
+  const downloadMateriTemplate = async () => {
+    if (!data) return;
+
+    try {
+      const startDate = new Date(data.tanggal_mulai || '');
+      const endDate = new Date(data.tanggal_akhir || '');
+      const exampleDate1 = new Date(startDate.getTime() + (1 * 24 * 60 * 60 * 1000));
+      const exampleDate2 = new Date(startDate.getTime() + (2 * 24 * 60 * 60 * 1000));
+
+      // Template data untuk Materi Kuliah (hanya kolom yang relevan)
+      const templateData = [
+        ['Tanggal', 'Jam Mulai', 'Sesi', 'Kelompok Besar', 'Dosen', 'Materi', 'Ruangan'],
+        [
+          formatDateToISO(exampleDate1),
+          '07.20',
+          '2',
+          data.semester?.toString() || '1',
+          dosenList[0]?.name || 'Dosen 1',
+          'Pengantar Mata Kuliah',
+          ruanganList[0]?.nama || 'Ruang 1'
+        ],
+        [
+          formatDateToISO(exampleDate2),
+          '08.20',
+          '3',
+          data.semester?.toString() || '1',
+          dosenList[0]?.name || 'Dosen 1',
+          'Materi Lanjutan',
+          ruanganList[0]?.nama || 'Ruang 1'
+        ]
       ];
 
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(templateData);
+      ws['!cols'] = [
+        { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
+        { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
+        { wch: EXCEL_COLUMN_WIDTHS.SESI },
+        { wch: EXCEL_COLUMN_WIDTHS.KELOMPOK_BESAR },
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
+        { wch: EXCEL_COLUMN_WIDTHS.MATERI },
+        { wch: EXCEL_COLUMN_WIDTHS.RUANGAN }
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, 'Template Materi Kuliah');
+
+      // Sheet 2: Tips dan Info
+      const infoData = createTipsAndInfoSheet('materi');
       const infoWs = XLSX.utils.aoa_to_sheet(infoData);
-      infoWs['!cols'] = [{ wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN }];
+      infoWs['!cols'] = [{ wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN_LEFT }, { wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN }];
       XLSX.utils.book_append_sheet(wb, infoWs, 'Tips dan Info');
 
-      // Download file
-      XLSX.writeFile(wb, `Template_Non_Blok_Non_CSR_${data.kode}.xlsx`);
+      XLSX.writeFile(wb, `Template_Materi_Kuliah_${data.kode}.xlsx`);
     } catch (error) {
-      console.error('Error downloading Non-Blok Non-CSR template:', error);
-      alert('Gagal mendownload template Non-Blok Non-CSR. Silakan coba lagi.');
+      alert('Gagal mendownload template Materi Kuliah. Silakan coba lagi.');
     }
   };
 
-  // Helper function untuk konversi format waktu
-  const convertTimeFormat = (timeStr: string) => {
+  // Fungsi download template Excel untuk Agenda Khusus
+  const downloadAgendaTemplate = async () => {
+    if (!data) return;
+
+    try {
+      const startDate = new Date(data.tanggal_mulai || '');
+      const endDate = new Date(data.tanggal_akhir || '');
+      const exampleDate1 = new Date(startDate.getTime() + (1 * 24 * 60 * 60 * 1000));
+      const exampleDate2 = new Date(startDate.getTime() + (2 * 24 * 60 * 60 * 1000));
+
+      // Template data untuk Agenda Khusus (hanya kolom yang relevan)
+      const templateData = [
+        ['Tanggal', 'Jam Mulai', 'Sesi', 'Kelompok Besar', 'Ruangan', 'Keterangan Agenda'],
+        [
+          formatDateToISO(exampleDate1),
+          '08.20',
+          '2',
+          data.semester?.toString() || '1',
+          ruanganList[0]?.nama || 'Ruang 1',
+          'Ujian Tengah Semester'
+        ],
+        [
+          formatDateToISO(exampleDate2),
+          '10.40',
+          '2',
+          data.semester?.toString() || '1',
+          '',
+          'Seminar Kesehatan Online'
+        ]
+      ];
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(templateData);
+      ws['!cols'] = [
+        { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
+        { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
+        { wch: EXCEL_COLUMN_WIDTHS.SESI },
+        { wch: EXCEL_COLUMN_WIDTHS.KELOMPOK_BESAR },
+        { wch: EXCEL_COLUMN_WIDTHS.RUANGAN },
+        { wch: EXCEL_COLUMN_WIDTHS.AGENDA }
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, 'Template Agenda Khusus');
+
+      // Sheet 2: Tips dan Info
+      const infoData = createTipsAndInfoSheet('agenda');
+      const infoWs = XLSX.utils.aoa_to_sheet(infoData);
+      infoWs['!cols'] = [{ wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN_LEFT }, { wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN }];
+      XLSX.utils.book_append_sheet(wb, infoWs, 'Tips dan Info');
+
+      XLSX.writeFile(wb, `Template_Agenda_Khusus_${data.kode}.xlsx`);
+    } catch (error) {
+      alert('Gagal mendownload template Agenda Khusus. Silakan coba lagi.');
+    }
+  };
+
+  // Fungsi download template Excel untuk Seminar Proposal
+  const downloadSeminarTemplate = async () => {
+    if (!data) return;
+
+    try {
+      const startDate = new Date(data.tanggal_mulai || '');
+      const endDate = new Date(data.tanggal_akhir || '');
+      const exampleDate1 = new Date(startDate.getTime() + (1 * 24 * 60 * 60 * 1000));
+      const exampleDate2 = new Date(startDate.getTime() + (2 * 24 * 60 * 60 * 1000));
+
+      // Template data untuk Seminar Proposal
+      // Contoh data menggunakan nama mahasiswa untuk kemudahan membaca
+      const templateData = [
+        ['Tanggal', 'Jam Mulai', 'Sesi', 'Pembimbing', 'Komentator 1', 'Komentator 2', 'Mahasiswa (Nama, dipisah koma)', 'Ruangan'],
+        [
+          formatDateToISO(exampleDate1),
+          '07.20',
+          '2',
+          dosenList[0]?.name || 'Dosen 1',
+          dosenList[1]?.name || 'Dosen 2',
+          dosenList[2]?.name || 'Dosen 3',
+          mahasiswaList[0]?.name && mahasiswaList[1]?.name 
+            ? `${mahasiswaList[0].name}, ${mahasiswaList[1].name}`
+            : mahasiswaList[0]?.name 
+            ? mahasiswaList[0].name
+            : 'Mahasiswa 1, Mahasiswa 2',
+          ruanganList[0]?.nama || 'Ruang 1'
+        ],
+        [
+          formatDateToISO(exampleDate2),
+          '08.20',
+          '3',
+          dosenList[0]?.name || 'Dosen 1',
+          dosenList[1]?.name || 'Dosen 2',
+          '',
+          mahasiswaList[0]?.name 
+            ? mahasiswaList[0].name
+            : 'Mahasiswa 3',
+          ruanganList[0]?.nama || 'Ruang 1'
+        ]
+      ];
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(templateData);
+      ws['!cols'] = [
+        { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
+        { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
+        { wch: EXCEL_COLUMN_WIDTHS.SESI },
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
+        { wch: 40 },
+        { wch: EXCEL_COLUMN_WIDTHS.RUANGAN }
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, 'Template Seminar Proposal');
+
+      // Sheet 2: Tips dan Info
+      const tipsData = [
+        ['PANDUAN PENGISIAN TEMPLATE SEMINAR PROPOSAL'],
+        [''],
+        ['📋 CARA UPLOAD FILE:'],
+        ['1. Download template ini dan isi dengan data jadwal Seminar Proposal'],
+        ['2. Pastikan semua kolom wajib diisi dengan benar'],
+        ['3. Upload file Excel yang sudah diisi ke sistem'],
+        ['4. Periksa preview data dan perbaiki error jika ada'],
+        ['5. Klik "Import Data" untuk menyimpan jadwal'],
+        [''],
+        ['✏️ CARA EDIT DATA:'],
+        ['1. Klik pada kolom yang ingin diedit di tabel preview'],
+        ['2. Ketik atau paste data yang benar'],
+        ['3. Sistem akan otomatis validasi dan update error'],
+        ['4. Pastikan tidak ada error sebelum import'],
+        [''],
+        ['📊 FORMAT DATA:'],
+        ['• Tanggal: YYYY-MM-DD (contoh: 2024-01-15)'],
+        ['• Jam Mulai: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
+        ['• Sesi: 1-6 (1 sesi = 50 menit)'],
+        ['• Pembimbing: Pilih 1 dosen dari daftar dosen yang tersedia'],
+        ['• Komentator: Pilih maksimal 2 dosen (Komentator 2 boleh dikosongkan)'],
+        ['• Mahasiswa: Masukkan nama mahasiswa, dipisah koma jika lebih dari 1'],
+        ['  Contoh: Nama Mahasiswa 1, Nama Mahasiswa 2'],
+        ['• Ruangan: Pilih ruangan dari daftar ruangan yang tersedia (opsional)'],
+        [''],
+        ['⚠️ VALIDASI WAJIB:'],
+        ['• Pembimbing: Wajib diisi (1 dosen)'],
+        ['• Komentator: Minimal 1, maksimal 2'],
+        ['• Mahasiswa: Minimal 1, tidak ada batasan maksimal'],
+        ['• Ruangan: Opsional, tetapi jika diisi harus valid'],
+        [''],
+        ['🚫 VALIDASI KONSTRAIN:'],
+        ['• Dosen yang sama TIDAK BOLEH dipilih sebagai Pembimbing dan Komentator'],
+        ['  Contoh: Jika Dosen A sudah dipilih sebagai Pembimbing,'],
+        ['  maka Dosen A tidak boleh dipilih sebagai Komentator, dan sebaliknya'],
+        [''],
+        ['🔍 VALIDASI KONFLIK JADWAL:'],
+        ['• Sistem akan mengecek konflik jadwal berdasarkan:'],
+        ['  - Mahasiswa yang dipilih vs kelompok besar/kecil di jadwal lain'],
+        ['  - Pembimbing/Komentator vs Dosen di jadwal lain (pada waktu yang sama)'],
+        ['  - Ruangan yang sama pada waktu yang sama'],
+        ['  - Kapasitas ruangan (Pembimbing + Komentator + Mahasiswa)'],
+        [''],
+        ['💡 TIPS PENTING:'],
+        ['• Pastikan semua data valid sebelum import untuk menghindari error'],
+        ['• Periksa preview sebelum import'],
+        ['• Edit langsung di tabel preview jika ada error'],
+        ['• Sistem akan highlight error dengan warna merah'],
+        ['• Tooltip akan menampilkan pesan error detail']
+      ];
+
+      const tipsWs = XLSX.utils.aoa_to_sheet(tipsData);
+      tipsWs['!cols'] = [{ wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN_LEFT }, { wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN }];
+      XLSX.utils.book_append_sheet(wb, tipsWs, 'Tips dan Info');
+
+      // Template tidak perlu sheet Info Mata Kuliah, hanya untuk export
+      XLSX.writeFile(wb, `Template_Seminar_Proposal_${data.kode}.xlsx`);
+    } catch (error) {
+      alert('Gagal mendownload template Seminar Proposal. Silakan coba lagi.');
+    }
+  };
+
+  // Fungsi download template Excel untuk Sidang Skripsi
+  const downloadSidangTemplate = async () => {
+    if (!data) return;
+
+    try {
+      const startDate = new Date(data.tanggal_mulai || '');
+      const endDate = new Date(data.tanggal_akhir || '');
+      const exampleDate1 = new Date(startDate.getTime() + (1 * 24 * 60 * 60 * 1000));
+      const exampleDate2 = new Date(startDate.getTime() + (2 * 24 * 60 * 60 * 1000));
+
+      // Template data untuk Sidang Skripsi
+      // Contoh data menggunakan nama mahasiswa untuk kemudahan membaca
+      const templateData = [
+        ['Tanggal', 'Jam Mulai', 'Sesi', 'Pembimbing', 'Penguji 1', 'Penguji 2', 'Mahasiswa (Nama, dipisah koma)', 'Ruangan'],
+        [
+          formatDateToISO(exampleDate1),
+          '07.20',
+          '2',
+          dosenList[0]?.name || 'Dosen 1',
+          dosenList[1]?.name || 'Dosen 2',
+          dosenList[2]?.name || 'Dosen 3',
+          mahasiswaList[0]?.name && mahasiswaList[1]?.name 
+            ? `${mahasiswaList[0].name}, ${mahasiswaList[1].name}`
+            : mahasiswaList[0]?.name 
+            ? mahasiswaList[0].name
+            : 'Mahasiswa 1, Mahasiswa 2',
+          ruanganList[0]?.nama || 'Ruang 1'
+        ],
+        [
+          formatDateToISO(exampleDate2),
+          '08.20',
+          '3',
+          dosenList[0]?.name || 'Dosen 1',
+          dosenList[1]?.name || 'Dosen 2',
+          '',
+          mahasiswaList[0]?.name 
+            ? mahasiswaList[0].name
+            : 'Mahasiswa 3',
+          ruanganList[0]?.nama || 'Ruang 1'
+        ]
+      ];
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(templateData);
+      ws['!cols'] = [
+        { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
+        { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
+        { wch: EXCEL_COLUMN_WIDTHS.SESI },
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
+        { wch: 40 },
+        { wch: EXCEL_COLUMN_WIDTHS.RUANGAN }
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, 'Template Sidang Skripsi');
+
+      // Sheet 2: Tips dan Info
+      const tipsData = [
+        ['PANDUAN PENGISIAN TEMPLATE SIDANG SKRIPSI'],
+        [''],
+        ['📋 CARA UPLOAD FILE:'],
+        ['1. Download template ini dan isi dengan data jadwal Sidang Skripsi'],
+        ['2. Pastikan semua kolom wajib diisi dengan benar'],
+        ['3. Upload file Excel yang sudah diisi ke sistem'],
+        ['4. Periksa preview data dan perbaiki error jika ada'],
+        ['5. Klik "Import Data" untuk menyimpan jadwal'],
+        [''],
+        ['✏️ CARA EDIT DATA:'],
+        ['1. Klik pada kolom yang ingin diedit di tabel preview'],
+        ['2. Ketik atau paste data yang benar'],
+        ['3. Sistem akan otomatis validasi dan update error'],
+        ['4. Pastikan tidak ada error sebelum import'],
+        [''],
+        ['📊 FORMAT DATA:'],
+        ['• Tanggal: YYYY-MM-DD (contoh: 2024-01-15)'],
+        ['• Jam Mulai: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
+        ['• Sesi: 1-6 (1 sesi = 50 menit)'],
+        ['• Pembimbing: Pilih 1 dosen dari daftar dosen yang tersedia'],
+        ['• Penguji: Pilih maksimal 2 dosen (Penguji 2 boleh dikosongkan)'],
+        ['• Mahasiswa: Masukkan nama mahasiswa, dipisah koma jika lebih dari 1'],
+        ['  Contoh: Nama Mahasiswa 1, Nama Mahasiswa 2'],
+        ['• Ruangan: Pilih ruangan dari daftar ruangan yang tersedia (opsional)'],
+        [''],
+        ['⚠️ VALIDASI WAJIB:'],
+        ['• Pembimbing: Wajib diisi (1 dosen)'],
+        ['• Penguji: Minimal 1, maksimal 2'],
+        ['• Mahasiswa: Minimal 1, tidak ada batasan maksimal'],
+        ['• Ruangan: Opsional, tetapi jika diisi harus valid'],
+        [''],
+        ['🚫 VALIDASI KONSTRAIN:'],
+        ['• Dosen yang sama TIDAK BOLEH dipilih sebagai Pembimbing dan Penguji'],
+        ['  Contoh: Jika Dosen A sudah dipilih sebagai Pembimbing,'],
+        ['  maka Dosen A tidak boleh dipilih sebagai Penguji, dan sebaliknya'],
+        [''],
+        ['🔍 VALIDASI KONFLIK JADWAL:'],
+        ['• Sistem akan mengecek konflik jadwal berdasarkan:'],
+        ['  - Mahasiswa yang dipilih vs kelompok besar/kecil di jadwal lain'],
+        ['  - Pembimbing/Penguji vs Dosen di jadwal lain (pada waktu yang sama)'],
+        ['  - Ruangan yang sama pada waktu yang sama'],
+        ['  - Kapasitas ruangan (Pembimbing + Penguji + Mahasiswa)'],
+        [''],
+        ['💡 TIPS PENTING:'],
+        ['• Pastikan semua data valid sebelum import untuk menghindari error'],
+        ['• Periksa preview sebelum import'],
+        ['• Edit langsung di tabel preview jika ada error'],
+        ['• Sistem akan highlight error dengan warna merah'],
+        ['• Tooltip akan menampilkan pesan error detail']
+      ];
+
+      const tipsWs = XLSX.utils.aoa_to_sheet(tipsData);
+      tipsWs['!cols'] = [{ wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN_LEFT }, { wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN }];
+      XLSX.utils.book_append_sheet(wb, tipsWs, 'Tips dan Info');
+
+      // Template tidak perlu sheet Info Mata Kuliah, hanya untuk export
+      XLSX.writeFile(wb, `Template_Sidang_Skripsi_${data.kode}.xlsx`);
+    } catch (error) {
+      alert('Gagal mendownload template Sidang Skripsi. Silakan coba lagi.');
+    }
+  };
+
+  // Helper function untuk konversi format waktu - optimized with useCallback
+  const convertTimeFormat = useCallback((timeStr: string) => {
     if (!timeStr || timeStr.trim() === '') return '';
     
     // Hapus spasi dan konversi ke string
@@ -460,14 +877,8 @@ export default function DetailNonBlokNonCSR() {
       return '0' + time.replace('.', ':');
     }
     
-    // Cek apakah format HH:MM atau HH.MM (2 digit jam)
-    if (time.match(/^\d{2}[:.]\d{2}$/)) {
-      return time.replace('.', ':');
-    }
-    
-    // Jika tidak sesuai format, return as is
     return time;
-  };
+  }, []);
 
   // Read Excel file untuk Non-Blok Non-CSR
   const readNonBlokExcelFile = (file: File): Promise<{ headers: string[], data: any[][] }> => {
@@ -512,90 +923,122 @@ export default function DetailNonBlokNonCSR() {
       if (!row.tanggal) {
         errors.push({ row: rowNum, field: 'tanggal', message: `Tanggal wajib diisi (Baris ${rowNum}, Kolom Tanggal)` });
       } else if (!/^\d{4}-\d{2}-\d{2}$/.test(row.tanggal)) {
-        errors.push({ row: rowNum, field: 'tanggal', message: `Format tanggal tidak valid (Baris ${rowNum}, Kolom Tanggal)` });
+        errors.push({ row: rowNum, field: 'tanggal', message: `Format tanggal harus YYYY-MM-DD (Baris ${rowNum}, Kolom Tanggal)` });
       } else {
         // Validasi tanggal yang valid (misal: 2026-02-30 tidak valid)
         const dateObj = new Date(row.tanggal);
         if (isNaN(dateObj.getTime()) || row.tanggal !== dateObj.toISOString().split('T')[0]) {
           errors.push({ row: rowNum, field: 'tanggal', message: `Tanggal tidak valid (Baris ${rowNum}, Kolom Tanggal)` });
-        } else if (data && data.tanggal_mulai && data.tanggal_akhir) {
-        const startDate = new Date(data.tanggal_mulai || '');
-        const endDate = new Date(data.tanggal_akhir || '');
+        } else {
+          // Validasi rentang tanggal mata kuliah (WAJIB)
+          if (!data || !data.tanggal_mulai || !data.tanggal_akhir) {
+            errors.push({ row: rowNum, field: 'tanggal', message: `Data mata kuliah tidak lengkap. Tidak dapat memvalidasi rentang tanggal (Baris ${rowNum}, Kolom Tanggal)` });
+          } else {
+            const startDate = new Date(data.tanggal_mulai);
+            const endDate = new Date(data.tanggal_akhir);
           const inputDate = new Date(row.tanggal);
+            
+            // Set waktu ke 00:00:00 untuk perbandingan yang akurat
+            startDate.setHours(0, 0, 0, 0);
+            endDate.setHours(23, 59, 59, 999);
+            inputDate.setHours(0, 0, 0, 0);
           
           if (inputDate < startDate || inputDate > endDate) {
-            errors.push({ row: rowNum, field: 'tanggal', message: `Tanggal di luar rentang mata kuliah (Baris ${rowNum}, Kolom Tanggal)` });
+              const startDateFormatted = startDate.toLocaleDateString('id-ID');
+              const endDateFormatted = endDate.toLocaleDateString('id-ID');
+              errors.push({ 
+                row: rowNum, 
+                field: 'tanggal', 
+                message: `Tanggal di luar rentang mata kuliah (${startDateFormatted} - ${endDateFormatted}) (Baris ${rowNum}, Kolom Tanggal)` 
+              });
+            }
           }
         }
       }
 
       // Validasi jam mulai
       if (!row.jam_mulai) {
-        errors.push({ row: rowNum, field: 'jam_mulai', message: `Jam mulai wajib diisi (Baris ${rowNum}, Kolom Jam Mulai)` });
+        errors.push({ row: rowNum, field: 'jam_mulai', message: `Jam mulai wajib diisi (Baris ${rowNum}, Kolom jam mulai)` });
       } else if (!/^\d{1,2}[.:]\d{2}$/.test(row.jam_mulai)) {
-        errors.push({ row: rowNum, field: 'jam_mulai', message: `Format jam tidak valid (Baris ${rowNum}, Kolom Jam Mulai)` });
+        errors.push({ row: rowNum, field: 'jam_mulai', message: `Format jam mulai harus HH:MM atau HH.MM (Baris ${rowNum}, Kolom jam mulai)` });
       } else {
         const jamMulaiInput = row.jam_mulai.replace(':', '.');
         if (!jamOptions.includes(jamMulaiInput)) {
-          errors.push({ row: rowNum, field: 'jam_mulai', message: `Jam mulai "${jamMulaiInput}" tidak valid. Jam yang tersedia: ${jamOptions.join(', ')} (Baris ${rowNum}, Kolom Jam Mulai)` });
+          errors.push({ row: rowNum, field: 'jam_mulai', message: `Jam mulai "${row.jam_mulai}" tidak valid. Jam yang tersedia: ${jamOptions.join(', ')} (Baris ${rowNum}, Kolom jam mulai)` });
         }
       }
 
 
-      // Validasi jenis baris
-      if (!row.jenis_baris) {
-        errors.push({ row: rowNum, field: 'jenis_baris', message: `Jenis baris wajib diisi (Baris ${rowNum}, Kolom Jenis Baris)` });
-      } else if (!['materi', 'agenda'].includes(row.jenis_baris)) {
-        errors.push({ row: rowNum, field: 'jenis_baris', message: `Jenis baris harus "materi" atau "agenda" (Baris ${rowNum}, Kolom Jenis Baris)` });
-      }
+      // Validasi jenis baris sudah tidak diperlukan karena jadwal sudah dipisah (materi, agenda, seminar_proposal masing-masing punya tombol import sendiri)
 
       // Validasi sesi
       if (!row.jumlah_sesi) {
-        errors.push({ row: rowNum, field: 'jumlah_sesi', message: `Sesi wajib diisi (Baris ${rowNum}, Kolom Sesi)` });
+        errors.push({ row: rowNum, field: 'jumlah_sesi', message: `Jumlah sesi wajib diisi (Baris ${rowNum}, Kolom SESI)` });
       } else       if (row.jumlah_sesi < MIN_SESSIONS || row.jumlah_sesi > MAX_SESSIONS) {
-        errors.push({ row: rowNum, field: 'jumlah_sesi', message: `Sesi harus ${MIN_SESSIONS}-${MAX_SESSIONS} (Baris ${rowNum}, Kolom Sesi)` });
+        errors.push({ row: rowNum, field: 'jumlah_sesi', message: `Jumlah sesi harus antara ${MIN_SESSIONS}-${MAX_SESSIONS} (Baris ${rowNum}, Kolom SESI)` });
       }
 
-      // Validasi kelompok besar
+      // Validasi kelompok besar (hanya untuk materi dan agenda, bukan seminar_proposal atau sidang_skripsi)
+      if (row.jenis_baris !== 'seminar_proposal' && row.jenis_baris !== 'sidang_skripsi') {
       if (!row.kelompok_besar_id || row.kelompok_besar_id === null) {
-        errors.push({ row: rowNum, field: 'kelompok_besar_id', message: `Kelompok besar wajib diisi (Baris ${rowNum}, Kolom Kelompok Besar)` });
+          errors.push({ row: rowNum, field: 'kelompok_besar_id', message: `Kelompok besar ID wajib diisi (Baris ${rowNum}, Kolom KELOMPOK_BESAR_ID)` });
       } else {
-        const validKelompokBesarIds = kelompokBesarAgendaOptions.map(kb => Number(kb.id));
-        if (!validKelompokBesarIds.includes(row.kelompok_besar_id)) {
-          const availableIds = kelompokBesarAgendaOptions.map(kb => kb.id).join(', ');
-          errors.push({ row: rowNum, field: 'kelompok_besar_id', message: `Kelompok besar ID ${row.kelompok_besar_id} tidak ditemukan. ID yang tersedia: ${availableIds} (Baris ${rowNum}, Kolom Kelompok Besar)` });
-        } else if (data && data.semester) {
+          // Gunakan options yang tepat berdasarkan jenis_baris
+          const kelompokBesarOptions = row.jenis_baris === 'materi' ? kelompokBesarMateriOptions : kelompokBesarAgendaOptions;
+          const validKelompokBesarIds = kelompokBesarOptions.map(kb => Number(kb.id));
+          
+          // Cari kelompok besar dari semua options (materi dan agenda) untuk mendapatkan label
+          const allKelompokBesarOptions = [...kelompokBesarMateriOptions, ...kelompokBesarAgendaOptions];
+          const kelompokBesarFound = allKelompokBesarOptions.find(kb => Number(kb.id) === row.kelompok_besar_id);
+          
+          // Validasi semester mata kuliah (prioritas utama)
+          let hasSemesterError = false;
+          if (data && data.semester) {
           const mataKuliahSemester = parseInt(data.semester.toString());
           if (typeof mataKuliahSemester === 'number' && mataKuliahSemester > 0 && row.kelompok_besar_id !== mataKuliahSemester) {
-            errors.push({ row: rowNum, field: 'kelompok_besar_id', message: `Kelompok besar ID ${row.kelompok_besar_id} tidak sesuai dengan semester mata kuliah (${mataKuliahSemester}). Hanya boleh menggunakan kelompok besar semester ${mataKuliahSemester}. (Baris ${rowNum}, Kolom Kelompok Besar)` });
+              errors.push({ row: rowNum, field: 'kelompok_besar_id', message: `Kelompok besar ID ${row.kelompok_besar_id} tidak sesuai dengan semester mata kuliah (${mataKuliahSemester}). Hanya boleh menggunakan kelompok besar semester ${mataKuliahSemester}. (Baris ${rowNum}, Kolom KELOMPOK_BESAR_ID)` });
+              hasSemesterError = true;
+            }
+          }
+          
+          // Validasi apakah kelompok besar ada di options yang tersedia (hanya jika belum ada error semester)
+          if (!hasSemesterError && !validKelompokBesarIds.includes(row.kelompok_besar_id)) {
+            const availableIds = kelompokBesarOptions.map(kb => kb.id).join(', ');
+            errors.push({ row: rowNum, field: 'kelompok_besar_id', message: `Kelompok besar ID ${row.kelompok_besar_id} tidak ditemukan. ID yang tersedia: ${availableIds} (Baris ${rowNum}, Kolom KELOMPOK_BESAR_ID)` });
           }
         }
       }
 
       // Validasi khusus untuk jenis materi
       if (row.jenis_baris === 'materi') {
-        // Validasi dosen
-        if (!row.dosen_id || row.dosen_id === null) {
-          errors.push({ row: rowNum, field: 'dosen_id', message: `Dosen wajib diisi untuk jenis materi (Baris ${rowNum}, Kolom Dosen)` });
+        // Validasi dosen - cek nama_dosen dulu, lalu cari ID-nya
+        if (!row.nama_dosen || row.nama_dosen.trim() === '') {
+          errors.push({ row: rowNum, field: 'dosen_id', message: `Dosen wajib diisi (Baris ${rowNum}, Kolom Dosen)` });
         } else {
-          const validDosenIds = dosenList.map(d => d.id);
-          if (!validDosenIds.includes(row.dosen_id)) {
-            errors.push({ row: rowNum, field: 'dosen_id', message: `Dosen tidak ditemukan (Baris ${rowNum}, Kolom Dosen)` });
+          const dosenOption = dosenList.find(d => d.name === row.nama_dosen || `${d.name} (${d.nid})` === row.nama_dosen || d.name.includes(row.nama_dosen) || d.nid === row.nama_dosen);
+          if (!dosenOption) {
+            errors.push({ row: rowNum, field: 'dosen_id', message: `Dosen "${row.nama_dosen}" tidak ditemukan (Baris ${rowNum}, Kolom Dosen)` });
+          } else if (!row.dosen_id || row.dosen_id === null) {
+            // Update dosen_id jika belum di-set
+            row.dosen_id = dosenOption.id;
           }
         }
 
         // Validasi materi
         if (!row.materi || row.materi.trim() === '') {
-          errors.push({ row: rowNum, field: 'materi', message: `Materi wajib diisi untuk jenis materi (Baris ${rowNum}, Kolom Materi)` });
+          errors.push({ row: rowNum, field: 'materi', message: `Materi wajib diisi (Baris ${rowNum}, Kolom MATERI)` });
         }
 
-        // Validasi ruangan
-        if (!row.ruangan_id || row.ruangan_id === null) {
-          errors.push({ row: rowNum, field: 'ruangan_id', message: `Ruangan wajib diisi untuk jenis materi (Baris ${rowNum}, Kolom Ruangan)` });
+        // Validasi ruangan - cek nama_ruangan dulu, lalu cari ID-nya
+        if (!row.nama_ruangan || row.nama_ruangan.trim() === '') {
+          errors.push({ row: rowNum, field: 'ruangan_id', message: `Ruangan wajib diisi (Baris ${rowNum}, Kolom Ruangan)` });
         } else {
-          const validRuanganIds = ruanganList.map(r => r.id);
-          if (!validRuanganIds.includes(row.ruangan_id)) {
-            errors.push({ row: rowNum, field: 'ruangan_id', message: `Ruangan tidak ditemukan (Baris ${rowNum}, Kolom Ruangan)` });
+          const ruanganOption = ruanganList.find(r => r.nama === row.nama_ruangan || r.nama.includes(row.nama_ruangan) || r.id.toString() === row.nama_ruangan);
+          if (!ruanganOption) {
+            errors.push({ row: rowNum, field: 'ruangan_id', message: `Ruangan "${row.nama_ruangan}" tidak ditemukan (Baris ${rowNum}, Kolom Ruangan)` });
+          } else if (!row.ruangan_id || row.ruangan_id === null) {
+            // Update ruangan_id jika belum di-set
+            row.ruangan_id = ruanganOption.id;
           }
         }
       }
@@ -607,11 +1050,240 @@ export default function DetailNonBlokNonCSR() {
           errors.push({ row: rowNum, field: 'agenda', message: `Keterangan agenda wajib diisi untuk jenis agenda (Baris ${rowNum}, Kolom Keterangan Agenda)` });
         }
 
-        // Validasi ruangan (opsional untuk agenda)
-        if (row.ruangan_id && row.ruangan_id !== null) {
-          const validRuanganIds = ruanganList.map(r => r.id);
-          if (!validRuanganIds.includes(row.ruangan_id)) {
-            errors.push({ row: rowNum, field: 'ruangan_id', message: `Ruangan tidak ditemukan (Baris ${rowNum}, Kolom Ruangan)` });
+        // Validasi ruangan (opsional untuk agenda) - cek nama_ruangan dulu, lalu cari ID-nya
+        if (row.nama_ruangan && row.nama_ruangan.trim() !== '') {
+          const ruanganOption = ruanganList.find(r => r.nama === row.nama_ruangan || r.nama.includes(row.nama_ruangan) || r.id.toString() === row.nama_ruangan);
+          if (!ruanganOption) {
+            errors.push({ row: rowNum, field: 'ruangan_id', message: `Ruangan "${row.nama_ruangan}" tidak ditemukan (Baris ${rowNum}, Kolom Ruangan)` });
+          } else if (!row.ruangan_id || row.ruangan_id === null) {
+            // Update ruangan_id jika belum di-set
+            row.ruangan_id = ruanganOption.id;
+          }
+        }
+      }
+
+      // Validasi khusus untuk jenis seminar_proposal
+      if (row.jenis_baris === 'seminar_proposal') {
+        // Validasi pembimbing
+        if (!row.nama_pembimbing || row.nama_pembimbing.trim() === '') {
+          errors.push({ row: rowNum, field: 'pembimbing_id', message: `Pembimbing wajib diisi (Baris ${rowNum}, Kolom Pembimbing)` });
+        } else {
+          // Cek apakah ada koma (berarti lebih dari 1 pembimbing)
+          const pembimbingNames = typeof row.nama_pembimbing === 'string' 
+            ? row.nama_pembimbing.split(',').map((n: string) => n.trim()).filter(Boolean)
+            : [row.nama_pembimbing];
+          
+          if (pembimbingNames.length > 1) {
+            errors.push({ row: rowNum, field: 'pembimbing_id', message: `Pembimbing maksimal 1 (Baris ${rowNum}, Kolom Pembimbing)` });
+          } else {
+            const pembimbingOption = dosenList.find(d => 
+              d.name.toLowerCase() === row.nama_pembimbing.toLowerCase() || 
+              `${d.name} (${d.nid})`.toLowerCase() === row.nama_pembimbing.toLowerCase() ||
+              d.nid === row.nama_pembimbing ||
+              d.id.toString() === row.nama_pembimbing
+            );
+            if (!pembimbingOption) {
+              errors.push({ row: rowNum, field: 'pembimbing_id', message: `Pembimbing "${row.nama_pembimbing}" tidak ditemukan (Baris ${rowNum}, Kolom Pembimbing)` });
+            } else {
+              if (!row.pembimbing_id || row.pembimbing_id === null) {
+                row.pembimbing_id = pembimbingOption.id;
+              }
+              // Validasi: Cek apakah pembimbing yang dipilih sudah ada di komentator
+              if (row.komentator_ids && row.komentator_ids.includes(pembimbingOption.id)) {
+                errors.push({ row: rowNum, field: 'pembimbing_id', message: `Dosen "${pembimbingOption.name}" sudah dipilih sebagai Komentator. Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Komentator (Baris ${rowNum}, Kolom Pembimbing)` });
+              }
+            }
+          }
+        }
+
+        // Validasi komentator
+        // Parse nama_komentator - bisa berupa string (setelah edit) atau array (dari parsing Excel)
+        let komentatorNames: string[] = [];
+        if (row.nama_komentator) {
+          if (typeof row.nama_komentator === 'string') {
+            komentatorNames = (row.nama_komentator as string).split(',').map((n: string) => n.trim()).filter(Boolean);
+          } else if (Array.isArray(row.nama_komentator)) {
+            komentatorNames = row.nama_komentator as string[];
+          }
+        }
+        
+        if (komentatorNames.length === 0) {
+          errors.push({ row: rowNum, field: 'komentator_ids', message: `Komentator wajib diisi minimal 1 (Baris ${rowNum}, Kolom Komentator)` });
+        } else if (komentatorNames.length > 2) {
+          errors.push({ row: rowNum, field: 'komentator_ids', message: `Komentator maksimal 2 (Baris ${rowNum}, Kolom Komentator)` });
+        } else {
+          const komentatorIds: number[] = [];
+          komentatorNames.forEach((nama: string, idx: number) => {
+            if (nama && nama.trim() !== '') {
+              const komentatorOption = dosenList.find(d => 
+                d.name.toLowerCase() === nama.toLowerCase() || 
+                `${d.name} (${d.nid})`.toLowerCase() === nama.toLowerCase() ||
+                d.nid === nama ||
+                d.id.toString() === nama
+              );
+              if (!komentatorOption) {
+                errors.push({ row: rowNum, field: 'komentator_ids', message: `Komentator "${nama}" tidak ditemukan (Baris ${rowNum}, Kolom Komentator ${idx + 1})` });
+              } else {
+                komentatorIds.push(komentatorOption.id);
+              }
+            }
+          });
+          if (komentatorIds.length > 0 && (!row.komentator_ids || row.komentator_ids.length === 0)) {
+            (row as any).komentator_ids = komentatorIds;
+            // Validasi: Cek apakah ada dosen yang sama di pembimbing dan komentator
+            if (row.pembimbing_id && komentatorIds.includes(row.pembimbing_id)) {
+              const pembimbingName = dosenList.find(d => d.id === row.pembimbing_id)?.name || 'N/A';
+              errors.push({ row: rowNum, field: 'komentator_ids', message: `Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Komentator: ${pembimbingName} (Baris ${rowNum}, Kolom Komentator)` });
+            }
+          }
+        }
+
+        // Validasi mahasiswa
+        const mahasiswaNims = row.mahasiswa_nims || [];
+        if (mahasiswaNims.length === 0) {
+          errors.push({ row: rowNum, field: 'mahasiswa_nims', message: `Mahasiswa wajib diisi minimal 1 (Baris ${rowNum}, Kolom Mahasiswa)` });
+        }
+
+        // Validasi ruangan (opsional)
+        if (row.nama_ruangan && row.nama_ruangan.trim() !== '') {
+          const ruanganOption = ruanganList.find(r => r.nama === row.nama_ruangan || r.nama.includes(row.nama_ruangan) || r.id.toString() === row.nama_ruangan);
+          if (!ruanganOption) {
+            errors.push({ row: rowNum, field: 'ruangan_id', message: `Ruangan "${row.nama_ruangan}" tidak ditemukan (Baris ${rowNum}, Kolom Ruangan)` });
+          } else if (!row.ruangan_id || row.ruangan_id === null) {
+            row.ruangan_id = ruanganOption.id;
+          } else {
+            // Validasi kapasitas ruangan untuk seminar proposal: pembimbing (1) + komentator + mahasiswa
+            const jumlahPembimbing = row.pembimbing_id ? 1 : 0;
+            const jumlahKomentator = (row.komentator_ids || []).length;
+            const jumlahMahasiswa = (row.mahasiswa_nims || []).length;
+            const totalPeserta = jumlahPembimbing + jumlahKomentator + jumlahMahasiswa;
+            
+            if (totalPeserta > 0 && ruanganOption.kapasitas < totalPeserta) {
+              const detailPeserta = [];
+              if (jumlahPembimbing > 0) detailPeserta.push(`${jumlahPembimbing} pembimbing`);
+              if (jumlahKomentator > 0) detailPeserta.push(`${jumlahKomentator} komentator`);
+              if (jumlahMahasiswa > 0) detailPeserta.push(`${jumlahMahasiswa} mahasiswa`);
+              const detailPesertaStr = detailPeserta.join(' + ');
+              
+              errors.push({ 
+                row: rowNum, 
+                field: 'ruangan_id', 
+                message: `Kapasitas ruangan ${ruanganOption.nama} (${ruanganOption.kapasitas}) tidak cukup untuk ${totalPeserta} orang (${detailPesertaStr}) (Baris ${rowNum}, Kolom Ruangan)` 
+              });
+            }
+          }
+        }
+      }
+
+      // Validasi khusus untuk jenis sidang_skripsi
+      if (row.jenis_baris === 'sidang_skripsi') {
+        // Validasi pembimbing
+        if (!row.nama_pembimbing || row.nama_pembimbing.trim() === '') {
+          errors.push({ row: rowNum, field: 'pembimbing_id', message: `Pembimbing wajib diisi (Baris ${rowNum}, Kolom Pembimbing)` });
+        } else {
+          // Cek apakah ada koma (berarti lebih dari 1 pembimbing)
+          const pembimbingNames = typeof row.nama_pembimbing === 'string' 
+            ? row.nama_pembimbing.split(',').map((n: string) => n.trim()).filter(Boolean)
+            : [row.nama_pembimbing];
+          
+          if (pembimbingNames.length > 1) {
+            errors.push({ row: rowNum, field: 'pembimbing_id', message: `Pembimbing maksimal 1 (Baris ${rowNum}, Kolom Pembimbing)` });
+          } else {
+            const pembimbingOption = dosenList.find(d => 
+              d.name.toLowerCase() === row.nama_pembimbing.toLowerCase() || 
+              `${d.name} (${d.nid})`.toLowerCase() === row.nama_pembimbing.toLowerCase() ||
+              d.nid === row.nama_pembimbing ||
+              d.id.toString() === row.nama_pembimbing
+            );
+            if (!pembimbingOption) {
+              errors.push({ row: rowNum, field: 'pembimbing_id', message: `Pembimbing "${row.nama_pembimbing}" tidak ditemukan (Baris ${rowNum}, Kolom Pembimbing)` });
+            } else {
+              if (!row.pembimbing_id || row.pembimbing_id === null) {
+                row.pembimbing_id = pembimbingOption.id;
+              }
+              // Validasi: Cek apakah pembimbing yang dipilih sudah ada di penguji
+              if (row.penguji_ids && row.penguji_ids.includes(pembimbingOption.id)) {
+                errors.push({ row: rowNum, field: 'pembimbing_id', message: `Dosen "${pembimbingOption.name}" sudah dipilih sebagai Penguji. Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Penguji (Baris ${rowNum}, Kolom Pembimbing)` });
+              }
+            }
+          }
+        }
+
+        // Validasi penguji
+        // Parse nama_penguji - bisa berupa string (setelah edit) atau array (dari parsing Excel)
+        let pengujiNames: string[] = [];
+        if (row.nama_penguji) {
+          if (typeof row.nama_penguji === 'string') {
+            pengujiNames = (row.nama_penguji as string).split(',').map((n: string) => n.trim()).filter(Boolean);
+          } else if (Array.isArray(row.nama_penguji)) {
+            pengujiNames = row.nama_penguji as string[];
+          }
+        }
+        
+        if (pengujiNames.length === 0) {
+          errors.push({ row: rowNum, field: 'penguji_ids', message: `Penguji wajib diisi minimal 1 (Baris ${rowNum}, Kolom Penguji)` });
+        } else if (pengujiNames.length > 2) {
+          errors.push({ row: rowNum, field: 'penguji_ids', message: `Penguji maksimal 2 (Baris ${rowNum}, Kolom Penguji)` });
+        } else {
+          const pengujiIds: number[] = [];
+          pengujiNames.forEach((nama: string, idx: number) => {
+            if (nama && nama.trim() !== '') {
+              const pengujiOption = dosenList.find(d => 
+                d.name.toLowerCase() === nama.toLowerCase() || 
+                `${d.name} (${d.nid})`.toLowerCase() === nama.toLowerCase() ||
+                d.nid === nama ||
+                d.id.toString() === nama
+              );
+              if (!pengujiOption) {
+                errors.push({ row: rowNum, field: 'penguji_ids', message: `Penguji "${nama}" tidak ditemukan (Baris ${rowNum}, Kolom Penguji ${idx + 1})` });
+              } else {
+                pengujiIds.push(pengujiOption.id);
+              }
+            }
+          });
+          if (pengujiIds.length > 0 && (!row.penguji_ids || row.penguji_ids.length === 0)) {
+            (row as any).penguji_ids = pengujiIds;
+            // Validasi: Cek apakah ada dosen yang sama di pembimbing dan penguji
+            if (row.pembimbing_id && pengujiIds.includes(row.pembimbing_id)) {
+              const pembimbingName = dosenList.find(d => d.id === row.pembimbing_id)?.name || 'N/A';
+              errors.push({ row: rowNum, field: 'penguji_ids', message: `Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Penguji: ${pembimbingName} (Baris ${rowNum}, Kolom Penguji)` });
+            }
+          }
+        }
+
+        // Validasi mahasiswa
+        const mahasiswaNims = row.mahasiswa_nims || [];
+        if (mahasiswaNims.length === 0) {
+          errors.push({ row: rowNum, field: 'mahasiswa_nims', message: `Mahasiswa wajib diisi minimal 1 (Baris ${rowNum}, Kolom Mahasiswa)` });
+        }
+
+        // Validasi ruangan (opsional)
+        if (row.nama_ruangan && row.nama_ruangan.trim() !== '') {
+          const ruanganOption = ruanganList.find(r => r.nama === row.nama_ruangan || r.nama.includes(row.nama_ruangan) || r.id.toString() === row.nama_ruangan);
+          if (!ruanganOption) {
+            errors.push({ row: rowNum, field: 'ruangan_id', message: `Ruangan "${row.nama_ruangan}" tidak ditemukan (Baris ${rowNum}, Kolom Ruangan)` });
+          } else if (!row.ruangan_id || row.ruangan_id === null) {
+            row.ruangan_id = ruanganOption.id;
+          } else {
+            // Validasi kapasitas ruangan untuk sidang skripsi: pembimbing (1) + penguji + mahasiswa
+            const jumlahPembimbing = row.pembimbing_id ? 1 : 0;
+            const jumlahPenguji = (row.penguji_ids || []).length;
+            const jumlahMahasiswa = (row.mahasiswa_nims || []).length;
+            const totalPeserta = jumlahPembimbing + jumlahPenguji + jumlahMahasiswa;
+            
+            if (totalPeserta > 0 && ruanganOption.kapasitas < totalPeserta) {
+              const detailPeserta = [];
+              if (jumlahPembimbing > 0) detailPeserta.push(`${jumlahPembimbing} pembimbing`);
+              if (jumlahPenguji > 0) detailPeserta.push(`${jumlahPenguji} penguji`);
+              if (jumlahMahasiswa > 0) detailPeserta.push(`${jumlahMahasiswa} mahasiswa`);
+              const detailPesertaStr = detailPeserta.join(' + ');
+              
+              errors.push({ 
+                row: rowNum, 
+                field: 'ruangan_id', 
+                message: `Kapasitas ruangan ${ruanganOption.nama} (${ruanganOption.kapasitas}) tidak cukup untuk ${totalPeserta} orang (${detailPesertaStr}) (Baris ${rowNum}, Kolom Ruangan)` 
+              });
+            }
           }
         }
       }
@@ -620,153 +1292,261 @@ export default function DetailNonBlokNonCSR() {
     return errors;
   };
 
-  // Handle import Excel untuk Non-Blok Non-CSR
-  const handleNonBlokImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Helper function untuk convert Excel data ke format aplikasi
+  const convertExcelDataToAppFormat = (excelData: any[][], jenisBaris: 'materi' | 'agenda'): JadwalNonBlokNonCSRType[] => {
+    return excelData.map((row, index) => {
+      const rowNum = index + 1;
+      
+      // Parse kelompok besar ID (index 3 untuk kedua jenis)
+      let kelompokBesarId = null;
+      if (row[3] && row[3] !== '') {
+        const kelompokBesarValue = row[3].toString().trim();
+        kelompokBesarId = parseInt(kelompokBesarValue) || null;
+      }
+
+      // Parse dosen ID (hanya untuk materi, index 4)
+      let dosenId = null;
+      if (jenisBaris === 'materi' && row[4] && row[4] !== '') {
+        const dosenOption = dosenList.find(d => d.name === row[4] || `${d.name} (${d.nid})` === row[4] || d.name.includes(row[4]) || d.nid === row[4]);
+        dosenId = dosenOption ? dosenOption.id : null;
+      }
+
+      // Parse ruangan ID (index berbeda untuk materi dan agenda)
+      let ruanganId = null;
+      if (jenisBaris === 'materi') {
+        // Materi: Ruangan di index 6
+        if (row[6] && row[6] !== '') {
+          const ruanganOption = ruanganList.find(r => r.nama === row[6] || r.nama.includes(row[6]) || r.id.toString() === row[6]);
+          ruanganId = ruanganOption ? ruanganOption.id : null;
+        }
+      } else {
+        // Agenda: Ruangan di index 4
+        if (row[4] && row[4] !== '') {
+          const ruanganOption = ruanganList.find(r => r.nama === row[4] || r.nama.includes(row[4]) || r.id.toString() === row[4]);
+          ruanganId = ruanganOption ? ruanganOption.id : null;
+        }
+      }
+
+      // Parse tanggal
+      let tanggal = '';
+      if (row[0]) {
+        if (typeof row[0] === 'number') {
+          // Excel date serial number
+          tanggal = XLSX.SSF.format('yyyy-mm-dd', row[0]);
+        } else {
+          // String date
+          const dateStr = row[0].toString().trim();
+          // Coba parse berbagai format
+          const dateObj = new Date(dateStr);
+          if (!isNaN(dateObj.getTime())) {
+            // Format ke YYYY-MM-DD
+            tanggal = dateObj.toISOString().split('T')[0];
+          } else {
+            // Jika tidak bisa di-parse, gunakan string asli (akan divalidasi nanti)
+            tanggal = dateStr;
+          }
+        }
+        // Validasi format akhir
+        const dateObj = new Date(tanggal);
+        if (isNaN(dateObj.getTime()) || !/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) {
+          // Jika tidak valid, set empty (akan divalidasi nanti)
+          tanggal = '';
+        }
+      }
+
+      const jamMulaiRaw = row[1] || '';
+      const jamMulai = convertTimeFormat(jamMulaiRaw);
+      const jumlahSesi = parseInt(row[2]) || 0; // Sesi di index 2
+      const jamSelesai = hitungJamSelesai(jamMulai, jumlahSesi);
+
+      // Parse materi (hanya untuk materi, index 5)
+      const materi = jenisBaris === 'materi' ? (row[5] || '') : '';
+      
+      // Parse agenda (hanya untuk agenda, index 5)
+      const agenda = jenisBaris === 'agenda' ? (row[5] || '') : '';
+
+      // Parse nama dosen (hanya untuk materi, index 4)
+      const namaDosen = jenisBaris === 'materi' ? (row[4] || '') : '';
+      
+      // Parse nama ruangan
+      const namaRuangan = jenisBaris === 'materi' ? (row[6] || '') : (row[4] || '');
+
+      return {
+        tanggal: tanggal,
+        jam_mulai: jamMulai,
+        jam_selesai: jamSelesai,
+        jenis_baris: jenisBaris,
+        jumlah_sesi: jumlahSesi,
+        kelompok_besar_id: kelompokBesarId,
+        nama_kelompok_besar: row[3] || '',
+        dosen_id: dosenId,
+        nama_dosen: namaDosen,
+        materi: materi,
+        ruangan_id: ruanganId,
+        nama_ruangan: namaRuangan,
+        agenda: agenda,
+        use_ruangan: ruanganId !== null
+      };
+    });
+  };
+
+  // Handle upload file untuk Materi Kuliah (dari modal upload)
+  const handleMateriFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Validate file type
+    if (!file.name.toLowerCase().endsWith('.xlsx') && !file.name.toLowerCase().endsWith('.xls')) {
+      setMateriImportErrors(['Format file Excel tidak dikenali. Harap gunakan file .xlsx atau .xls']);
+      setMateriImportFile(file); // Set file untuk persistence
+      return;
+    }
 
-    // Reset states
-    setNonBlokImportErrors([]);
-    setNonBlokCellErrors([]);
-    setNonBlokImportData([]);
+    // Process file
+    await handleMateriProcessFile(file);
+  };
+
+  // Process file Excel untuk Materi Kuliah
+  const handleMateriProcessFile = async (file: File) => {
+    // Reset error states (tapi jangan reset data untuk persistence)
+    setMateriImportErrors([]);
+    setMateriCellErrors([]);
 
     try {
-      // Validate file type
-      if (!file.name.toLowerCase().endsWith('.xlsx') && !file.name.toLowerCase().endsWith('.xls')) {
-        setNonBlokImportErrors(['Format file Excel tidak dikenali. Harap gunakan file .xlsx atau .xls']);
-        return;
-      }
-
       // Read Excel file
       const { headers, data: excelData } = await readNonBlokExcelFile(file);
       
-      
-      // Validate headers
-      const expectedHeaders = ['Tanggal', 'Jam Mulai', 'Jenis Baris', 'Sesi', 'Kelompok Besar', 'Dosen', 'Materi', 'Ruangan', 'Keterangan Agenda'];
-      
+      // Validate headers untuk Materi Kuliah (tanpa kolom Jenis Baris)
+      const expectedHeaders = ['Tanggal', 'Jam Mulai', 'Sesi', 'Kelompok Besar', 'Dosen', 'Materi', 'Ruangan'];
       const headerMatch = expectedHeaders.every(header => headers.includes(header));
       
       if (!headerMatch) {
-        const missingHeaders = expectedHeaders.filter(header => !headers.includes(header));
-        setNonBlokImportErrors(['Format file Excel tidak sesuai dengan template aplikasi. Pastikan kolom sesuai dengan template yang didownload.']);
+        setMateriImportErrors(['Format file Excel tidak sesuai dengan template aplikasi. Pastikan kolom sesuai dengan template Materi Kuliah yang didownload.']);
+        setMateriImportFile(file); // Set file untuk persistence
         return;
       }
 
       // Convert Excel data to our format
-      const convertedData = excelData.map((row, index) => {
-        const rowNum = index + 1;
-        
-        
-        // Parse kelompok besar ID - Mapping langsung dari Excel (biar user edit manual jika tidak valid)
-        let kelompokBesarId = null;
-        if (row[4] && row[4] !== '') {
-          const kelompokBesarValue = row[4].toString().trim();
-          
-          // Mapping langsung dari Excel - biar user edit manual jika tidak valid
-          kelompokBesarId = parseInt(kelompokBesarValue) || null;
-        }
-
-        // Parse dosen ID
-        let dosenId = null;
-        if (row[5] && row[5] !== '') {
-          const dosenOption = dosenList.find(d => d.name === row[5] || `${d.name} (${d.nid})` === row[5] || d.name.includes(row[5]) || d.nid === row[5]);
-          dosenId = dosenOption ? dosenOption.id : null;
-        }
-
-        // Parse ruangan ID
-        let ruanganId = null;
-        if (row[7] && row[7] !== '') {
-          const ruanganOption = ruanganList.find(r => r.nama === row[7] || r.nama.includes(row[7]) || r.id.toString() === row[7]);
-          ruanganId = ruanganOption ? ruanganOption.id : null;
-        }
-
-        // Parse dan validasi tanggal
-        let tanggal = '';
-        if (row[0]) {
-          if (typeof row[0] === 'number') {
-            tanggal = XLSX.SSF.format('yyyy-mm-dd', row[0]);
-          } else {
-            tanggal = row[0].toString();
-          }
-          
-          // Validasi tanggal
-          const dateObj = new Date(tanggal);
-          if (isNaN(dateObj.getTime()) || tanggal !== dateObj.toISOString().split('T')[0]) {
-            tanggal = ''; // Set empty jika tanggal tidak valid
-          }
-        }
-
-        const jamMulaiRaw = row[1] || '';
-        const jamMulai = convertTimeFormat(jamMulaiRaw);
-        const jumlahSesi = parseInt(row[3]) || 0;
-        const jamSelesai = hitungJamSelesai(jamMulai, jumlahSesi);
-
-        const convertedRow = {
-          tanggal: tanggal,
-          jam_mulai: jamMulai,
-          jam_selesai: jamSelesai,
-          jenis_baris: row[2] || '',
-          jumlah_sesi: jumlahSesi,
-          kelompok_besar_id: kelompokBesarId,
-          nama_kelompok_besar: row[4] || '',
-          dosen_id: dosenId,
-          nama_dosen: row[5] || '',
-          materi: row[6] || '',
-          ruangan_id: ruanganId,
-          nama_ruangan: row[7] || '',
-          agenda: row[8] || '',
-          use_ruangan: row[8] && row[8] !== '' ? true : false
-        };
-        
-        return convertedRow;
-      });
-
+      const convertedData = convertExcelDataToAppFormat(excelData, 'materi');
+      
+      // Semua data sudah otomatis jenis_baris = 'materi'
+      const materiData = convertedData;
+      
+      if (materiData.length === 0) {
+        setMateriImportErrors(['File Excel tidak mengandung data Materi Kuliah. Pastikan file yang diupload adalah template Materi Kuliah.']);
+        setMateriImportFile(file); // Set file untuk persistence
+        return;
+      }
 
       // Validate data
-      const validationErrors = validateNonBlokExcelData(convertedData);
-      setNonBlokCellErrors(validationErrors);
+      const validationErrors = validateNonBlokExcelData(materiData);
+      setMateriCellErrors(validationErrors);
 
-      // Set data and open modal
-      setNonBlokImportData(convertedData);
-      setNonBlokImportFile(file);
-      setShowNonBlokImportModal(true);
+      // Set data and file (persistence)
+      setMateriImportData(materiData);
+      setMateriImportFile(file);
       
-
+      // File sudah di-set, preview akan muncul di modal yang sama
+      
     } catch (error: any) {
-      setNonBlokImportErrors([error.message || 'Terjadi kesalahan saat membaca file Excel']);
+      setMateriImportErrors([error.message || 'Terjadi kesalahan saat membaca file Excel']);
+      setMateriImportFile(file); // Set file untuk persistence
     }
   };
 
-  // Submit import Excel untuk Non-Blok Non-CSR
-  const handleNonBlokSubmitImport = async () => {
-    if (!kode || nonBlokImportData.length === 0) return;
+  // Handle upload file untuk Agenda Khusus (dari modal upload)
+  const handleAgendaFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-    setIsNonBlokImporting(true);
-    setNonBlokImportErrors([]);
+      // Validate file type
+      if (!file.name.toLowerCase().endsWith('.xlsx') && !file.name.toLowerCase().endsWith('.xls')) {
+      setAgendaImportErrors(['Format file Excel tidak dikenali. Harap gunakan file .xlsx atau .xls']);
+      setAgendaImportFile(file); // Set file untuk persistence
+        return;
+      }
+
+    // Process file
+    await handleAgendaProcessFile(file);
+  };
+
+  // Process file Excel untuk Agenda Khusus
+  const handleAgendaProcessFile = async (file: File) => {
+    // Reset error states (tapi jangan reset data untuk persistence)
+    setAgendaImportErrors([]);
+    setAgendaCellErrors([]);
+
+    try {
+      // Read Excel file
+      const { headers, data: excelData } = await readNonBlokExcelFile(file);
+      
+      // Validate headers untuk Agenda Khusus (tanpa kolom Jenis Baris, Dosen, Materi)
+      const expectedHeaders = ['Tanggal', 'Jam Mulai', 'Sesi', 'Kelompok Besar', 'Ruangan', 'Keterangan Agenda'];
+      const headerMatch = expectedHeaders.every(header => headers.includes(header));
+      
+      if (!headerMatch) {
+        setAgendaImportErrors(['Format file Excel tidak sesuai dengan template aplikasi. Pastikan kolom sesuai dengan template Agenda Khusus yang didownload.']);
+        setAgendaImportFile(file); // Set file untuk persistence
+        return;
+      }
+
+      // Convert Excel data to our format
+      const convertedData = convertExcelDataToAppFormat(excelData, 'agenda');
+      
+      // Semua data sudah otomatis jenis_baris = 'agenda'
+      const agendaData = convertedData;
+      
+      if (agendaData.length === 0) {
+        setAgendaImportErrors(['File Excel tidak mengandung data Agenda Khusus. Pastikan file yang diupload adalah template Agenda Khusus.']);
+        setAgendaImportFile(file); // Set file untuk persistence
+        return;
+      }
+
+      // Validate data
+      const validationErrors = validateNonBlokExcelData(agendaData);
+      setAgendaCellErrors(validationErrors);
+
+      // Set data and file (persistence)
+      setAgendaImportData(agendaData);
+      setAgendaImportFile(file);
+      
+      // File sudah di-set, preview akan muncul di modal yang sama
+      
+    } catch (error: any) {
+      setAgendaImportErrors([error.message || 'Terjadi kesalahan saat membaca file Excel']);
+      setAgendaImportFile(file); // Set file untuk persistence
+    }
+  };
+
+  // Submit import Excel untuk Materi Kuliah
+  const handleMateriSubmitImport = async () => {
+    if (!kode || materiImportData.length === 0) return;
+
+    setIsMateriImporting(true);
+    setMateriImportErrors([]);
 
     try {
       // Final validation
-      const validationErrors = validateNonBlokExcelData(nonBlokImportData);
+      const validationErrors = validateNonBlokExcelData(materiImportData);
       if (validationErrors.length > 0) {
-        setNonBlokCellErrors(validationErrors);
-        setIsNonBlokImporting(false);
+        setMateriCellErrors(validationErrors);
+        setIsMateriImporting(false);
         return;
       }
 
       // Transform data for API
-      const apiData = nonBlokImportData.map(row => ({
+      const apiData = materiImportData.map(row => ({
         tanggal: row.tanggal,
         jam_mulai: row.jam_mulai,
         jam_selesai: row.jam_selesai,
-        jenis_baris: row.jenis_baris,
+        jenis_baris: 'materi',
         jumlah_sesi: row.jumlah_sesi,
         kelompok_besar_id: row.kelompok_besar_id,
         dosen_id: row.dosen_id,
         materi: row.materi,
         ruangan_id: row.ruangan_id,
-        agenda: row.agenda,
-        use_ruangan: row.use_ruangan
+        agenda: '',
+        use_ruangan: true
       }));
 
       // Send to API
@@ -775,26 +1555,375 @@ export default function DetailNonBlokNonCSR() {
       });
 
       if (response.data.success) {
-        setNonBlokImportedCount(nonBlokImportData.length);
-        setShowNonBlokImportModal(false);
-        // Cleanup data setelah import berhasil
-        setNonBlokImportData([]);
-        setNonBlokImportFile(null);
-        setNonBlokImportErrors([]);
-        setNonBlokCellErrors([]);
-        setNonBlokEditingCell(null);
-        await fetchBatchData(); // Refresh data
+        setMateriImportedCount(materiImportData.length);
+        setShowMateriUploadModal(false);
+        setShowMateriImportModal(false);
+        // Reset semua state setelah import berhasil
+        setMateriImportData([]);
+        setMateriImportErrors([]);
+        setMateriCellErrors([]);
+        setMateriEditingCell(null);
+        setMateriImportFile(null);
+        setMateriImportPage(1);
+        if (materiFileInputRef.current) {
+          materiFileInputRef.current.value = '';
+        }
+        await fetchBatchData();
       } else {
-        setNonBlokImportErrors([response.data.message || 'Terjadi kesalahan saat mengimport data']);
-        // Tidak import data jika ada error - all or nothing
+        setMateriImportErrors([response.data.message || 'Terjadi kesalahan saat mengimport data']);
       }
     } catch (error: any) {
       if (error.response?.status === 422) {
         const errorData = error.response.data;
         if (errorData.errors && Array.isArray(errorData.errors)) {
-          // Parse error messages yang sudah dalam format "Baris X: [pesan]"
           const cellErrors = errorData.errors.map((err: string) => {
-            // Extract row number dari error message
+            const rowMatch = err.match(/Baris\s+(\d+):/);
+            const row = rowMatch ? parseInt(rowMatch[1]) : 0;
+            return {
+              row: row,
+              field: 'api',
+              message: err
+            };
+          });
+          setMateriCellErrors(cellErrors);
+        } else {
+          setMateriImportErrors([errorData.message || 'Terjadi kesalahan validasi']);
+        }
+      } else {
+        const errorMessage = error.response?.data?.message || 'Terjadi kesalahan saat mengimport data';
+        setMateriImportErrors([errorMessage]);
+      }
+    } finally {
+      setIsMateriImporting(false);
+    }
+  };
+
+  // Submit import Excel untuk Agenda Khusus
+  const handleAgendaSubmitImport = async () => {
+    if (!kode || agendaImportData.length === 0) return;
+
+    setIsAgendaImporting(true);
+    setAgendaImportErrors([]);
+
+    try {
+      // Final validation
+      const validationErrors = validateNonBlokExcelData(agendaImportData);
+      if (validationErrors.length > 0) {
+        setAgendaCellErrors(validationErrors);
+        setIsAgendaImporting(false);
+        return;
+      }
+
+      // Transform data for API
+      const apiData = agendaImportData.map(row => ({
+        tanggal: row.tanggal,
+        jam_mulai: row.jam_mulai,
+        jam_selesai: row.jam_selesai,
+        jenis_baris: 'agenda',
+        jumlah_sesi: row.jumlah_sesi,
+        kelompok_besar_id: row.kelompok_besar_id,
+        dosen_id: null,
+        materi: '',
+        ruangan_id: row.ruangan_id,
+        agenda: row.agenda,
+        use_ruangan: row.ruangan_id !== null
+      }));
+
+      // Send to API
+      const response = await api.post(`/non-blok-non-csr/jadwal/${kode}/import`, {
+        data: apiData
+      });
+
+      if (response.data.success) {
+        setAgendaImportedCount(agendaImportData.length);
+        setShowAgendaUploadModal(false);
+        setShowAgendaImportModal(false);
+        // Reset semua state setelah import berhasil
+        setAgendaImportData([]);
+        setAgendaImportErrors([]);
+        setAgendaCellErrors([]);
+        setAgendaEditingCell(null);
+        setAgendaImportFile(null);
+        setAgendaImportPage(1);
+        if (agendaFileInputRef.current) {
+          agendaFileInputRef.current.value = '';
+        }
+        await fetchBatchData();
+          } else {
+        setAgendaImportErrors([response.data.message || 'Terjadi kesalahan saat mengimport data']);
+      }
+    } catch (error: any) {
+      if (error.response?.status === 422) {
+        const errorData = error.response.data;
+        if (errorData.errors && Array.isArray(errorData.errors)) {
+          const cellErrors = errorData.errors.map((err: string) => {
+            const rowMatch = err.match(/Baris\s+(\d+):/);
+            const row = rowMatch ? parseInt(rowMatch[1]) : 0;
+            return {
+              row: row,
+              field: 'api',
+              message: err
+            };
+          });
+          setAgendaCellErrors(cellErrors);
+        } else {
+          setAgendaImportErrors([errorData.message || 'Terjadi kesalahan validasi']);
+        }
+      } else {
+        const errorMessage = error.response?.data?.message || 'Terjadi kesalahan saat mengimport data';
+        setAgendaImportErrors([errorMessage]);
+      }
+    } finally {
+      setIsAgendaImporting(false);
+    }
+  };
+
+  // Close upload modal untuk Materi Kuliah
+  const handleMateriCloseUploadModal = () => {
+    setShowMateriUploadModal(false);
+    // Tidak menghapus file untuk persistence
+  };
+
+  // Close import modal untuk Materi Kuliah
+  const handleMateriCloseImportModal = () => {
+    setShowMateriImportModal(false);
+    // Tidak menghapus data untuk persistence
+  };
+
+  // Handler untuk hapus file Materi Kuliah
+  const handleMateriRemoveFile = () => {
+    setMateriImportFile(null);
+    setMateriImportData([]);
+    setMateriImportErrors([]);
+    setMateriCellErrors([]);
+    setMateriEditingCell(null);
+    setMateriImportPage(1);
+    if (materiFileInputRef.current) {
+      materiFileInputRef.current.value = '';
+    }
+  };
+
+  // Close upload modal untuk Agenda Khusus
+  const handleAgendaCloseUploadModal = () => {
+    setShowAgendaUploadModal(false);
+    // Tidak menghapus file untuk persistence
+  };
+
+  // Close import modal untuk Agenda Khusus
+  const handleAgendaCloseImportModal = () => {
+    setShowAgendaImportModal(false);
+    // Tidak menghapus data untuk persistence
+  };
+
+  // Handler untuk hapus file Agenda Khusus
+  const handleAgendaRemoveFile = () => {
+    setAgendaImportFile(null);
+    setAgendaImportData([]);
+    setAgendaImportErrors([]);
+    setAgendaCellErrors([]);
+    setAgendaEditingCell(null);
+    setAgendaImportPage(1);
+    if (agendaFileInputRef.current) {
+      agendaFileInputRef.current.value = '';
+    }
+  };
+
+  // Handle upload file untuk Seminar Proposal (dari modal upload)
+  const handleSeminarFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.name.toLowerCase().endsWith('.xlsx') && !file.name.toLowerCase().endsWith('.xls')) {
+      setSeminarImportErrors(['Format file Excel tidak dikenali. Harap gunakan file .xlsx atau .xls']);
+      setSeminarImportFile(file);
+      return;
+    }
+
+    // Process file
+    await handleSeminarProcessFile(file);
+  };
+
+  // Process file Excel untuk Seminar Proposal
+  const handleSeminarProcessFile = async (file: File) => {
+    setSeminarImportErrors([]);
+    setSeminarCellErrors([]);
+
+    try {
+      const { headers, data: excelData } = await readNonBlokExcelFile(file);
+      
+      // Validate headers untuk Seminar Proposal (menerima header dengan NIM atau Nama)
+      const expectedHeaders = ['Tanggal', 'Jam Mulai', 'Sesi', 'Pembimbing', 'Komentator 1', 'Komentator 2', 'Ruangan'];
+      const mahasiswaHeader = headers.find(h => h.toLowerCase().includes('mahasiswa'));
+      const headerMatch = expectedHeaders.every(header => headers.includes(header)) && mahasiswaHeader !== undefined;
+      
+      if (!headerMatch) {
+        setSeminarImportErrors(['Format file Excel tidak sesuai dengan template aplikasi. Pastikan kolom sesuai dengan template Seminar Proposal yang didownload.']);
+        setSeminarImportFile(file);
+        return;
+      }
+
+      // Convert Excel data to our format
+      const convertedData = excelData.map((row: any[], index: number) => {
+        const tanggal = row[0] || '';
+        const jamMulaiRaw = row[1] || '';
+        const jamMulai = convertTimeFormat(jamMulaiRaw);
+        const jumlahSesi = parseInt(row[2]) || 0;
+        const jamSelesai = hitungJamSelesai(jamMulai, jumlahSesi);
+        const namaPembimbing = row[3] || '';
+        const namaKomentator1 = row[4] || '';
+        const namaKomentator2 = row[5] || '';
+        const mahasiswaNims = row[6] || '';
+        const namaRuangan = row[7] || '';
+
+        // Find pembimbing
+        const pembimbing = dosenList.find(d => 
+          d.name.toLowerCase() === namaPembimbing.toLowerCase() || 
+          d.id.toString() === namaPembimbing
+        );
+        const pembimbingId = pembimbing?.id || null;
+
+        // Find komentator
+        const komentatorIds: number[] = [];
+        if (namaKomentator1) {
+          const komentator1 = dosenList.find(d => 
+            d.name.toLowerCase() === namaKomentator1.toLowerCase() || 
+            d.id.toString() === namaKomentator1
+          );
+          if (komentator1) komentatorIds.push(komentator1.id);
+        }
+        if (namaKomentator2) {
+          const komentator2 = dosenList.find(d => 
+            d.name.toLowerCase() === namaKomentator2.toLowerCase() || 
+            d.id.toString() === namaKomentator2
+          );
+          if (komentator2) komentatorIds.push(komentator2.id);
+        }
+
+        // Parse mahasiswa - bisa berupa nama atau NIM (dipisah koma)
+        // Coba cari berdasarkan nama dulu, jika tidak ditemukan coba sebagai NIM
+        const mahasiswaInputs = mahasiswaNims.split(',').map(input => input.trim()).filter(Boolean);
+        const mahasiswaNimsArray: string[] = [];
+        
+        for (const input of mahasiswaInputs) {
+          // Coba cari berdasarkan nama
+          const mahasiswaByName = mahasiswaList.find(m => 
+            m.name.toLowerCase() === input.toLowerCase()
+          );
+          
+          if (mahasiswaByName) {
+            mahasiswaNimsArray.push(mahasiswaByName.nim);
+          } else {
+            // Jika tidak ditemukan sebagai nama, anggap sebagai NIM
+            mahasiswaNimsArray.push(input);
+          }
+        }
+
+        // Find ruangan
+        const ruangan = ruanganList.find(r => 
+          r.nama.toLowerCase() === namaRuangan.toLowerCase() || 
+          r.id.toString() === namaRuangan
+        );
+        const ruanganId = ruangan?.id || null;
+
+        return {
+          tanggal: tanggal,
+          jam_mulai: jamMulai,
+          jam_selesai: jamSelesai,
+          jenis_baris: 'seminar_proposal' as const,
+          jumlah_sesi: jumlahSesi,
+          pembimbing_id: pembimbingId,
+          nama_pembimbing: namaPembimbing,
+          komentator_ids: komentatorIds,
+          nama_komentator: [namaKomentator1, namaKomentator2].filter(Boolean),
+          mahasiswa_nims: mahasiswaNimsArray,
+          nama_mahasiswa: mahasiswaNimsArray,
+          ruangan_id: ruanganId,
+          nama_ruangan: namaRuangan,
+          use_ruangan: ruanganId !== null,
+          kelompok_besar_id: null,
+          dosen_id: null
+        };
+      });
+
+      if (convertedData.length === 0) {
+        setSeminarImportErrors(['File Excel tidak mengandung data Seminar Proposal. Pastikan file yang diupload adalah template Seminar Proposal.']);
+        setSeminarImportFile(file);
+        return;
+      }
+
+      // Validate data
+      const validationErrors = validateNonBlokExcelData(convertedData);
+      setSeminarCellErrors(validationErrors);
+
+      setSeminarImportData(convertedData);
+      seminarImportDataRef.current = convertedData;
+      setSeminarImportFile(file);
+
+    } catch (error: any) {
+      setSeminarImportErrors([error.message || 'Terjadi kesalahan saat membaca file Excel']);
+      setSeminarImportFile(file);
+    }
+  };
+
+  // Submit import Excel untuk Seminar Proposal
+  const handleSeminarSubmitImport = async () => {
+    if (!kode || seminarImportData.length === 0) return;
+
+    setIsSeminarImporting(true);
+    setSeminarImportErrors([]);
+
+    try {
+      // Final validation
+      const validationErrors = validateNonBlokExcelData(seminarImportData);
+      if (validationErrors.length > 0) {
+        setSeminarCellErrors(validationErrors);
+        setIsSeminarImporting(false);
+        return;
+      }
+
+      // Transform data for API
+      const apiData = seminarImportData.map(row => ({
+        tanggal: row.tanggal,
+        jam_mulai: row.jam_mulai,
+        jam_selesai: row.jam_selesai,
+        jenis_baris: 'seminar_proposal',
+        jumlah_sesi: row.jumlah_sesi,
+        pembimbing_id: row.pembimbing_id,
+        komentator_ids: row.komentator_ids,
+        mahasiswa_nims: row.mahasiswa_nims,
+        ruangan_id: row.ruangan_id,
+        use_ruangan: row.ruangan_id !== null
+      }));
+
+      // Send to API
+      const response = await api.post(`/non-blok-non-csr/jadwal/${kode}/import`, {
+        data: apiData
+      });
+
+      if (response.data.success) {
+        setSeminarImportedCount(seminarImportData.length);
+        setShowSeminarUploadModal(false);
+        // Reset semua state setelah import berhasil
+        setSeminarImportData([]);
+        seminarImportDataRef.current = [];
+        setSeminarImportErrors([]);
+        setSeminarCellErrors([]);
+        setSeminarEditingCell(null);
+        setSeminarImportFile(null);
+        setSeminarImportPage(1);
+        if (seminarFileInputRef.current) {
+          seminarFileInputRef.current.value = '';
+        }
+        await fetchBatchData();
+      } else {
+        setSeminarImportErrors([response.data.message || 'Terjadi kesalahan saat mengimport data']);
+      }
+    } catch (error: any) {
+      if (error.response?.status === 422) {
+        const errorData = error.response.data;
+        if (errorData.errors && Array.isArray(errorData.errors)) {
+          const cellErrors = errorData.errors.map((err: string) => {
             const rowMatch = err.match(/Baris\s+(\d+):/);
             const row = rowMatch ? parseInt(rowMatch[1]) : 0;
             return {
@@ -803,60 +1932,1083 @@ export default function DetailNonBlokNonCSR() {
             message: err
             };
           });
-          setNonBlokCellErrors(cellErrors);
+          setSeminarCellErrors(cellErrors);
         } else {
-          setNonBlokImportErrors([errorData.message || 'Terjadi kesalahan validasi']);
+          setSeminarImportErrors([errorData.message || 'Terjadi kesalahan validasi']);
         }
       } else {
         const errorMessage = error.response?.data?.message || 'Terjadi kesalahan saat mengimport data';
-        setNonBlokImportErrors([errorMessage]);
+        setSeminarImportErrors([errorMessage]);
       }
     } finally {
-      setIsNonBlokImporting(false);
+      setIsSeminarImporting(false);
     }
   };
 
-  // Close import modal untuk Non-Blok Non-CSR
-  const handleNonBlokCloseImportModal = () => {
-    setShowNonBlokImportModal(false);
-    // Tidak menghapus data untuk file persistence
+  // Close upload modal untuk Seminar Proposal
+  const handleSeminarCloseUploadModal = () => {
+    setShowSeminarUploadModal(false);
   };
 
-  // Handler untuk hapus file Non-Blok Non-CSR
-  const handleNonBlokRemoveFile = () => {
-    setNonBlokImportFile(null);
-    setNonBlokImportData([]);
-    setNonBlokImportErrors([]);
-    setNonBlokCellErrors([]);
-    setNonBlokEditingCell(null);
-    setNonBlokImportPage(1);
-    if (nonBlokFileInputRef.current) {
-      nonBlokFileInputRef.current.value = '';
+  // Handler untuk hapus file Seminar Proposal
+  const handleSeminarRemoveFile = () => {
+    setSeminarImportFile(null);
+    setSeminarImportData([]);
+    setSeminarImportErrors([]);
+    setSeminarCellErrors([]);
+    setSeminarEditingCell(null);
+    setSeminarImportPage(1);
+    if (seminarFileInputRef.current) {
+      seminarFileInputRef.current.value = '';
     }
   };
 
-  // Edit cell untuk Non-Blok Non-CSR
-  const handleNonBlokEditCell = (rowIndex: number, field: string, value: any) => {
-    const updatedData = [...nonBlokImportData];
-    updatedData[rowIndex] = { ...updatedData[rowIndex], [field]: value };
+  // Handle upload file untuk Sidang Skripsi (dari modal upload)
+  const handleSidangFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.name.toLowerCase().endsWith('.xlsx') && !file.name.toLowerCase().endsWith('.xls')) {
+      setSidangImportErrors(['Format file Excel tidak dikenali. Harap gunakan file .xlsx atau .xls']);
+      setSidangImportFile(file);
+      return;
+    }
+
+    // Process file
+    await handleSidangProcessFile(file);
+  };
+
+  // Process file Excel untuk Sidang Skripsi
+  const handleSidangProcessFile = async (file: File) => {
+    setSidangImportErrors([]);
+    setSidangCellErrors([]);
+
+    try {
+      const { headers, data: excelData } = await readNonBlokExcelFile(file);
+      
+      // Validate headers untuk Sidang Skripsi (menerima header dengan NIM atau Nama)
+      const expectedHeaders = ['Tanggal', 'Jam Mulai', 'Sesi', 'Pembimbing', 'Penguji 1', 'Penguji 2', 'Ruangan'];
+      const mahasiswaHeader = headers.find(h => h.toLowerCase().includes('mahasiswa'));
+      const headerMatch = expectedHeaders.every(header => headers.includes(header)) && mahasiswaHeader !== undefined;
+      
+      if (!headerMatch) {
+        setSidangImportErrors(['Format file Excel tidak sesuai dengan template aplikasi. Pastikan kolom sesuai dengan template Sidang Skripsi yang didownload.']);
+        setSidangImportFile(file);
+        return;
+      }
+
+      // Convert Excel data to our format
+      const convertedData = excelData.map((row: any[], index: number) => {
+        const tanggal = row[0] || '';
+        const jamMulaiRaw = row[1] || '';
+        const jamMulai = convertTimeFormat(jamMulaiRaw);
+        const jumlahSesi = parseInt(row[2]) || 0;
+        const jamSelesai = hitungJamSelesai(jamMulai, jumlahSesi);
+        const namaPembimbing = row[3] || '';
+        const namaPenguji1 = row[4] || '';
+        const namaPenguji2 = row[5] || '';
+        const mahasiswaNims = row[6] || '';
+        const namaRuangan = row[7] || '';
+
+        // Find pembimbing
+        const pembimbing = dosenList.find(d => 
+          d.name.toLowerCase() === namaPembimbing.toLowerCase() || 
+          d.id.toString() === namaPembimbing
+        );
+        const pembimbingId = pembimbing?.id || null;
+
+        // Find penguji
+        const pengujiIds: number[] = [];
+        if (namaPenguji1) {
+          const penguji1 = dosenList.find(d => 
+            d.name.toLowerCase() === namaPenguji1.toLowerCase() || 
+            d.id.toString() === namaPenguji1
+          );
+          if (penguji1) pengujiIds.push(penguji1.id);
+        }
+        if (namaPenguji2) {
+          const penguji2 = dosenList.find(d => 
+            d.name.toLowerCase() === namaPenguji2.toLowerCase() || 
+            d.id.toString() === namaPenguji2
+          );
+          if (penguji2) pengujiIds.push(penguji2.id);
+        }
+
+        // Parse mahasiswa - bisa berupa nama atau NIM (dipisah koma)
+        // Coba cari berdasarkan nama dulu, jika tidak ditemukan coba sebagai NIM
+        const mahasiswaInputs = mahasiswaNims.split(',').map(input => input.trim()).filter(Boolean);
+        const mahasiswaNimsArray: string[] = [];
+        
+        for (const input of mahasiswaInputs) {
+          // Coba cari berdasarkan nama
+          const mahasiswaByName = mahasiswaList.find(m => 
+            m.name.toLowerCase() === input.toLowerCase()
+          );
+          
+          if (mahasiswaByName) {
+            mahasiswaNimsArray.push(mahasiswaByName.nim);
+          } else {
+            // Jika tidak ditemukan sebagai nama, anggap sebagai NIM
+            mahasiswaNimsArray.push(input);
+          }
+        }
+
+        // Find ruangan
+        const ruangan = ruanganList.find(r => 
+          r.nama.toLowerCase() === namaRuangan.toLowerCase() || 
+          r.id.toString() === namaRuangan
+        );
+        const ruanganId = ruangan?.id || null;
+
+        return {
+          tanggal: tanggal,
+          jam_mulai: jamMulai,
+          jam_selesai: jamSelesai,
+          jenis_baris: 'sidang_skripsi' as const,
+          jumlah_sesi: jumlahSesi,
+          pembimbing_id: pembimbingId,
+          nama_pembimbing: namaPembimbing,
+          penguji_ids: pengujiIds,
+          nama_penguji: [namaPenguji1, namaPenguji2].filter(Boolean),
+          mahasiswa_nims: mahasiswaNimsArray,
+          nama_mahasiswa: mahasiswaNimsArray,
+          ruangan_id: ruanganId,
+          nama_ruangan: namaRuangan,
+          use_ruangan: ruanganId !== null,
+          kelompok_besar_id: null,
+          dosen_id: null
+        };
+      });
+
+      if (convertedData.length === 0) {
+        setSidangImportErrors(['File Excel tidak mengandung data Sidang Skripsi. Pastikan file yang diupload adalah template Sidang Skripsi.']);
+        setSidangImportFile(file);
+        return;
+      }
+
+      // Validate data
+      const validationErrors = validateNonBlokExcelData(convertedData);
+      setSidangCellErrors(validationErrors);
+
+      setSidangImportData(convertedData);
+      sidangImportDataRef.current = convertedData;
+      setSidangImportFile(file);
+
+    } catch (error: any) {
+      setSidangImportErrors([error.message || 'Terjadi kesalahan saat membaca file Excel']);
+      setSidangImportFile(file);
+    }
+  };
+
+  // Submit import Excel untuk Sidang Skripsi
+  const handleSidangSubmitImport = async () => {
+    if (!kode || sidangImportData.length === 0) return;
+
+    setIsSidangImporting(true);
+    setSidangImportErrors([]);
+
+    try {
+      // Final validation
+      const validationErrors = validateNonBlokExcelData(sidangImportData);
+      if (validationErrors.length > 0) {
+        setSidangCellErrors(validationErrors);
+        setIsSidangImporting(false);
+        return;
+      }
+
+      // Transform data for API
+      const apiData = sidangImportData.map(row => ({
+        tanggal: row.tanggal,
+        jam_mulai: row.jam_mulai,
+        jam_selesai: row.jam_selesai,
+        jenis_baris: 'sidang_skripsi',
+        jumlah_sesi: row.jumlah_sesi,
+        pembimbing_id: row.pembimbing_id,
+        penguji_ids: row.penguji_ids,
+        mahasiswa_nims: row.mahasiswa_nims,
+        ruangan_id: row.ruangan_id,
+        use_ruangan: row.ruangan_id !== null
+      }));
+
+      // Send to API
+      const response = await api.post(`/non-blok-non-csr/jadwal/${kode}/import`, {
+        data: apiData
+      });
+
+      if (response.data.success) {
+        setSidangImportedCount(sidangImportData.length);
+        setShowSidangUploadModal(false);
+        // Reset semua state setelah import berhasil
+        setSidangImportData([]);
+        sidangImportDataRef.current = [];
+        setSidangImportErrors([]);
+        setSidangCellErrors([]);
+        setSidangEditingCell(null);
+        setSidangImportFile(null);
+        setSidangImportPage(1);
+        if (sidangFileInputRef.current) {
+          sidangFileInputRef.current.value = '';
+        }
+        await fetchBatchData();
+      } else {
+        setSidangImportErrors([response.data.message || 'Terjadi kesalahan saat mengimport data']);
+      }
+    } catch (error: any) {
+      if (error.response?.status === 422) {
+        const errorData = error.response.data;
+        if (errorData.errors && Array.isArray(errorData.errors)) {
+          const cellErrors = errorData.errors.map((err: string) => {
+            const rowMatch = err.match(/Baris\s+(\d+):/);
+            const row = rowMatch ? parseInt(rowMatch[1]) : 0;
+            return {
+              row: row,
+              field: 'api',
+              message: err
+            };
+          });
+          setSidangCellErrors(cellErrors);
+        } else {
+          setSidangImportErrors([errorData.message || 'Terjadi kesalahan validasi']);
+        }
+      } else {
+        const errorMessage = error.response?.data?.message || 'Terjadi kesalahan saat mengimport data';
+        setSidangImportErrors([errorMessage]);
+      }
+    } finally {
+      setIsSidangImporting(false);
+    }
+  };
+
+  // Close upload modal untuk Sidang Skripsi
+  const handleSidangCloseUploadModal = () => {
+    setShowSidangUploadModal(false);
+  };
+
+  // Handler untuk hapus file Sidang Skripsi
+  const handleSidangRemoveFile = () => {
+    setSidangImportFile(null);
+    setSidangImportData([]);
+    setSidangImportErrors([]);
+    setSidangCellErrors([]);
+    setSidangEditingCell(null);
+    setSidangImportPage(1);
+    if (sidangFileInputRef.current) {
+      sidangFileInputRef.current.value = '';
+    }
+  };
+
+  // Edit cell untuk Materi Kuliah
+  const handleMateriEditCell = (rowIndex: number, field: string, value: any) => {
+    const updatedData = [...materiImportData];
     
-    // Recalculate jam_selesai if jam_mulai or jumlah_sesi is edited
+    // Jika field adalah nama_dosen, simpan nama yang diketik user (tidak auto-fill)
+    if (field === 'nama_dosen') {
+      updatedData[rowIndex].nama_dosen = value;
+      // Cari ID-nya untuk validasi (tapi tidak mengubah nama yang diketik user)
+      const dosenOption = dosenList.find(d => 
+        d.name.toLowerCase() === value.toLowerCase() || 
+        `${d.name} (${d.nid})`.toLowerCase() === value.toLowerCase() ||
+        d.nid === value
+      );
+      updatedData[rowIndex].dosen_id = dosenOption ? dosenOption.id : null;
+    }
+    // Jika field adalah nama_ruangan, simpan nama yang diketik user (tidak auto-fill)
+    else if (field === 'nama_ruangan') {
+      updatedData[rowIndex].nama_ruangan = value;
+      // Cari ID-nya untuk validasi (tapi tidak mengubah nama yang diketik user)
+      const ruanganOption = ruanganList.find(r => 
+        r.nama.toLowerCase() === value.toLowerCase() || 
+        r.id.toString() === value
+      );
+      updatedData[rowIndex].ruangan_id = ruanganOption ? ruanganOption.id : null;
+    }
+    // Field lainnya langsung di-update
+    else {
+    updatedData[rowIndex] = { ...updatedData[rowIndex], [field]: value };
+    }
+    
     if (field === 'jam_mulai' || field === 'jumlah_sesi') {
       const jamMulai = field === 'jam_mulai' ? value : updatedData[rowIndex].jam_mulai;
       const jumlahSesi = field === 'jumlah_sesi' ? value : updatedData[rowIndex].jumlah_sesi;
       updatedData[rowIndex].jam_selesai = hitungJamSelesai(jamMulai, jumlahSesi);
     }
     
-    setNonBlokImportData(updatedData);
+    setMateriImportData(updatedData);
     
-    // Re-validate
+    // Clear cell error untuk field yang sedang di-edit (hanya untuk baris yang sedang di-edit)
+    const rowNumber = rowIndex + 1;
+    setMateriCellErrors((prev) =>
+      prev.filter((err) => {
+        // Hapus error untuk baris yang sedang di-edit
+        if (err.row === rowNumber) {
+          if (field === 'nama_dosen' && err.field === 'dosen_id') return false;
+          if (field === 'nama_ruangan' && err.field === 'ruangan_id') return false;
+          if (err.field === field) return false;
+        }
+        return true; // Keep errors for other rows
+      })
+    );
+    
+    // Re-validate field yang sedang di-edit
+    const row = updatedData[rowIndex];
+    
+    if (field === 'nama_dosen') {
+      if (!value || value.trim() === '') {
+        setMateriCellErrors((prev) => [
+          ...prev,
+          { row: rowNumber, field: 'dosen_id', message: `Dosen wajib diisi (Baris ${rowNumber}, Kolom Dosen)` }
+        ]);
+      } else {
+        const dosenOption = dosenList.find(d => 
+          d.name.toLowerCase() === value.toLowerCase() || 
+          `${d.name} (${d.nid})`.toLowerCase() === value.toLowerCase() ||
+          d.nid === value
+        );
+        if (!dosenOption) {
+          setMateriCellErrors((prev) => [
+            ...prev,
+            { row: rowNumber, field: 'dosen_id', message: `Dosen "${value}" tidak ditemukan (Baris ${rowNumber}, Kolom Dosen)` }
+          ]);
+        }
+      }
+    } else if (field === 'nama_ruangan') {
+      if (!value || value.trim() === '') {
+        setMateriCellErrors((prev) => [
+          ...prev,
+          { row: rowNumber, field: 'ruangan_id', message: `Ruangan wajib diisi (Baris ${rowNumber}, Kolom Ruangan)` }
+        ]);
+      } else {
+        const ruanganOption = ruanganList.find(r => 
+          r.nama.toLowerCase() === value.toLowerCase() || 
+          r.id.toString() === value
+        );
+        if (!ruanganOption) {
+          setMateriCellErrors((prev) => [
+            ...prev,
+            { row: rowNumber, field: 'ruangan_id', message: `Ruangan "${value}" tidak ditemukan (Baris ${rowNumber}, Kolom Ruangan)` }
+          ]);
+        }
+      }
+    } else {
+      // Validasi lengkap untuk field lainnya
     const validationErrors = validateNonBlokExcelData(updatedData);
-    setNonBlokCellErrors(validationErrors);
+      setMateriCellErrors(validationErrors);
+    }
   };
 
-  // Finish editing cell
-  const handleNonBlokFinishEdit = () => {
-    setNonBlokEditingCell(null);
+  const handleMateriFinishEdit = () => {
+    setMateriEditingCell(null);
+  };
+
+  // Edit cell untuk Agenda Khusus
+  const handleAgendaEditCell = (rowIndex: number, field: string, value: any) => {
+    const updatedData = [...agendaImportData];
+    
+    // Jika field adalah nama_ruangan, simpan nama yang diketik user (tidak auto-fill)
+    if (field === 'nama_ruangan') {
+      updatedData[rowIndex].nama_ruangan = value;
+      // Cari ID-nya untuk validasi (tapi tidak mengubah nama yang diketik user)
+      const ruanganOption = ruanganList.find(r => 
+        r.nama.toLowerCase() === value.toLowerCase() || 
+        r.id.toString() === value
+      );
+      updatedData[rowIndex].ruangan_id = ruanganOption ? ruanganOption.id : null;
+    }
+    // Field lainnya langsung di-update
+    else {
+      updatedData[rowIndex] = { ...updatedData[rowIndex], [field]: value };
+    }
+    
+    if (field === 'jam_mulai' || field === 'jumlah_sesi') {
+      const jamMulai = field === 'jam_mulai' ? value : updatedData[rowIndex].jam_mulai;
+      const jumlahSesi = field === 'jumlah_sesi' ? value : updatedData[rowIndex].jumlah_sesi;
+      updatedData[rowIndex].jam_selesai = hitungJamSelesai(jamMulai, jumlahSesi);
+    }
+    
+    setAgendaImportData(updatedData);
+    
+    // Clear cell error untuk field yang sedang di-edit (hanya untuk baris yang sedang di-edit)
+    const rowNumber = rowIndex + 1;
+    setAgendaCellErrors((prev) =>
+      prev.filter((err) => {
+        // Hapus error untuk baris yang sedang di-edit
+        if (err.row === rowNumber) {
+          if (field === 'nama_ruangan' && err.field === 'ruangan_id') return false;
+          if (err.field === field) return false;
+        }
+        return true; // Keep errors for other rows
+      })
+    );
+    
+    // Re-validate field yang sedang di-edit
+    const row = updatedData[rowIndex];
+    
+    if (field === 'nama_ruangan') {
+      if (value && value.trim() !== '') {
+        const ruanganOption = ruanganList.find(r => 
+          r.nama.toLowerCase() === value.toLowerCase() || 
+          r.id.toString() === value
+        );
+        if (!ruanganOption) {
+          setAgendaCellErrors((prev) => [
+            ...prev,
+            { row: rowNumber, field: 'ruangan_id', message: `Ruangan "${value}" tidak ditemukan (Baris ${rowNumber}, Kolom Ruangan)` }
+          ]);
+        }
+      }
+    } else {
+      // Validasi lengkap untuk field lainnya
+      const validationErrors = validateNonBlokExcelData(updatedData);
+      setAgendaCellErrors(validationErrors);
+    }
+  };
+
+  const handleAgendaFinishEdit = () => {
+    setAgendaEditingCell(null);
+  };
+
+  // Edit cell untuk Seminar Proposal
+  const handleSeminarEditCell = (rowIndex: number, field: string, value: any) => {
+    const updatedData = [...seminarImportData];
+    
+    // Jika field adalah nama_pembimbing, simpan nama yang diketik user
+    if (field === 'nama_pembimbing') {
+      updatedData[rowIndex].nama_pembimbing = value;
+      // Cek apakah ada koma (berarti lebih dari 1 pembimbing) - jika ada, langsung set null dan biarkan validasi yang handle
+      const pembimbingNames = typeof value === 'string' ? value.split(',').map((n: string) => n.trim()).filter(Boolean) : [value];
+      if (pembimbingNames.length > 1) {
+        updatedData[rowIndex].pembimbing_id = null; // Akan divalidasi nanti
+      } else {
+        const pembimbingOption = dosenList.find(d => 
+          d.name.toLowerCase() === value.toLowerCase() || 
+          `${d.name} (${d.nid})`.toLowerCase() === value.toLowerCase() ||
+          d.nid === value
+        );
+        updatedData[rowIndex].pembimbing_id = pembimbingOption ? pembimbingOption.id : null;
+      }
+    }
+    // Jika field adalah nama_komentator, simpan nama yang diketik user (sebagai string, bukan array)
+    else if (field === 'nama_komentator') {
+      // Simpan sebagai string untuk memungkinkan user mengetik spasi dan koma dengan bebas
+      updatedData[rowIndex].nama_komentator = value;
+      
+      // Konversi ke array dan cari ID hanya untuk validasi, tapi jangan simpan sebagai array
+      const komentatorNames = typeof value === 'string' ? value.split(',').map((n: string) => n.trim()).filter(Boolean) : (Array.isArray(value) ? value : []);
+      const komentatorIds: number[] = [];
+      komentatorNames.forEach((nama: string) => {
+        if (nama && nama.trim() !== '') {
+          const komentatorOption = dosenList.find(d => 
+            d.name.toLowerCase() === nama.toLowerCase() || 
+            `${d.name} (${d.nid})`.toLowerCase() === nama.toLowerCase() ||
+            d.nid === nama
+          );
+          if (komentatorOption) {
+            komentatorIds.push(komentatorOption.id);
+          }
+        }
+      });
+      updatedData[rowIndex].komentator_ids = komentatorIds;
+    }
+    // Jika field adalah nama_mahasiswa, simpan nama yang diketik user (sebagai string, bukan array)
+    else if (field === 'nama_mahasiswa') {
+      // Simpan sebagai string untuk memungkinkan user mengetik spasi dan koma dengan bebas
+      updatedData[rowIndex].nama_mahasiswa = value;
+      
+      // Konversi ke array dan cari NIM hanya untuk validasi, tapi jangan simpan sebagai array
+      const mahasiswaInputs = typeof value === 'string' ? value.split(',').map((n: string) => n.trim()).filter(Boolean) : (Array.isArray(value) ? value : []);
+      
+      // Konversi nama ke NIM jika perlu
+      const mahasiswaNims: string[] = [];
+      mahasiswaInputs.forEach((input: string) => {
+        if (input && input.trim() !== '') {
+          // Coba cari berdasarkan nama dulu
+          const mahasiswaByName = mahasiswaList.find(m => 
+            m.name.toLowerCase() === input.toLowerCase()
+          );
+          
+          if (mahasiswaByName) {
+            mahasiswaNims.push(mahasiswaByName.nim);
+          } else {
+            // Jika tidak ditemukan sebagai nama, anggap sebagai NIM
+            mahasiswaNims.push(input);
+          }
+        }
+      });
+      updatedData[rowIndex].mahasiswa_nims = mahasiswaNims;
+    }
+    // Jika field adalah nama_ruangan, simpan nama yang diketik user
+    else if (field === 'nama_ruangan') {
+      updatedData[rowIndex].nama_ruangan = value;
+      const ruanganOption = ruanganList.find(r => 
+        r.nama.toLowerCase() === value.toLowerCase() || 
+        r.id.toString() === value
+      );
+      updatedData[rowIndex].ruangan_id = ruanganOption ? ruanganOption.id : null;
+    }
+    // Field lainnya langsung di-update
+    else {
+      updatedData[rowIndex] = { ...updatedData[rowIndex], [field]: value };
+    }
+    
+    if (field === 'jam_mulai' || field === 'jumlah_sesi') {
+      const jamMulai = field === 'jam_mulai' ? value : updatedData[rowIndex].jam_mulai;
+      const jumlahSesi = field === 'jumlah_sesi' ? value : updatedData[rowIndex].jumlah_sesi;
+      updatedData[rowIndex].jam_selesai = hitungJamSelesai(jamMulai, jumlahSesi);
+    }
+    
+    // Clear cell error untuk field yang sedang di-edit sebelum update data
+    const rowNumber = rowIndex + 1;
+    setSeminarCellErrors((prev) =>
+      prev.filter((err) => {
+        if (err.row === rowNumber) {
+          if (field === 'nama_pembimbing' && err.field === 'pembimbing_id') return false;
+          if (field === 'nama_komentator' && err.field === 'komentator_ids') return false;
+          if (field === 'nama_mahasiswa' && err.field === 'mahasiswa_nims') return false;
+          if (field === 'nama_ruangan' && err.field === 'ruangan_id') return false;
+          if (err.field === field) return false;
+        }
+        return true;
+      })
+    );
+    
+    setSeminarImportData(updatedData);
+    seminarImportDataRef.current = updatedData;
+    
+    // Re-validate field yang sedang di-edit
+    const row = updatedData[rowIndex];
+    
+    if (field === 'nama_pembimbing') {
+      if (!value || value.trim() === '') {
+        setSeminarCellErrors((prev) => [
+          ...prev,
+          { row: rowNumber, field: 'pembimbing_id', message: `Pembimbing wajib diisi (Baris ${rowNumber}, Kolom Pembimbing)` }
+        ]);
+      } else {
+        // Cek apakah ada koma (berarti lebih dari 1 pembimbing)
+        const pembimbingNames = typeof value === 'string' ? value.split(',').map((n: string) => n.trim()).filter(Boolean) : [value];
+        if (pembimbingNames.length > 1) {
+          setSeminarCellErrors((prev) => [
+            ...prev,
+            { row: rowNumber, field: 'pembimbing_id', message: `Pembimbing maksimal 1 (Baris ${rowNumber}, Kolom Pembimbing)` }
+          ]);
+        } else {
+          const pembimbingOption = dosenList.find(d => 
+            d.name.toLowerCase() === value.toLowerCase() || 
+            `${d.name} (${d.nid})`.toLowerCase() === value.toLowerCase() ||
+            d.nid === value
+          );
+          if (!pembimbingOption) {
+            setSeminarCellErrors((prev) => [
+              ...prev,
+              { row: rowNumber, field: 'pembimbing_id', message: `Pembimbing "${value}" tidak ditemukan (Baris ${rowNumber}, Kolom Pembimbing)` }
+            ]);
+          } else {
+            // Validasi: Cek apakah pembimbing yang dipilih sudah ada di komentator
+            if (row.komentator_ids && row.komentator_ids.includes(pembimbingOption.id)) {
+              const pembimbingName = pembimbingOption.name;
+              setSeminarCellErrors((prev) => [
+                ...prev,
+                { row: rowNumber, field: 'pembimbing_id', message: `Dosen "${pembimbingName}" sudah dipilih sebagai Komentator. Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Komentator (Baris ${rowNumber}, Kolom Pembimbing)` }
+              ]);
+            }
+          }
+        }
+      }
+    } else if (field === 'nama_komentator') {
+      // Parse string menjadi array untuk validasi
+      const komentatorNames = typeof value === 'string' 
+        ? value.split(',').map((n: string) => n.trim()).filter(Boolean)
+        : (Array.isArray(value) ? value : []);
+      
+      if (komentatorNames.length === 0) {
+        setSeminarCellErrors((prev) => [
+          ...prev,
+          { row: rowNumber, field: 'komentator_ids', message: `Komentator wajib diisi minimal 1 (Baris ${rowNumber}, Kolom Komentator)` }
+        ]);
+      } else if (komentatorNames.length > 2) {
+        setSeminarCellErrors((prev) => [
+          ...prev,
+          { row: rowNumber, field: 'komentator_ids', message: `Komentator maksimal 2 (Baris ${rowNumber}, Kolom Komentator)` }
+        ]);
+      } else {
+        // Validasi apakah setiap komentator valid (ada di dosenList)
+        const invalidKomentators: string[] = [];
+        komentatorNames.forEach((nama: string) => {
+          if (nama && nama.trim() !== '') {
+            const komentatorOption = dosenList.find(d => 
+              d.name.toLowerCase() === nama.toLowerCase() || 
+              `${d.name} (${d.nid})`.toLowerCase() === nama.toLowerCase() ||
+              d.nid === nama
+            );
+            if (!komentatorOption) {
+              invalidKomentators.push(nama);
+            }
+          }
+        });
+        
+        if (invalidKomentators.length > 0) {
+          setSeminarCellErrors((prev) => [
+            ...prev,
+            { row: rowNumber, field: 'komentator_ids', message: `Komentator "${invalidKomentators.join(', ')}" tidak ditemukan (Baris ${rowNumber}, Kolom Komentator)` }
+          ]);
+        } else {
+          // Validasi: Cek apakah ada komentator yang sama dengan pembimbing
+          const komentatorIds: number[] = [];
+          komentatorNames.forEach((nama: string) => {
+            if (nama && nama.trim() !== '') {
+              const komentatorOption = dosenList.find(d => 
+                d.name.toLowerCase() === nama.toLowerCase() || 
+                `${d.name} (${d.nid})`.toLowerCase() === nama.toLowerCase() ||
+                d.nid === nama
+              );
+              if (komentatorOption) {
+                komentatorIds.push(komentatorOption.id);
+              }
+            }
+          });
+          
+          if (row.pembimbing_id && komentatorIds.includes(row.pembimbing_id)) {
+            const pembimbingDosen = dosenList.find(d => d.id === row.pembimbing_id);
+            const pembimbingName = pembimbingDosen ? pembimbingDosen.name : 'N/A';
+            setSeminarCellErrors((prev) => [
+              ...prev,
+              { row: rowNumber, field: 'komentator_ids', message: `Dosen "${pembimbingName}" sudah dipilih sebagai Pembimbing. Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Komentator (Baris ${rowNumber}, Kolom Komentator)` }
+            ]);
+          }
+        }
+      }
+    } else if (field === 'nama_mahasiswa') {
+      // Parse string menjadi array untuk validasi
+      const mahasiswaInputs = typeof value === 'string' 
+        ? value.split(',').map((n: string) => n.trim()).filter(Boolean)
+        : (Array.isArray(value) ? value : []);
+      
+      if (mahasiswaInputs.length === 0) {
+        setSeminarCellErrors((prev) => [
+          ...prev,
+          { row: rowNumber, field: 'mahasiswa_nims', message: `Mahasiswa wajib diisi minimal 1 (Baris ${rowNumber}, Kolom Mahasiswa)` }
+        ]);
+      } else {
+        // Validasi apakah semua input valid (nama atau NIM)
+        const invalidInputs: string[] = [];
+        mahasiswaInputs.forEach((input: string) => {
+          if (input && input.trim() !== '') {
+            // Cek apakah input adalah nama yang valid atau NIM yang valid
+            const mahasiswaByName = mahasiswaList.find(m => 
+              m.name.toLowerCase() === input.toLowerCase()
+            );
+            const mahasiswaByNim = mahasiswaList.find(m => 
+              m.nim.toLowerCase() === input.toLowerCase()
+            );
+            
+            if (!mahasiswaByName && !mahasiswaByNim) {
+              invalidInputs.push(input);
+            }
+          }
+        });
+        
+        if (invalidInputs.length > 0) {
+          setSeminarCellErrors((prev) => [
+            ...prev,
+            { row: rowNumber, field: 'mahasiswa_nims', message: `Mahasiswa "${invalidInputs.join(', ')}" tidak ditemukan (Baris ${rowNumber}, Kolom Mahasiswa)` }
+          ]);
+        }
+      }
+    } else if (field === 'nama_ruangan') {
+      if (value && value.trim() !== '') {
+        const ruanganOption = ruanganList.find(r => 
+          r.nama.toLowerCase() === value.toLowerCase() || 
+          r.id.toString() === value
+        );
+        if (!ruanganOption) {
+          setSeminarCellErrors((prev) => [
+            ...prev,
+            { row: rowNumber, field: 'ruangan_id', message: `Ruangan "${value}" tidak ditemukan (Baris ${rowNumber}, Kolom Ruangan)` }
+          ]);
+        } else {
+          // Validasi kapasitas ruangan untuk seminar proposal: pembimbing (1) + komentator + mahasiswa
+          const jumlahPembimbing = row.pembimbing_id ? 1 : 0;
+          const jumlahKomentator = (row.komentator_ids || []).length;
+          const jumlahMahasiswa = (row.mahasiswa_nims || []).length;
+          const totalPeserta = jumlahPembimbing + jumlahKomentator + jumlahMahasiswa;
+          
+          if (totalPeserta > 0 && ruanganOption.kapasitas < totalPeserta) {
+            const detailPeserta = [];
+            if (jumlahPembimbing > 0) detailPeserta.push(`${jumlahPembimbing} pembimbing`);
+            if (jumlahKomentator > 0) detailPeserta.push(`${jumlahKomentator} komentator`);
+            if (jumlahMahasiswa > 0) detailPeserta.push(`${jumlahMahasiswa} mahasiswa`);
+            const detailPesertaStr = detailPeserta.join(' + ');
+            
+            setSeminarCellErrors((prev) => [
+              ...prev,
+              { row: rowNumber, field: 'ruangan_id', message: `Kapasitas ruangan ${ruanganOption.nama} (${ruanganOption.kapasitas}) tidak cukup untuk ${totalPeserta} orang (${detailPesertaStr}) (Baris ${rowNumber}, Kolom Ruangan)` }
+            ]);
+          }
+        }
+      }
+    } else {
+      // Validasi lengkap untuk field lainnya
+      const validationErrors = validateNonBlokExcelData(updatedData);
+      setSeminarCellErrors(validationErrors);
+    }
+  };
+
+  const handleSeminarFinishEdit = () => {
+    setSeminarEditingCell(null);
+    // Lakukan validasi lengkap termasuk bentrok antar baris saat selesai edit
+    // Gunakan ref untuk memastikan menggunakan data terbaru
+    const validationErrors = validateNonBlokExcelData(seminarImportDataRef.current);
+    setSeminarCellErrors(validationErrors);
+  };
+
+  // Edit cell untuk Sidang Skripsi
+  const handleSidangEditCell = (rowIndex: number, field: string, value: any) => {
+    const updatedData = [...sidangImportData];
+    
+    // Jika field adalah nama_pembimbing, simpan nama yang diketik user
+    if (field === 'nama_pembimbing') {
+      updatedData[rowIndex].nama_pembimbing = value;
+      // Cek apakah ada koma (berarti lebih dari 1 pembimbing) - jika ada, langsung set null dan biarkan validasi yang handle
+      const pembimbingNames = typeof value === 'string' ? value.split(',').map((n: string) => n.trim()).filter(Boolean) : [value];
+      if (pembimbingNames.length > 1) {
+        updatedData[rowIndex].pembimbing_id = null; // Akan divalidasi nanti
+      } else {
+        const pembimbingOption = dosenList.find(d => 
+          d.name.toLowerCase() === value.toLowerCase() || 
+          `${d.name} (${d.nid})`.toLowerCase() === value.toLowerCase() ||
+          d.nid === value
+        );
+        updatedData[rowIndex].pembimbing_id = pembimbingOption ? pembimbingOption.id : null;
+      }
+    }
+    // Jika field adalah nama_penguji, simpan nama yang diketik user (sebagai string, bukan array)
+    else if (field === 'nama_penguji') {
+      // Simpan sebagai string untuk memungkinkan user mengetik spasi dan koma dengan bebas
+      updatedData[rowIndex].nama_penguji = value;
+      
+      // Konversi ke array dan cari ID hanya untuk validasi, tapi jangan simpan sebagai array
+      const pengujiNames = typeof value === 'string' ? value.split(',').map((n: string) => n.trim()).filter(Boolean) : (Array.isArray(value) ? value : []);
+      const pengujiIds: number[] = [];
+      pengujiNames.forEach((nama: string) => {
+        if (nama && nama.trim() !== '') {
+          const pengujiOption = dosenList.find(d => 
+            d.name.toLowerCase() === nama.toLowerCase() || 
+            `${d.name} (${d.nid})`.toLowerCase() === nama.toLowerCase() ||
+            d.nid === nama
+          );
+          if (pengujiOption) {
+            pengujiIds.push(pengujiOption.id);
+          }
+        }
+      });
+      updatedData[rowIndex].penguji_ids = pengujiIds;
+    }
+    // Jika field adalah nama_mahasiswa, simpan nama yang diketik user (sebagai string, bukan array)
+    else if (field === 'nama_mahasiswa') {
+      // Simpan sebagai string untuk memungkinkan user mengetik spasi dan koma dengan bebas
+      updatedData[rowIndex].nama_mahasiswa = value;
+      
+      // Konversi ke array dan cari NIM hanya untuk validasi, tapi jangan simpan sebagai array
+      const mahasiswaInputs = typeof value === 'string' ? value.split(',').map((n: string) => n.trim()).filter(Boolean) : (Array.isArray(value) ? value : []);
+      
+      // Konversi nama ke NIM jika perlu
+      const mahasiswaNims: string[] = [];
+      mahasiswaInputs.forEach((input: string) => {
+        if (input && input.trim() !== '') {
+          // Coba cari berdasarkan nama dulu
+          const mahasiswaByName = mahasiswaList.find(m => 
+            m.name.toLowerCase() === input.toLowerCase()
+          );
+          
+          if (mahasiswaByName) {
+            mahasiswaNims.push(mahasiswaByName.nim);
+          } else {
+            // Jika tidak ditemukan sebagai nama, anggap sebagai NIM
+            mahasiswaNims.push(input);
+          }
+        }
+      });
+      updatedData[rowIndex].mahasiswa_nims = mahasiswaNims;
+    }
+    // Jika field adalah nama_ruangan, simpan nama yang diketik user
+    else if (field === 'nama_ruangan') {
+      updatedData[rowIndex].nama_ruangan = value;
+      const ruanganOption = ruanganList.find(r => 
+        r.nama.toLowerCase() === value.toLowerCase() || 
+        r.id.toString() === value
+      );
+      updatedData[rowIndex].ruangan_id = ruanganOption ? ruanganOption.id : null;
+    }
+    // Field lainnya langsung di-update
+    else {
+      updatedData[rowIndex] = { ...updatedData[rowIndex], [field]: value };
+    }
+    
+    if (field === 'jam_mulai' || field === 'jumlah_sesi') {
+      const jamMulai = field === 'jam_mulai' ? value : updatedData[rowIndex].jam_mulai;
+      const jumlahSesi = field === 'jumlah_sesi' ? value : updatedData[rowIndex].jumlah_sesi;
+      updatedData[rowIndex].jam_selesai = hitungJamSelesai(jamMulai, jumlahSesi);
+    }
+    
+    setSidangImportData(updatedData);
+    sidangImportDataRef.current = updatedData;
+    
+    // Clear cell error untuk field yang sedang di-edit sebelum update data
+    const rowNumber = rowIndex + 1;
+    setSidangCellErrors((prev) =>
+      prev.filter((err) => {
+        if (err.row === rowNumber) {
+          if (field === 'nama_pembimbing' && err.field === 'pembimbing_id') return false;
+          if (field === 'nama_penguji' && err.field === 'penguji_ids') return false;
+          if (field === 'nama_mahasiswa' && err.field === 'mahasiswa_nims') return false;
+          if (field === 'nama_ruangan' && err.field === 'ruangan_id') return false;
+          if (err.field === field) return false;
+        }
+        return true;
+      })
+    );
+    
+    setSidangImportData(updatedData);
+    sidangImportDataRef.current = updatedData;
+    
+    // Re-validate field yang sedang di-edit
+    const row = updatedData[rowIndex];
+    
+    if (field === 'nama_pembimbing') {
+      if (!value || value.trim() === '') {
+        setSidangCellErrors((prev) => [
+          ...prev,
+          { row: rowNumber, field: 'pembimbing_id', message: `Pembimbing wajib diisi (Baris ${rowNumber}, Kolom Pembimbing)` }
+        ]);
+      } else {
+        // Cek apakah ada koma (berarti lebih dari 1 pembimbing)
+        const pembimbingNames = typeof value === 'string' ? value.split(',').map((n: string) => n.trim()).filter(Boolean) : [value];
+        if (pembimbingNames.length > 1) {
+          setSidangCellErrors((prev) => [
+            ...prev,
+            { row: rowNumber, field: 'pembimbing_id', message: `Pembimbing maksimal 1 (Baris ${rowNumber}, Kolom Pembimbing)` }
+          ]);
+        } else {
+          const pembimbingOption = dosenList.find(d => 
+            d.name.toLowerCase() === value.toLowerCase() || 
+            `${d.name} (${d.nid})`.toLowerCase() === value.toLowerCase() ||
+            d.nid === value
+          );
+          if (!pembimbingOption) {
+            setSidangCellErrors((prev) => [
+              ...prev,
+              { row: rowNumber, field: 'pembimbing_id', message: `Pembimbing "${value}" tidak ditemukan (Baris ${rowNumber}, Kolom Pembimbing)` }
+            ]);
+          } else {
+            // Validasi: Cek apakah pembimbing yang dipilih sudah ada di penguji
+            if (row.penguji_ids && row.penguji_ids.includes(pembimbingOption.id)) {
+              const pembimbingName = pembimbingOption.name;
+              setSidangCellErrors((prev) => [
+                ...prev,
+                { row: rowNumber, field: 'pembimbing_id', message: `Dosen "${pembimbingName}" sudah dipilih sebagai Penguji. Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Penguji (Baris ${rowNumber}, Kolom Pembimbing)` }
+              ]);
+            }
+          }
+        }
+      }
+    } else if (field === 'nama_penguji') {
+      // Parse string menjadi array untuk validasi
+      const pengujiNames = typeof value === 'string' 
+        ? value.split(',').map((n: string) => n.trim()).filter(Boolean)
+        : (Array.isArray(value) ? value : []);
+      
+      // Update penguji_ids berdasarkan nama yang valid
+      const pengujiIds: number[] = [];
+      pengujiNames.forEach((nama: string) => {
+        if (nama && nama.trim() !== '') {
+          const pengujiOption = dosenList.find(d => 
+            d.name.toLowerCase() === nama.toLowerCase() || 
+            `${d.name} (${d.nid})`.toLowerCase() === nama.toLowerCase() ||
+            d.nid === nama
+          );
+          if (pengujiOption) {
+            pengujiIds.push(pengujiOption.id);
+          }
+        }
+      });
+      updatedData[rowIndex].penguji_ids = pengujiIds;
+      setSidangImportData(updatedData);
+      sidangImportDataRef.current = updatedData;
+      
+      if (pengujiNames.length === 0) {
+        setSidangCellErrors((prev) => [
+          ...prev,
+          { row: rowNumber, field: 'penguji_ids', message: `Penguji wajib diisi minimal 2 (Baris ${rowNumber}, Kolom Penguji)` }
+        ]);
+      } else if (pengujiNames.length < 2) {
+        setSidangCellErrors((prev) => [
+          ...prev,
+          { row: rowNumber, field: 'penguji_ids', message: `Penguji wajib diisi minimal 2 (Baris ${rowNumber}, Kolom Penguji)` }
+        ]);
+      } else if (pengujiNames.length > 2) {
+        setSidangCellErrors((prev) => [
+          ...prev,
+          { row: rowNumber, field: 'penguji_ids', message: `Penguji maksimal 2 (Baris ${rowNumber}, Kolom Penguji)` }
+        ]);
+      } else {
+        // Validasi apakah setiap penguji valid (ada di dosenList)
+        const invalidPengujis: string[] = [];
+        pengujiNames.forEach((nama: string) => {
+          if (nama && nama.trim() !== '') {
+            const pengujiOption = dosenList.find(d => 
+              d.name.toLowerCase() === nama.toLowerCase() || 
+              `${d.name} (${d.nid})`.toLowerCase() === nama.toLowerCase() ||
+              d.nid === nama
+            );
+            if (!pengujiOption) {
+              invalidPengujis.push(nama);
+            }
+          }
+        });
+        
+        if (invalidPengujis.length > 0) {
+          setSidangCellErrors((prev) => [
+            ...prev,
+            { row: rowNumber, field: 'penguji_ids', message: `Penguji "${invalidPengujis.join(', ')}" tidak ditemukan (Baris ${rowNumber}, Kolom Penguji)` }
+          ]);
+        } else {
+          // Validasi: Cek apakah ada penguji yang sama dengan pembimbing
+          const pengujiIds: number[] = [];
+          pengujiNames.forEach((nama: string) => {
+            if (nama && nama.trim() !== '') {
+              const pengujiOption = dosenList.find(d => 
+                d.name.toLowerCase() === nama.toLowerCase() || 
+                `${d.name} (${d.nid})`.toLowerCase() === nama.toLowerCase() ||
+                d.nid === nama
+              );
+              if (pengujiOption) {
+                pengujiIds.push(pengujiOption.id);
+              }
+            }
+          });
+          
+          if (row.pembimbing_id && pengujiIds.includes(row.pembimbing_id)) {
+            const pembimbingDosen = dosenList.find(d => d.id === row.pembimbing_id);
+            const pembimbingName = pembimbingDosen ? pembimbingDosen.name : 'N/A';
+            setSidangCellErrors((prev) => [
+              ...prev,
+              { row: rowNumber, field: 'penguji_ids', message: `Dosen "${pembimbingName}" sudah dipilih sebagai Pembimbing. Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Penguji (Baris ${rowNumber}, Kolom Penguji)` }
+            ]);
+          }
+        }
+      }
+    } else if (field === 'nama_mahasiswa') {
+      // Parse string menjadi array untuk validasi
+      const mahasiswaInputs = typeof value === 'string' 
+        ? value.split(',').map((n: string) => n.trim()).filter(Boolean)
+        : (Array.isArray(value) ? value : []);
+      
+      // Konversi nama ke NIM jika perlu
+      const mahasiswaNims: string[] = [];
+      mahasiswaInputs.forEach((input: string) => {
+        if (input && input.trim() !== '') {
+          // Coba cari berdasarkan nama dulu
+          const mahasiswaByName = mahasiswaList.find(m => 
+            m.name.toLowerCase() === input.toLowerCase()
+          );
+          
+          if (mahasiswaByName) {
+            mahasiswaNims.push(mahasiswaByName.nim);
+          } else {
+            // Jika tidak ditemukan sebagai nama, coba cari berdasarkan NIM
+            const mahasiswaByNim = mahasiswaList.find(m => 
+              m.nim.toLowerCase() === input.toLowerCase()
+            );
+            
+            if (mahasiswaByNim) {
+              mahasiswaNims.push(mahasiswaByNim.nim);
+            } else {
+              // Jika tidak ditemukan, anggap sebagai NIM (akan divalidasi nanti)
+              mahasiswaNims.push(input);
+            }
+          }
+        }
+      });
+      updatedData[rowIndex].mahasiswa_nims = mahasiswaNims;
+      setSidangImportData(updatedData);
+      sidangImportDataRef.current = updatedData;
+      
+      if (mahasiswaInputs.length === 0) {
+        setSidangCellErrors((prev) => [
+          ...prev,
+          { row: rowNumber, field: 'mahasiswa_nims', message: `Mahasiswa wajib diisi (Baris ${rowNumber}, Kolom Mahasiswa)` }
+        ]);
+      } else {
+        // Validasi apakah setiap mahasiswa valid (ada di mahasiswaList)
+        const invalidInputs: string[] = [];
+        mahasiswaInputs.forEach((input: string) => {
+          if (input && input.trim() !== '') {
+            const mahasiswaByName = mahasiswaList.find(m => 
+              m.name.toLowerCase() === input.toLowerCase()
+            );
+            const mahasiswaByNim = mahasiswaList.find(m => 
+              m.nim.toLowerCase() === input.toLowerCase()
+            );
+            
+            if (!mahasiswaByName && !mahasiswaByNim) {
+              invalidInputs.push(input);
+            }
+          }
+        });
+        
+        if (invalidInputs.length > 0) {
+          setSidangCellErrors((prev) => [
+            ...prev,
+            { row: rowNumber, field: 'mahasiswa_nims', message: `Mahasiswa "${invalidInputs.join(', ')}" tidak ditemukan (Baris ${rowNumber}, Kolom Mahasiswa)` }
+          ]);
+        }
+      }
+    } else if (field === 'nama_ruangan') {
+      if (value && value.trim() !== '') {
+        const ruanganOption = ruanganList.find(r => 
+          r.nama.toLowerCase() === value.toLowerCase() || 
+          r.id.toString() === value
+        );
+        if (!ruanganOption) {
+          setSidangCellErrors((prev) => [
+            ...prev,
+            { row: rowNumber, field: 'ruangan_id', message: `Ruangan "${value}" tidak ditemukan (Baris ${rowNumber}, Kolom Ruangan)` }
+          ]);
+        } else {
+          // Validasi kapasitas ruangan untuk sidang skripsi: pembimbing (1) + penguji (2) + mahasiswa
+          const jumlahPembimbing = row.pembimbing_id ? 1 : 0;
+          const jumlahPenguji = (row.penguji_ids || []).length;
+          const jumlahMahasiswa = (row.mahasiswa_nims || []).length;
+          const totalPeserta = jumlahPembimbing + jumlahPenguji + jumlahMahasiswa;
+          
+          if (totalPeserta > 0 && ruanganOption.kapasitas < totalPeserta) {
+            const detailPeserta = [];
+            if (jumlahPembimbing > 0) detailPeserta.push(`${jumlahPembimbing} pembimbing`);
+            if (jumlahPenguji > 0) detailPeserta.push(`${jumlahPenguji} penguji`);
+            if (jumlahMahasiswa > 0) detailPeserta.push(`${jumlahMahasiswa} mahasiswa`);
+            const detailPesertaStr = detailPeserta.join(' + ');
+            
+            setSidangCellErrors((prev) => [
+              ...prev,
+              { row: rowNumber, field: 'ruangan_id', message: `Kapasitas ruangan ${ruanganOption.nama} (${ruanganOption.kapasitas}) tidak cukup untuk ${totalPeserta} orang (${detailPesertaStr}) (Baris ${rowNumber}, Kolom Ruangan)` }
+            ]);
+          }
+        }
+      }
+    } else {
+      // Validasi lengkap untuk field lainnya
+      const validationErrors = validateNonBlokExcelData(updatedData);
+      setSidangCellErrors(validationErrors);
+    }
+  };
+
+  const handleSidangFinishEdit = () => {
+    setSidangEditingCell(null);
+    // Lakukan validasi lengkap termasuk bentrok antar baris saat selesai edit
+    // Gunakan ref untuk memastikan menggunakan data terbaru
+    const validationErrors = validateNonBlokExcelData(sidangImportDataRef.current);
+    setSidangCellErrors(validationErrors);
   };
 
   // Update jam selesai saat jam mulai/jumlah kali berubah
@@ -887,23 +3039,24 @@ export default function DetailNonBlokNonCSR() {
     setForm(newForm);
   }
 
-  function handleEditJadwal(idx: number) {
+  function handleEditJadwal(idx: number, jenisBaris: 'materi' | 'agenda' | 'seminar_proposal' | 'sidang_skripsi') {
+    // Pilih array yang sesuai berdasarkan jenis baris
+    const jadwalArray = jenisBaris === 'materi' ? jadwalMateriKuliah : jenisBaris === 'agenda' ? jadwalAgendaKhusus : jenisBaris === 'seminar_proposal' ? jadwalSeminarProposal : jadwalSidangSkripsi;
+    
     // Validasi index dan data
-    if (idx < 0 || idx >= jadwalMateri.length) {
-      console.error('Invalid index for jadwalMateri:', idx);
+    if (idx < 0 || idx >= jadwalArray.length) {
       return;
     }
 
-    const row = jadwalMateri[idx];
+    const row = jadwalArray[idx];
     
     // Validasi bahwa row ada dan memiliki ID
     if (!row || !row.id) {
-      console.error('Invalid row data or missing ID:', row);
       return;
     }
 
     // Cari data berdasarkan ID untuk memastikan data yang benar (jika ada perubahan urutan)
-    const actualRow = jadwalMateri.find(j => j.id === row.id) || row;
+    const actualRow = jadwalArray.find(j => j.id === row.id) || row;
     
     // Format tanggal untuk input date (YYYY-MM-DD)
     let formattedTanggal = '';
@@ -935,11 +3088,15 @@ export default function DetailNonBlokNonCSR() {
       jenisBaris: actualRow.jenis_baris || 'materi',
       agenda: actualRow.agenda || '',
       kelompokBesar: actualRow.kelompok_besar_id || null,
+      pembimbing: actualRow.pembimbing_id || null,
+      komentator: actualRow.komentator_ids || [],
+      penguji: actualRow.penguji_ids || [],
+      mahasiswa: actualRow.mahasiswa_nims || [],
       useRuangan: actualRow.use_ruangan !== undefined ? actualRow.use_ruangan : true,
     });
     
     // Set editIndex berdasarkan ID untuk memastikan konsistensi
-    const actualIndex = jadwalMateri.findIndex(j => j.id === row.id);
+    const actualIndex = jadwalArray.findIndex(j => j.id === row.id);
     setEditIndex(actualIndex >= 0 ? actualIndex : idx);
     
     setShowModal(true);
@@ -947,32 +3104,57 @@ export default function DetailNonBlokNonCSR() {
     setErrorBackend('');
   }
 
-  async function handleDeleteJadwal(idx: number) {
-    const jadwal = jadwalMateri[idx];
+  async function handleDeleteJadwal(idx: number, jenisBaris: 'materi' | 'agenda' | 'seminar_proposal' | 'sidang_skripsi') {
+    // Pilih array yang sesuai berdasarkan jenis baris
+    const jadwalArray = jenisBaris === 'materi' ? jadwalMateriKuliah : jenisBaris === 'agenda' ? jadwalAgendaKhusus : jenisBaris === 'seminar_proposal' ? jadwalSeminarProposal : jadwalSidangSkripsi;
+    const jadwal = jadwalArray[idx];
+    
+    setIsDeleting(true);
     try {
       await api.delete(`/non-blok-non-csr/jadwal/${kode}/${jadwal.id}`);
       
       // Refresh data dengan batch API
-      await fetchBatchData();
+      await fetchBatchData(false);
       
       setShowDeleteModal(false);
       setSelectedDeleteIndex(null);
     } catch (error: any) {
       setErrorBackend(handleApiError(error, 'Menghapus jadwal'));
+    } finally {
+      setIsDeleting(false);
     }
   }
 
   async function handleTambahJadwal() {
     setErrorForm('');
     setErrorBackend('');
-    if (!form.hariTanggal || (form.jenisBaris === 'materi' && (!form.jamMulai || !form.jumlahKali || !form.pengampu || !form.materi || !form.lokasi)) || (form.jenisBaris === 'agenda' && (!form.agenda || (form.useRuangan && !form.lokasi)))) {
+    if (!form.hariTanggal || 
+        (form.jenisBaris === 'materi' && (!form.jamMulai || !form.jumlahKali || !form.pengampu || !form.materi || !form.lokasi)) || 
+        (form.jenisBaris === 'agenda' && (!form.agenda || (form.useRuangan && !form.lokasi))) ||
+        (form.jenisBaris === 'seminar_proposal' && (!form.jamMulai || !form.jumlahKali || !form.pembimbing || form.komentator.length === 0 || form.mahasiswa.length === 0)) ||
+        (form.jenisBaris === 'sidang_skripsi' && (!form.jamMulai || !form.jumlahKali || !form.pembimbing || form.penguji.length === 0 || form.mahasiswa.length === 0))) {
       setErrorForm('Semua field wajib harus diisi!');
       return;
     }
     
+    // Validasi: Cek apakah ada dosen yang sama di pembimbing dan komentator (untuk Seminar Proposal)
+    if (form.jenisBaris === 'seminar_proposal' && form.pembimbing && form.komentator.includes(form.pembimbing)) {
+      setErrorForm('Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Komentator');
+      return;
+    }
+    
+    // Validasi: Cek apakah ada dosen yang sama di pembimbing dan penguji (untuk Sidang Skripsi)
+    if (form.jenisBaris === 'sidang_skripsi' && form.pembimbing && form.penguji.includes(form.pembimbing)) {
+      setErrorForm('Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Penguji');
+      return;
+    }
+    
+    // Validasi kapasitas ruangan dilakukan di backend
+    // Frontend hanya melakukan validasi field wajib
+    
     setIsSaving(true);
     try {
-      const jadwalData = {
+      const jadwalData: any = {
         tanggal: form.hariTanggal,
         jam_mulai: form.jamMulai,
         jam_selesai: form.jamSelesai,
@@ -981,79 +3163,148 @@ export default function DetailNonBlokNonCSR() {
         agenda: form.agenda,
         materi: form.materi,
         dosen_id: form.pengampu,
-        ruangan_id: form.useRuangan ? form.lokasi : null,
+        ruangan_id: form.jenisBaris === 'materi' ? form.lokasi : (form.useRuangan ? form.lokasi : null),
         kelompok_besar_id: form.kelompokBesar,
-        use_ruangan: form.useRuangan,
+        use_ruangan: form.jenisBaris === 'materi' ? true : form.useRuangan,
       };
 
+      // Tambahkan field untuk Seminar Proposal
+      if (form.jenisBaris === 'seminar_proposal') {
+        jadwalData.pembimbing_id = form.pembimbing;
+        jadwalData.komentator_ids = form.komentator;
+        jadwalData.mahasiswa_nims = form.mahasiswa;
+        jadwalData.ruangan_id = form.lokasi;
+        jadwalData.use_ruangan = form.lokasi ? true : false;
+      }
+
+      // Tambahkan field untuk Sidang Skripsi
+      if (form.jenisBaris === 'sidang_skripsi') {
+        jadwalData.pembimbing_id = form.pembimbing;
+        jadwalData.penguji_ids = form.penguji;
+        jadwalData.mahasiswa_nims = form.mahasiswa;
+        jadwalData.ruangan_id = form.lokasi;
+        jadwalData.use_ruangan = form.lokasi ? true : false;
+      }
+
     if (editIndex !== null) {
-        const jadwal = jadwalMateri[editIndex];
+        // Pilih array berdasarkan jenis baris yang sedang di-edit
+        const jadwalArray = form.jenisBaris === 'materi' ? jadwalMateriKuliah : form.jenisBaris === 'agenda' ? jadwalAgendaKhusus : form.jenisBaris === 'seminar_proposal' ? jadwalSeminarProposal : jadwalSidangSkripsi;
+        const jadwal = jadwalArray[editIndex];
         await api.put(`/non-blok-non-csr/jadwal/${kode}/${jadwal.id}`, jadwalData);
       } else {
         await api.post(`/non-blok-non-csr/jadwal/${kode}`, jadwalData);
       }
       
       // Refresh data dengan batch API
-      await fetchBatchData();
+      await fetchBatchData(false);
       
       setShowModal(false);
       resetForm();
     } catch (error: any) {
-      setErrorBackend(handleApiError(error, 'Menyimpan jadwal'));
+      // Ambil pesan error spesifik dari backend jika ada
+      let errorMessage = '';
+      
+      // Prioritas 1: validation errors dari Laravel (paling spesifik)
+      if (error.response?.data?.errors) {
+        const errors = error.response.data.errors;
+        const errorMessages: string[] = [];
+        
+        // Ambil semua error messages
+        Object.keys(errors).forEach(key => {
+          const fieldErrors = Array.isArray(errors[key]) ? errors[key] : [errors[key]];
+          fieldErrors.forEach((err: string) => {
+            errorMessages.push(err);
+          });
+        });
+        
+        if (errorMessages.length > 0) {
+          errorMessage = errorMessages.join('. ');
+        }
+      }
+      
+      // Prioritas 2: message dari backend (jika bukan pesan generic)
+      if (!errorMessage && error.response?.data?.message) {
+        const backendMessage = error.response.data.message;
+        // Jika message adalah pesan generic, cek field error untuk pesan yang lebih spesifik
+        if (backendMessage === 'Gagal menambahkan jadwal Non Blok Non CSR' || 
+            backendMessage === 'Gagal mengupdate jadwal Non Blok Non CSR') {
+          // Cek field error untuk pesan yang lebih spesifik
+          if (error.response?.data?.error) {
+            errorMessage = error.response.data.error;
+          } else {
+            errorMessage = backendMessage;
+          }
+        } else {
+          // Gunakan message langsung jika bukan pesan generic
+          errorMessage = backendMessage;
+        }
+      }
+      
+      // Prioritas 3: error field dari backend (jika belum ada error message)
+      if (!errorMessage && error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+      
+      // Prioritas 4: error message dari axios
+      if (!errorMessage && error.message) {
+        errorMessage = error.message;
+      }
+      
+      // Fallback: generic error
+      if (!errorMessage) {
+        errorMessage = handleApiError(error, 'Menyimpan jadwal');
+      }
+      
+      setErrorBackend(errorMessage);
     } finally {
       setIsSaving(false);
     }
   }
 
-  // Fungsi untuk export Excel Non-Blok Non-CSR
-  const exportNonBlokNonCSRExcel = async () => {
+  // Fungsi untuk export Excel Materi Kuliah
+  const exportMateriKuliahExcel = async () => {
     try {
-      if (jadwalMateri.length === 0) {
-        alert('Tidak ada data Non-Blok Non-CSR untuk diekspor');
+      if (jadwalMateriKuliah.length === 0) {
+        alert('Tidak ada data Materi Kuliah untuk diekspor');
         return;
       }
 
-      // Transform data untuk export
-      const exportData = jadwalMateri.map((row, index) => {
+      // Transform data untuk export (hanya kolom yang relevan untuk Materi Kuliah)
+      const exportData = jadwalMateriKuliah.map((row) => {
         const dosen = dosenList.find(d => d.id === row.dosen_id);
         const ruangan = ruanganList.find(r => r.id === row.ruangan_id);
 
         return {
-          'Tanggal': row.tanggal ? new Date(row.tanggal).toISOString().split('T')[0] : '',
+          'Tanggal': formatDateToISO(row.tanggal),
           'Jam Mulai': row.jam_mulai,
-          'Jenis Baris': row.jenis_baris,
           'Sesi': row.jumlah_sesi,
           'Kelompok Besar': row.kelompok_besar_id || '',
           'Dosen': dosen?.name || '',
           'Materi': row.materi || '',
-          'Ruangan': ruangan?.nama || '',
-          'Keterangan Agenda': row.agenda || ''
+          'Ruangan': ruangan?.nama || ''
         };
       });
 
       // Buat workbook
       const wb = XLSX.utils.book_new();
       
-      // Sheet 1: Data Non-Blok Non-CSR
+      // Sheet 1: Data Materi Kuliah
       const ws = XLSX.utils.json_to_sheet(exportData, {
-        header: ['Tanggal', 'Jam Mulai', 'Jenis Baris', 'Sesi', 'Kelompok Besar', 'Dosen', 'Materi', 'Ruangan', 'Keterangan Agenda']
+        header: ['Tanggal', 'Jam Mulai', 'Sesi', 'Kelompok Besar', 'Dosen', 'Materi', 'Ruangan']
       });
       
-      // Set lebar kolom
-      const colWidths = [
-        { wch: 12 }, // Tanggal
-        { wch: 10 }, // Jam Mulai
-        { wch: 12 }, // Jenis Baris
-        { wch: 6 },  // Sesi
-        { wch: 15 }, // Kelompok Besar
-        { wch: 25 }, // Dosen
-        { wch: 30 }, // Materi
-        { wch: 20 }, // Ruangan
-        { wch: 20 }  // Keterangan Agenda
+      // Set lebar kolom menggunakan konstanta
+      ws['!cols'] = [
+        { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
+        { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
+        { wch: EXCEL_COLUMN_WIDTHS.SESI },
+        { wch: EXCEL_COLUMN_WIDTHS.KELOMPOK_BESAR },
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
+        { wch: EXCEL_COLUMN_WIDTHS.MATERI },
+        { wch: EXCEL_COLUMN_WIDTHS.RUANGAN }
       ];
-      ws['!cols'] = colWidths;
       
-      XLSX.utils.book_append_sheet(wb, ws, 'Data Non-Blok Non-CSR');
+      XLSX.utils.book_append_sheet(wb, ws, 'Data Materi Kuliah');
 
       // Sheet 2: Info Mata Kuliah
       const infoData = [
@@ -1066,40 +3317,390 @@ export default function DetailNonBlokNonCSR() {
         ['Kurikulum', data?.kurikulum || ''],
         ['Jenis', data?.jenis || ''],
         ['Tipe Non-Blok', data?.tipe_non_block || ''],
-        ['Tanggal Mulai', data?.tanggal_mulai ? new Date(data.tanggal_mulai).toISOString().split('T')[0] : ''],
-        ['Tanggal Akhir', data?.tanggal_akhir ? new Date(data.tanggal_akhir).toISOString().split('T')[0] : ''],
+        ['Tanggal Mulai', formatDateToISO(data?.tanggal_mulai)],
+        ['Tanggal Akhir', formatDateToISO(data?.tanggal_akhir)],
         ['Durasi Minggu', data?.durasi_minggu || ''],
         [''],
-        ['TOTAL JADWAL NON-BLOK NON-CSR', jadwalMateri.length],
+        ['STATISTIK JADWAL'],
+        ['Total Jadwal Materi Kuliah', jadwalMateriKuliah.length],
         [''],
-        ['CATATAN:'],
-        ['• File ini berisi data jadwal Non-Blok Non-CSR yang dapat di-import kembali ke aplikasi'],
-        ['• Format tanggal: YYYY-MM-DD'],
-        ['• Format jam: HH.MM atau HH:MM'],
-        ['• Sesi: 1-6 (1 sesi = 50 menit)'],
-        ['• Jenis: Jadwal Materi atau Agenda Khusus'],
-        ['• Keterangan Agenda dapat diisi dengan teks bebas'],
-        ['• Ruangan dapat dikosongkan jika tidak menggunakan ruangan'],
-        ['• Pastikan data dosen, ruangan, dan kelompok besar valid sebelum import']
+        ['INFORMASI EXPORT'],
+        ['Tanggal Export', formatDateToISO(new Date())],
+        ['File ini berisi data jadwal Materi Kuliah yang dapat di-import kembali ke aplikasi'],
+        [''],
+        ['PANDUAN IMPORT KEMBALI:'],
+        ['1. Pastikan format file sesuai dengan template aplikasi'],
+        ['2. Kolom wajib: Tanggal, Jam Mulai, Sesi, Kelompok Besar, Dosen, Materi, Ruangan'],
+        ['3. Format tanggal: YYYY-MM-DD (contoh: 2024-01-15)'],
+        ['4. Format jam: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
+        ['5. Sesi: 1-6 (1 sesi = 50 menit)'],
+        ['6. Pastikan data dosen, ruangan, dan kelompok besar valid'],
+        ['7. Sistem akan validasi kapasitas ruangan (mahasiswa + 1 dosen)'],
+        ['8. Sistem akan cek konflik jadwal (dosen, ruangan, kelompok besar)'],
+        [''],
+        ['CATATAN PENTING:'],
+        ['• File ini hanya berisi data Materi Kuliah'],
+        ['• Untuk import Agenda Khusus, gunakan file export Agenda Khusus'],
+        ['• Pastikan semua data valid sebelum import untuk menghindari error'],
+        ['• Sistem akan menampilkan preview dan error sebelum import']
       ];
 
       const infoWs = XLSX.utils.aoa_to_sheet(infoData);
-      infoWs['!cols'] = [{ wch: 30 }, { wch: 50 }];
+      infoWs['!cols'] = [{ wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN_LEFT }, { wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN }];
       XLSX.utils.book_append_sheet(wb, infoWs, 'Info Mata Kuliah');
 
       // Download file
-      const fileName = `Export_Non_Blok_Non_CSR_${data?.kode || 'MataKuliah'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      const fileName = `Export_Materi_Kuliah_${data?.kode || 'MataKuliah'}_${formatDateToISO(new Date())}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
-      alert('Gagal mengekspor data Non-Blok Non-CSR');
+      alert('Gagal mengekspor data Materi Kuliah');
+    }
+  };
+
+  // Fungsi untuk export Excel Agenda Khusus
+  const exportAgendaKhususExcel = async () => {
+    try {
+      if (jadwalAgendaKhusus.length === 0) {
+        alert('Tidak ada data Agenda Khusus untuk diekspor');
+        return;
+      }
+
+      // Transform data untuk export (hanya kolom yang relevan untuk Agenda Khusus)
+      const exportData = jadwalAgendaKhusus.map((row) => {
+        const ruangan = ruanganList.find(r => r.id === row.ruangan_id);
+
+        return {
+          'Tanggal': formatDateToISO(row.tanggal),
+          'Jam Mulai': row.jam_mulai,
+          'Sesi': row.jumlah_sesi,
+          'Kelompok Besar': row.kelompok_besar_id || '',
+          'Ruangan': ruangan?.nama || '',
+          'Keterangan Agenda': row.agenda || ''
+        };
+      });
+
+      // Buat workbook
+      const wb = XLSX.utils.book_new();
+      
+      // Sheet 1: Data Agenda Khusus
+      const ws = XLSX.utils.json_to_sheet(exportData, {
+        header: ['Tanggal', 'Jam Mulai', 'Sesi', 'Kelompok Besar', 'Ruangan', 'Keterangan Agenda']
+      });
+      ws['!cols'] = [
+        { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
+        { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
+        { wch: EXCEL_COLUMN_WIDTHS.SESI },
+        { wch: EXCEL_COLUMN_WIDTHS.KELOMPOK_BESAR },
+        { wch: EXCEL_COLUMN_WIDTHS.RUANGAN },
+        { wch: EXCEL_COLUMN_WIDTHS.AGENDA }
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, 'Data Agenda Khusus');
+
+      // Sheet 2: Info Mata Kuliah
+      const infoData = [
+        ['INFORMASI MATA KULIAH'],
+        [''],
+        ['Kode Mata Kuliah', data?.kode || ''],
+        ['Nama Mata Kuliah', data?.nama || ''],
+        ['Semester', data?.semester || ''],
+        ['Periode', data?.periode || ''],
+        ['Kurikulum', data?.kurikulum || ''],
+        ['Jenis', data?.jenis || ''],
+        ['Tipe Non-Blok', data?.tipe_non_block || ''],
+        ['Tanggal Mulai', formatDateToISO(data?.tanggal_mulai)],
+        ['Tanggal Akhir', formatDateToISO(data?.tanggal_akhir)],
+        ['Durasi Minggu', data?.durasi_minggu || ''],
+        [''],
+        ['STATISTIK JADWAL'],
+        ['Total Jadwal Agenda Khusus', jadwalAgendaKhusus.length],
+        [''],
+        ['INFORMASI EXPORT'],
+        ['Tanggal Export', formatDateToISO(new Date())],
+        ['File ini berisi data jadwal Agenda Khusus yang dapat di-import kembali ke aplikasi'],
+        [''],
+        ['PANDUAN IMPORT KEMBALI:'],
+        ['1. Pastikan format file sesuai dengan template aplikasi'],
+        ['2. Kolom wajib: Tanggal, Jam Mulai, Sesi, Kelompok Besar, Keterangan Agenda'],
+        ['3. Kolom opsional: Ruangan (boleh dikosongkan untuk agenda online)'],
+        ['4. Format tanggal: YYYY-MM-DD (contoh: 2024-01-15)'],
+        ['5. Format jam: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
+        ['6. Sesi: 1-6 (1 sesi = 50 menit)'],
+        ['7. Pastikan data ruangan dan kelompok besar valid (jika diisi)'],
+        ['8. Sistem akan cek konflik jadwal (ruangan, kelompok besar)'],
+        [''],
+        ['CATATAN PENTING:'],
+        ['• File ini hanya berisi data Agenda Khusus'],
+        ['• Untuk import Materi Kuliah, gunakan file export Materi Kuliah'],
+        ['• Ruangan boleh dikosongkan jika agenda tidak memerlukan ruangan'],
+        ['• Pastikan semua data valid sebelum import untuk menghindari error'],
+        ['• Sistem akan menampilkan preview dan error sebelum import']
+      ];
+
+      const infoWs = XLSX.utils.aoa_to_sheet(infoData);
+      infoWs['!cols'] = [{ wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN_LEFT }, { wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN }];
+      XLSX.utils.book_append_sheet(wb, infoWs, 'Info Mata Kuliah');
+
+      // Download file
+      const fileName = `Export_Agenda_Khusus_${data?.kode || 'MataKuliah'}_${formatDateToISO(new Date())}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (error) {
+      alert('Gagal mengekspor data Agenda Khusus');
+    }
+  };
+
+  // Fungsi untuk export Excel Seminar Proposal
+  const exportSeminarProposalExcel = async () => {
+    try {
+      if (jadwalSeminarProposal.length === 0) {
+        alert('Tidak ada data Seminar Proposal untuk diekspor');
+        return;
+      }
+
+      // Transform data untuk export (menggunakan format yang sama dengan template)
+      const exportData = jadwalSeminarProposal.map((row) => {
+        const pembimbing = dosenList.find(d => d.id === row.pembimbing_id);
+        const komentatorNames = row.komentator_ids && row.komentator_ids.length > 0
+          ? row.komentator_ids.map((id: number) => {
+              const dosen = dosenList.find(d => d.id === id);
+              return dosen?.name || '';
+            }).filter(Boolean)
+          : [];
+        const komentator1 = komentatorNames[0] || '';
+        const komentator2 = komentatorNames[1] || '';
+        const ruangan = ruanganList.find(r => r.id === row.ruangan_id);
+        // Ambil nama mahasiswa dari mahasiswaList berdasarkan NIM
+        const mahasiswaNames = row.mahasiswa_nims
+          ? row.mahasiswa_nims.map((nim: string) => {
+              const mahasiswa = mahasiswaList.find(m => m.nim === nim);
+              return mahasiswa ? mahasiswa.name : nim;
+            }).filter(Boolean).join(', ')
+          : '';
+
+        return {
+          'Tanggal': formatDateToISO(row.tanggal),
+          'Jam Mulai': row.jam_mulai,
+          'Sesi': row.jumlah_sesi,
+          'Pembimbing': pembimbing?.name || '',
+          'Komentator 1': komentator1,
+          'Komentator 2': komentator2,
+          'Mahasiswa (Nama, dipisah koma)': mahasiswaNames,
+          'Ruangan': ruangan?.nama || ''
+        };
+      });
+
+      // Buat workbook
+      const wb = XLSX.utils.book_new();
+      
+      // Sheet 1: Data Seminar Proposal (menggunakan header yang sama dengan template)
+      const ws = XLSX.utils.json_to_sheet(exportData, {
+        header: ['Tanggal', 'Jam Mulai', 'Sesi', 'Pembimbing', 'Komentator 1', 'Komentator 2', 'Mahasiswa (Nama, dipisah koma)', 'Ruangan']
+      });
+      ws['!cols'] = [
+        { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
+        { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
+        { wch: EXCEL_COLUMN_WIDTHS.SESI },
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
+        { wch: 40 },
+        { wch: EXCEL_COLUMN_WIDTHS.RUANGAN }
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, 'Data Seminar Proposal');
+
+      // Sheet 2: Info Mata Kuliah
+      const infoData = [
+        ['INFORMASI MATA KULIAH'],
+        [''],
+        ['Kode Mata Kuliah', data?.kode || ''],
+        ['Nama Mata Kuliah', data?.nama || ''],
+        ['Semester', data?.semester || ''],
+        ['Periode', data?.periode || ''],
+        ['Kurikulum', data?.kurikulum || ''],
+        ['Jenis', data?.jenis || ''],
+        ['Tipe Non-Blok', data?.tipe_non_block || ''],
+        ['Tanggal Mulai', data?.tanggal_mulai ? formatDateToISO(data.tanggal_mulai) : ''],
+        ['Tanggal Akhir', data?.tanggal_akhir ? formatDateToISO(data.tanggal_akhir) : ''],
+        ['Durasi Minggu', data?.durasi_minggu || ''],
+        ['Keahlian Dibutuhkan', data?.keahlian_required && data.keahlian_required.length > 0 ? data.keahlian_required.join(', ') : '-'],
+        [''],
+        ['STATISTIK JADWAL'],
+        ['Total Jadwal Seminar Proposal', jadwalSeminarProposal.length],
+        [''],
+        ['INFORMASI EXPORT'],
+        ['Tanggal Export', formatDateToISO(new Date())],
+        ['File ini berisi data jadwal Seminar Proposal yang dapat di-import kembali ke aplikasi'],
+        [''],
+        ['CATATAN PENTING:'],
+        ['• File ini hanya berisi data Seminar Proposal'],
+        ['• Kolom Mahasiswa menampilkan nama (bukan NIM) untuk kemudahan membaca'],
+        ['• Saat import kembali, bisa menggunakan nama atau NIM'],
+        ['• Sistem akan otomatis mengkonversi nama ke NIM saat import'],
+        ['• Pastikan nama mahasiswa/dosen sesuai dengan data di sistem'],
+        ['• Sistem akan menampilkan preview dan error validasi sebelum import'],
+        [''],
+        ['📊 FORMAT DATA:'],
+        ['• Tanggal: YYYY-MM-DD (contoh: 2024-01-15)'],
+        ['• Jam Mulai: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
+        ['• Sesi: 1-6 (1 sesi = 50 menit)'],
+        ['• Pembimbing: Nama dosen (1 dosen, wajib)'],
+        ['• Komentator: Nama dosen, minimal 1 maksimal 2'],
+        ['• Mahasiswa: Nama mahasiswa, dipisah koma jika lebih dari 1'],
+        ['• Ruangan: Nama ruangan (opsional)'],
+        [''],
+        ['🚫 VALIDASI KONSTRAIN:'],
+        ['• Dosen yang sama TIDAK BOLEH dipilih sebagai Pembimbing dan Komentator'],
+        ['  Contoh: Jika Dosen A sudah dipilih sebagai Pembimbing,'],
+        ['  maka Dosen A tidak boleh dipilih sebagai Komentator, dan sebaliknya'],
+        [''],
+        ['🔍 VALIDASI KONFLIK JADWAL:'],
+        ['• Sistem akan mengecek konflik jadwal berdasarkan:'],
+        ['  - Mahasiswa yang dipilih vs kelompok besar/kecil di jadwal lain'],
+        ['  - Pembimbing/Komentator vs Dosen di jadwal lain (pada waktu yang sama)'],
+        ['  - Ruangan yang sama pada waktu yang sama'],
+        ['  - Kapasitas ruangan (Pembimbing + Komentator + Mahasiswa)']
+      ];
+
+      const infoWs = XLSX.utils.aoa_to_sheet(infoData);
+      infoWs['!cols'] = [{ wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN_LEFT }, { wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN }];
+      XLSX.utils.book_append_sheet(wb, infoWs, 'Info Mata Kuliah');
+
+      // Download file
+      const fileName = `Export_Seminar_Proposal_${data?.kode || 'MataKuliah'}_${formatDateToISO(new Date())}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (error) {
+      alert('Gagal mengekspor data Seminar Proposal');
+    }
+  };
+
+  // Fungsi untuk export Excel Sidang Skripsi
+  const exportSidangSkripsiExcel = async () => {
+    try {
+      if (jadwalSidangSkripsi.length === 0) {
+        alert('Tidak ada data Sidang Skripsi untuk diekspor');
+        return;
+      }
+
+      // Transform data untuk export (menggunakan format yang sama dengan template)
+      const exportData = jadwalSidangSkripsi.map((row) => {
+        const pembimbing = dosenList.find(d => d.id === row.pembimbing_id);
+        const pengujiNames = row.penguji_ids && row.penguji_ids.length > 0
+          ? row.penguji_ids.map((id: number) => {
+              const dosen = dosenList.find(d => d.id === id);
+              return dosen?.name || '';
+            }).filter(Boolean)
+          : [];
+        const penguji1 = pengujiNames[0] || '';
+        const penguji2 = pengujiNames[1] || '';
+        const ruangan = ruanganList.find(r => r.id === row.ruangan_id);
+        // Ambil nama mahasiswa dari mahasiswaList berdasarkan NIM
+        const mahasiswaNames = row.mahasiswa_nims
+          ? row.mahasiswa_nims.map((nim: string) => {
+              const mahasiswa = mahasiswaList.find(m => m.nim === nim);
+              return mahasiswa ? mahasiswa.name : nim;
+            }).filter(Boolean).join(', ')
+          : '';
+
+        return {
+          'Tanggal': formatDateToISO(row.tanggal),
+          'Jam Mulai': row.jam_mulai,
+          'Sesi': row.jumlah_sesi,
+          'Pembimbing': pembimbing?.name || '',
+          'Penguji 1': penguji1,
+          'Penguji 2': penguji2,
+          'Mahasiswa (Nama, dipisah koma)': mahasiswaNames,
+          'Ruangan': ruangan?.nama || ''
+        };
+      });
+
+      // Buat workbook
+      const wb = XLSX.utils.book_new();
+      
+      // Sheet 1: Data Sidang Skripsi (menggunakan header yang sama dengan template)
+      const ws = XLSX.utils.json_to_sheet(exportData, {
+        header: ['Tanggal', 'Jam Mulai', 'Sesi', 'Pembimbing', 'Penguji 1', 'Penguji 2', 'Mahasiswa (Nama, dipisah koma)', 'Ruangan']
+      });
+      ws['!cols'] = [
+        { wch: EXCEL_COLUMN_WIDTHS.TANGGAL },
+        { wch: EXCEL_COLUMN_WIDTHS.JAM_MULAI },
+        { wch: EXCEL_COLUMN_WIDTHS.SESI },
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
+        { wch: EXCEL_COLUMN_WIDTHS.DOSEN },
+        { wch: 40 },
+        { wch: EXCEL_COLUMN_WIDTHS.RUANGAN }
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, 'Data Sidang Skripsi');
+
+      // Sheet 2: Info Mata Kuliah
+      const infoData = [
+        ['INFORMASI MATA KULIAH'],
+        [''],
+        ['Kode Mata Kuliah', data?.kode || ''],
+        ['Nama Mata Kuliah', data?.nama || ''],
+        ['Semester', data?.semester || ''],
+        ['Periode', data?.periode || ''],
+        ['Kurikulum', data?.kurikulum || ''],
+        ['Jenis', data?.jenis || ''],
+        ['Tipe Non-Blok', data?.tipe_non_block || ''],
+        ['Tanggal Mulai', data?.tanggal_mulai ? formatDateToISO(data.tanggal_mulai) : ''],
+        ['Tanggal Akhir', data?.tanggal_akhir ? formatDateToISO(data.tanggal_akhir) : ''],
+        ['Durasi Minggu', data?.durasi_minggu || ''],
+        ['Keahlian Dibutuhkan', data?.keahlian_required && data.keahlian_required.length > 0 ? data.keahlian_required.join(', ') : '-'],
+        [''],
+        ['STATISTIK JADWAL'],
+        ['Total Jadwal Sidang Skripsi', jadwalSidangSkripsi.length],
+        [''],
+        ['INFORMASI EXPORT'],
+        ['Tanggal Export', formatDateToISO(new Date())],
+        ['File ini berisi data jadwal Sidang Skripsi yang dapat di-import kembali ke aplikasi'],
+        [''],
+        ['CATATAN PENTING:'],
+        ['• File ini hanya berisi data Sidang Skripsi'],
+        ['• Kolom Mahasiswa menampilkan nama (bukan NIM) untuk kemudahan membaca'],
+        ['• Saat import kembali, bisa menggunakan nama atau NIM'],
+        ['• Sistem akan otomatis mengkonversi nama ke NIM saat import'],
+        ['• Pastikan nama mahasiswa/dosen sesuai dengan data di sistem'],
+        ['• Sistem akan menampilkan preview dan error validasi sebelum import'],
+        [''],
+        ['📊 FORMAT DATA:'],
+        ['• Tanggal: YYYY-MM-DD (contoh: 2024-01-15)'],
+        ['• Jam Mulai: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
+        ['• Sesi: 1-6 (1 sesi = 50 menit)'],
+        ['• Pembimbing: Nama dosen (1 dosen, wajib)'],
+        ['• Penguji: Nama dosen, minimal 1 maksimal 2'],
+        ['• Mahasiswa: Nama mahasiswa, dipisah koma jika lebih dari 1'],
+        ['• Ruangan: Nama ruangan (opsional)'],
+        [''],
+        ['🚫 VALIDASI KONSTRAIN:'],
+        ['• Dosen yang sama TIDAK BOLEH dipilih sebagai Pembimbing dan Penguji'],
+        ['  Contoh: Jika Dosen A sudah dipilih sebagai Pembimbing,'],
+        ['  maka Dosen A tidak boleh dipilih sebagai Penguji, dan sebaliknya'],
+        [''],
+        ['🔍 VALIDASI KONFLIK JADWAL:'],
+        ['• Sistem akan mengecek konflik jadwal berdasarkan:'],
+        ['  - Mahasiswa yang dipilih vs kelompok besar/kecil di jadwal lain'],
+        ['  - Pembimbing/Penguji vs Dosen di jadwal lain (pada waktu yang sama)'],
+        ['  - Ruangan yang sama pada waktu yang sama'],
+        ['  - Kapasitas ruangan (Pembimbing + Penguji + Mahasiswa)']
+      ];
+
+      const infoWs = XLSX.utils.aoa_to_sheet(infoData);
+      infoWs['!cols'] = [{ wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN_LEFT }, { wch: EXCEL_COLUMN_WIDTHS.INFO_COLUMN }];
+      XLSX.utils.book_append_sheet(wb, infoWs, 'Info Mata Kuliah');
+
+      // Download file
+      const fileName = `Export_Sidang_Skripsi_${data?.kode || 'MataKuliah'}_${formatDateToISO(new Date())}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (error) {
+      alert('Gagal mengekspor data Sidang Skripsi');
     }
   };
 
   // Initial load dengan loading state
-  const initialLoad = async () => {
+  // Fetch batch data - optimized with useCallback for reuse
+  const fetchBatchData = useCallback(async (showLoading = true) => {
     if (!kode) return;
     
-    setLoading(true);
+    if (showLoading) setLoading(true);
     
     try {
       const response = await api.get(`/non-blok-non-csr/${kode}/batch-data`);
@@ -1108,8 +3709,12 @@ export default function DetailNonBlokNonCSR() {
       // Set mata kuliah data
       setData(batchData.mata_kuliah);
       
-      // Set jadwal Non-Blok Non-CSR data
-      setJadwalMateri(batchData.jadwal_non_blok_non_csr);
+      // Set jadwal Non-Blok Non-CSR data - pisahkan berdasarkan jenis_baris
+      const allJadwal = batchData.jadwal_non_blok_non_csr || [];
+      setJadwalMateriKuliah(allJadwal.filter((j: JadwalNonBlokNonCSR) => j.jenis_baris === 'materi'));
+      setJadwalAgendaKhusus(allJadwal.filter((j: JadwalNonBlokNonCSR) => j.jenis_baris === 'agenda'));
+      setJadwalSeminarProposal(allJadwal.filter((j: JadwalNonBlokNonCSR) => j.jenis_baris === 'seminar_proposal'));
+      setJadwalSidangSkripsi(allJadwal.filter((j: JadwalNonBlokNonCSR) => j.jenis_baris === 'sidang_skripsi'));
       
       // Set reference data
       setDosenList(batchData.dosen_list);
@@ -1117,90 +3722,276 @@ export default function DetailNonBlokNonCSR() {
       setJamOptions(batchData.jam_options);
       setKelompokBesarAgendaOptions(batchData.kelompok_besar_agenda_options || []);
       setKelompokBesarMateriOptions(batchData.kelompok_besar_materi_options || []);
+      setMahasiswaList(batchData.mahasiswa_list || []);
       
     } catch (error: any) {
       setError(handleApiError(error, 'Memuat data batch'));
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
-  };
+  }, [kode]);
 
   // Fetch batch data on component mount
   useEffect(() => {
-    initialLoad();
-  }, [kode]);
+    fetchBatchData(true);
+  }, [fetchBatchData]);
 
-  // Effect untuk auto-hide success message Non Blok bulk delete
+  // Effect untuk auto-hide success message Materi Kuliah bulk delete
   useEffect(() => {
-    if (nonBlokSuccess) {
+    if (materiSuccess) {
       const timer = setTimeout(() => {
-        setNonBlokSuccess(null);
+        setMateriSuccess(null);
       }, 5000);
       return () => clearTimeout(timer);
     }
-  }, [nonBlokSuccess]);
+  }, [materiSuccess]);
 
-  // Fungsi untuk bulk delete Non Blok Non CSR
-  const handleNonBlokBulkDelete = () => {
-    if (selectedNonBlokItems.length === 0) return;
-    setShowNonBlokBulkDeleteModal(true);
+  // Effect untuk auto-hide success message Agenda Khusus bulk delete
+  useEffect(() => {
+    if (agendaSuccess) {
+      const timer = setTimeout(() => {
+        setAgendaSuccess(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [agendaSuccess]);
+
+  // Effect untuk auto-hide success message Seminar Proposal bulk delete
+  useEffect(() => {
+    if (seminarSuccess) {
+      const timer = setTimeout(() => {
+        setSeminarSuccess(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [seminarSuccess]);
+
+  // Effect untuk auto-hide success message Sidang Skripsi bulk delete
+  useEffect(() => {
+    if (sidangSuccess) {
+      const timer = setTimeout(() => {
+        setSidangSuccess(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [sidangSuccess]);
+
+  // Fungsi untuk bulk delete Materi Kuliah - tampilkan modal konfirmasi
+  const handleMateriBulkDelete = () => {
+    if (selectedMateriItems.length === 0) return;
+    setShowMateriBulkDeleteModal(true);
   };
 
-  const confirmNonBlokBulkDelete = async () => {
-    if (selectedNonBlokItems.length === 0) return;
+  // Fungsi untuk konfirmasi bulk delete Materi Kuliah
+  const confirmMateriBulkDelete = async () => {
+    if (selectedMateriItems.length === 0) return;
     
-    setIsNonBlokDeleting(true);
+    setIsMateriDeleting(true);
     try {
       // Delete all selected items
-      await Promise.all(selectedNonBlokItems.map(id => api.delete(`/non-blok-non-csr/jadwal/${kode}/${id}`)));
+      await Promise.all(selectedMateriItems.map(id => api.delete(`/non-blok-non-csr/jadwal/${kode}/${id}`)));
       
       // Set success message
-      setNonBlokSuccess(`${selectedNonBlokItems.length} jadwal Non-Blok Non-CSR berhasil dihapus.`);
+      setMateriSuccess(`${selectedMateriItems.length} jadwal Materi Kuliah berhasil dihapus.`);
       
       // Clear selections
-      setSelectedNonBlokItems([]);
+      setSelectedMateriItems([]);
       
-      // Close modal after successful delete
-      setShowNonBlokBulkDeleteModal(false);
+      // Close modal
+      setShowMateriBulkDeleteModal(false);
       
       // Refresh data
       await fetchBatchData();
     } catch (error: any) {
-      setError(handleApiError(error, 'Menghapus jadwal Non-Blok Non-CSR'));
+      setError(handleApiError(error, 'Menghapus jadwal Materi Kuliah'));
     } finally {
-      setIsNonBlokDeleting(false);
+      setIsMateriDeleting(false);
     }
   };
 
-  const handleNonBlokSelectAll = (checked: boolean) => {
+  // Fungsi untuk bulk delete Agenda Khusus - tampilkan modal konfirmasi
+  const handleAgendaBulkDelete = () => {
+    if (selectedAgendaItems.length === 0) return;
+    setShowAgendaBulkDeleteModal(true);
+  };
+
+  // Fungsi untuk konfirmasi bulk delete Agenda Khusus
+  const confirmAgendaBulkDelete = async () => {
+    if (selectedAgendaItems.length === 0) return;
+    
+    setIsAgendaDeleting(true);
+    try {
+      // Delete all selected items
+      await Promise.all(selectedAgendaItems.map(id => api.delete(`/non-blok-non-csr/jadwal/${kode}/${id}`)));
+      
+      // Set success message
+      setAgendaSuccess(`${selectedAgendaItems.length} jadwal Agenda Khusus berhasil dihapus.`);
+      
+      // Clear selections
+      setSelectedAgendaItems([]);
+      
+      // Close modal
+      setShowAgendaBulkDeleteModal(false);
+      
+      // Refresh data
+      await fetchBatchData();
+    } catch (error: any) {
+      setError(handleApiError(error, 'Menghapus jadwal Agenda Khusus'));
+    } finally {
+      setIsAgendaDeleting(false);
+    }
+  };
+
+  // Fungsi untuk bulk delete Seminar Proposal - tampilkan modal konfirmasi
+  const handleSeminarBulkDelete = () => {
+    if (selectedSeminarItems.length === 0) return;
+    setShowSeminarBulkDeleteModal(true);
+  };
+
+  // Fungsi untuk konfirmasi bulk delete Seminar Proposal
+  const confirmSeminarBulkDelete = async () => {
+    if (selectedSeminarItems.length === 0) return;
+    
+    setIsSeminarDeleting(true);
+    try {
+      // Delete all selected items
+      await Promise.all(selectedSeminarItems.map(id => api.delete(`/non-blok-non-csr/jadwal/${kode}/${id}`)));
+      
+      // Set success message
+      setSeminarSuccess(`${selectedSeminarItems.length} jadwal Seminar Proposal berhasil dihapus.`);
+      
+      // Clear selections
+      setSelectedSeminarItems([]);
+      
+      // Close modal
+      setShowSeminarBulkDeleteModal(false);
+      
+      // Refresh data
+      await fetchBatchData();
+    } catch (error: any) {
+      setError(handleApiError(error, 'Menghapus jadwal Seminar Proposal'));
+    } finally {
+      setIsSeminarDeleting(false);
+    }
+  };
+
+  // Select handlers untuk Materi Kuliah
+  const handleMateriSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedNonBlokItems(jadwalMateri.map(jadwal => jadwal.id!));
+      setSelectedMateriItems(jadwalMateriKuliah.map(jadwal => jadwal.id!));
     } else {
-      setSelectedNonBlokItems([]);
+      setSelectedMateriItems([]);
     }
   };
 
-  const handleNonBlokSelectItem = (id: number) => {
-    if (selectedNonBlokItems.includes(id)) {
-      setSelectedNonBlokItems(selectedNonBlokItems.filter(itemId => itemId !== id));
+  const handleMateriSelectItem = (id: number) => {
+    if (selectedMateriItems.includes(id)) {
+      setSelectedMateriItems(selectedMateriItems.filter(itemId => itemId !== id));
     } else {
-      setSelectedNonBlokItems([...selectedNonBlokItems, id]);
+      setSelectedMateriItems([...selectedMateriItems, id]);
+    }
+  };
+
+  // Select handlers untuk Agenda Khusus
+  const handleAgendaSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedAgendaItems(jadwalAgendaKhusus.map(jadwal => jadwal.id!));
+    } else {
+      setSelectedAgendaItems([]);
+    }
+  };
+
+  // Select handlers untuk Seminar Proposal
+  const handleSeminarSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedSeminarItems(jadwalSeminarProposal.map(jadwal => jadwal.id!));
+    } else {
+      setSelectedSeminarItems([]);
+    }
+  };
+
+  const handleSeminarSelectItem = (id: number) => {
+    if (selectedSeminarItems.includes(id)) {
+      setSelectedSeminarItems(selectedSeminarItems.filter(itemId => itemId !== id));
+    } else {
+      setSelectedSeminarItems([...selectedSeminarItems, id]);
+    }
+  };
+
+  // Fungsi untuk bulk delete Sidang Skripsi - tampilkan modal konfirmasi
+  const handleSidangBulkDelete = () => {
+    if (selectedSidangItems.length === 0) return;
+    setShowSidangBulkDeleteModal(true);
+  };
+
+  // Fungsi untuk konfirmasi bulk delete Sidang Skripsi
+  const confirmSidangBulkDelete = async () => {
+    if (selectedSidangItems.length === 0) return;
+    
+    setIsSidangDeleting(true);
+    try {
+      // Delete all selected items
+      await Promise.all(selectedSidangItems.map(id => api.delete(`/non-blok-non-csr/jadwal/${kode}/${id}`)));
+      
+      // Set success message
+      setSidangSuccess(`${selectedSidangItems.length} jadwal Sidang Skripsi berhasil dihapus.`);
+      
+      // Clear selections
+      setSelectedSidangItems([]);
+      
+      // Close modal
+      setShowSidangBulkDeleteModal(false);
+      
+      // Refresh data
+      await fetchBatchData();
+    } catch (error: any) {
+      setError(handleApiError(error, 'Menghapus jadwal Sidang Skripsi'));
+    } finally {
+      setIsSidangDeleting(false);
+    }
+  };
+
+  // Select handlers untuk Sidang Skripsi
+  const handleSidangSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedSidangItems(jadwalSidangSkripsi.map(jadwal => jadwal.id!));
+    } else {
+      setSelectedSidangItems([]);
+    }
+  };
+
+  const handleSidangSelectItem = (id: number) => {
+    if (selectedSidangItems.includes(id)) {
+      setSelectedSidangItems(selectedSidangItems.filter(itemId => itemId !== id));
+    } else {
+      setSelectedSidangItems([...selectedSidangItems, id]);
+    }
+  };
+
+  const handleAgendaSelectItem = (id: number) => {
+    if (selectedAgendaItems.includes(id)) {
+      setSelectedAgendaItems(selectedAgendaItems.filter(itemId => itemId !== id));
+    } else {
+      setSelectedAgendaItems([...selectedAgendaItems, id]);
     }
   };
 
   if (loading) return (
     <div className="w-full mx-auto">
       {/* Header skeleton */}
-      <div className="h-8 w-80 bg-gray-200 dark:bg-gray-700 rounded mb-4 animate-pulse" />
+      <div className="pt-6 pb-2">
+        <div className="h-6 w-20 bg-gray-200 dark:bg-gray-700 rounded mb-4 animate-pulse" />
+      </div>
+      <div className="h-8 w-80 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
       <div className="h-4 w-96 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-8" />
       
       {/* Info Mata Kuliah skeleton */}
-      <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6 mb-8">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
-          {Array.from({ length: 6 }).map((_, i) => (
+      <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-8 mb-8 shadow">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {Array.from({ length: 4 }).map((_, i) => (
             <div key={i}>
-              <div className="h-3 w-20 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
-              <div className="h-5 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+              <div className="h-3 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
+              <div className="h-6 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
             </div>
           ))}
         </div>
@@ -1210,20 +4001,21 @@ export default function DetailNonBlokNonCSR() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6">
-            <div className="h-3 w-20 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
-            <div className="h-5 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+            <div className="h-3 w-24 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse" />
+            <div className="h-5 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
           </div>
         ))}
       </div>
       
-      {/* Jadwal Non-Blok Non-CSR skeleton */}
+      {/* Section Materi Kuliah skeleton */}
       <div className="mb-8">
-        <div className="flex items-center justify-start mb-2">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-            <div className="h-8 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-            <div className="h-8 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-            <div className="h-8 w-28 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+        <div className="flex items-center justify-between mb-4">
+          <div className="h-7 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          <div className="flex items-center gap-2">
+            <div className="h-9 w-28 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            <div className="h-9 w-40 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            <div className="h-9 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            <div className="h-9 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
           </div>
         </div>
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
@@ -1231,44 +4023,274 @@ export default function DetailNonBlokNonCSR() {
             <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
               <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                 <tr>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    <div className="h-5 w-5 bg-gray-200 dark:bg-gray-700 rounded mx-auto animate-pulse" />
+                  </th>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Hari/Tanggal</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pukul</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Waktu</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pengampu</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Materi</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Kelompok</th>
                   <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Lokasi</th>
                   <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Aksi</th>
                 </tr>
               </thead>
               <tbody>
                 {Array.from({ length: 3 }).map((_, index) => (
-                  <tr key={`skeleton-nonblok-${index}`} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
-                    <td className="px-4 py-4">
-                      <div className="h-4 w-4 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 w-20 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 w-16 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 w-20 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 w-20 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 w-24 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 w-20 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
+                  <tr key={`skeleton-materi-${index}`} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                    <td className="px-4 py-4 text-center">
+                      <div className="h-5 w-5 bg-gray-200 dark:bg-gray-600 rounded mx-auto animate-pulse" />
                     </td>
                     <td className="px-4 py-4">
-                      <div className="flex gap-2 justify-center">
-                        <div className="h-6 w-6 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
-                        <div className="h-6 w-6 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
+                      <div className="h-4 w-6 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-28 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-20 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-16 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-32 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-40 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-28 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-24 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex gap-1.5 justify-center">
+                        <div className="h-6 w-6 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                        <div className="h-6 w-6 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                        <div className="h-6 w-6 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Section Agenda Khusus skeleton */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <div className="h-7 w-36 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          <div className="flex items-center gap-2">
+            <div className="h-9 w-28 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            <div className="h-9 w-40 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            <div className="h-9 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            <div className="h-9 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+          </div>
+        </div>
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+          <div className="max-w-full overflow-x-auto hide-scroll">
+            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+              <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                <tr>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    <div className="h-5 w-5 bg-gray-200 dark:bg-gray-700 rounded mx-auto animate-pulse" />
+                  </th>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Hari/Tanggal</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pukul</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Waktu</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Agenda</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Kelompok</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <tr key={`skeleton-agenda-${index}`} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                    <td className="px-4 py-4 text-center">
+                      <div className="h-5 w-5 bg-gray-200 dark:bg-gray-600 rounded mx-auto animate-pulse" />
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="h-4 w-6 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-28 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-20 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-16 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-40 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-28 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-24 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex gap-1.5 justify-center">
+                        <div className="h-6 w-6 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                        <div className="h-6 w-6 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                        <div className="h-6 w-6 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Section Seminar Proposal skeleton */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <div className="h-7 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          <div className="flex items-center gap-2">
+            <div className="h-9 w-28 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            <div className="h-9 w-40 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            <div className="h-9 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            <div className="h-9 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+          </div>
+        </div>
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+          <div className="max-w-full overflow-x-auto hide-scroll">
+            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+              <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                <tr>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    <div className="h-5 w-5 bg-gray-200 dark:bg-gray-700 rounded mx-auto animate-pulse" />
+                  </th>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Hari/Tanggal</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pukul</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Waktu</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pembimbing</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Komentator</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400" style={{ minWidth: '300px' }}>Mahasiswa</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <tr key={`skeleton-seminar-${index}`} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                    <td className="px-4 py-4 text-center">
+                      <div className="h-5 w-5 bg-gray-200 dark:bg-gray-600 rounded mx-auto animate-pulse" />
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="h-4 w-6 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-28 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-20 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-16 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-32 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-36 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4" style={{ minWidth: '300px' }}>
+                      <div className="h-4 w-40 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-24 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex gap-1.5 justify-center">
+                        <div className="h-6 w-6 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                        <div className="h-6 w-6 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Section Sidang Skripsi skeleton */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <div className="h-7 w-40 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
+          <div className="flex items-center gap-2">
+            <div className="h-9 w-28 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            <div className="h-9 w-40 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            <div className="h-9 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            <div className="h-9 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+          </div>
+        </div>
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+          <div className="max-w-full overflow-x-auto hide-scroll">
+            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+              <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                <tr>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    <div className="h-5 w-5 bg-gray-200 dark:bg-gray-700 rounded mx-auto animate-pulse" />
+                  </th>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Hari/Tanggal</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pukul</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Waktu</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pembimbing</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Penguji</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400" style={{ minWidth: '300px' }}>Mahasiswa</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <tr key={`skeleton-sidang-${index}`} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                    <td className="px-4 py-4 text-center">
+                      <div className="h-5 w-5 bg-gray-200 dark:bg-gray-600 rounded mx-auto animate-pulse" />
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="h-4 w-6 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-28 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-20 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-16 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-32 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-36 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4" style={{ minWidth: '300px' }}>
+                      <div className="h-4 w-40 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 w-24 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex gap-1.5 justify-center">
+                        <div className="h-6 w-6 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
+                        <div className="h-6 w-6 bg-gray-200 dark:bg-gray-600 rounded animate-pulse" />
                       </div>
                     </td>
                   </tr>
@@ -1356,37 +4378,59 @@ export default function DetailNonBlokNonCSR() {
         </div>
       </div>
 
-      {/* TOMBOL TAMBAH JADWAL MATERI */}
-      <div className="flex gap-2 items-center mb-4">
+      {/* Section Materi Kuliah */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white">
+            Materi Kuliah
+          </h2>
+          <div className="flex items-center gap-2">
         <button 
-          onClick={() => setShowNonBlokImportModal(true)}
+          onClick={() => setShowMateriUploadModal(true)}
           className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform cursor-pointer">
           <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-brand-700 dark:text-brand-200" />
           Import Excel
         </button>
         <button
-          onClick={downloadNonBlokTemplate}
+          onClick={downloadMateriTemplate}
           className="px-4 py-2 rounded-lg bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 text-sm font-medium shadow-theme-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition flex items-center gap-2"
         >
           <FontAwesomeIcon icon={faDownload} className="w-5 h-5" />
           Download Template Excel
         </button>
         <button
-          onClick={exportNonBlokNonCSRExcel}
-          disabled={jadwalMateri.length === 0}
+              onClick={exportMateriKuliahExcel}
+              disabled={jadwalMateriKuliah.length === 0}
           className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
-            jadwalMateri.length === 0 
+                jadwalMateriKuliah.length === 0 
               ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed' 
               : 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800'
           }`}
-          title={jadwalMateri.length === 0 ? 'Tidak ada data Non-Blok Non-CSR. Silakan tambahkan data jadwal terlebih dahulu untuk melakukan export.' : 'Export data Non-Blok Non-CSR ke Excel'}
+              title={jadwalMateriKuliah.length === 0 ? 'Tidak ada data Materi Kuliah. Silakan tambahkan data jadwal terlebih dahulu untuk melakukan export.' : 'Export data Materi Kuliah ke Excel'}
         >
           <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5" />
           Export ke Excel
         </button>
         <button
           onClick={() => {
-            resetForm();
+                setForm({
+                  hariTanggal: '',
+                  jamMulai: '',
+                  jumlahKali: 2,
+                  jamSelesai: '',
+                  pengampu: null,
+                  materi: '',
+                  lokasi: null,
+                  jenisBaris: 'materi',
+                  agenda: '',
+                  kelompokBesar: null,
+                  pembimbing: null,
+                  komentator: [],
+                  penguji: [],
+                  mahasiswa: [],
+                  useRuangan: true,
+                });
+                setEditIndex(null);
             setShowModal(true);
             setErrorForm('');
             setErrorBackend('');
@@ -1395,12 +4439,12 @@ export default function DetailNonBlokNonCSR() {
         >
           Tambah Jadwal
         </button>
+          </div>
       </div>
 
-
-      {/* Success Message */}
+        {/* Success Message Import Materi Kuliah */}
       <AnimatePresence>
-        {nonBlokImportedCount > 0 && (
+        {materiImportedCount > 0 && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1408,18 +4452,18 @@ export default function DetailNonBlokNonCSR() {
             className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
             onAnimationComplete={() => {
               setTimeout(() => {
-                setNonBlokImportedCount(0);
+                setMateriImportedCount(0);
               }, 5000);
             }}
           >
-            {nonBlokImportedCount} jadwal Non-Blok Non-CSR berhasil diimpor ke database.
+              {materiImportedCount} jadwal Materi Kuliah berhasil diimpor ke database.
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Success Message Non Blok Bulk Delete */}
+        {/* Success Message Bulk Delete Materi */}
       <AnimatePresence>
-        {nonBlokSuccess && (
+          {materiSuccess && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1427,13 +4471,13 @@ export default function DetailNonBlokNonCSR() {
             transition={{ duration: 0.2 }}
             className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
           >
-            {nonBlokSuccess}
+              {materiSuccess}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Tabel Jadwal Materi */}
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03] mt-8">
+      {/* Tabel Materi Kuliah */}
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
         <div className="max-w-full overflow-x-auto hide-scroll">
           <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
             <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
@@ -1441,12 +4485,12 @@ export default function DetailNonBlokNonCSR() {
                 <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                   <button
                     type="button"
-                    aria-checked={jadwalMateri.length > 0 && jadwalMateri.every(item => selectedNonBlokItems.includes(item.id!))}
+                    aria-checked={jadwalMateriKuliah.length > 0 && jadwalMateriKuliah.every(item => selectedMateriItems.includes(item.id!))}
                     role="checkbox"
-                    onClick={() => handleNonBlokSelectAll(!(jadwalMateri.length > 0 && jadwalMateri.every(item => selectedNonBlokItems.includes(item.id!))))}
-                    className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${jadwalMateri.length > 0 && jadwalMateri.every(item => selectedNonBlokItems.includes(item.id!)) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                    onClick={() => handleMateriSelectAll(!(jadwalMateriKuliah.length > 0 && jadwalMateriKuliah.every(item => selectedMateriItems.includes(item.id!))))}
+                    className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${jadwalMateriKuliah.length > 0 && jadwalMateriKuliah.every(item => selectedMateriItems.includes(item.id!)) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
                   >
-                    {jadwalMateri.length > 0 && jadwalMateri.every(item => selectedNonBlokItems.includes(item.id!)) && (
+                    {jadwalMateriKuliah.length > 0 && jadwalMateriKuliah.every(item => selectedMateriItems.includes(item.id!)) && (
                       <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
                         <polyline points="20 7 11 17 4 10" />
                       </svg>
@@ -1465,68 +4509,54 @@ export default function DetailNonBlokNonCSR() {
               </tr>
             </thead>
             <tbody>
-              {jadwalMateri.length === 0 ? (
+              {jadwalMateriKuliah.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="text-center py-6 text-gray-400">Tidak ada data jadwal</td>
+                  <td colSpan={10} className="text-center py-6 text-gray-400">Tidak ada data Materi Kuliah</td>
                 </tr>
               ) : (
                 getPaginatedData(
-                  jadwalMateri
+                  jadwalMateriKuliah
                     .slice()
                     .sort((a, b) => {
                       const dateA = new Date(a.tanggal);
                       const dateB = new Date(b.tanggal);
                       return dateA.getTime() - dateB.getTime();
                     }),
-                  nonCsrPage,
-                  nonCsrPageSize
+                  materiPage,
+                  materiPageSize
                 ).map((row, idx) => (
-                    <tr key={row.id} className={row.jenis_baris === 'agenda' ? 'bg-yellow-50 dark:bg-yellow-900/20' : (idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : '')}>
+                    <tr key={row.id} className={idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
                       <td className="px-4 py-4 text-center">
                         <button
                           type="button"
-                          aria-checked={selectedNonBlokItems.includes(row.id!)}
+                          aria-checked={selectedMateriItems.includes(row.id!)}
                           role="checkbox"
-                          onClick={() => handleNonBlokSelectItem(row.id!)}
-                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedNonBlokItems.includes(row.id!) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                          onClick={() => handleMateriSelectItem(row.id!)}
+                          className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedMateriItems.includes(row.id!) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
                         >
-                          {selectedNonBlokItems.includes(row.id!) && (
+                          {selectedMateriItems.includes(row.id!) && (
                             <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
                               <polyline points="20 7 11 17 4 10" />
                             </svg>
                           )}
                         </button>
                       </td>
-                      <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{(nonCsrPage - 1) * nonCsrPageSize + idx + 1}</td>
+                      <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{(materiPage - 1) * materiPageSize + idx + 1}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatTanggalKonsisten(row.tanggal)}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatJamTanpaDetik(row.jam_mulai)}–{formatJamTanpaDetik(row.jam_selesai)}</td>
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.jumlah_sesi} x 50 menit</td>
-                      {row.jenis_baris === 'agenda' ? (
-                        <>
-                          <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">-</td>
-                          <td className="px-6 py-4 text-center uppercase bg-yellow-100 dark:bg-yellow-900/40 text-gray-900 dark:text-white whitespace-nowrap">
-                            {row.agenda}
-                          </td>
-                          <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                            {row.kelompok_besar_id ? `Kelompok Besar Semester ${row.kelompok_besar_id}` : '-'}
-                          </td>
-                        </>
-                      ) : (
-                        <>
                           <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.dosen?.name || ''}</td>
                           <td className={`px-6 py-4 whitespace-nowrap text-gray-800 dark:text-white/90`}>{row.materi}</td>
                           <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                             {row.kelompok_besar_id ? `Kelompok Besar Semester ${row.kelompok_besar_id}` : '-'}
                           </td>
-                        </>
-                      )}
                       <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
-                        {row.jenis_baris === 'agenda' && !row.use_ruangan ? '-' : (row.ruangan?.nama || '')}
+                        {row.ruangan?.nama || ''}
                       </td>
                     <td className="px-4 py-4 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-1.5 flex-nowrap">
                         {/* Tombol Absensi - tampilkan jika ada dosen yang terdaftar */}
-                        {row.jenis_baris === 'materi' && (row.dosen_id || row.dosen) && (
+                        {(row.dosen_id || row.dosen) && (
                           <button 
                             onClick={() => navigate(`/absensi-non-blok-non-csr/${kode}/${row.id}`)} 
                             className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors shrink-0"
@@ -1537,18 +4567,16 @@ export default function DetailNonBlokNonCSR() {
                           </button>
                         )}
                       <button onClick={() => {
-                        // Cari index berdasarkan ID untuk memastikan data yang benar
-                        // Karena data di-sort sebelum di-paginate, kita perlu mencari dari array asli
-                        const correctIndex = jadwalMateri.findIndex(j => j.id === row.id);
-                        handleEditJadwal(correctIndex >= 0 ? correctIndex : idx);
+                        const correctIndex = jadwalMateriKuliah.findIndex(j => j.id === row.id);
+                        handleEditJadwal(correctIndex >= 0 ? correctIndex : idx, 'materi');
                         }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-1" title="Edit Jadwal">
                         <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
                         <span className="hidden sm:inline">Edit</span>
                       </button>
                         <button onClick={() => {
-                          // Cari index berdasarkan ID untuk memastikan data yang benar
-                          const correctIndex = jadwalMateri.findIndex(j => j.id === row.id);
+                          const correctIndex = jadwalMateriKuliah.findIndex(j => j.id === row.id);
                           setSelectedDeleteIndex(correctIndex >= 0 ? correctIndex : idx);
+                          setForm({...form, jenisBaris: 'materi'});
                           setShowDeleteModal(true);
                         }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition" title="Hapus Jadwal">
                         <FontAwesomeIcon icon={faTrash} className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
@@ -1564,32 +4592,32 @@ export default function DetailNonBlokNonCSR() {
         </div>
       </div>
 
-        {/* Tombol Hapus Terpilih untuk Non Blok Non CSR */}
-        {selectedNonBlokItems.length > 0 && (
+        {/* Tombol Hapus Terpilih untuk Materi Kuliah */}
+        {selectedMateriItems.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-4">
             <button
-              disabled={isNonBlokDeleting}
-              onClick={handleNonBlokBulkDelete}
-              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${isNonBlokDeleting ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-red-500 text-white shadow-theme-xs hover:bg-red-600'}`}
+              disabled={isMateriDeleting}
+              onClick={handleMateriBulkDelete}
+              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${isMateriDeleting ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-red-500 text-white shadow-theme-xs hover:bg-red-600'}`}
             >
-              {isNonBlokDeleting ? 'Menghapus...' : `Hapus Terpilih (${selectedNonBlokItems.length})`}
+              {isMateriDeleting ? 'Menghapus...' : `Hapus Terpilih (${selectedMateriItems.length})`}
             </button>
           </div>
         )}
 
-        {/* Pagination for Non-CSR */}
-        {true && (
+        {/* Pagination for Materi Kuliah */}
+        {jadwalMateriKuliah.length > 0 && (
           <div className="flex items-center justify-between mt-6">
             <div className="flex items-center gap-4">
               <span className="text-sm text-gray-600 dark:text-gray-400">
-                Menampilkan {((nonCsrPage - 1) * nonCsrPageSize) + 1} - {Math.min(nonCsrPage * nonCsrPageSize, jadwalMateri.length)} dari {jadwalMateri.length} data
+                Menampilkan {((materiPage - 1) * materiPageSize) + 1} - {Math.min(materiPage * materiPageSize, jadwalMateriKuliah.length)} dari {jadwalMateriKuliah.length} data
               </span>
               
               <select
-                value={nonCsrPageSize}
+                value={materiPageSize}
                 onChange={(e) => {
-                  setNonCsrPageSize(Number(e.target.value));
-                  setNonCsrPage(1);
+                  setMateriPageSize(Number(e.target.value));
+                  setMateriPage(1);
                 }}
                 className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
               >
@@ -1602,50 +4630,20 @@ export default function DetailNonBlokNonCSR() {
             </div>
 
             <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
-              <style
-                dangerouslySetInnerHTML={{
-                  __html: `
-                  .pagination-scroll::-webkit-scrollbar {
-                    height: 6px;
-                  }
-                  .pagination-scroll::-webkit-scrollbar-track {
-                    background: #f1f5f9;
-                    border-radius: 3px;
-                  }
-                  .pagination-scroll::-webkit-scrollbar-thumb {
-                    background: #cbd5e1;
-                    border-radius: 3px;
-                  }
-                  .pagination-scroll::-webkit-scrollbar-thumb:hover {
-                    background: #94a3b8;
-                  }
-                  .dark .pagination-scroll::-webkit-scrollbar-track {
-                    background: #1e293b;
-                  }
-                  .dark .pagination-scroll::-webkit-scrollbar-thumb {
-                    background: #475569;
-                  }
-                  .dark .pagination-scroll::-webkit-scrollbar-thumb:hover {
-                    background: #64748b;
-                  }
-                `,
-                }}
-              />
-
               <button
-                onClick={() => setNonCsrPage((p) => Math.max(1, p - 1))}
-                disabled={nonCsrPage === 1}
+                onClick={() => setMateriPage((p) => Math.max(1, p - 1))}
+                disabled={materiPage === 1}
                 className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
               >
                 Previous
               </button>
 
               {/* Always show first page if it's not the current page */}
-              {getTotalPages(jadwalMateri.length, nonCsrPageSize) > 1 && (
+              {getTotalPages(jadwalMateriKuliah.length, materiPageSize) > 1 && (
                 <button
-                  onClick={() => setNonCsrPage(1)}
+                  onClick={() => setMateriPage(1)}
                   className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    nonCsrPage === 1
+                    materiPage === 1
                       ? "bg-brand-500 text-white"
                       : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                   }`}
@@ -1655,23 +4653,23 @@ export default function DetailNonBlokNonCSR() {
               )}
 
               {/* Show pages around current page */}
-              {Array.from({ length: getTotalPages(jadwalMateri.length, nonCsrPageSize) }, (_, i) => {
+              {Array.from({ length: getTotalPages(jadwalMateriKuliah.length, materiPageSize) }, (_, i) => {
                 const pageNum = i + 1;
                 // Show pages around current page (2 pages before and after)
                 const shouldShow =
                   pageNum > 1 &&
-                  pageNum < getTotalPages(jadwalMateri.length, nonCsrPageSize) &&
-                  pageNum >= nonCsrPage - 2 &&
-                  pageNum <= nonCsrPage + 2;
+                  pageNum < getTotalPages(jadwalMateriKuliah.length, materiPageSize) &&
+                  pageNum >= materiPage - 2 &&
+                  pageNum <= materiPage + 2;
 
                 if (!shouldShow) return null;
 
                 return (
                   <button
                     key={pageNum}
-                    onClick={() => setNonCsrPage(pageNum)}
+                    onClick={() => setMateriPage(pageNum)}
                     className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                      nonCsrPage === pageNum
+                      materiPage === pageNum
                         ? "bg-brand-500 text-white"
                         : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                     }`}
@@ -1682,29 +4680,29 @@ export default function DetailNonBlokNonCSR() {
               })}
 
               {/* Show ellipsis if current page is far from end */}
-              {nonCsrPage < getTotalPages(jadwalMateri.length, nonCsrPageSize) - 3 && (
+              {materiPage < getTotalPages(jadwalMateriKuliah.length, materiPageSize) - 3 && (
                 <span className="px-2 text-gray-500 dark:text-gray-400">
                   ...
                 </span>
               )}
 
               {/* Always show last page if it's not the first page */}
-              {getTotalPages(jadwalMateri.length, nonCsrPageSize) > 1 && (
+              {getTotalPages(jadwalMateriKuliah.length, materiPageSize) > 1 && (
                 <button
-                  onClick={() => setNonCsrPage(getTotalPages(jadwalMateri.length, nonCsrPageSize))}
+                  onClick={() => setMateriPage(getTotalPages(jadwalMateriKuliah.length, materiPageSize))}
                   className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                    nonCsrPage === getTotalPages(jadwalMateri.length, nonCsrPageSize)
+                    materiPage === getTotalPages(jadwalMateriKuliah.length, materiPageSize)
                       ? "bg-brand-500 text-white"
                       : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                   }`}
                 >
-                  {getTotalPages(jadwalMateri.length, nonCsrPageSize)}
+                  {getTotalPages(jadwalMateriKuliah.length, materiPageSize)}
                 </button>
               )}
 
               <button
-                onClick={() => setNonCsrPage((p) => Math.min(getTotalPages(jadwalMateri.length, nonCsrPageSize), p + 1))}
-                disabled={nonCsrPage === getTotalPages(jadwalMateri.length, nonCsrPageSize)}
+                onClick={() => setMateriPage((p) => Math.min(getTotalPages(jadwalMateriKuliah.length, materiPageSize), p + 1))}
+                disabled={materiPage === getTotalPages(jadwalMateriKuliah.length, materiPageSize)}
                 className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
               >
                 Next
@@ -1712,8 +4710,1071 @@ export default function DetailNonBlokNonCSR() {
             </div>
           </div>
         )}
+      </div>
 
-      {/* MODAL INPUT JADWAL MATERI */}
+      {/* Section Agenda Khusus */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white">
+            Agenda Khusus
+          </h2>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setShowAgendaUploadModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform cursor-pointer">
+              <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-brand-700 dark:text-brand-200" />
+              Import Excel
+            </button>
+            <button
+              onClick={downloadAgendaTemplate}
+              className="px-4 py-2 rounded-lg bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 text-sm font-medium shadow-theme-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition flex items-center gap-2"
+            >
+              <FontAwesomeIcon icon={faDownload} className="w-5 h-5" />
+              Download Template Excel
+            </button>
+            <button
+              onClick={exportAgendaKhususExcel}
+              disabled={jadwalAgendaKhusus.length === 0}
+              className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
+                jadwalAgendaKhusus.length === 0 
+                  ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed' 
+                  : 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800'
+              }`}
+              title={jadwalAgendaKhusus.length === 0 ? 'Tidak ada data Agenda Khusus. Silakan tambahkan data jadwal terlebih dahulu untuk melakukan export.' : 'Export data Agenda Khusus ke Excel'}
+            >
+              <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5" />
+              Export ke Excel
+            </button>
+            <button
+              onClick={() => {
+                setForm({
+                  hariTanggal: '',
+                  jamMulai: '',
+                  jumlahKali: 2,
+                  jamSelesai: '',
+                  pengampu: null,
+                  materi: '',
+                  lokasi: null,
+                  jenisBaris: 'agenda',
+                  agenda: '',
+                  kelompokBesar: null,
+                  pembimbing: null,
+                  komentator: [],
+                  penguji: [],
+                  mahasiswa: [],
+                  useRuangan: true,
+                });
+                setEditIndex(null);
+                setShowModal(true);
+                setErrorForm('');
+                setErrorBackend('');
+              }}
+              className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition-all duration-300"
+            >
+              Tambah Jadwal
+            </button>
+          </div>
+        </div>
+
+        {/* Success Message Import Agenda Khusus */}
+        <AnimatePresence>
+          {agendaImportedCount > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
+              onAnimationComplete={() => {
+                setTimeout(() => {
+                  setAgendaImportedCount(0);
+                }, 5000);
+              }}
+            >
+              {agendaImportedCount} jadwal Agenda Khusus berhasil diimpor ke database.
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Success Message Bulk Delete Agenda */}
+        <AnimatePresence>
+          {agendaSuccess && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
+            >
+              {agendaSuccess}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Tabel Agenda Khusus */}
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+          <div className="max-w-full overflow-x-auto hide-scroll">
+            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+              <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                <tr>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+              <button
+                      type="button"
+                      aria-checked={jadwalAgendaKhusus.length > 0 && jadwalAgendaKhusus.every(item => selectedAgendaItems.includes(item.id!))}
+                      role="checkbox"
+                      onClick={() => handleAgendaSelectAll(!(jadwalAgendaKhusus.length > 0 && jadwalAgendaKhusus.every(item => selectedAgendaItems.includes(item.id!))))}
+                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${jadwalAgendaKhusus.length > 0 && jadwalAgendaKhusus.every(item => selectedAgendaItems.includes(item.id!)) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                    >
+                      {jadwalAgendaKhusus.length > 0 && jadwalAgendaKhusus.every(item => selectedAgendaItems.includes(item.id!)) && (
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                          <polyline points="20 7 11 17 4 10" />
+                        </svg>
+                      )}
+                    </button>
+                  </th>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Hari/Tanggal</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pukul</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Waktu</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Agenda</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Kelompok</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {jadwalAgendaKhusus.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="text-center py-6 text-gray-400">Tidak ada data Agenda Khusus</td>
+                  </tr>
+                ) : (
+                  getPaginatedData(
+                    jadwalAgendaKhusus
+                      .slice()
+                      .sort((a, b) => {
+                        const dateA = new Date(a.tanggal);
+                        const dateB = new Date(b.tanggal);
+                        return dateA.getTime() - dateB.getTime();
+                      }),
+                    agendaPage,
+                    agendaPageSize
+                  ).map((row, idx) => (
+                      <tr key={row.id} className={idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                        <td className="px-4 py-4 text-center">
+                          <button
+                            type="button"
+                            aria-checked={selectedAgendaItems.includes(row.id!)}
+                            role="checkbox"
+                            onClick={() => handleAgendaSelectItem(row.id!)}
+                            className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedAgendaItems.includes(row.id!) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                          >
+                            {selectedAgendaItems.includes(row.id!) && (
+                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                                <polyline points="20 7 11 17 4 10" />
+                              </svg>
+                            )}
+                          </button>
+                        </td>
+                        <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{(agendaPage - 1) * agendaPageSize + idx + 1}</td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatTanggalKonsisten(row.tanggal)}</td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatJamTanpaDetik(row.jam_mulai)}–{formatJamTanpaDetik(row.jam_selesai)}</td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.jumlah_sesi} x 50 menit</td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.agenda}</td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                          {row.kelompok_besar_id ? `Kelompok Besar Semester ${row.kelompok_besar_id}` : '-'}
+                        </td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                          {row.use_ruangan ? (row.ruangan?.nama || '') : '-'}
+                        </td>
+                      <td className="px-4 py-4 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5 flex-nowrap">
+                        <button onClick={() => {
+                          const correctIndex = jadwalAgendaKhusus.findIndex(j => j.id === row.id);
+                          handleEditJadwal(correctIndex >= 0 ? correctIndex : idx, 'agenda');
+                          }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-1" title="Edit Jadwal">
+                          <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
+                          <span className="hidden sm:inline">Edit</span>
+                        </button>
+                          <button onClick={() => {
+                            const correctIndex = jadwalAgendaKhusus.findIndex(j => j.id === row.id);
+                            setSelectedDeleteIndex(correctIndex >= 0 ? correctIndex : idx);
+                            setForm({...form, jenisBaris: 'agenda'});
+                            setShowDeleteModal(true);
+                          }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition" title="Hapus Jadwal">
+                          <FontAwesomeIcon icon={faTrash} className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
+                          <span className="hidden sm:inline">Hapus</span>
+                        </button>
+                        </div>
+                      </td>
+                    </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Tombol Hapus Terpilih untuk Agenda Khusus */}
+        {selectedAgendaItems.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-4">
+            <button
+              disabled={isAgendaDeleting}
+              onClick={handleAgendaBulkDelete}
+              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${isAgendaDeleting ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-red-500 text-white shadow-theme-xs hover:bg-red-600'}`}
+            >
+              {isAgendaDeleting ? 'Menghapus...' : `Hapus Terpilih (${selectedAgendaItems.length})`}
+            </button>
+          </div>
+        )}
+
+        {/* Pagination for Agenda Khusus */}
+        {jadwalAgendaKhusus.length > 0 && (
+          <div className="flex items-center justify-between mt-6">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Menampilkan {((agendaPage - 1) * agendaPageSize) + 1} - {Math.min(agendaPage * agendaPageSize, jadwalAgendaKhusus.length)} dari {jadwalAgendaKhusus.length} data
+              </span>
+              
+              <select
+                value={agendaPageSize}
+                onChange={(e) => {
+                  setAgendaPageSize(Number(e.target.value));
+                  setAgendaPage(1);
+                }}
+                className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
+              >
+                {PAGE_SIZE_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
+              <button
+                onClick={() => setAgendaPage((p) => Math.max(1, p - 1))}
+                disabled={agendaPage === 1}
+                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Previous
+              </button>
+
+              {/* Always show first page if it's not the current page */}
+              {getTotalPages(jadwalAgendaKhusus.length, agendaPageSize) > 1 && (
+                <button
+                  onClick={() => setAgendaPage(1)}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    agendaPage === 1
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  1
+                </button>
+              )}
+
+              {/* Show pages around current page */}
+              {Array.from({ length: getTotalPages(jadwalAgendaKhusus.length, agendaPageSize) }, (_, i) => {
+                const pageNum = i + 1;
+                const shouldShow =
+                  pageNum > 1 &&
+                  pageNum < getTotalPages(jadwalAgendaKhusus.length, agendaPageSize) &&
+                  pageNum >= agendaPage - 2 &&
+                  pageNum <= agendaPage + 2;
+
+                if (!shouldShow) return null;
+
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setAgendaPage(pageNum)}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                      agendaPage === pageNum
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+
+              {/* Show ellipsis if current page is far from end */}
+              {agendaPage < getTotalPages(jadwalAgendaKhusus.length, agendaPageSize) - 3 && (
+                <span className="px-2 text-gray-500 dark:text-gray-400">
+                  ...
+                </span>
+              )}
+
+              {/* Always show last page if it's not the first page */}
+              {getTotalPages(jadwalAgendaKhusus.length, agendaPageSize) > 1 && (
+                <button
+                  onClick={() => setAgendaPage(getTotalPages(jadwalAgendaKhusus.length, agendaPageSize))}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    agendaPage === getTotalPages(jadwalAgendaKhusus.length, agendaPageSize)
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  {getTotalPages(jadwalAgendaKhusus.length, agendaPageSize)}
+                </button>
+              )}
+
+              <button
+                onClick={() => setAgendaPage((p) => Math.min(getTotalPages(jadwalAgendaKhusus.length, agendaPageSize), p + 1))}
+                disabled={agendaPage === getTotalPages(jadwalAgendaKhusus.length, agendaPageSize)}
+                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Section Seminar Proposal */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white">
+            Seminar Proposal
+          </h2>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setShowSeminarUploadModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform cursor-pointer">
+              <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-brand-700 dark:text-brand-200" />
+              Import Excel
+            </button>
+            <button
+              onClick={downloadSeminarTemplate}
+              className="px-4 py-2 rounded-lg bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 text-sm font-medium shadow-theme-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition flex items-center gap-2"
+            >
+              <FontAwesomeIcon icon={faDownload} className="w-5 h-5" />
+              Download Template Excel
+            </button>
+            <button
+              onClick={exportSeminarProposalExcel}
+              disabled={jadwalSeminarProposal.length === 0}
+              className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
+                jadwalSeminarProposal.length === 0 
+                  ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed' 
+                  : 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800'
+              }`}
+              title={jadwalSeminarProposal.length === 0 ? 'Tidak ada data Seminar Proposal. Silakan tambahkan data jadwal terlebih dahulu untuk melakukan export.' : 'Export data Seminar Proposal ke Excel'}
+            >
+              <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5" />
+              Export ke Excel
+            </button>
+            <button
+              onClick={() => {
+                setForm({
+                  hariTanggal: '',
+                  jamMulai: '',
+                  jumlahKali: 2,
+                  jamSelesai: '',
+                  pengampu: null,
+                  materi: '',
+                  lokasi: null,
+                  jenisBaris: 'seminar_proposal',
+                  agenda: '',
+                  kelompokBesar: null,
+                  pembimbing: null,
+                  komentator: [],
+                  penguji: [],
+                  mahasiswa: [],
+                  useRuangan: true,
+                });
+                setEditIndex(null);
+                setShowModal(true);
+                setErrorForm('');
+                setErrorBackend('');
+              }}
+              className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition-all duration-300"
+            >
+              Tambah Jadwal
+            </button>
+          </div>
+        </div>
+
+        {/* Success Message Import Seminar Proposal */}
+        <AnimatePresence>
+          {seminarImportedCount > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
+              onAnimationComplete={() => {
+                setTimeout(() => {
+                  setSeminarImportedCount(0);
+                }, 5000);
+              }}
+            >
+              {seminarImportedCount} jadwal Seminar Proposal berhasil diimpor ke database.
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Success Message Bulk Delete Seminar */}
+        <AnimatePresence>
+          {seminarSuccess && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
+            >
+              {seminarSuccess}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Tabel Seminar Proposal */}
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+          <div className="max-w-full overflow-x-auto hide-scroll">
+            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+              <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                <tr>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    <button
+                      type="button"
+                      aria-checked={jadwalSeminarProposal.length > 0 && jadwalSeminarProposal.every(item => selectedSeminarItems.includes(item.id!))}
+                      role="checkbox"
+                      onClick={() => handleSeminarSelectAll(!(jadwalSeminarProposal.length > 0 && jadwalSeminarProposal.every(item => selectedSeminarItems.includes(item.id!))))}
+                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${jadwalSeminarProposal.length > 0 && jadwalSeminarProposal.every(item => selectedSeminarItems.includes(item.id!)) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                    >
+                      {jadwalSeminarProposal.length > 0 && jadwalSeminarProposal.every(item => selectedSeminarItems.includes(item.id!)) && (
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                          <polyline points="20 7 11 17 4 10" />
+                        </svg>
+                      )}
+                    </button>
+                  </th>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Hari/Tanggal</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pukul</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Waktu</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pembimbing</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Komentator</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400" style={{ minWidth: '300px' }}>Mahasiswa</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {jadwalSeminarProposal.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="text-center py-6 text-gray-400">Tidak ada data Seminar Proposal</td>
+                  </tr>
+                ) : (
+                  getPaginatedData(
+                    jadwalSeminarProposal
+                      .slice()
+                      .sort((a, b) => {
+                        const dateA = new Date(a.tanggal);
+                        const dateB = new Date(b.tanggal);
+                        return dateA.getTime() - dateB.getTime();
+                      }),
+                    seminarPage,
+                    seminarPageSize
+                  ).map((row, idx) => (
+                      <tr key={row.id} className={idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                        <td className="px-4 py-4 text-center">
+                          <button
+                            type="button"
+                            aria-checked={selectedSeminarItems.includes(row.id!)}
+                            role="checkbox"
+                            onClick={() => handleSeminarSelectItem(row.id!)}
+                            className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedSeminarItems.includes(row.id!) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                          >
+                            {selectedSeminarItems.includes(row.id!) && (
+                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                                <polyline points="20 7 11 17 4 10" />
+                              </svg>
+                            )}
+                          </button>
+                        </td>
+                        <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{(seminarPage - 1) * seminarPageSize + idx + 1}</td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatTanggalKonsisten(row.tanggal)}</td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatJamTanpaDetik(row.jam_mulai)}–{formatJamTanpaDetik(row.jam_selesai)}</td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.jumlah_sesi} x 50 menit</td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.pembimbing?.name || '-'}</td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                          {row.komentator && Array.isArray(row.komentator) && row.komentator.length > 0
+                            ? row.komentator.map((k: any) => k.name || k).join(', ')
+                            : '-'}
+                        </td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90" style={{ minWidth: '300px' }}>
+                          {(() => {
+                            if (!row.mahasiswa_nims || row.mahasiswa_nims.length === 0) {
+                              return '-';
+                            }
+                            
+                            // Ambil nama mahasiswa dari mahasiswaList berdasarkan NIM
+                            const mahasiswaNames = row.mahasiswa_nims
+                              .map((nim: string) => {
+                                const mahasiswa = mahasiswaList.find(m => m.nim === nim);
+                                return mahasiswa ? mahasiswa.name : nim;
+                              })
+                              .filter(Boolean);
+                            
+                            const displayCount = 3;
+                            const displayNames = mahasiswaNames.slice(0, displayCount);
+                            const remainingCount = mahasiswaNames.length - displayCount;
+                            
+                            return (
+                              <div className="flex flex-wrap items-center gap-1">
+                                {displayNames.map((name, idx) => (
+                                  <span key={idx} className="text-sm">
+                                    {name}
+                                    {idx < displayNames.length - 1 && ','}
+                                  </span>
+                                ))}
+                                {remainingCount > 0 && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const allMahasiswa = row.mahasiswa_nims
+                                        .map((nim: string) => mahasiswaList.find(m => m.nim === nim))
+                                        .filter(Boolean) as MahasiswaOption[];
+                                      setSelectedMahasiswaList(allMahasiswa);
+                                      setMahasiswaSearchQuery('');
+                                      setMahasiswaModalPage(1);
+                                      setShowMahasiswaModal(true);
+                                    }}
+                                    className="text-sm text-brand-500 hover:text-brand-600 dark:text-brand-400 dark:hover:text-brand-300 font-medium underline cursor-pointer ml-1"
+                                  >
+                                    +{remainingCount} lebih banyak
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                          {row.ruangan?.nama || '-'}
+                        </td>
+                      <td className="px-4 py-4 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5 flex-nowrap">
+                        <button onClick={() => {
+                          const correctIndex = jadwalSeminarProposal.findIndex(j => j.id === row.id);
+                          handleEditJadwal(correctIndex >= 0 ? correctIndex : idx, 'seminar_proposal');
+                          }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-1" title="Edit Jadwal">
+                          <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
+                          <span className="hidden sm:inline">Edit</span>
+                        </button>
+                          <button onClick={() => {
+                            const correctIndex = jadwalSeminarProposal.findIndex(j => j.id === row.id);
+                            setSelectedDeleteIndex(correctIndex >= 0 ? correctIndex : idx);
+                            setForm({...form, jenisBaris: 'seminar_proposal'});
+                            setShowDeleteModal(true);
+                          }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition" title="Hapus Jadwal">
+                          <FontAwesomeIcon icon={faTrash} className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
+                          <span className="hidden sm:inline">Hapus</span>
+                        </button>
+                        </div>
+                      </td>
+                    </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Tombol Hapus Terpilih untuk Seminar Proposal */}
+        {selectedSeminarItems.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-4">
+              <button
+              disabled={isSeminarDeleting}
+              onClick={() => setShowSeminarBulkDeleteModal(true)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${isSeminarDeleting ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-red-500 text-white shadow-theme-xs hover:bg-red-600'}`}
+            >
+              {isSeminarDeleting ? 'Menghapus...' : `Hapus Terpilih (${selectedSeminarItems.length})`}
+            </button>
+          </div>
+        )}
+
+        {/* Pagination for Seminar Proposal */}
+        {jadwalSeminarProposal.length > 0 && (
+          <div className="flex items-center justify-between mt-6">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Menampilkan {((seminarPage - 1) * seminarPageSize) + 1} - {Math.min(seminarPage * seminarPageSize, jadwalSeminarProposal.length)} dari {jadwalSeminarProposal.length} data
+              </span>
+              
+              <select
+                value={seminarPageSize}
+                onChange={(e) => {
+                  setSeminarPageSize(Number(e.target.value));
+                  setSeminarPage(1);
+                }}
+                className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
+              >
+                {PAGE_SIZE_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
+              <button
+                onClick={() => setSeminarPage((p) => Math.max(1, p - 1))}
+                disabled={seminarPage === 1}
+                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Previous
+              </button>
+
+              {/* Always show first page if it's not the current page */}
+              {getTotalPages(jadwalSeminarProposal.length, seminarPageSize) > 1 && (
+                <button
+                  onClick={() => setSeminarPage(1)}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    seminarPage === 1
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  1
+                </button>
+              )}
+
+              {/* Show pages around current page */}
+              {Array.from({ length: getTotalPages(jadwalSeminarProposal.length, seminarPageSize) }, (_, i) => {
+                const pageNum = i + 1;
+                // Show pages around current page (2 pages before and after)
+                const shouldShow =
+                  pageNum > 1 &&
+                  pageNum < getTotalPages(jadwalSeminarProposal.length, seminarPageSize) &&
+                  pageNum >= seminarPage - 2 &&
+                  pageNum <= seminarPage + 2;
+
+                if (!shouldShow) return null;
+
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setSeminarPage(pageNum)}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                      seminarPage === pageNum
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+
+              {/* Show ellipsis if current page is far from end */}
+              {seminarPage < getTotalPages(jadwalSeminarProposal.length, seminarPageSize) - 3 && (
+                <span className="px-2 text-gray-500 dark:text-gray-400">
+                  ...
+                </span>
+              )}
+
+              {/* Always show last page if it's not the first page */}
+              {getTotalPages(jadwalSeminarProposal.length, seminarPageSize) > 1 && (
+                <button
+                  onClick={() => setSeminarPage(getTotalPages(jadwalSeminarProposal.length, seminarPageSize))}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    seminarPage === getTotalPages(jadwalSeminarProposal.length, seminarPageSize)
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  {getTotalPages(jadwalSeminarProposal.length, seminarPageSize)}
+                </button>
+              )}
+
+              <button
+                onClick={() => setSeminarPage((p) => Math.min(getTotalPages(jadwalSeminarProposal.length, seminarPageSize), p + 1))}
+                disabled={seminarPage === getTotalPages(jadwalSeminarProposal.length, seminarPageSize)}
+                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Section Sidang Skripsi */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-white">
+            Sidang Skripsi
+          </h2>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setShowSidangUploadModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform cursor-pointer">
+              <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-brand-700 dark:text-brand-200" />
+              Import Excel
+            </button>
+            <button
+              onClick={downloadSidangTemplate}
+              className="px-4 py-2 rounded-lg bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 text-sm font-medium shadow-theme-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition flex items-center gap-2"
+            >
+              <FontAwesomeIcon icon={faDownload} className="w-5 h-5" />
+              Download Template Excel
+            </button>
+            <button
+              onClick={exportSidangSkripsiExcel}
+              disabled={jadwalSidangSkripsi.length === 0}
+              className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
+                jadwalSidangSkripsi.length === 0 
+                  ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed' 
+                  : 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800'
+              }`}
+              title={jadwalSidangSkripsi.length === 0 ? 'Tidak ada data Sidang Skripsi. Silakan tambahkan data jadwal terlebih dahulu untuk melakukan export.' : 'Export data Sidang Skripsi ke Excel'}
+            >
+              <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5" />
+              Export ke Excel
+            </button>
+            <button
+              onClick={() => {
+                setForm({
+                  hariTanggal: '',
+                  jamMulai: '',
+                  jumlahKali: 2,
+                  jamSelesai: '',
+                  pengampu: null,
+                  materi: '',
+                  lokasi: null,
+                  jenisBaris: 'sidang_skripsi',
+                  agenda: '',
+                  kelompokBesar: null,
+                  pembimbing: null,
+                  komentator: [],
+                  penguji: [],
+                  mahasiswa: [],
+                  useRuangan: true,
+                });
+                setEditIndex(null);
+                setShowModal(true);
+                setErrorForm('');
+                setErrorBackend('');
+              }}
+              className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition-all duration-300"
+            >
+              Tambah Jadwal
+            </button>
+          </div>
+        </div>
+
+        {/* Success Message Import Sidang Skripsi */}
+        <AnimatePresence>
+          {sidangImportedCount > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
+              onAnimationComplete={() => {
+                setTimeout(() => {
+                  setSidangImportedCount(0);
+                }, 5000);
+              }}
+            >
+              {sidangImportedCount} jadwal Sidang Skripsi berhasil diimpor ke database.
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Success Message Bulk Delete Sidang Skripsi */}
+        <AnimatePresence>
+          {sidangSuccess && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="bg-green-100 rounded-md p-3 mb-4 text-green-700"
+            >
+              {sidangSuccess}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Tabel Sidang Skripsi */}
+        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+          <div className="max-w-full overflow-x-auto hide-scroll">
+            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+              <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                <tr>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                    <button
+                      type="button"
+                      aria-checked={jadwalSidangSkripsi.length > 0 && jadwalSidangSkripsi.every(item => selectedSidangItems.includes(item.id!))}
+                      role="checkbox"
+                      onClick={() => handleSidangSelectAll(!(jadwalSidangSkripsi.length > 0 && jadwalSidangSkripsi.every(item => selectedSidangItems.includes(item.id!))))}
+                      className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${jadwalSidangSkripsi.length > 0 && jadwalSidangSkripsi.every(item => selectedSidangItems.includes(item.id!)) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                    >
+                      {jadwalSidangSkripsi.length > 0 && jadwalSidangSkripsi.every(item => selectedSidangItems.includes(item.id!)) && (
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                          <polyline points="20 7 11 17 4 10" />
+                        </svg>
+                      )}
+                    </button>
+                  </th>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Hari/Tanggal</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pukul</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Waktu</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pembimbing</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Penguji</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400" style={{ minWidth: '300px' }}>Mahasiswa</th>
+                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
+                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {jadwalSidangSkripsi.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="text-center py-6 text-gray-400">Tidak ada data Sidang Skripsi</td>
+                  </tr>
+                ) : (
+                  getPaginatedData(
+                    jadwalSidangSkripsi
+                      .slice()
+                      .sort((a, b) => {
+                        const dateA = new Date(a.tanggal);
+                        const dateB = new Date(b.tanggal);
+                        return dateA.getTime() - dateB.getTime();
+                      }),
+                    sidangPage,
+                    sidangPageSize
+                  ).map((row, idx) => (
+                      <tr key={row.id} className={idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                        <td className="px-4 py-4 text-center">
+                          <button
+                            type="button"
+                            aria-checked={selectedSidangItems.includes(row.id!)}
+                            role="checkbox"
+                            onClick={() => handleSidangSelectItem(row.id!)}
+                            className={`inline-flex items-center justify-center w-5 h-5 rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 ${selectedSidangItems.includes(row.id!) ? "bg-brand-500 border-brand-500" : "bg-white border-gray-300 dark:bg-gray-900 dark:border-gray-700"} cursor-pointer`}
+                          >
+                            {selectedSidangItems.includes(row.id!) && (
+                              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                                <polyline points="20 7 11 17 4 10" />
+                              </svg>
+                            )}
+                          </button>
+                        </td>
+                        <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{(sidangPage - 1) * sidangPageSize + idx + 1}</td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatTanggalKonsisten(row.tanggal)}</td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{formatJamTanpaDetik(row.jam_mulai)}–{formatJamTanpaDetik(row.jam_selesai)}</td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.jumlah_sesi} x 50 menit</td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{row.pembimbing?.name || '-'}</td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                          {row.penguji && Array.isArray(row.penguji) && row.penguji.length > 0
+                            ? row.penguji.map((p: any) => p.name || p).join(', ')
+                            : '-'}
+                        </td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90" style={{ minWidth: '300px' }}>
+                          {(() => {
+                            if (!row.mahasiswa_nims || row.mahasiswa_nims.length === 0) {
+                              return '-';
+                            }
+                            
+                            // Ambil nama mahasiswa dari mahasiswaList berdasarkan NIM
+                            const mahasiswaNames = row.mahasiswa_nims
+                              .map((nim: string) => {
+                                const mahasiswa = mahasiswaList.find(m => m.nim === nim);
+                                return mahasiswa ? mahasiswa.name : nim;
+                              })
+                              .filter(Boolean);
+                            
+                            const displayCount = 3;
+                            const displayNames = mahasiswaNames.slice(0, displayCount);
+                            const remainingCount = mahasiswaNames.length - displayCount;
+                            
+                            return (
+                              <div className="flex flex-wrap items-center gap-1">
+                                {displayNames.map((name, idx) => (
+                                  <span key={idx} className="text-sm">
+                                    {name}
+                                    {idx < displayNames.length - 1 && ','}
+                                  </span>
+                                ))}
+                                {remainingCount > 0 && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const allMahasiswa = row.mahasiswa_nims
+                                        .map((nim: string) => mahasiswaList.find(m => m.nim === nim))
+                                        .filter(Boolean) as MahasiswaOption[];
+                                      setSelectedMahasiswaList(allMahasiswa);
+                                      setMahasiswaSearchQuery('');
+                                      setMahasiswaModalPage(1);
+                                      setShowMahasiswaModal(true);
+                                    }}
+                                    className="text-sm text-brand-500 hover:text-brand-600 dark:text-brand-400 dark:hover:text-brand-300 font-medium underline cursor-pointer ml-1"
+                                  >
+                                    +{remainingCount} lebih banyak
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                          {row.ruangan?.nama || '-'}
+                        </td>
+                      <td className="px-4 py-4 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5 flex-nowrap">
+                        <button onClick={() => {
+                          const correctIndex = jadwalSidangSkripsi.findIndex(j => j.id === row.id);
+                          handleEditJadwal(correctIndex >= 0 ? correctIndex : idx, 'sidang_skripsi');
+                          }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition mr-1" title="Edit Jadwal">
+                          <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
+                          <span className="hidden sm:inline">Edit</span>
+                        </button>
+                          <button onClick={() => {
+                            const correctIndex = jadwalSidangSkripsi.findIndex(j => j.id === row.id);
+                            setSelectedDeleteIndex(correctIndex >= 0 ? correctIndex : idx);
+                            setForm({...form, jenisBaris: 'sidang_skripsi'});
+                            setShowDeleteModal(true);
+                          }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition" title="Hapus Jadwal">
+                          <FontAwesomeIcon icon={faTrash} className="w-4 h-4 sm:w-5 sm:h-5 text-red-500" />
+                          <span className="hidden sm:inline">Hapus</span>
+                        </button>
+                        </div>
+                      </td>
+                    </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Tombol Hapus Terpilih untuk Sidang Skripsi */}
+        {selectedSidangItems.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-4">
+              <button
+              disabled={isSidangDeleting}
+              onClick={() => setShowSidangBulkDeleteModal(true)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center transition ${isSidangDeleting ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-red-500 text-white shadow-theme-xs hover:bg-red-600'}`}
+            >
+              {isSidangDeleting ? 'Menghapus...' : `Hapus Terpilih (${selectedSidangItems.length})`}
+            </button>
+          </div>
+        )}
+
+        {/* Pagination for Sidang Skripsi */}
+        {jadwalSidangSkripsi.length > 0 && (
+          <div className="flex items-center justify-between mt-6">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Menampilkan {((sidangPage - 1) * sidangPageSize) + 1} - {Math.min(sidangPage * sidangPageSize, jadwalSidangSkripsi.length)} dari {jadwalSidangSkripsi.length} data
+              </span>
+              
+              <select
+                value={sidangPageSize}
+                onChange={(e) => {
+                  setSidangPageSize(Number(e.target.value));
+                  setSidangPage(1);
+                }}
+                className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
+              >
+                {PAGE_SIZE_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll">
+              <button
+                onClick={() => setSidangPage((p) => Math.max(1, p - 1))}
+                disabled={sidangPage === 1}
+                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Previous
+              </button>
+
+              {/* Always show first page if it's not the current page */}
+              {getTotalPages(jadwalSidangSkripsi.length, sidangPageSize) > 1 && (
+                <button
+                  onClick={() => setSidangPage(1)}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    sidangPage === 1
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  1
+                </button>
+              )}
+
+              {/* Show pages around current page */}
+              {Array.from({ length: getTotalPages(jadwalSidangSkripsi.length, sidangPageSize) }, (_, i) => {
+                const pageNum = i + 1;
+                // Show pages around current page (2 pages before and after)
+                const shouldShow =
+                  pageNum > 1 &&
+                  pageNum < getTotalPages(jadwalSidangSkripsi.length, sidangPageSize) &&
+                  pageNum >= sidangPage - 2 &&
+                  pageNum <= sidangPage + 2;
+
+                if (!shouldShow) return null;
+
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setSidangPage(pageNum)}
+                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                      sidangPage === pageNum
+                        ? "bg-brand-500 text-white"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+
+              {/* Show ellipsis if current page is far from end */}
+              {sidangPage < getTotalPages(jadwalSidangSkripsi.length, sidangPageSize) - 3 && (
+                <span className="px-2 text-gray-500 dark:text-gray-400">
+                  ...
+                </span>
+              )}
+
+              {/* Always show last page if it's not the first page */}
+              {getTotalPages(jadwalSidangSkripsi.length, sidangPageSize) > 1 && (
+                <button
+                  onClick={() => setSidangPage(getTotalPages(jadwalSidangSkripsi.length, sidangPageSize))}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                    sidangPage === getTotalPages(jadwalSidangSkripsi.length, sidangPageSize)
+                      ? "bg-brand-500 text-white"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  {getTotalPages(jadwalSidangSkripsi.length, sidangPageSize)}
+                </button>
+              )}
+
+              <button
+                onClick={() => setSidangPage((p) => Math.min(getTotalPages(jadwalSidangSkripsi.length, sidangPageSize), p + 1))}
+                disabled={sidangPage === getTotalPages(jadwalSidangSkripsi.length, sidangPageSize)}
+                className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* MODAL INPUT JADWAL */}
       <AnimatePresence>
         {showModal && (
           <div className="fixed inset-0 z-9999999 flex items-center justify-center">
@@ -1745,9 +5806,11 @@ export default function DetailNonBlokNonCSR() {
               {/* Jenis Baris */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Jenis Baris</label>
-                <select name="jenisBaris" value={form.jenisBaris} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                  <option value="materi">Jadwal Materi</option>
+                <select name="jenisBaris" value={form.jenisBaris} onChange={handleFormChange} disabled className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm cursor-not-allowed">
+                  <option value="materi">Materi Kuliah</option>
                   <option value="agenda">Agenda Khusus</option>
+                  <option value="seminar_proposal">Seminar Proposal</option>
+                  <option value="sidang_skripsi">Sidang Skripsi</option>
                 </select>
               </div>
               <div className="space-y-4">
@@ -2207,9 +6270,9 @@ export default function DetailNonBlokNonCSR() {
                           </div>
                         ) : (
                           <Select
-                            options={getRuanganOptions(ruanganList || [])}
+                            options={ruanganOptions}
                             value={
-                              getRuanganOptions(ruanganList || []).find(
+                              ruanganOptions.find(
                                 (opt: any) => opt.value === form.lokasi
                               ) || null
                             }
@@ -2340,12 +6403,1608 @@ export default function DetailNonBlokNonCSR() {
                       </div>
                     )}
                   </>
+                ) : form.jenisBaris === 'seminar_proposal' ? (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Hari/Tanggal
+                      </label>
+                      <input
+                        type="date"
+                        name="hariTanggal"
+                        value={form.hariTanggal || ""}
+                        onChange={handleFormChange}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      />
+                      {errorForm && (errorForm.includes('Tanggal tidak boleh') || errorForm.includes('tidak boleh sebelum') || errorForm.includes('tidak boleh setelah')) && (
+                        <div className="text-sm text-red-500 mt-2">{errorForm}</div>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Jam Mulai
+                        </label>
+                        <Select
+                          options={jamOptions.map((j: string) => ({
+                            value: j,
+                            label: j,
+                          }))}
+                          value={
+                            jamOptions
+                              .map((j: string) => ({ value: j, label: j }))
+                              .find(
+                                (opt: any) => opt.value === form.jamMulai
+                              ) || null
+                          }
+                          onChange={(opt: any) => {
+                            const value = opt?.value || "";
+                            setForm((f) => ({
+                              ...f,
+                              jamMulai: value,
+                              jamSelesai: hitungJamSelesai(
+                                value,
+                                f.jumlahKali
+                              ),
+                            }));
+                          }}
+                          classNamePrefix="react-select"
+                          className="react-select-container"
+                          isClearable
+                          placeholder="Pilih Jam Mulai"
+                          styles={{
+                            control: (base, state) => ({
+                              ...base,
+                              backgroundColor:
+                                document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#1e293b"
+                                  : "#f9fafb",
+                              borderColor: state.isFocused
+                                ? "#3b82f6"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#334155"
+                                : "#d1d5db",
+                              boxShadow: state.isFocused
+                                ? "0 0 0 2px #3b82f633"
+                                : undefined,
+                              borderRadius: "0.75rem",
+                              minHeight: "2.5rem",
+                              fontSize: "1rem",
+                              paddingLeft: "0.75rem",
+                              paddingRight: "0.75rem",
+                              "&:hover": { borderColor: "#3b82f6" },
+                            }),
+                            menu: (base) => ({
+                              ...base,
+                              zIndex: 9999,
+                              fontSize: "1rem",
+                              backgroundColor:
+                                document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#1e293b"
+                                  : "#fff",
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                            }),
+                            option: (base, state) => ({
+                              ...base,
+                              backgroundColor: state.isSelected
+                                ? "#3b82f6"
+                                : state.isFocused
+                                ? document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                  ? "#334155"
+                                  : "#e0e7ff"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#1e293b"
+                                : "#fff",
+                              color: state.isSelected
+                                ? "#fff"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#fff"
+                                : "#1f2937",
+                              fontSize: "1rem",
+                            }),
+                            singleValue: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                            }),
+                            placeholder: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#64748b"
+                                : "#6b7280",
+                            }),
+                            input: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                            }),
+                            dropdownIndicator: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#64748b"
+                                : "#6b7280",
+                              "&:hover": { color: "#3b82f6" },
+                            }),
+                            indicatorSeparator: (base) => ({
+                              ...base,
+                              backgroundColor: "transparent",
+                            }),
+                          }}
+                        />
+                      </div>
+
+                      <div className="w-32">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          x 50 menit
+                        </label>
+                        <select
+                          name="jumlahKali"
+                          value={form.jumlahKali}
+                          onChange={handleFormChange}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        >
+                          {[1, 2, 3, 4, 5, 6].map((n) => (
+                            <option key={n} value={n}>
+                              {n} x 50'
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="mt-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Jam Selesai
+                      </label>
+                      <input
+                        type="text"
+                        name="jamSelesai"
+                        value={form.jamSelesai || ""}
+                        readOnly
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm cursor-not-allowed"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Pembimbing <span className="text-red-500">*</span>
+                      </label>
+                      <Select
+                        options={dosenList
+                          .filter((d: DosenOption) => {
+                            // Filter out dosen yang sudah dipilih sebagai komentator (untuk Seminar Proposal)
+                            if (form.jenisBaris === 'seminar_proposal' && form.komentator.includes(d.id)) {
+                              return false;
+                            }
+                            // Filter out dosen yang sudah dipilih sebagai penguji (untuk Sidang Skripsi)
+                            if (form.jenisBaris === 'sidang_skripsi' && form.penguji.includes(d.id)) {
+                              return false;
+                            }
+                            return true;
+                          })
+                          .map((d: DosenOption) => ({
+                            value: d.id,
+                            label: `${d.name} (${d.nid})`,
+                          }))}
+                        value={
+                          dosenList
+                            .map((d: DosenOption) => ({
+                              value: d.id,
+                              label: `${d.name} (${d.nid})`,
+                            }))
+                            .find((opt: any) => opt.value === form.pembimbing) || null
+                        }
+                        onChange={(opt: any) => {
+                          const newPembimbingId = opt?.value || null;
+                          // Validasi: Cek apakah dosen yang dipilih sudah ada di komentator (untuk Seminar Proposal)
+                          if (form.jenisBaris === 'seminar_proposal' && newPembimbingId && form.komentator.includes(newPembimbingId)) {
+                            setErrorForm('Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Komentator');
+                            return;
+                          }
+                          // Validasi: Cek apakah dosen yang dipilih sudah ada di penguji (untuk Sidang Skripsi)
+                          if (form.jenisBaris === 'sidang_skripsi' && newPembimbingId && form.penguji.includes(newPembimbingId)) {
+                            setErrorForm('Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Penguji');
+                            return;
+                          }
+                          setForm({ ...form, pembimbing: newPembimbingId });
+                          setErrorForm("");
+                        }}
+                        placeholder="Pilih Pembimbing"
+                        isClearable
+                        classNamePrefix="react-select"
+                        className="react-select-container"
+                        styles={{
+                          control: (base, state) => ({
+                            ...base,
+                            backgroundColor:
+                              document.documentElement.classList.contains("dark")
+                                ? "#1e293b"
+                                : "#f9fafb",
+                            borderColor: state.isFocused
+                              ? "#3b82f6"
+                              : document.documentElement.classList.contains("dark")
+                              ? "#334155"
+                              : "#d1d5db",
+                            boxShadow: state.isFocused
+                              ? "0 0 0 2px #3b82f633"
+                              : undefined,
+                            borderRadius: "0.75rem",
+                            minHeight: "2.5rem",
+                            fontSize: "1rem",
+                            paddingLeft: "0.75rem",
+                            paddingRight: "0.75rem",
+                            "&:hover": { borderColor: "#3b82f6" },
+                          }),
+                          menu: (base) => ({
+                            ...base,
+                            zIndex: 9999,
+                            fontSize: "1rem",
+                            backgroundColor:
+                              document.documentElement.classList.contains("dark")
+                                ? "#1e293b"
+                                : "#fff",
+                            color: document.documentElement.classList.contains("dark")
+                              ? "#fff"
+                              : "#1f2937",
+                          }),
+                          option: (base, state) => ({
+                            ...base,
+                            backgroundColor: state.isSelected
+                              ? "#3b82f6"
+                              : state.isFocused
+                              ? document.documentElement.classList.contains("dark")
+                                ? "#334155"
+                                : "#e0e7ff"
+                              : document.documentElement.classList.contains("dark")
+                              ? "#1e293b"
+                              : "#fff",
+                            color: state.isSelected
+                              ? "#fff"
+                              : document.documentElement.classList.contains("dark")
+                              ? "#fff"
+                              : "#1f2937",
+                            fontSize: "1rem",
+                          }),
+                          singleValue: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains("dark")
+                              ? "#fff"
+                              : "#1f2937",
+                          }),
+                          placeholder: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains("dark")
+                              ? "#64748b"
+                              : "#6b7280",
+                          }),
+                          input: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains("dark")
+                              ? "#fff"
+                              : "#1f2937",
+                          }),
+                          dropdownIndicator: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains("dark")
+                              ? "#64748b"
+                              : "#6b7280",
+                            "&:hover": { color: "#3b82f6" },
+                          }),
+                          indicatorSeparator: (base) => ({
+                            ...base,
+                            backgroundColor: "transparent",
+                          }),
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Komentator <span className="text-red-500">*</span> (Maksimal 2)
+                      </label>
+                      <Select
+                        isMulti
+                        options={dosenList
+                          .filter((d: DosenOption) => {
+                            // Filter out dosen yang sudah dipilih sebagai pembimbing
+                            if (form.pembimbing === d.id) {
+                              return false;
+                            }
+                            return true;
+                          })
+                          .map((d: DosenOption) => ({
+                            value: d.id,
+                            label: `${d.name} (${d.nid})`,
+                          }))}
+                        value={
+                          dosenList
+                            .map((d: DosenOption) => ({
+                              value: d.id,
+                              label: `${d.name} (${d.nid})`,
+                            }))
+                            .filter((opt: any) => form.komentator.includes(opt.value)) || []
+                        }
+                        onChange={(opts: any) => {
+                          const selectedIds = opts ? opts.map((opt: any) => opt.value) : [];
+                          if (selectedIds.length > 2) {
+                            setErrorForm("Komentator maksimal 2 orang");
+                            return;
+                          }
+                          // Validasi: Cek apakah ada dosen yang sama di pembimbing
+                          if (form.pembimbing && selectedIds.includes(form.pembimbing)) {
+                            setErrorForm('Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Komentator');
+                            return;
+                          }
+                          setForm({ ...form, komentator: selectedIds });
+                          setErrorForm("");
+                        }}
+                        placeholder="Pilih Komentator (Maksimal 2)"
+                        isClearable
+                        classNamePrefix="react-select"
+                        className="react-select-container"
+                        maxMenuHeight={200}
+                        styles={{
+                          control: (base, state) => ({
+                            ...base,
+                            backgroundColor:
+                              document.documentElement.classList.contains("dark")
+                                ? "#1e293b"
+                                : "#f9fafb",
+                            borderColor: state.isFocused
+                              ? "#3b82f6"
+                              : document.documentElement.classList.contains("dark")
+                              ? "#334155"
+                              : "#d1d5db",
+                            boxShadow: state.isFocused
+                              ? "0 0 0 2px #3b82f633"
+                              : undefined,
+                            borderRadius: "0.75rem",
+                            minHeight: "2.5rem",
+                            fontSize: "1rem",
+                            paddingLeft: "0.75rem",
+                            paddingRight: "0.75rem",
+                            "&:hover": { borderColor: "#3b82f6" },
+                          }),
+                          menu: (base) => ({
+                            ...base,
+                            zIndex: 9999,
+                            fontSize: "1rem",
+                            backgroundColor:
+                              document.documentElement.classList.contains("dark")
+                                ? "#1e293b"
+                                : "#fff",
+                            color: document.documentElement.classList.contains("dark")
+                              ? "#fff"
+                              : "#1f2937",
+                          }),
+                          option: (base, state) => ({
+                            ...base,
+                            backgroundColor: state.isSelected
+                              ? "#3b82f6"
+                              : state.isFocused
+                              ? document.documentElement.classList.contains("dark")
+                                ? "#334155"
+                                : "#e0e7ff"
+                              : document.documentElement.classList.contains("dark")
+                              ? "#1e293b"
+                              : "#fff",
+                            color: state.isSelected
+                              ? "#fff"
+                              : document.documentElement.classList.contains("dark")
+                              ? "#fff"
+                              : "#1f2937",
+                            fontSize: "1rem",
+                          }),
+                          multiValue: (base) => ({
+                            ...base,
+                            backgroundColor: document.documentElement.classList.contains("dark")
+                              ? "#334155"
+                              : "#e0e7ff",
+                          }),
+                          multiValueLabel: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains("dark")
+                              ? "#fff"
+                              : "#1f2937",
+                          }),
+                          multiValueRemove: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains("dark")
+                              ? "#fff"
+                              : "#1f2937",
+                            "&:hover": {
+                              backgroundColor: "#ef4444",
+                              color: "#fff",
+                            },
+                          }),
+                          placeholder: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains("dark")
+                              ? "#64748b"
+                              : "#6b7280",
+                          }),
+                          input: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains("dark")
+                              ? "#fff"
+                              : "#1f2937",
+                          }),
+                          dropdownIndicator: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains("dark")
+                              ? "#64748b"
+                              : "#6b7280",
+                            "&:hover": { color: "#3b82f6" },
+                          }),
+                          indicatorSeparator: (base) => ({
+                            ...base,
+                            backgroundColor: "transparent",
+                          }),
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Mahasiswa <span className="text-red-500">*</span>
+                      </label>
+                      <Select
+                        isMulti
+                        options={mahasiswaList.map((m: MahasiswaOption) => ({
+                          value: m.nim,
+                          label: m.label,
+                        }))}
+                        value={
+                          mahasiswaList
+                            .map((m: MahasiswaOption) => ({
+                              value: m.nim,
+                              label: m.label,
+                            }))
+                            .filter((opt: any) => form.mahasiswa.includes(opt.value)) || []
+                        }
+                        onChange={(opts: any) => {
+                          const selectedNims = opts ? opts.map((opt: any) => opt.value) : [];
+                          setForm({ ...form, mahasiswa: selectedNims });
+                          setErrorForm("");
+                        }}
+                        placeholder="Pilih Mahasiswa"
+                        isClearable
+                        classNamePrefix="react-select"
+                        className="react-select-container"
+                        maxMenuHeight={200}
+                        styles={{
+                          control: (base, state) => ({
+                            ...base,
+                            backgroundColor:
+                              document.documentElement.classList.contains("dark")
+                                ? "#1e293b"
+                                : "#f9fafb",
+                            borderColor: state.isFocused
+                              ? "#3b82f6"
+                              : document.documentElement.classList.contains("dark")
+                              ? "#334155"
+                              : "#d1d5db",
+                            boxShadow: state.isFocused
+                              ? "0 0 0 2px #3b82f633"
+                              : undefined,
+                            borderRadius: "0.75rem",
+                            minHeight: "2.5rem",
+                            fontSize: "1rem",
+                            paddingLeft: "0.75rem",
+                            paddingRight: "0.75rem",
+                            "&:hover": { borderColor: "#3b82f6" },
+                          }),
+                          menu: (base) => ({
+                            ...base,
+                            zIndex: 9999,
+                            fontSize: "1rem",
+                            backgroundColor:
+                              document.documentElement.classList.contains("dark")
+                                ? "#1e293b"
+                                : "#fff",
+                            color: document.documentElement.classList.contains("dark")
+                              ? "#fff"
+                              : "#1f2937",
+                          }),
+                          option: (base, state) => ({
+                            ...base,
+                            backgroundColor: state.isSelected
+                              ? "#3b82f6"
+                              : state.isFocused
+                              ? document.documentElement.classList.contains("dark")
+                                ? "#334155"
+                                : "#e0e7ff"
+                              : document.documentElement.classList.contains("dark")
+                              ? "#1e293b"
+                              : "#fff",
+                            color: state.isSelected
+                              ? "#fff"
+                              : document.documentElement.classList.contains("dark")
+                              ? "#fff"
+                              : "#1f2937",
+                            fontSize: "1rem",
+                          }),
+                          multiValue: (base) => ({
+                            ...base,
+                            backgroundColor: document.documentElement.classList.contains("dark")
+                              ? "#334155"
+                              : "#e0e7ff",
+                          }),
+                          multiValueLabel: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains("dark")
+                              ? "#fff"
+                              : "#1f2937",
+                          }),
+                          multiValueRemove: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains("dark")
+                              ? "#fff"
+                              : "#1f2937",
+                            "&:hover": {
+                              backgroundColor: "#ef4444",
+                              color: "#fff",
+                            },
+                          }),
+                          placeholder: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains("dark")
+                              ? "#64748b"
+                              : "#6b7280",
+                          }),
+                          input: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains("dark")
+                              ? "#fff"
+                              : "#1f2937",
+                          }),
+                          dropdownIndicator: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains("dark")
+                              ? "#64748b"
+                              : "#6b7280",
+                            "&:hover": { color: "#3b82f6" },
+                          }),
+                          indicatorSeparator: (base) => ({
+                            ...base,
+                            backgroundColor: "transparent",
+                          }),
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Ruangan
+                      </label>
+                      {ruanganList.length === 0 ? (
+                        <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+                          <div className="flex items-center gap-2">
+                            <svg
+                              className="w-5 h-5 text-orange-500"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                            <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
+                              Belum ada ruangan yang ditambahkan untuk mata
+                              kuliah ini
+                            </span>
+                          </div>
+                          <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
+                            Silakan tambahkan ruangan terlebih dahulu di
+                            halaman Ruangan Detail
+                          </p>
+                        </div>
+                      ) : (
+                        <Select
+                          options={getRuanganOptions(ruanganList || [])}
+                          value={
+                            getRuanganOptions(ruanganList || []).find(
+                              (opt: any) => opt.value === form.lokasi
+                            ) || null
+                          }
+                          onChange={(opt: any) => {
+                            setForm({ ...form, lokasi: opt?.value || null });
+                            setErrorForm("");
+                          }}
+                          placeholder="Pilih Ruangan"
+                          isClearable
+                          classNamePrefix="react-select"
+                          className="react-select-container"
+                          styles={{
+                            control: (base, state) => ({
+                              ...base,
+                              backgroundColor: state.isDisabled
+                                ? document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                  ? "#1e293b"
+                                  : "#f3f4f6"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#1e293b"
+                                : "#f9fafb",
+                              borderColor: state.isFocused
+                                ? "#3b82f6"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#334155"
+                                : "#d1d5db",
+                              boxShadow: state.isFocused
+                                ? "0 0 0 2px #3b82f633"
+                                : undefined,
+                              borderRadius: "0.75rem",
+                              minHeight: "2.5rem",
+                              fontSize: "1rem",
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                              paddingLeft: "0.75rem",
+                              paddingRight: "0.75rem",
+                              "&:hover": { borderColor: "#3b82f6" },
+                            }),
+                            menu: (base) => ({
+                              ...base,
+                              zIndex: 9999,
+                              fontSize: "1rem",
+                              backgroundColor:
+                                document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#1e293b"
+                                  : "#fff",
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                            }),
+                            option: (base, state) => ({
+                              ...base,
+                              backgroundColor: state.isSelected
+                                ? "#3b82f6"
+                                : state.isFocused
+                                ? document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                  ? "#334155"
+                                  : "#e0e7ff"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#1e293b"
+                                : "#fff",
+                              color: state.isSelected
+                                ? "#fff"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#fff"
+                                : "#1f2937",
+                              fontSize: "1rem",
+                            }),
+                            singleValue: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                            }),
+                            placeholder: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#64748b"
+                                : "#6b7280",
+                            }),
+                            input: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                            }),
+                            dropdownIndicator: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#64748b"
+                                : "#6b7280",
+                              "&:hover": { color: "#3b82f6" },
+                            }),
+                            indicatorSeparator: (base) => ({
+                              ...base,
+                              backgroundColor: "transparent",
+                            }),
+                          }}
+                        />
+                      )}
+                    </div>
+                  </>
+                ) : form.jenisBaris === 'sidang_skripsi' ? (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Hari/Tanggal
+                      </label>
+                      <input
+                        type="date"
+                        name="hariTanggal"
+                        value={form.hariTanggal || ""}
+                        onChange={handleFormChange}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      />
+                      {errorForm && (errorForm.includes('Tanggal tidak boleh') || errorForm.includes('tidak boleh sebelum') || errorForm.includes('tidak boleh setelah')) && (
+                        <div className="text-sm text-red-500 mt-2">{errorForm}</div>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Jam Mulai
+                        </label>
+                        <Select
+                          options={jamOptions.map((j: string) => ({
+                            value: j,
+                            label: j,
+                          }))}
+                          value={
+                            jamOptions
+                              .map((j: string) => ({ value: j, label: j }))
+                              .find(
+                                (opt: any) => opt.value === form.jamMulai
+                              ) || null
+                          }
+                          onChange={(opt: any) => {
+                            const value = opt?.value || "";
+                            setForm((f) => ({
+                              ...f,
+                              jamMulai: value,
+                              jamSelesai: hitungJamSelesai(
+                                value,
+                                f.jumlahKali
+                              ),
+                            }));
+                            setErrorForm("");
+                          }}
+                          placeholder="Pilih Jam Mulai"
+                          classNamePrefix="react-select"
+                          className="react-select-container"
+                          styles={{
+                            control: (base, state) => ({
+                              ...base,
+                              backgroundColor: state.isDisabled
+                                ? document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                  ? "#1e293b"
+                                  : "#f3f4f6"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#1e293b"
+                                : "#f9fafb",
+                              borderColor: state.isFocused
+                                ? "#3b82f6"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#334155"
+                                : "#d1d5db",
+                              boxShadow: state.isFocused
+                                ? "0 0 0 2px #3b82f633"
+                                : undefined,
+                              borderRadius: "0.75rem",
+                              minHeight: "2.5rem",
+                              fontSize: "1rem",
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                              paddingLeft: "0.75rem",
+                              paddingRight: "0.75rem",
+                              "&:hover": { borderColor: "#3b82f6" },
+                            }),
+                            menu: (base) => ({
+                              ...base,
+                              zIndex: 9999,
+                              fontSize: "1rem",
+                              backgroundColor:
+                                document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#1e293b"
+                                  : "#fff",
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                            }),
+                            option: (base, state) => ({
+                              ...base,
+                              backgroundColor: state.isSelected
+                                ? "#3b82f6"
+                                : state.isFocused
+                                ? document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                  ? "#334155"
+                                  : "#e0e7ff"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#1e293b"
+                                : "#fff",
+                              color: state.isSelected
+                                ? "#fff"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#fff"
+                                : "#1f2937",
+                              fontSize: "1rem",
+                            }),
+                            singleValue: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                            }),
+                            placeholder: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#64748b"
+                                : "#6b7280",
+                            }),
+                            input: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                            }),
+                            dropdownIndicator: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#64748b"
+                                : "#6b7280",
+                              "&:hover": { color: "#3b82f6" },
+                            }),
+                            indicatorSeparator: (base) => ({
+                              ...base,
+                              backgroundColor: "transparent",
+                            }),
+                          }}
+                        />
+                      </div>
+
+                      <div className="w-32">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          x 50 menit
+                        </label>
+                        <select
+                          name="jumlahKali"
+                          value={form.jumlahKali}
+                          onChange={handleFormChange}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        >
+                          {[1, 2, 3, 4, 5, 6].map((n) => (
+                            <option key={n} value={n}>
+                              {n} x 50'
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="mt-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Jam Selesai
+                      </label>
+                      <input
+                        type="text"
+                        name="jamSelesai"
+                        value={form.jamSelesai || ""}
+                        readOnly
+                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm cursor-not-allowed"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Pembimbing <span className="text-red-500">*</span>
+                      </label>
+                      <Select
+                        options={dosenList
+                          .filter((d: DosenOption) => {
+                            // Filter out dosen yang sudah dipilih sebagai penguji
+                            if (form.penguji.includes(d.id)) {
+                              return false;
+                            }
+                            return true;
+                          })
+                          .map((d: DosenOption) => ({
+                            value: d.id,
+                            label: `${d.name} (${d.nid})`,
+                          }))}
+                        value={
+                          dosenList
+                            .map((d: DosenOption) => ({
+                              value: d.id,
+                              label: `${d.name} (${d.nid})`,
+                            }))
+                            .find((opt: any) => opt.value === form.pembimbing) ||
+                          null
+                        }
+                        onChange={(opt: any) => {
+                          setForm({ ...form, pembimbing: opt?.value || null });
+                          setErrorForm("");
+                        }}
+                        placeholder="Pilih Pembimbing"
+                        isClearable
+                        classNamePrefix="react-select"
+                        className="react-select-container"
+                        styles={{
+                          control: (base, state) => ({
+                            ...base,
+                            backgroundColor: state.isDisabled
+                              ? document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                ? "#1e293b"
+                                : "#f3f4f6"
+                              : document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                              ? "#1e293b"
+                              : "#f9fafb",
+                            borderColor: state.isFocused
+                              ? "#3b82f6"
+                              : document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                              ? "#334155"
+                              : "#d1d5db",
+                            boxShadow: state.isFocused
+                              ? "0 0 0 2px #3b82f633"
+                              : undefined,
+                            borderRadius: "0.75rem",
+                            minHeight: "2.5rem",
+                            fontSize: "1rem",
+                            color: document.documentElement.classList.contains(
+                              "dark"
+                            )
+                              ? "#fff"
+                              : "#1f2937",
+                            paddingLeft: "0.75rem",
+                            paddingRight: "0.75rem",
+                            "&:hover": { borderColor: "#3b82f6" },
+                          }),
+                          menu: (base) => ({
+                            ...base,
+                            zIndex: 9999,
+                            fontSize: "1rem",
+                            backgroundColor:
+                              document.documentElement.classList.contains("dark")
+                                ? "#1e293b"
+                                : "#fff",
+                            color: document.documentElement.classList.contains(
+                              "dark"
+                            )
+                              ? "#fff"
+                              : "#1f2937",
+                          }),
+                          option: (base, state) => ({
+                            ...base,
+                            backgroundColor: state.isSelected
+                              ? "#3b82f6"
+                              : state.isFocused
+                              ? document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                ? "#334155"
+                                : "#e0e7ff"
+                              : document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                              ? "#1e293b"
+                              : "#fff",
+                            color: state.isSelected
+                              ? "#fff"
+                              : document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                              ? "#fff"
+                              : "#1f2937",
+                            fontSize: "1rem",
+                          }),
+                          singleValue: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains(
+                              "dark"
+                            )
+                              ? "#fff"
+                              : "#1f2937",
+                          }),
+                          placeholder: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains(
+                              "dark"
+                            )
+                              ? "#64748b"
+                              : "#6b7280",
+                          }),
+                          input: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains(
+                              "dark"
+                            )
+                              ? "#fff"
+                              : "#1f2937",
+                          }),
+                          dropdownIndicator: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains(
+                              "dark"
+                            )
+                              ? "#64748b"
+                              : "#6b7280",
+                            "&:hover": { color: "#3b82f6" },
+                          }),
+                          indicatorSeparator: (base) => ({
+                            ...base,
+                            backgroundColor: "transparent",
+                          }),
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Penguji <span className="text-red-500">*</span> (Maksimal 2)
+                      </label>
+                      <Select
+                        isMulti
+                        options={dosenList
+                          .filter((d: DosenOption) => {
+                            // Filter out dosen yang sudah dipilih sebagai pembimbing
+                            if (form.pembimbing === d.id) {
+                              return false;
+                            }
+                            return true;
+                          })
+                          .map((d: DosenOption) => ({
+                            value: d.id,
+                            label: `${d.name} (${d.nid})`,
+                          }))}
+                        value={
+                          dosenList
+                            .map((d: DosenOption) => ({
+                              value: d.id,
+                              label: `${d.name} (${d.nid})`,
+                            }))
+                            .filter((opt: any) =>
+                              form.penguji.includes(opt.value)
+                            ) || []
+                        }
+                        onChange={(opts: any) => {
+                          const selectedIds = opts
+                            ? opts.map((opt: any) => opt.value)
+                            : [];
+                          if (selectedIds.length > 2) {
+                            setErrorForm("Penguji maksimal 2 orang");
+                            return;
+                          }
+                          // Validasi: Cek apakah ada dosen yang sama di pembimbing
+                          if (form.pembimbing && selectedIds.includes(form.pembimbing)) {
+                            setErrorForm('Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Penguji');
+                            return;
+                          }
+                          setForm({ ...form, penguji: selectedIds });
+                          setErrorForm("");
+                        }}
+                        placeholder="Pilih Penguji (Maksimal 2)"
+                        isClearable
+                        classNamePrefix="react-select"
+                        className="react-select-container"
+                        maxMenuHeight={200}
+                        styles={{
+                          control: (base, state) => ({
+                            ...base,
+                            backgroundColor:
+                              document.documentElement.classList.contains("dark")
+                                ? "#1e293b"
+                                : "#f9fafb",
+                            borderColor: state.isFocused
+                              ? "#3b82f6"
+                              : document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                              ? "#334155"
+                              : "#d1d5db",
+                            boxShadow: state.isFocused
+                              ? "0 0 0 2px #3b82f633"
+                              : undefined,
+                            borderRadius: "0.75rem",
+                            minHeight: "2.5rem",
+                            fontSize: "1rem",
+                            paddingLeft: "0.75rem",
+                            paddingRight: "0.75rem",
+                            "&:hover": { borderColor: "#3b82f6" },
+                          }),
+                          menu: (base) => ({
+                            ...base,
+                            zIndex: 9999,
+                            fontSize: "1rem",
+                            backgroundColor:
+                              document.documentElement.classList.contains("dark")
+                                ? "#1e293b"
+                                : "#fff",
+                            color: document.documentElement.classList.contains(
+                              "dark"
+                            )
+                              ? "#fff"
+                              : "#1f2937",
+                          }),
+                          option: (base, state) => ({
+                            ...base,
+                            backgroundColor: state.isSelected
+                              ? "#3b82f6"
+                              : state.isFocused
+                              ? document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                ? "#334155"
+                                : "#e0e7ff"
+                              : document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                              ? "#1e293b"
+                              : "#fff",
+                            color: state.isSelected
+                              ? "#fff"
+                              : document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                              ? "#fff"
+                              : "#1f2937",
+                            fontSize: "1rem",
+                          }),
+                          multiValue: (base) => ({
+                            ...base,
+                            backgroundColor:
+                              document.documentElement.classList.contains("dark")
+                                ? "#334155"
+                                : "#e0e7ff",
+                          }),
+                          multiValueLabel: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains(
+                              "dark"
+                            )
+                              ? "#fff"
+                              : "#1f2937",
+                          }),
+                          multiValueRemove: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains(
+                              "dark"
+                            )
+                              ? "#fff"
+                              : "#1f2937",
+                            "&:hover": {
+                              backgroundColor: "#ef4444",
+                              color: "#fff",
+                            },
+                          }),
+                          placeholder: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains(
+                              "dark"
+                            )
+                              ? "#64748b"
+                              : "#6b7280",
+                          }),
+                          input: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains(
+                              "dark"
+                            )
+                              ? "#fff"
+                              : "#1f2937",
+                          }),
+                          dropdownIndicator: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains(
+                              "dark"
+                            )
+                              ? "#64748b"
+                              : "#6b7280",
+                            "&:hover": { color: "#3b82f6" },
+                          }),
+                          indicatorSeparator: (base) => ({
+                            ...base,
+                            backgroundColor: "transparent",
+                          }),
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Mahasiswa <span className="text-red-500">*</span>
+                      </label>
+                      <Select
+                        isMulti
+                        options={mahasiswaList.map((m: MahasiswaOption) => ({
+                          value: m.nim,
+                          label: m.label,
+                        }))}
+                        value={
+                          mahasiswaList
+                            .map((m: MahasiswaOption) => ({
+                              value: m.nim,
+                              label: m.label,
+                            }))
+                            .filter((opt: any) =>
+                              form.mahasiswa.includes(opt.value)
+                            ) || []
+                        }
+                        onChange={(opts: any) => {
+                          const selectedNims = opts
+                            ? opts.map((opt: any) => opt.value)
+                            : [];
+                          setForm({ ...form, mahasiswa: selectedNims });
+                          setErrorForm("");
+                        }}
+                        placeholder="Pilih Mahasiswa"
+                        isClearable
+                        classNamePrefix="react-select"
+                        className="react-select-container"
+                        maxMenuHeight={200}
+                        styles={{
+                          control: (base, state) => ({
+                            ...base,
+                            backgroundColor:
+                              document.documentElement.classList.contains("dark")
+                                ? "#1e293b"
+                                : "#f9fafb",
+                            borderColor: state.isFocused
+                              ? "#3b82f6"
+                              : document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                              ? "#334155"
+                              : "#d1d5db",
+                            boxShadow: state.isFocused
+                              ? "0 0 0 2px #3b82f633"
+                              : undefined,
+                            borderRadius: "0.75rem",
+                            minHeight: "2.5rem",
+                            fontSize: "1rem",
+                            paddingLeft: "0.75rem",
+                            paddingRight: "0.75rem",
+                            "&:hover": { borderColor: "#3b82f6" },
+                          }),
+                          menu: (base) => ({
+                            ...base,
+                            zIndex: 9999,
+                            fontSize: "1rem",
+                            backgroundColor:
+                              document.documentElement.classList.contains("dark")
+                                ? "#1e293b"
+                                : "#fff",
+                            color: document.documentElement.classList.contains(
+                              "dark"
+                            )
+                              ? "#fff"
+                              : "#1f2937",
+                          }),
+                          option: (base, state) => ({
+                            ...base,
+                            backgroundColor: state.isSelected
+                              ? "#3b82f6"
+                              : state.isFocused
+                              ? document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                ? "#334155"
+                                : "#e0e7ff"
+                              : document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                              ? "#1e293b"
+                              : "#fff",
+                            color: state.isSelected
+                              ? "#fff"
+                              : document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                              ? "#fff"
+                              : "#1f2937",
+                            fontSize: "1rem",
+                          }),
+                          multiValue: (base) => ({
+                            ...base,
+                            backgroundColor:
+                              document.documentElement.classList.contains("dark")
+                                ? "#334155"
+                                : "#e0e7ff",
+                          }),
+                          multiValueLabel: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains(
+                              "dark"
+                            )
+                              ? "#fff"
+                              : "#1f2937",
+                          }),
+                          multiValueRemove: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains(
+                              "dark"
+                            )
+                              ? "#fff"
+                              : "#1f2937",
+                            "&:hover": {
+                              backgroundColor: "#ef4444",
+                              color: "#fff",
+                            },
+                          }),
+                          placeholder: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains(
+                              "dark"
+                            )
+                              ? "#64748b"
+                              : "#6b7280",
+                          }),
+                          input: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains(
+                              "dark"
+                            )
+                              ? "#fff"
+                              : "#1f2937",
+                          }),
+                          dropdownIndicator: (base) => ({
+                            ...base,
+                            color: document.documentElement.classList.contains(
+                              "dark"
+                            )
+                              ? "#64748b"
+                              : "#6b7280",
+                            "&:hover": { color: "#3b82f6" },
+                          }),
+                          indicatorSeparator: (base) => ({
+                            ...base,
+                            backgroundColor: "transparent",
+                          }),
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Ruangan
+                      </label>
+                      {ruanganList.length === 0 ? (
+                        <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+                          <div className="flex items-center gap-2">
+                            <svg
+                              className="w-5 h-5 text-orange-500"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                            <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
+                              Belum ada ruangan yang ditambahkan untuk mata
+                              kuliah ini
+                            </span>
+                          </div>
+                          <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
+                            Silakan tambahkan ruangan terlebih dahulu di
+                            halaman Ruangan Detail
+                          </p>
+                        </div>
+                      ) : (
+                        <Select
+                          options={getRuanganOptions(ruanganList || [])}
+                          value={
+                            getRuanganOptions(ruanganList || []).find(
+                              (opt: any) => opt.value === form.lokasi
+                            ) || null
+                          }
+                          onChange={(opt: any) => {
+                            setForm({ ...form, lokasi: opt?.value || null });
+                            setErrorForm("");
+                          }}
+                          placeholder="Pilih Ruangan"
+                          isClearable
+                          classNamePrefix="react-select"
+                          className="react-select-container"
+                          styles={{
+                            control: (base, state) => ({
+                              ...base,
+                              backgroundColor: state.isDisabled
+                                ? document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                  ? "#1e293b"
+                                  : "#f3f4f6"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#1e293b"
+                                : "#f9fafb",
+                              borderColor: state.isFocused
+                                ? "#3b82f6"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#334155"
+                                : "#d1d5db",
+                              boxShadow: state.isFocused
+                                ? "0 0 0 2px #3b82f633"
+                                : undefined,
+                              borderRadius: "0.75rem",
+                              minHeight: "2.5rem",
+                              fontSize: "1rem",
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                              paddingLeft: "0.75rem",
+                              paddingRight: "0.75rem",
+                              "&:hover": { borderColor: "#3b82f6" },
+                            }),
+                            menu: (base) => ({
+                              ...base,
+                              zIndex: 9999,
+                              fontSize: "1rem",
+                              backgroundColor:
+                                document.documentElement.classList.contains(
+                                  "dark"
+                                )
+                                  ? "#1e293b"
+                                  : "#fff",
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                            }),
+                            option: (base, state) => ({
+                              ...base,
+                              backgroundColor: state.isSelected
+                                ? "#3b82f6"
+                                : state.isFocused
+                                ? document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                  ? "#334155"
+                                  : "#e0e7ff"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#1e293b"
+                                : "#fff",
+                              color: state.isSelected
+                                ? "#fff"
+                                : document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                ? "#fff"
+                                : "#1f2937",
+                              fontSize: "1rem",
+                            }),
+                            singleValue: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                            }),
+                            placeholder: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#64748b"
+                                : "#6b7280",
+                            }),
+                            input: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#fff"
+                                : "#1f2937",
+                            }),
+                            dropdownIndicator: (base) => ({
+                              ...base,
+                              color: document.documentElement.classList.contains(
+                                "dark"
+                              )
+                                ? "#64748b"
+                                : "#6b7280",
+                              "&:hover": { color: "#3b82f6" },
+                            }),
+                            indicatorSeparator: (base) => ({
+                              ...base,
+                              backgroundColor: "transparent",
+                            }),
+                          }}
+                        />
+                      )}
+                    </div>
+                  </>
                 ) : (
                   <>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hari/Tanggal</label>
                       <input type="date" name="hariTanggal" value={form.hariTanggal} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-                      {errorForm && <div className="text-sm text-red-500 mt-2">{errorForm}</div>}
+                      {errorForm && (errorForm.includes('Tanggal tidak boleh') || errorForm.includes('tidak boleh sebelum') || errorForm.includes('tidak boleh setelah')) && (
+                        <div className="text-sm text-red-500 mt-2">{errorForm}</div>
+                      )}
                     </div>
                 <div className="flex gap-2">
                   <div className="flex-1">
@@ -2556,7 +8215,10 @@ export default function DetailNonBlokNonCSR() {
                       <Select
                         options={kelompokBesarMateriOptions.map(k => ({ value: Number(k.id), label: k.label }))}
                         value={kelompokBesarMateriOptions.map(k => ({ value: Number(k.id), label: k.label })).find(opt => opt.value === form.kelompokBesar) || null}
-                        onChange={opt => setForm(f => ({ ...f, kelompokBesar: opt ? Number(opt.value) : null }))}
+                        onChange={opt => {
+                          setForm(f => ({ ...f, kelompokBesar: opt ? Number(opt.value) : null }));
+                          setErrorForm(''); // Reset error when selection changes
+                        }}
                         placeholder="Pilih Kelompok Besar"
                         isClearable
                         isSearchable={false}
@@ -2742,22 +8404,226 @@ export default function DetailNonBlokNonCSR() {
       <AnimatePresence>
         {showDeleteModal && (
           <div className="fixed inset-0 z-[100000] flex items-center justify-center">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-gray-500/30 dark:bg-gray-700/50 backdrop-blur-sm" onClick={() => setShowDeleteModal(false)} />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-50">
-              <h2 className="text-lg font-bold mb-4 text-gray-800 dark:text-white">Konfirmasi Hapus</h2>
-              <p className="mb-6 text-gray-500 dark:text-gray-300">Apakah Anda yakin ingin menghapus data ini? Data yang dihapus tidak dapat dikembalikan.</p>
-              <div className="flex justify-end gap-2">
-                <button onClick={() => setShowDeleteModal(false)} className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition">Batal</button>
-                <button onClick={() => { if (selectedDeleteIndex !== null) { handleDeleteJadwal(selectedDeleteIndex); setShowDeleteModal(false); setSelectedDeleteIndex(null); } }} className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition">Hapus</button>
+            <div
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowDeleteModal(false)}
+            ></div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+            >
+              <div className="flex items-center justify-between pb-6">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                  Konfirmasi Hapus Data
+                </h2>
+              </div>
+              <div>
+                <p className="mb-6 text-gray-500 dark:text-gray-400">
+                  Apakah Anda yakin ingin menghapus data ini? Data yang dihapus tidak dapat dikembalikan.
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    onClick={() => setShowDeleteModal(false)}
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={() => { if (selectedDeleteIndex !== null) { handleDeleteJadwal(selectedDeleteIndex, form.jenisBaris); } }}
+                    className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? (
+                      <>
+                        <svg
+                          className="w-5 h-5 mr-2 animate-spin text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                          ></path>
+                        </svg>
+                        Menghapus...
+                      </>
+                    ) : (
+                      "Hapus"
+                    )}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
 
-       {/* MODAL IMPORT EXCEL NON-BLOK NON-CSR */}
+      {/* MODAL KONFIRMASI BULK DELETE MATERI KULIAH */}
        <AnimatePresence>
-         {showNonBlokImportModal && (
+        {showMateriBulkDeleteModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            <div
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowMateriBulkDeleteModal(false)}
+            ></div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+            >
+              <div className="flex items-center justify-between pb-6">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                  Konfirmasi Hapus Data
+                </h2>
+              </div>
+              <div>
+                <p className="mb-6 text-gray-500 dark:text-gray-400">
+                  Apakah Anda yakin ingin menghapus{" "}
+                  <span className="font-semibold text-gray-800 dark:text-white">
+                    {selectedMateriItems.length}
+                  </span>{" "}
+                  jadwal Materi Kuliah terpilih? Data yang dihapus tidak dapat dikembalikan.
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    onClick={() => setShowMateriBulkDeleteModal(false)}
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={confirmMateriBulkDelete}
+                    disabled={isMateriDeleting}
+                    className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isMateriDeleting ? (
+                      <>
+                        <svg
+                          className="w-5 h-5 mr-2 animate-spin text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                          ></path>
+                        </svg>
+                        Menghapus...
+                      </>
+                    ) : (
+                      "Hapus"
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL KONFIRMASI BULK DELETE AGENDA KHUSUS */}
+      <AnimatePresence>
+        {showAgendaBulkDeleteModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            <div
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowAgendaBulkDeleteModal(false)}
+            ></div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+            >
+              <div className="flex items-center justify-between pb-6">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                  Konfirmasi Hapus Data
+                </h2>
+              </div>
+              <div>
+                <p className="mb-6 text-gray-500 dark:text-gray-400">
+                  Apakah Anda yakin ingin menghapus{" "}
+                  <span className="font-semibold text-gray-800 dark:text-white">
+                    {selectedAgendaItems.length}
+                  </span>{" "}
+                  jadwal Agenda Khusus terpilih? Data yang dihapus tidak dapat dikembalikan.
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    onClick={() => setShowAgendaBulkDeleteModal(false)}
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={confirmAgendaBulkDelete}
+                    disabled={isAgendaDeleting}
+                    className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isAgendaDeleting ? (
+                      <>
+                        <svg
+                          className="w-5 h-5 mr-2 animate-spin text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                          ></path>
+                        </svg>
+                        Menghapus...
+                      </>
+                    ) : (
+                      "Hapus"
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL UPLOAD FILE MATERI KULIAH */}
+      <AnimatePresence>
+        {showMateriUploadModal && (
            <div className="fixed inset-0 z-[100000] flex items-center justify-center">
              {/* Overlay */}
              <motion.div 
@@ -2765,8 +8631,9 @@ export default function DetailNonBlokNonCSR() {
                animate={{ opacity: 1 }}
                exit={{ opacity: 0 }}
                className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
-               onClick={handleNonBlokCloseImportModal}
+              onClick={handleMateriCloseUploadModal}
              />
+
              {/* Modal Content */}
              <motion.div 
                initial={{ opacity: 0, scale: 0.95 }}
@@ -2777,7 +8644,7 @@ export default function DetailNonBlokNonCSR() {
              >
                {/* Close Button */}
                <button
-                 onClick={handleNonBlokCloseImportModal}
+                onClick={handleMateriCloseUploadModal}
                  className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
                >
                  <svg
@@ -2798,58 +8665,95 @@ export default function DetailNonBlokNonCSR() {
 
                {/* Header */}
                <div className="mb-6">
-                 <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Import Jadwal Non-Blok Non-CSR</h2>
-                 <p className="text-sm text-gray-500 dark:text-gray-400">Preview dan validasi data sebelum import</p>
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                  Import Jadwal Materi Kuliah
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Preview dan validasi data sebelum import
+                </p>
                </div>
 
-              {/* Upload File Section */}
-              {!nonBlokImportFile && (
+              {!materiImportFile ? (
+                /* Upload Section */
                 <div className="mb-6">
                   <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
                     <div className="space-y-4">
                       <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
-                        <FontAwesomeIcon icon={faFileExcel} className="w-8 h-8 text-brand-600 dark:text-brand-400" />
+                        <FontAwesomeIcon
+                          icon={faFileExcel}
+                          className="w-8 h-8 text-brand-600 dark:text-brand-400"
+                        />
                       </div>
                       <div>
-                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Upload File Excel</h3>
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                          Upload File Excel
+                        </h3>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          Pilih file Excel dengan format template aplikasi (.xlsx, .xls)
+                          Pilih file Excel dengan format template Materi Kuliah (.xlsx, .xls)
                         </p>
                       </div>
                       <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
-                        <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                        <FontAwesomeIcon
+                          icon={faUpload}
+                          className="w-4 h-4"
+                        />
                         Pilih File
                         <input
-                          ref={nonBlokFileInputRef}
+                          ref={materiFileInputRef}
                           type="file"
                           accept=".xlsx,.xls"
-                          onChange={handleNonBlokImportExcel}
+                          onChange={handleMateriFileUpload}
                           className="hidden"
                         />
                       </label>
                     </div>
                   </div>
                 </div>
-              )}
+              ) : (
+                /* Preview Section */
+                <>
 
               {/* File Info */}
-              {nonBlokImportFile && (
+                  {materiImportFile && (
                 <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5 text-blue-500" />
+                        <FontAwesomeIcon
+                          icon={faFileExcel}
+                          className="w-5 h-5 text-blue-500"
+                        />
                     <div className="flex-1">
-                      <p className="font-medium text-blue-800 dark:text-blue-200">{nonBlokImportFile.name}</p>
+                          <p className="font-medium text-blue-800 dark:text-blue-200">
+                            {materiImportFile.name}
+                          </p>
                       <p className="text-sm text-blue-600 dark:text-blue-300">
-                        {(nonBlokImportFile.size / 1024).toFixed(1)} KB
+                            {(materiImportFile.size / 1024).toFixed(1)} KB
                       </p>
                     </div>
                     <button
-                      onClick={handleNonBlokRemoveFile}
-                      className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                          onClick={() => {
+                            setMateriImportFile(null);
+                            setMateriImportData([]);
+                            setMateriImportErrors([]);
+                            setMateriCellErrors([]);
+                            if (materiFileInputRef.current) {
+                              materiFileInputRef.current.value = "";
+                            }
+                          }}
+                          className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
                       title="Hapus file"
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
                       </svg>
                     </button>
                   </div>
@@ -2857,42 +8761,57 @@ export default function DetailNonBlokNonCSR() {
               )}
 
               {/* Error Messages */}
-              {(nonBlokImportErrors.length > 0 || nonBlokCellErrors.length > 0) && (
-                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0">
-                      <FontAwesomeIcon icon={faExclamationTriangle} className="w-5 h-5 text-red-500" />
-                    </div>
-                    <div className="flex-1">
+                  {(materiImportErrors.length > 0 ||
+                    materiCellErrors.length > 0) && (
+                    <div className="mb-6">
+                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <FontAwesomeIcon
+                            icon={faExclamationTriangle}
+                            className="w-5 h-5 text-red-500"
+                          />
                       <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
-                        Error Validasi ({nonBlokImportErrors.length + nonBlokCellErrors.length} error)
+                            Error Validasi (
+                            {materiImportErrors.length +
+                              materiCellErrors.length}{" "}
+                            error)
                       </h3>
+                        </div>
                       <div className="max-h-40 overflow-y-auto">
-                        {/* Error dari API response */}
-                        {nonBlokImportErrors.map((err, idx) => (
-                          <p key={idx} className="text-sm text-red-600 dark:text-red-400 mb-1">• {err}</p>
-                        ))}
-                        {/* Error cell/detail */}
-                        {nonBlokCellErrors.map((err, idx) => (
-                          <p key={idx} className="text-sm text-red-600 dark:text-red-400 mb-1">
-                            • {err.message} (Baris {err.row}, Kolom {err.field.toUpperCase()})
+                          {materiImportErrors.map((error, index) => (
+                            <p
+                              key={index}
+                              className="text-sm text-red-600 dark:text-red-400 mb-1"
+                            >
+                              • {error}
+                            </p>
+                          ))}
+                          {materiCellErrors.map((error, index) => (
+                            <p
+                              key={index}
+                              className="text-sm text-red-600 dark:text-red-400 mb-1"
+                            >
+                              • {error.field === 'api' 
+                                ? error.message 
+                                : `${error.message} (Baris ${error.row}, Kolom ${error.field.toUpperCase()})`}
                           </p>
                         ))}
-                      </div>
                     </div>
                   </div>
                 </div>
               )}
 
               {/* Preview Table */}
-              {nonBlokImportData.length > 0 && (
+                  {materiImportData.length > 0 && (
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
-                      Preview Data ({nonBlokImportData.length} jadwal)
+                          Preview Data ({materiImportData.length} jadwal Materi Kuliah)
                     </h3>
+                        <div className="flex items-center gap-3">
                     <div className="text-sm text-gray-500 dark:text-gray-400">
-                      File: {nonBlokImportFile?.name}
+                            File: {materiImportFile?.name}
+                          </div>
                     </div>
                   </div>
                   
@@ -2904,29 +8823,27 @@ export default function DetailNonBlokNonCSR() {
                             <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Mulai</th>
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jenis Baris</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Sesi</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Kelompok Besar</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Dosen</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Materi</th>
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
-                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Keterangan Agenda</th>
                           </tr>
                         </thead>
                         <tbody>
-                        {nonBlokImportData
-                          .slice((nonBlokImportPage - 1) * nonBlokImportPageSize, nonBlokImportPage * nonBlokImportPageSize)
+                            {materiImportData
+                              .slice((materiImportPage - 1) * materiImportPageSize, materiImportPage * materiImportPageSize)
                           .map((row, index) => {
-                            const actualIndex = (nonBlokImportPage - 1) * nonBlokImportPageSize + index;
+                                const actualIndex = (materiImportPage - 1) * materiImportPageSize + index;
                             
                             const renderEditableCell = (field: string, value: any, isNumeric = false) => {
-                              const isEditing = nonBlokEditingCell?.row === actualIndex && nonBlokEditingCell?.key === field;
-                              const cellError = nonBlokCellErrors.find(err => err.row === actualIndex + 1 && err.field === field);
+                                  const isEditing = materiEditingCell?.row === actualIndex && materiEditingCell?.key === field;
+                                  const cellError = materiCellErrors.find(err => err.row === actualIndex + 1 && err.field === field);
                               
                               return (
                                 <td
                                   className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
-                                  onClick={() => setNonBlokEditingCell({ row: actualIndex, key: field })}
+                                      onClick={() => setMateriEditingCell({ row: actualIndex, key: field })}
                                   title={cellError ? cellError.message : ''}
                                 >
                                   {isEditing ? (
@@ -2934,14 +8851,14 @@ export default function DetailNonBlokNonCSR() {
                                       className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
                                       type={isNumeric ? "number" : "text"}
                                       value={value || ""}
-                                      onChange={e => handleNonBlokEditCell(actualIndex, field, isNumeric ? parseInt(e.target.value) : e.target.value)}
-                                      onBlur={handleNonBlokFinishEdit}
+                                          onChange={e => handleMateriEditCell(actualIndex, field, isNumeric ? parseInt(e.target.value) : e.target.value)}
+                                          onBlur={handleMateriFinishEdit}
                                       onKeyDown={e => {
                                         if (e.key === 'Enter') {
-                                          handleNonBlokFinishEdit();
+                                              handleMateriFinishEdit();
                                         }
                                         if (e.key === 'Escape') {
-                                          handleNonBlokFinishEdit();
+                                              handleMateriFinishEdit();
                                         }
                                       }}
                                       autoFocus
@@ -2961,18 +8878,40 @@ export default function DetailNonBlokNonCSR() {
                                 <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{actualIndex + 1}</td>
                                 {renderEditableCell('tanggal', row.tanggal)}
                                 {renderEditableCell('jam_mulai', row.jam_mulai)}
-                                {renderEditableCell('jenis_baris', row.jenis_baris)}
                                 {renderEditableCell('jumlah_sesi', row.jumlah_sesi, true)}
                                 {(() => {
                                   const field = 'kelompok_besar_id';
-                                  const isEditing = nonBlokEditingCell?.row === actualIndex && nonBlokEditingCell?.key === field;
-                                  const cellError = nonBlokCellErrors.find(err => err.row === actualIndex + 1 && err.field === field);
-                                  const kelompokBesar = kelompokBesarAgendaOptions.find(kb => Number(kb.id) === row.kelompok_besar_id);
+                                      const isEditing = materiEditingCell?.row === actualIndex && materiEditingCell?.key === field;
+                                      const cellError = materiCellErrors.find(err => err.row === actualIndex + 1 && err.field === field);
+                                      
+                                      // Cari dari semua options (materi dan agenda) untuk menampilkan label yang benar
+                                      const allKelompokBesarOptions = [...kelompokBesarMateriOptions, ...kelompokBesarAgendaOptions];
+                                      const kelompokBesar = allKelompokBesarOptions.find(kb => Number(kb.id) === row.kelompok_besar_id);
+                                      
+                                      // Buat label dengan format yang benar, selalu tampilkan jumlah mahasiswa jika ada
+                                      let displayLabel = '';
+                                      if (kelompokBesar) {
+                                        // Jika ditemukan di options, gunakan label yang sudah ada (sudah include jumlah mahasiswa)
+                                        displayLabel = kelompokBesar.label;
+                                      } else if (row.kelompok_besar_id && row.kelompok_besar_id !== 0) {
+                                        // Jika tidak ditemukan, cari lagi dari semua options (untuk mendapatkan jumlah mahasiswa)
+                                        // Backend sekarang mengirim semua semester, jadi seharusnya selalu ditemukan
+                                        const kelompokBesarWithSameSemester = allKelompokBesarOptions.find(kb => Number(kb.id) === row.kelompok_besar_id);
+                                        
+                                        if (kelompokBesarWithSameSemester?.jumlah_mahasiswa) {
+                                          displayLabel = `Kelompok Besar Semester ${row.kelompok_besar_id} (${kelompokBesarWithSameSemester.jumlah_mahasiswa} mahasiswa)`;
+                                        } else {
+                                          // Jika benar-benar tidak ada data jumlah mahasiswa, tampilkan tanpa jumlah
+                                          displayLabel = `Kelompok Besar Semester ${row.kelompok_besar_id}`;
+                                        }
+                                      } else {
+                                        displayLabel = 'Tidak ditemukan';
+                                      }
                                   
                                   return (
                                     <td
                                       className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
-                                      onClick={() => setNonBlokEditingCell({ row: actualIndex, key: field })}
+                                          onClick={() => setMateriEditingCell({ row: actualIndex, key: field })}
                                       title={cellError ? cellError.message : ''}
                                     >
                                       {isEditing ? (
@@ -2980,30 +8919,101 @@ export default function DetailNonBlokNonCSR() {
                                           className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
                                           type="number"
                                           value={row.kelompok_besar_id || ""}
-                                          onChange={e => handleNonBlokEditCell(actualIndex, field, parseInt(e.target.value))}
-                                          onBlur={handleNonBlokFinishEdit}
+                                              onChange={e => handleMateriEditCell(actualIndex, field, parseInt(e.target.value))}
+                                              onBlur={handleMateriFinishEdit}
                                           onKeyDown={e => {
                                             if (e.key === 'Enter') {
-                                              handleNonBlokFinishEdit();
+                                                  handleMateriFinishEdit();
                                             }
                                             if (e.key === 'Escape') {
-                                              handleNonBlokFinishEdit();
+                                                  handleMateriFinishEdit();
                                             }
                                           }}
                                           autoFocus
                                         />
                                       ) : (
                                         <span className={cellError ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
-                                          {kelompokBesar ? kelompokBesar.label : (row.kelompok_besar_id && row.kelompok_besar_id !== 0 ? row.kelompok_besar_id : 'Tidak ditemukan')}
+                                              {displayLabel}
                                         </span>
                                       )}
                                     </td>
                                   );
                                 })()}
-                                {renderEditableCell('nama_dosen', row.nama_dosen || '')}
+                                    {(() => {
+                                      const field = 'nama_dosen';
+                                      const isEditing = materiEditingCell?.row === actualIndex && materiEditingCell?.key === field;
+                                      const cellError = materiCellErrors.find(err => err.row === actualIndex + 1 && err.field === 'dosen_id');
+                                      const dosen = dosenList.find(d => d.id === row.dosen_id);
+                                      
+                                      return (
+                                        <td
+                                          className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
+                                          onClick={() => setMateriEditingCell({ row: actualIndex, key: field })}
+                                          title={cellError ? cellError.message : ''}
+                                        >
+                                          {isEditing ? (
+                                            <input
+                                              className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
+                                              type="text"
+                                              value={row.nama_dosen || ""}
+                                              onChange={e => handleMateriEditCell(actualIndex, field, e.target.value)}
+                                              onBlur={handleMateriFinishEdit}
+                                              onKeyDown={e => {
+                                                if (e.key === 'Enter') {
+                                                  handleMateriFinishEdit();
+                                                }
+                                                if (e.key === 'Escape') {
+                                                  handleMateriFinishEdit();
+                                                }
+                                              }}
+                                              autoFocus
+                                            />
+                                          ) : (
+                                            <span className={cellError ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
+                                              {dosen ? dosen.name : (row.nama_dosen || 'Tidak ditemukan')}
+                                            </span>
+                                          )}
+                                        </td>
+                                      );
+                                    })()}
                                 {renderEditableCell('materi', row.materi || '')}
-                                {renderEditableCell('nama_ruangan', row.nama_ruangan || '')}
-                                {renderEditableCell('agenda', row.agenda || '')}
+                                    {(() => {
+                                      const field = 'nama_ruangan';
+                                      const isEditing = materiEditingCell?.row === actualIndex && materiEditingCell?.key === field;
+                                      const cellError = materiCellErrors.find(err => err.row === actualIndex + 1 && err.field === 'ruangan_id');
+                                      const ruangan = ruanganList.find(r => r.id === row.ruangan_id);
+                                      
+                                      return (
+                                        <td
+                                          className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
+                                          onClick={() => setMateriEditingCell({ row: actualIndex, key: field })}
+                                          title={cellError ? cellError.message : ''}
+                                        >
+                                          {isEditing ? (
+                                            <input
+                                              className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
+                                              type="text"
+                                              value={row.nama_ruangan || ""}
+                                              onChange={e => handleMateriEditCell(actualIndex, field, e.target.value)}
+                                              onBlur={handleMateriFinishEdit}
+                                              onKeyDown={e => {
+                                                if (e.key === 'Enter') {
+                                                  handleMateriFinishEdit();
+                                                }
+                                                if (e.key === 'Escape') {
+                                                  handleMateriFinishEdit();
+                                                }
+                                              }}
+                                              autoFocus
+                                            />
+                                          ) : (
+                                            <span className={cellError ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
+                                              {ruangan ? ruangan.nama : (row.nama_ruangan || 'Tidak ditemukan')}
+                                            </span>
+                                          )}
+                                        </td>
+                                      );
+                                    })()}
                               </tr>
                             );
                           })}
@@ -3013,12 +9023,12 @@ export default function DetailNonBlokNonCSR() {
               </div>
               
               {/* Pagination untuk Import Preview */}
-              {nonBlokImportData.length > nonBlokImportPageSize && (
+                      {materiImportData.length > materiImportPageSize && (
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
                   <div className="flex items-center gap-4">
                     <select
-                      value={nonBlokImportPageSize}
-                      onChange={e => { setNonBlokImportPageSize(Number(e.target.value)); setNonBlokImportPage(1); }}
+                              value={materiImportPageSize}
+                              onChange={e => { setMateriImportPageSize(Number(e.target.value)); setMateriImportPage(1); }}
                       className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
                     >
                       <option value={5}>5 per halaman</option>
@@ -3027,24 +9037,24 @@ export default function DetailNonBlokNonCSR() {
                       <option value={50}>50 per halaman</option>
                     </select>
                     <span className="text-sm text-gray-500 dark:text-gray-400">
-                      Menampilkan {((nonBlokImportPage - 1) * nonBlokImportPageSize) + 1}-{Math.min(nonBlokImportPage * nonBlokImportPageSize, nonBlokImportData.length)} dari {nonBlokImportData.length} jadwal
+                              Menampilkan {((materiImportPage - 1) * materiImportPageSize) + 1}-{Math.min(materiImportPage * materiImportPageSize, materiImportData.length)} dari {materiImportData.length} jadwal
                     </span>
                   </div>
                   
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setNonBlokImportPage(p => Math.max(1, p - 1))}
-                      disabled={nonBlokImportPage === 1}
+                              onClick={() => setMateriImportPage(p => Math.max(1, p - 1))}
+                              disabled={materiImportPage === 1}
                       className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
                     >
                       Prev
                     </button>
                     <span className="text-sm text-gray-500 dark:text-gray-400">
-                      Halaman {nonBlokImportPage} dari {Math.ceil(nonBlokImportData.length / nonBlokImportPageSize)}
+                              Halaman {materiImportPage} dari {Math.ceil(materiImportData.length / materiImportPageSize)}
                     </span>
                     <button
-                      onClick={() => setNonBlokImportPage(p => Math.min(Math.ceil(nonBlokImportData.length / nonBlokImportPageSize), p + 1))}
-                      disabled={nonBlokImportPage >= Math.ceil(nonBlokImportData.length / nonBlokImportPageSize)}
+                              onClick={() => setMateriImportPage(p => Math.min(Math.ceil(materiImportData.length / materiImportPageSize), p + 1))}
+                              disabled={materiImportPage >= Math.ceil(materiImportData.length / materiImportPageSize)}
                       className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
                     >
                       Next
@@ -3055,29 +9065,37 @@ export default function DetailNonBlokNonCSR() {
             </div>
           )}
 
-              {/* Action Buttons */}
-              <div className="flex justify-end gap-2 pt-6">
+                </>
+              )}
+
+              {/* Footer */}
+              <div className={`flex justify-end gap-3 pt-6 ${materiImportFile ? 'border-t border-gray-200 dark:border-gray-700' : ''}`}>
                 <button
-                  onClick={handleNonBlokCloseImportModal}
+                  onClick={handleMateriCloseUploadModal}
                   className="px-6 py-3 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
                 >
                   Batal
                 </button>
-                {nonBlokImportData.length > 0 && nonBlokCellErrors.length === 0 && (
+                {materiImportFile && materiImportData.length > 0 &&
+                  materiImportErrors.length === 0 &&
+                  materiCellErrors.length === 0 && (
                   <button
-                    onClick={handleNonBlokSubmitImport}
-                    disabled={isNonBlokImporting}
+                      onClick={handleMateriSubmitImport}
+                      disabled={isMateriImporting}
                     className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
-                    {isNonBlokImporting ? (
+                      {isMateriImporting ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                         Importing...
                       </>
                     ) : (
                       <>
-                        <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
-                        Import Data ({nonBlokImportData.length} jadwal)
+                          <FontAwesomeIcon
+                            icon={faUpload}
+                            className="w-4 h-4"
+                          />
+                          Import Data ({materiImportData.length} jadwal)
                       </>
                     )}
                   </button>
@@ -3088,13 +9106,1163 @@ export default function DetailNonBlokNonCSR() {
         )}
       </AnimatePresence>
 
-      {/* Modal Konfirmasi Bulk Delete Non Blok Non CSR */}
+
+      {/* MODAL UPLOAD FILE AGENDA KHUSUS */}
       <AnimatePresence>
-        {showNonBlokBulkDeleteModal && (
+        {showAgendaUploadModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={handleAgendaCloseUploadModal}
+            />
+
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={handleAgendaCloseUploadModal}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" className="w-6 h-6">
+                  <path fillRule="evenodd" clipRule="evenodd" d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z" fill="currentColor" />
+                </svg>
+              </button>
+
+              {/* Header */}
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                  Import Jadwal Agenda Khusus
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Preview dan validasi data sebelum import
+                </p>
+              </div>
+
+              {!agendaImportFile ? (
+                /* Upload Section */
+                <div className="mb-6">
+                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
+                    <div className="space-y-4">
+                      <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
+                        <FontAwesomeIcon
+                          icon={faFileExcel}
+                          className="w-8 h-8 text-brand-600 dark:text-brand-400"
+                        />
+              </div>
+              <div>
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                          Upload File Excel
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          Pilih file Excel dengan format template Agenda Khusus (.xlsx, .xls)
+                        </p>
+                      </div>
+                      <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
+                        <FontAwesomeIcon
+                          icon={faUpload}
+                          className="w-4 h-4"
+                        />
+                        Pilih File
+                        <input
+                          ref={agendaFileInputRef}
+                          type="file"
+                          accept=".xlsx,.xls"
+                          onChange={handleAgendaFileUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Preview Section */
+                <>
+                  {/* File Info */}
+                  {agendaImportFile && (
+                    <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <FontAwesomeIcon
+                          icon={faFileExcel}
+                          className="w-5 h-5 text-blue-500"
+                        />
+                        <div className="flex-1">
+                          <p className="font-medium text-blue-800 dark:text-blue-200">
+                            {agendaImportFile.name}
+                          </p>
+                          <p className="text-sm text-blue-600 dark:text-blue-300">
+                            {(agendaImportFile.size / 1024).toFixed(1)} KB
+                          </p>
+                        </div>
+                  <button
+                          onClick={() => {
+                            setAgendaImportFile(null);
+                            setAgendaImportData([]);
+                            setAgendaImportErrors([]);
+                            setAgendaCellErrors([]);
+                            if (agendaFileInputRef.current) {
+                              agendaFileInputRef.current.value = "";
+                            }
+                          }}
+                          className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                          title="Hapus file"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Error Messages */}
+                  {(agendaImportErrors.length > 0 ||
+                    agendaCellErrors.length > 0) && (
+                    <div className="mb-6">
+                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <FontAwesomeIcon
+                            icon={faExclamationTriangle}
+                            className="w-5 h-5 text-red-500"
+                          />
+                          <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                            Error Validasi (
+                            {agendaImportErrors.length +
+                              agendaCellErrors.length}{" "}
+                            error)
+                          </h3>
+                        </div>
+                        <div className="max-h-40 overflow-y-auto">
+                          {agendaImportErrors.map((error, index) => (
+                            <p
+                              key={index}
+                              className="text-sm text-red-600 dark:text-red-400 mb-1"
+                            >
+                              • {error}
+                            </p>
+                          ))}
+                          {agendaCellErrors.map((error, index) => (
+                            <p
+                              key={index}
+                              className="text-sm text-red-600 dark:text-red-400 mb-1"
+                            >
+                              • {error.field === 'api' 
+                                ? error.message 
+                                : `${error.message} (Baris ${error.row}, Kolom ${error.field.toUpperCase()})`}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Preview Table */}
+                  {agendaImportData.length > 0 && (
+                    <div className="mb-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                          Preview Data ({agendaImportData.length} jadwal Agenda Khusus)
+                        </h3>
+                        <div className="flex items-center gap-3">
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            File: {agendaImportFile?.name}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                        <div className="max-w-full overflow-x-auto hide-scroll">
+                          <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                            <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                              <tr>
+                                <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Mulai</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Sesi</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Kelompok Besar</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Keterangan Agenda</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                            {agendaImportData
+                              .slice((agendaImportPage - 1) * agendaImportPageSize, agendaImportPage * agendaImportPageSize)
+                              .map((row, index) => {
+                                const actualIndex = (agendaImportPage - 1) * agendaImportPageSize + index;
+                                
+                                const renderEditableCell = (field: string, value: any, isNumeric = false) => {
+                                  const isEditing = agendaEditingCell?.row === actualIndex && agendaEditingCell?.key === field;
+                                  const cellError = agendaCellErrors.find(err => err.row === actualIndex + 1 && err.field === field);
+                                  
+                                  return (
+                                    <td
+                                      className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
+                                      onClick={() => setAgendaEditingCell({ row: actualIndex, key: field })}
+                                      title={cellError ? cellError.message : ''}
+                                    >
+                                      {isEditing ? (
+                                        <input
+                                          className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
+                                          type={isNumeric ? "number" : "text"}
+                                          value={value || ""}
+                                          onChange={e => handleAgendaEditCell(actualIndex, field, isNumeric ? parseInt(e.target.value) : e.target.value)}
+                                          onBlur={handleAgendaFinishEdit}
+                                          onKeyDown={e => {
+                                            if (e.key === 'Enter') {
+                                              handleAgendaFinishEdit();
+                                            }
+                                            if (e.key === 'Escape') {
+                                              handleAgendaFinishEdit();
+                                            }
+                                          }}
+                                          autoFocus
+                                        />
+                                      ) : (
+                                        <span className={cellError ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>{value || '-'}</span>
+                                      )}
+                                    </td>
+                                  );
+                                };
+                                
+                                // Cari dari semua options (materi dan agenda) untuk menampilkan label yang benar
+                                const allKelompokBesarOptions = [...kelompokBesarMateriOptions, ...kelompokBesarAgendaOptions];
+                                const kelompokBesar = allKelompokBesarOptions.find(kb => Number(kb.id) === row.kelompok_besar_id);
+                                const ruangan = ruanganList.find(r => r.id === row.ruangan_id);
+                                
+                                // Buat label dengan format yang benar, selalu tampilkan jumlah mahasiswa jika ada
+                                let displayLabel = '';
+                                if (kelompokBesar) {
+                                  // Jika ditemukan di options, gunakan label yang sudah ada (sudah include jumlah mahasiswa)
+                                  displayLabel = kelompokBesar.label;
+                                } else if (row.kelompok_besar_id && row.kelompok_besar_id !== 0) {
+                                  // Jika tidak ditemukan, cari lagi dari semua options (untuk mendapatkan jumlah mahasiswa)
+                                  // Backend sekarang mengirim semua semester, jadi seharusnya selalu ditemukan
+                                  const kelompokBesarWithSameSemester = allKelompokBesarOptions.find(kb => Number(kb.id) === row.kelompok_besar_id);
+                                  
+                                  if (kelompokBesarWithSameSemester?.jumlah_mahasiswa) {
+                                    displayLabel = `Kelompok Besar Semester ${row.kelompok_besar_id} (${kelompokBesarWithSameSemester.jumlah_mahasiswa} mahasiswa)`;
+                                  } else {
+                                    // Jika benar-benar tidak ada data jumlah mahasiswa, tampilkan tanpa jumlah
+                                    displayLabel = `Kelompok Besar Semester ${row.kelompok_besar_id}`;
+                                  }
+                                } else {
+                                  displayLabel = '-';
+                                }
+                                
+                                const cellError = agendaCellErrors.find(err => err.row === actualIndex + 1 && err.field === 'kelompok_besar_id');
+                                
+                                return (
+                                  <tr 
+                                    key={actualIndex} 
+                                    className={`${index % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}`}
+                                  >
+                                    <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{actualIndex + 1}</td>
+                                    {renderEditableCell('tanggal', row.tanggal)}
+                                    {renderEditableCell('jam_mulai', row.jam_mulai)}
+                                    {renderEditableCell('jumlah_sesi', row.jumlah_sesi, true)}
+                                    {(() => {
+                                      const field = 'kelompok_besar_id';
+                                      const isEditing = agendaEditingCell?.row === actualIndex && agendaEditingCell?.key === field;
+                                      
+                                      return (
+                                        <td
+                                          className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
+                                          onClick={() => setAgendaEditingCell({ row: actualIndex, key: field })}
+                                          title={cellError ? cellError.message : ''}
+                                        >
+                                          {isEditing ? (
+                                            <input
+                                              className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
+                                              type="number"
+                                              value={row.kelompok_besar_id || ""}
+                                              onChange={e => handleAgendaEditCell(actualIndex, field, parseInt(e.target.value))}
+                                              onBlur={handleAgendaFinishEdit}
+                                              onKeyDown={e => {
+                                                if (e.key === 'Enter') {
+                                                  handleAgendaFinishEdit();
+                                                }
+                                                if (e.key === 'Escape') {
+                                                  handleAgendaFinishEdit();
+                                                }
+                                              }}
+                                              autoFocus
+                                            />
+                                          ) : (
+                                            <span className={cellError ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
+                                              {displayLabel}
+                                            </span>
+                                          )}
+                                        </td>
+                                      );
+                                    })()}
+                                    {renderEditableCell('agenda', row.agenda)}
+                                    {(() => {
+                                      const field = 'nama_ruangan';
+                                      const isEditing = agendaEditingCell?.row === actualIndex && agendaEditingCell?.key === field;
+                                      const cellError = agendaCellErrors.find(err => err.row === actualIndex + 1 && err.field === 'ruangan_id');
+                                      const ruangan = ruanganList.find(r => r.id === row.ruangan_id);
+                                      
+                                      return (
+                                        <td
+                                          className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
+                                          onClick={() => setAgendaEditingCell({ row: actualIndex, key: field })}
+                                          title={cellError ? cellError.message : ''}
+                                        >
+                                          {isEditing ? (
+                                            <input
+                                              className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
+                                              type="text"
+                                              value={row.nama_ruangan || ""}
+                                              onChange={e => handleAgendaEditCell(actualIndex, field, e.target.value)}
+                                              onBlur={handleAgendaFinishEdit}
+                                              onKeyDown={e => {
+                                                if (e.key === 'Enter') {
+                                                  handleAgendaFinishEdit();
+                                                }
+                                                if (e.key === 'Escape') {
+                                                  handleAgendaFinishEdit();
+                                                }
+                                              }}
+                                              autoFocus
+                                            />
+                                          ) : (
+                                            <span className={cellError ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
+                                              {ruangan ? ruangan.nama : (row.nama_ruangan || '-')}
+                                            </span>
+                                          )}
+                                        </td>
+                                      );
+                                    })()}
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                      
+                      {/* Pagination untuk Import Preview */}
+                      {agendaImportData.length > agendaImportPageSize && (
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-4">
+                            <select
+                              value={agendaImportPageSize}
+                              onChange={e => { setAgendaImportPageSize(Number(e.target.value)); setAgendaImportPage(1); }}
+                              className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                            >
+                              <option value={5}>5 per halaman</option>
+                              <option value={10}>10 per halaman</option>
+                              <option value={20}>20 per halaman</option>
+                              <option value={50}>50 per halaman</option>
+                            </select>
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                              Menampilkan {((agendaImportPage - 1) * agendaImportPageSize) + 1}-{Math.min(agendaImportPage * agendaImportPageSize, agendaImportData.length)} dari {agendaImportData.length} jadwal
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setAgendaImportPage(p => Math.max(1, p - 1))}
+                              disabled={agendaImportPage === 1}
+                              className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                            >
+                              Prev
+                            </button>
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                              Halaman {agendaImportPage} dari {Math.ceil(agendaImportData.length / agendaImportPageSize)}
+                            </span>
+                            <button
+                              onClick={() => setAgendaImportPage(p => Math.min(Math.ceil(agendaImportData.length / agendaImportPageSize), p + 1))}
+                              disabled={agendaImportPage >= Math.ceil(agendaImportData.length / agendaImportPageSize)}
+                              className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                            >
+                              Next
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                </>
+              )}
+
+              {/* Footer */}
+              <div className={`flex justify-end gap-3 pt-6 ${agendaImportFile ? 'border-t border-gray-200 dark:border-gray-700' : ''}`}>
+                <button
+                  onClick={handleAgendaCloseUploadModal}
+                  className="px-6 py-3 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                  >
+                    Batal
+                  </button>
+                {agendaImportFile && agendaImportData.length > 0 &&
+                  agendaImportErrors.length === 0 &&
+                  agendaCellErrors.length === 0 && (
+                  <button
+                      onClick={handleAgendaSubmitImport}
+                      disabled={isAgendaImporting}
+                      className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {isAgendaImporting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Importing...
+                      </>
+                    ) : (
+                        <>
+                          <FontAwesomeIcon
+                            icon={faUpload}
+                            className="w-4 h-4"
+                          />
+                          Import Data ({agendaImportData.length} jadwal)
+                        </>
+                    )}
+                  </button>
+                  )}
+                </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL UPLOAD FILE SEMINAR PROPOSAL */}
+      <AnimatePresence>
+        {showSeminarUploadModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={handleSeminarCloseUploadModal}
+            />
+
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={handleSeminarCloseUploadModal}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+
+              {/* Header */}
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                  Import Jadwal Seminar Proposal
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Preview dan validasi data sebelum import
+                </p>
+              </div>
+
+              {!seminarImportFile ? (
+                /* Upload Section */
+                <div className="mb-6">
+                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
+                    <div className="space-y-4">
+                      <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
+                        <FontAwesomeIcon
+                          icon={faFileExcel}
+                          className="w-8 h-8 text-brand-600 dark:text-brand-400"
+                        />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                          Upload File Excel
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          Pilih file Excel dengan format template Seminar Proposal (.xlsx, .xls)
+                        </p>
+                      </div>
+                      <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
+                        <FontAwesomeIcon
+                          icon={faUpload}
+                          className="w-4 h-4"
+                        />
+                        Pilih File
+                        <input
+                          ref={seminarFileInputRef}
+                          type="file"
+                          accept=".xlsx,.xls"
+                          onChange={handleSeminarFileUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Preview Section */
+                <>
+                  {/* File Info */}
+                  {seminarImportFile && (
+                    <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <FontAwesomeIcon
+                          icon={faFileExcel}
+                          className="w-5 h-5 text-blue-500"
+                        />
+                        <div className="flex-1">
+                          <p className="font-medium text-blue-800 dark:text-blue-200">
+                            {seminarImportFile.name}
+                          </p>
+                          <p className="text-sm text-blue-600 dark:text-blue-300">
+                            {(seminarImportFile.size / 1024).toFixed(1)} KB
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleSeminarRemoveFile}
+                          className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                          title="Hapus file"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Error Messages */}
+                  {(seminarImportErrors.length > 0 ||
+                    seminarCellErrors.length > 0) && (
+                    <div className="mb-6">
+                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <FontAwesomeIcon
+                            icon={faExclamationTriangle}
+                            className="w-5 h-5 text-red-500"
+                          />
+                          <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                            Error Validasi (
+                            {seminarImportErrors.length +
+                              seminarCellErrors.length}{" "}
+                            error)
+                          </h3>
+                        </div>
+                        <div className="max-h-40 overflow-y-auto">
+                          {seminarImportErrors.map((error, index) => (
+                            <p
+                              key={index}
+                              className="text-sm text-red-600 dark:text-red-400 mb-1"
+                            >
+                              • {error}
+                            </p>
+                          ))}
+                          {seminarCellErrors.map((error, index) => (
+                            <p
+                              key={index}
+                              className="text-sm text-red-600 dark:text-red-400 mb-1"
+                            >
+                              • {error.field === 'api'
+                                ? error.message
+                                : `${error.message} (Baris ${error.row}, Kolom ${error.field.toUpperCase()})`}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Preview Table */}
+                  {seminarImportData.length > 0 && (
+                    <div className="mb-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                          Preview Data ({seminarImportData.length} jadwal Seminar Proposal)
+                        </h3>
+                        <div className="flex items-center gap-3">
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            File: {seminarImportFile?.name}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                        <div className="max-w-full overflow-x-auto hide-scroll">
+                          <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                            <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                              <tr>
+                                <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Mulai</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Sesi</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pembimbing</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Komentator</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Mahasiswa</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {seminarImportData
+                                .slice((seminarImportPage - 1) * seminarImportPageSize, seminarImportPage * seminarImportPageSize)
+                                .map((row, index) => {
+                                  const actualIndex = (seminarImportPage - 1) * seminarImportPageSize + index;
+                                  
+                                  const renderEditableCell = (field: string, value: any, isNumeric = false) => {
+                                    const isEditing = seminarEditingCell?.row === actualIndex && seminarEditingCell?.key === field;
+                                    const cellError = seminarCellErrors.find(err => err.row === actualIndex + 1 && err.field === field);
+                                    
+                                    return (
+                                      <td
+                                        className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
+                                        onClick={() => setSeminarEditingCell({ row: actualIndex, key: field })}
+                                        title={cellError ? cellError.message : ''}
+                                      >
+                                        {isEditing ? (
+                                          <input
+                                            className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
+                                            type={isNumeric ? "number" : "text"}
+                                            value={value || ""}
+                                            onChange={e => handleSeminarEditCell(actualIndex, field, isNumeric ? parseInt(e.target.value) : e.target.value)}
+                                            onBlur={handleSeminarFinishEdit}
+                                            onKeyDown={e => {
+                                              if (e.key === 'Enter') {
+                                                handleSeminarFinishEdit();
+                                              }
+                                              if (e.key === 'Escape') {
+                                                handleSeminarFinishEdit();
+                                              }
+                                            }}
+                                            autoFocus
+                                          />
+                                        ) : (
+                                          <span className={cellError ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>{value || '-'}</span>
+                                        )}
+                                      </td>
+                                    );
+                                  };
+                                  
+                                  return (
+                                    <tr 
+                                      key={actualIndex} 
+                                      className={`${index % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}`}
+                                    >
+                                      <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{actualIndex + 1}</td>
+                                      {renderEditableCell('tanggal', row.tanggal)}
+                                      {renderEditableCell('jam_mulai', row.jam_mulai)}
+                                      {renderEditableCell('jumlah_sesi', row.jumlah_sesi, true)}
+                                      {(() => {
+                                        const field = 'nama_pembimbing';
+                                        const isEditing = seminarEditingCell?.row === actualIndex && seminarEditingCell?.key === field;
+                                        const cellError = seminarCellErrors.find(err => err.row === actualIndex + 1 && err.field === 'pembimbing_id');
+                                        const pembimbing = dosenList.find(d => d.id === row.pembimbing_id);
+                                        
+                                        return (
+                                          <td
+                                            className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
+                                            onClick={() => setSeminarEditingCell({ row: actualIndex, key: field })}
+                                            title={cellError ? cellError.message : ''}
+                                          >
+                                            {isEditing ? (
+                                              <input
+                                                className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
+                                                type="text"
+                                                value={row.nama_pembimbing || ""}
+                                                onChange={e => handleSeminarEditCell(actualIndex, field, e.target.value)}
+                                                onBlur={handleSeminarFinishEdit}
+                                                onKeyDown={e => {
+                                                  if (e.key === 'Enter') {
+                                                    handleSeminarFinishEdit();
+                                                  }
+                                                  if (e.key === 'Escape') {
+                                                    handleSeminarFinishEdit();
+                                                  }
+                                                }}
+                                                autoFocus
+                                              />
+                                            ) : (
+                                              <span className={cellError ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
+                                                {pembimbing ? pembimbing.name : (row.nama_pembimbing || 'Tidak ditemukan')}
+                                              </span>
+                                            )}
+                                          </td>
+                                        );
+                                      })()}
+                                      {(() => {
+                                        const field = 'nama_komentator';
+                                        const isEditing = seminarEditingCell?.row === actualIndex && seminarEditingCell?.key === field;
+                                        const cellError = seminarCellErrors.find(err => err.row === actualIndex + 1 && err.field === 'komentator_ids');
+                                        const komentatorNames = row.komentator_ids && row.komentator_ids.length > 0
+                                          ? row.komentator_ids.map((id: number) => {
+                                              const dosen = dosenList.find(d => d.id === id);
+                                              return dosen?.name || '';
+                                            }).filter(Boolean).join(', ')
+                                          : '';
+                                        
+                                        return (
+                                          <td
+                                            className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
+                                            onClick={() => setSeminarEditingCell({ row: actualIndex, key: field })}
+                                            title={cellError ? cellError.message : ''}
+                                          >
+                                            {isEditing ? (
+                                              <input
+                                                className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
+                                                type="text"
+                                                value={typeof row.nama_komentator === 'string' ? row.nama_komentator : (Array.isArray(row.nama_komentator) ? row.nama_komentator.join(', ') : "")}
+                                                onChange={e => handleSeminarEditCell(actualIndex, field, e.target.value)}
+                                                onBlur={handleSeminarFinishEdit}
+                                                onKeyDown={e => {
+                                                  if (e.key === 'Enter') {
+                                                    handleSeminarFinishEdit();
+                                                  }
+                                                  if (e.key === 'Escape') {
+                                                    handleSeminarFinishEdit();
+                                                  }
+                                                }}
+                                                autoFocus
+                                              />
+                                            ) : (
+                                              <span className={cellError ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
+                                                {komentatorNames || (typeof row.nama_komentator === 'string' ? row.nama_komentator : (Array.isArray(row.nama_komentator) ? row.nama_komentator.join(', ') : 'Tidak ditemukan'))}
+                                              </span>
+                                            )}
+                                          </td>
+                                        );
+                                      })()}
+                                      {(() => {
+                                        const field = 'nama_mahasiswa';
+                                        const isEditing = seminarEditingCell?.row === actualIndex && seminarEditingCell?.key === field;
+                                        const cellError = seminarCellErrors.find(err => err.row === actualIndex + 1 && err.field === 'mahasiswa_nims');
+                                        // Ambil nama mahasiswa dari mahasiswaList berdasarkan NIM
+                                        const mahasiswaNames = row.mahasiswa_nims && row.mahasiswa_nims.length > 0
+                                          ? row.mahasiswa_nims.map((nim: string) => {
+                                              const mahasiswa = mahasiswaList.find(m => m.nim === nim);
+                                              return mahasiswa ? mahasiswa.name : nim;
+                                            }).filter(Boolean).join(', ')
+                                          : '';
+                                        
+                                        // Untuk editing, gunakan nama mahasiswa (bukan NIM atau nama_mahasiswa dari row)
+                                        const editingValue = typeof row.nama_mahasiswa === 'string' 
+                                          ? row.nama_mahasiswa 
+                                          : (mahasiswaNames || (Array.isArray(row.nama_mahasiswa) ? row.nama_mahasiswa.join(', ') : ""));
+                                        
+                                        return (
+                                          <td
+                                            className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
+                                            onClick={() => setSeminarEditingCell({ row: actualIndex, key: field })}
+                                            title={cellError ? cellError.message : ''}
+                                          >
+                                            {isEditing ? (
+                                              <input
+                                                className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
+                                                type="text"
+                                                value={editingValue}
+                                                onChange={e => handleSeminarEditCell(actualIndex, field, e.target.value)}
+                                                onBlur={handleSeminarFinishEdit}
+                                                onKeyDown={e => {
+                                                  if (e.key === 'Enter') {
+                                                    handleSeminarFinishEdit();
+                                                  }
+                                                  if (e.key === 'Escape') {
+                                                    handleSeminarFinishEdit();
+                                                  }
+                                                }}
+                                                autoFocus
+                                              />
+                                            ) : (
+                                              <span className={cellError ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
+                                                {mahasiswaNames || (typeof row.nama_mahasiswa === 'string' ? row.nama_mahasiswa : (Array.isArray(row.nama_mahasiswa) ? row.nama_mahasiswa.join(', ') : 'Tidak ditemukan'))}
+                                              </span>
+                                            )}
+                                          </td>
+                                        );
+                                      })()}
+                                      {(() => {
+                                        const field = 'nama_ruangan';
+                                        const isEditing = seminarEditingCell?.row === actualIndex && seminarEditingCell?.key === field;
+                                        const cellError = seminarCellErrors.find(err => err.row === actualIndex + 1 && err.field === 'ruangan_id');
+                                        const ruangan = ruanganList.find(r => r.id === row.ruangan_id);
+                                        
+                                        return (
+                                          <td
+                                            className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
+                                            onClick={() => setSeminarEditingCell({ row: actualIndex, key: field })}
+                                            title={cellError ? cellError.message : ''}
+                                          >
+                                            {isEditing ? (
+                                              <input
+                                                className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
+                                                type="text"
+                                                value={row.nama_ruangan || ""}
+                                                onChange={e => handleSeminarEditCell(actualIndex, field, e.target.value)}
+                                                onBlur={handleSeminarFinishEdit}
+                                                onKeyDown={e => {
+                                                  if (e.key === 'Enter') {
+                                                    handleSeminarFinishEdit();
+                                                  }
+                                                  if (e.key === 'Escape') {
+                                                    handleSeminarFinishEdit();
+                                                  }
+                                                }}
+                                                autoFocus
+                                              />
+                                            ) : (
+                                              <span className={cellError ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
+                                                {ruangan ? ruangan.nama : (row.nama_ruangan || 'Tidak ditemukan')}
+                                              </span>
+                                            )}
+                                          </td>
+                                        );
+                                      })()}
+                                    </tr>
+                                  );
+                                })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                      
+                      {/* Pagination untuk Import Preview */}
+                      {seminarImportData.length > seminarImportPageSize && (
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-4">
+                            <select
+                              value={seminarImportPageSize}
+                              onChange={e => { setSeminarImportPageSize(Number(e.target.value)); setSeminarImportPage(1); }}
+                              className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                            >
+                              <option value={5}>5 per halaman</option>
+                              <option value={10}>10 per halaman</option>
+                              <option value={20}>20 per halaman</option>
+                              <option value={50}>50 per halaman</option>
+                            </select>
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                              Menampilkan {((seminarImportPage - 1) * seminarImportPageSize) + 1}-{Math.min(seminarImportPage * seminarImportPageSize, seminarImportData.length)} dari {seminarImportData.length} jadwal
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setSeminarImportPage(p => Math.max(1, p - 1))}
+                              disabled={seminarImportPage === 1}
+                              className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                            >
+                              Prev
+                            </button>
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                              Halaman {seminarImportPage} dari {Math.ceil(seminarImportData.length / seminarImportPageSize)}
+                            </span>
+                            <button
+                              onClick={() => setSeminarImportPage(p => Math.min(Math.ceil(seminarImportData.length / seminarImportPageSize), p + 1))}
+                              disabled={seminarImportPage >= Math.ceil(seminarImportData.length / seminarImportPageSize)}
+                              className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                            >
+                              Next
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                </>
+              )}
+
+              {/* Footer */}
+              <div className={`flex justify-end gap-3 pt-6 ${seminarImportFile ? 'border-t border-gray-200 dark:border-gray-700' : ''}`}>
+                <button
+                  onClick={handleSeminarCloseUploadModal}
+                  className="px-6 py-3 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                >
+                  Batal
+                </button>
+                {seminarImportFile && seminarImportData.length > 0 &&
+                  seminarImportErrors.length === 0 &&
+                  seminarCellErrors.length === 0 && (
+                  <button
+                      onClick={handleSeminarSubmitImport}
+                      disabled={isSeminarImporting}
+                    className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                      {isSeminarImporting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Importing...
+                      </>
+                    ) : (
+                      <>
+                          <FontAwesomeIcon
+                            icon={faUpload}
+                            className="w-4 h-4"
+                          />
+                          Import Data ({seminarImportData.length} jadwal)
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+
+      {/* Modal Daftar Mahasiswa */}
+      <AnimatePresence>
+        {showMahasiswaModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowMahasiswaModal(false)}
+            />
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-4xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => setShowMahasiswaModal(false)}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" className="w-6 h-6">
+                  <path fillRule="evenodd" clipRule="evenodd" d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z" fill="currentColor" />
+                </svg>
+              </button>
+
+              {/* Header */}
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                  Daftar Mahasiswa
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Total {selectedMahasiswaList.length} mahasiswa
+                </p>
+              </div>
+
+              {/* Search Bar */}
+              <div className="mb-6">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Cari berdasarkan nama atau NIM..."
+                    value={mahasiswaSearchQuery}
+                    onChange={(e) => {
+                      setMahasiswaSearchQuery(e.target.value);
+                      setMahasiswaModalPage(1); // Reset ke halaman 1 saat search
+                    }}
+                    className="w-full px-4 py-3 pl-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  />
+                  <svg
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                  {mahasiswaSearchQuery && (
+                    <button
+                      onClick={() => {
+                        setMahasiswaSearchQuery('');
+                        setMahasiswaModalPage(1);
+                      }}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Filtered Results Info */}
+              {(() => {
+                const filteredMahasiswa = selectedMahasiswaList.filter((m) => {
+                  if (!mahasiswaSearchQuery.trim()) return true;
+                  const query = mahasiswaSearchQuery.toLowerCase().trim();
+                  return (
+                    m.name.toLowerCase().includes(query) ||
+                    m.nim.toLowerCase().includes(query)
+                  );
+                });
+                const totalPages = Math.ceil(filteredMahasiswa.length / mahasiswaModalPageSize);
+                const paginatedData = filteredMahasiswa.slice(
+                  (mahasiswaModalPage - 1) * mahasiswaModalPageSize,
+                  mahasiswaModalPage * mahasiswaModalPageSize
+                );
+
+                return (
+                  <>
+                    {mahasiswaSearchQuery && (
+                      <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+                        Menampilkan {filteredMahasiswa.length} dari {selectedMahasiswaList.length} mahasiswa
+                      </div>
+                    )}
+
+                    {/* Table */}
+                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                      <div className="max-w-full overflow-x-auto hide-scroll">
+                        <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                          <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                            <tr>
+                              <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">NIM</th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Nama</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {paginatedData.length === 0 ? (
+                              <tr>
+                                <td colSpan={3} className="text-center py-6 text-gray-400">
+                                  {mahasiswaSearchQuery ? 'Tidak ada mahasiswa yang sesuai dengan pencarian' : 'Tidak ada data mahasiswa'}
+                                </td>
+                              </tr>
+                            ) : (
+                              paginatedData.map((mahasiswa, idx) => {
+                                const actualIndex = (mahasiswaModalPage - 1) * mahasiswaModalPageSize + idx;
+                                return (
+                                  <tr key={mahasiswa.id} className={idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                                    <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{actualIndex + 1}</td>
+                                    <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{mahasiswa.nim}</td>
+                                    <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{mahasiswa.name}</td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Pagination */}
+                    {filteredMahasiswa.length > mahasiswaModalPageSize && (
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 border-t border-gray-200 dark:border-gray-700 mt-6">
+                        <div className="flex items-center gap-4">
+                          <select
+                            value={mahasiswaModalPageSize}
+                            onChange={(e) => {
+                              setMahasiswaModalPageSize(Number(e.target.value));
+                              setMahasiswaModalPage(1);
+                            }}
+                            className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                          >
+                            <option value={10}>10 per halaman</option>
+                            <option value={20}>20 per halaman</option>
+                            <option value={50}>50 per halaman</option>
+                            <option value={100}>100 per halaman</option>
+                          </select>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">
+                            Menampilkan {((mahasiswaModalPage - 1) * mahasiswaModalPageSize) + 1}-{Math.min(mahasiswaModalPage * mahasiswaModalPageSize, filteredMahasiswa.length)} dari {filteredMahasiswa.length} mahasiswa
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setMahasiswaModalPage((p) => Math.max(1, p - 1))}
+                            disabled={mahasiswaModalPage === 1}
+                            className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Prev
+                          </button>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">
+                            Halaman {mahasiswaModalPage} dari {totalPages}
+                          </span>
+                          <button
+                            onClick={() => setMahasiswaModalPage((p) => Math.min(totalPages, p + 1))}
+                            disabled={mahasiswaModalPage >= totalPages}
+                            className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Next
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Footer */}
+                    <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700 mt-6">
+                      <button
+                        onClick={() => {
+                          setShowMahasiswaModal(false);
+                          setMahasiswaSearchQuery('');
+                          setMahasiswaModalPage(1);
+                        }}
+                        className="px-6 py-3 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                      >
+                        Tutup
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL KONFIRMASI BULK DELETE SEMINAR PROPOSAL */}
+      <AnimatePresence>
+        {showSeminarBulkDeleteModal && (
           <div className="fixed inset-0 z-[100000] flex items-center justify-center">
             <div
               className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
-              onClick={() => setShowNonBlokBulkDeleteModal(false)}
+              onClick={() => setShowSeminarBulkDeleteModal(false)}
             ></div>
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -3104,33 +10272,56 @@ export default function DetailNonBlokNonCSR() {
               className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
             >
               <div className="flex items-center justify-between pb-6">
-                <h2 className="text-xl font-bold text-gray-800 dark:text-white">Konfirmasi Hapus Data</h2>
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                  Konfirmasi Hapus Data
+                </h2>
               </div>
               <div>
                 <p className="mb-6 text-gray-500 dark:text-gray-400">
-                  Apakah Anda yakin ingin menghapus <span className="font-semibold text-gray-800 dark:text-white">
-                    {selectedNonBlokItems.length}
-                  </span> jadwal Non-Blok Non-CSR terpilih? Data yang dihapus tidak dapat dikembalikan.
+                  Apakah Anda yakin ingin menghapus{" "}
+                  <span className="font-semibold text-gray-800 dark:text-white">
+                    {selectedSeminarItems.length}
+                  </span>{" "}
+                  jadwal Seminar Proposal terpilih? Data yang dihapus tidak dapat dikembalikan.
                 </p>
                 <div className="flex justify-end gap-2 pt-2">
                   <button
-                    onClick={() => setShowNonBlokBulkDeleteModal(false)}
+                    onClick={() => setShowSeminarBulkDeleteModal(false)}
                     className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
                   >
                     Batal
                   </button>
                   <button
-                    onClick={confirmNonBlokBulkDelete}
-                    className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition flex items-center justify-center"
-                    disabled={isNonBlokDeleting}
+                    onClick={confirmSeminarBulkDelete}
+                    disabled={isSeminarDeleting}
+                    className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {isNonBlokDeleting ? (
+                    {isSeminarDeleting ? (
                       <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                        <svg
+                          className="w-5 h-5 mr-2 animate-spin text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                          ></path>
+                        </svg>
                         Menghapus...
                       </>
                     ) : (
-                      'Hapus'
+                      "Hapus"
                     )}
                   </button>
                 </div>
@@ -3139,6 +10330,575 @@ export default function DetailNonBlokNonCSR() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* MODAL IMPORT EXCEL SIDANG SKRIPSI */}
+      <AnimatePresence>
+        {showSidangUploadModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={handleSidangCloseUploadModal}
+            />
+
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={handleSidangCloseUploadModal}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" className="w-6 h-6">
+                  <path fillRule="evenodd" clipRule="evenodd" d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z" fill="currentColor" />
+                </svg>
+              </button>
+
+              {/* Header */}
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                  Import Jadwal Sidang Skripsi
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Preview dan validasi data sebelum import
+                </p>
+              </div>
+
+              {!sidangImportFile ? (
+                /* Upload Section */
+                <div className="mb-6">
+                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
+                    <div className="space-y-4">
+                      <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
+                        <FontAwesomeIcon
+                          icon={faFileExcel}
+                          className="w-8 h-8 text-brand-600 dark:text-brand-400"
+                        />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                          Upload File Excel
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          Pilih file Excel dengan format template Sidang Skripsi (.xlsx, .xls)
+                        </p>
+                      </div>
+                      <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
+                        <FontAwesomeIcon
+                          icon={faUpload}
+                          className="w-4 h-4"
+                        />
+                        Pilih File
+                        <input
+                          ref={sidangFileInputRef}
+                          type="file"
+                          accept=".xlsx,.xls"
+                          onChange={handleSidangFileUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Preview Section */
+                <>
+                  {/* File Info */}
+                  {sidangImportFile && (
+                    <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <FontAwesomeIcon
+                          icon={faFileExcel}
+                          className="w-5 h-5 text-blue-500"
+                        />
+                        <div className="flex-1">
+                          <p className="font-medium text-blue-800 dark:text-blue-200">
+                            {sidangImportFile.name}
+                          </p>
+                          <p className="text-sm text-blue-600 dark:text-blue-300">
+                            {(sidangImportFile.size / 1024).toFixed(1)} KB
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleSidangRemoveFile}
+                          className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                          title="Hapus file"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Error Messages */}
+                  {(sidangImportErrors.length > 0 ||
+                    sidangCellErrors.length > 0) && (
+                    <div className="mb-6">
+                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <FontAwesomeIcon
+                            icon={faExclamationTriangle}
+                            className="w-5 h-5 text-red-500"
+                          />
+                          <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                            Error Validasi (
+                            {sidangImportErrors.length +
+                              sidangCellErrors.length}{" "}
+                            error)
+                          </h3>
+                        </div>
+                        <div className="max-h-40 overflow-y-auto">
+                          {sidangImportErrors.map((error, index) => (
+                            <p
+                              key={index}
+                              className="text-sm text-red-600 dark:text-red-400 mb-1"
+                            >
+                              • {error}
+                            </p>
+                          ))}
+                          {sidangCellErrors.map((error, index) => (
+                            <p
+                              key={index}
+                              className="text-sm text-red-600 dark:text-red-400 mb-1"
+                            >
+                              • {error.field === 'api'
+                                ? error.message
+                                : `${error.message} (Baris ${error.row}, Kolom ${error.field.toUpperCase()})`}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Preview Table */}
+                  {sidangImportData.length > 0 && (
+                    <div className="mb-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                          Preview Data ({sidangImportData.length} jadwal Sidang Skripsi)
+                        </h3>
+                        <div className="flex items-center gap-3">
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            File: {sidangImportFile?.name}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                        <div className="max-w-full overflow-x-auto hide-scroll">
+                          <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                            <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                              <tr>
+                                <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Tanggal</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Jam Mulai</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Sesi</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pembimbing</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Penguji</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Mahasiswa</th>
+                                <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Ruangan</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {sidangImportData
+                                .slice((sidangImportPage - 1) * sidangImportPageSize, sidangImportPage * sidangImportPageSize)
+                                .map((row, index) => {
+                                  const actualIndex = (sidangImportPage - 1) * sidangImportPageSize + index;
+                                  
+                                  const renderEditableCell = (field: string, value: any, isNumeric = false) => {
+                                    const isEditing = sidangEditingCell?.row === actualIndex && sidangEditingCell?.key === field;
+                                    const cellError = sidangCellErrors.find(err => err.row === actualIndex + 1 && err.field === field);
+                                    
+                                    return (
+                                      <td
+                                        className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
+                                        onClick={() => setSidangEditingCell({ row: actualIndex, key: field })}
+                                        title={cellError ? cellError.message : ''}
+                                      >
+                                        {isEditing ? (
+                                          <input
+                                            className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
+                                            type={isNumeric ? "number" : "text"}
+                                            value={value || ""}
+                                            onChange={e => handleSidangEditCell(actualIndex, field, isNumeric ? parseInt(e.target.value) : e.target.value)}
+                                            onBlur={handleSidangFinishEdit}
+                                            onKeyDown={e => {
+                                              if (e.key === 'Enter') {
+                                                handleSidangFinishEdit();
+                                              }
+                                              if (e.key === 'Escape') {
+                                                handleSidangFinishEdit();
+                                              }
+                                            }}
+                                            autoFocus
+                                          />
+                                        ) : (
+                                          <span className={cellError ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>{value || '-'}</span>
+                                        )}
+                                      </td>
+                                    );
+                                  };
+                                  
+                                  return (
+                                    <tr 
+                                      key={actualIndex} 
+                                      className={`${index % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}`}
+                                    >
+                                      <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{actualIndex + 1}</td>
+                                      {renderEditableCell('tanggal', row.tanggal)}
+                                      {renderEditableCell('jam_mulai', row.jam_mulai)}
+                                      {renderEditableCell('jumlah_sesi', row.jumlah_sesi, true)}
+                                      {(() => {
+                                        const field = 'nama_pembimbing';
+                                        const isEditing = sidangEditingCell?.row === actualIndex && sidangEditingCell?.key === field;
+                                        const cellError = sidangCellErrors.find(err => err.row === actualIndex + 1 && err.field === 'pembimbing_id');
+                                        const pembimbing = dosenList.find(d => d.id === row.pembimbing_id);
+                                        
+                                        return (
+                                          <td
+                                            className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
+                                            onClick={() => setSidangEditingCell({ row: actualIndex, key: field })}
+                                            title={cellError ? cellError.message : ''}
+                                          >
+                                            {isEditing ? (
+                                              <input
+                                                className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
+                                                type="text"
+                                                value={row.nama_pembimbing || ""}
+                                                onChange={e => handleSidangEditCell(actualIndex, field, e.target.value)}
+                                                onBlur={handleSidangFinishEdit}
+                                                onKeyDown={e => {
+                                                  if (e.key === 'Enter') {
+                                                    handleSidangFinishEdit();
+                                                  }
+                                                  if (e.key === 'Escape') {
+                                                    handleSidangFinishEdit();
+                                                  }
+                                                }}
+                                                autoFocus
+                                              />
+                                            ) : (
+                                              <span className={cellError ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
+                                                {pembimbing ? pembimbing.name : (row.nama_pembimbing || 'Tidak ditemukan')}
+                                              </span>
+                                            )}
+                                          </td>
+                                        );
+                                      })()}
+                                      {(() => {
+                                        const field = 'nama_penguji';
+                                        const isEditing = sidangEditingCell?.row === actualIndex && sidangEditingCell?.key === field;
+                                        const cellError = sidangCellErrors.find(err => err.row === actualIndex + 1 && err.field === 'penguji_ids');
+                                        const pengujiNames = row.penguji_ids && row.penguji_ids.length > 0
+                                          ? row.penguji_ids.map((id: number) => {
+                                              const dosen = dosenList.find(d => d.id === id);
+                                              return dosen?.name || '';
+                                            }).filter(Boolean).join(', ')
+                                          : '';
+                                        
+                                        return (
+                                          <td
+                                            className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
+                                            onClick={() => setSidangEditingCell({ row: actualIndex, key: field })}
+                                            title={cellError ? cellError.message : ''}
+                                          >
+                                            {isEditing ? (
+                                              <input
+                                                className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
+                                                type="text"
+                                                value={typeof row.nama_penguji === 'string' ? row.nama_penguji : (Array.isArray(row.nama_penguji) ? row.nama_penguji.join(', ') : "")}
+                                                onChange={e => handleSidangEditCell(actualIndex, field, e.target.value)}
+                                                onBlur={handleSidangFinishEdit}
+                                                onKeyDown={e => {
+                                                  if (e.key === 'Enter') {
+                                                    handleSidangFinishEdit();
+                                                  }
+                                                  if (e.key === 'Escape') {
+                                                    handleSidangFinishEdit();
+                                                  }
+                                                }}
+                                                autoFocus
+                                              />
+                                            ) : (
+                                              <span className={cellError ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
+                                                {pengujiNames || (typeof row.nama_penguji === 'string' ? row.nama_penguji : (Array.isArray(row.nama_penguji) ? row.nama_penguji.join(', ') : 'Tidak ditemukan'))}
+                                              </span>
+                                            )}
+                                          </td>
+                                        );
+                                      })()}
+                                      {(() => {
+                                        const field = 'nama_mahasiswa';
+                                        const isEditing = sidangEditingCell?.row === actualIndex && sidangEditingCell?.key === field;
+                                        const cellError = sidangCellErrors.find(err => err.row === actualIndex + 1 && err.field === 'mahasiswa_nims');
+                                        // Ambil nama mahasiswa dari mahasiswaList berdasarkan NIM
+                                        const mahasiswaNames = row.mahasiswa_nims && row.mahasiswa_nims.length > 0
+                                          ? row.mahasiswa_nims.map((nim: string) => {
+                                              const mahasiswa = mahasiswaList.find(m => m.nim === nim);
+                                              return mahasiswa ? mahasiswa.name : nim;
+                                            }).filter(Boolean).join(', ')
+                                          : '';
+                                        
+                                        // Untuk editing, gunakan nama mahasiswa (bukan NIM atau nama_mahasiswa dari row)
+                                        const editingValue = typeof row.nama_mahasiswa === 'string' 
+                                          ? row.nama_mahasiswa 
+                                          : (mahasiswaNames || (Array.isArray(row.nama_mahasiswa) ? row.nama_mahasiswa.join(', ') : ""));
+                                        
+                                        return (
+                                          <td
+                                            className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
+                                            onClick={() => setSidangEditingCell({ row: actualIndex, key: field })}
+                                            title={cellError ? cellError.message : ''}
+                                          >
+                                            {isEditing ? (
+                                              <input
+                                                className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
+                                                type="text"
+                                                value={editingValue}
+                                                onChange={e => handleSidangEditCell(actualIndex, field, e.target.value)}
+                                                onBlur={handleSidangFinishEdit}
+                                                onKeyDown={e => {
+                                                  if (e.key === 'Enter') {
+                                                    handleSidangFinishEdit();
+                                                  }
+                                                  if (e.key === 'Escape') {
+                                                    handleSidangFinishEdit();
+                                                  }
+                                                }}
+                                                autoFocus
+                                              />
+                                            ) : (
+                                              <span className={cellError ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
+                                                {mahasiswaNames || (typeof row.nama_mahasiswa === 'string' ? row.nama_mahasiswa : (Array.isArray(row.nama_mahasiswa) ? row.nama_mahasiswa.join(', ') : 'Tidak ditemukan'))}
+                                              </span>
+                                            )}
+                                          </td>
+                                        );
+                                      })()}
+                                      {(() => {
+                                        const field = 'nama_ruangan';
+                                        const isEditing = sidangEditingCell?.row === actualIndex && sidangEditingCell?.key === field;
+                                        const cellError = sidangCellErrors.find(err => err.row === actualIndex + 1 && err.field === 'ruangan_id');
+                                        const ruangan = ruanganList.find(r => r.id === row.ruangan_id);
+                                        
+                                        return (
+                                          <td
+                                            className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing ? 'border-2 border-brand-500' : ''} ${cellError ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
+                                            onClick={() => setSidangEditingCell({ row: actualIndex, key: field })}
+                                            title={cellError ? cellError.message : ''}
+                                          >
+                                            {isEditing ? (
+                                              <input
+                                                className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
+                                                type="text"
+                                                value={row.nama_ruangan || ""}
+                                                onChange={e => handleSidangEditCell(actualIndex, field, e.target.value)}
+                                                onBlur={handleSidangFinishEdit}
+                                                onKeyDown={e => {
+                                                  if (e.key === 'Enter') {
+                                                    handleSidangFinishEdit();
+                                                  }
+                                                  if (e.key === 'Escape') {
+                                                    handleSidangFinishEdit();
+                                                  }
+                                                }}
+                                                autoFocus
+                                              />
+                                            ) : (
+                                              <span className={cellError ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
+                                                {ruangan ? ruangan.nama : (row.nama_ruangan || 'Tidak ditemukan')}
+                                              </span>
+                                            )}
+                                          </td>
+                                        );
+                                      })()}
+                                    </tr>
+                                  );
+                                })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                      
+                      {/* Pagination untuk Import Preview */}
+                      {sidangImportData.length > sidangImportPageSize && (
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-4">
+                            <select
+                              value={sidangImportPageSize}
+                              onChange={e => { setSidangImportPageSize(Number(e.target.value)); setSidangImportPage(1); }}
+                              className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                            >
+                              <option value={5}>5 per halaman</option>
+                              <option value={10}>10 per halaman</option>
+                              <option value={20}>20 per halaman</option>
+                              <option value={50}>50 per halaman</option>
+                            </select>
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                              Menampilkan {((sidangImportPage - 1) * sidangImportPageSize) + 1}-{Math.min(sidangImportPage * sidangImportPageSize, sidangImportData.length)} dari {sidangImportData.length} jadwal
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setSidangImportPage(p => Math.max(1, p - 1))}
+                              disabled={sidangImportPage === 1}
+                              className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                            >
+                              Prev
+                            </button>
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                              Halaman {sidangImportPage} dari {Math.ceil(sidangImportData.length / sidangImportPageSize)}
+                            </span>
+                            <button
+                              onClick={() => setSidangImportPage(p => Math.min(Math.ceil(sidangImportData.length / sidangImportPageSize), p + 1))}
+                              disabled={sidangImportPage >= Math.ceil(sidangImportData.length / sidangImportPageSize)}
+                              className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                            >
+                              Next
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                </>
+              )}
+
+              {/* Footer */}
+              <div className={`flex justify-end gap-3 pt-6 ${sidangImportFile ? 'border-t border-gray-200 dark:border-gray-700' : ''}`}>
+                <button
+                  onClick={handleSidangCloseUploadModal}
+                  className="px-6 py-3 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                >
+                  Batal
+                </button>
+                {sidangImportFile && sidangImportData.length > 0 &&
+                  sidangImportErrors.length === 0 &&
+                  sidangCellErrors.length === 0 && (
+                  <button
+                      onClick={handleSidangSubmitImport}
+                      disabled={isSidangImporting}
+                    className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                      {isSidangImporting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Importing...
+                      </>
+                    ) : (
+                      <>
+                          <FontAwesomeIcon
+                            icon={faUpload}
+                            className="w-4 h-4"
+                          />
+                          Import Data ({sidangImportData.length} jadwal)
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL KONFIRMASI BULK DELETE SIDANG SKRIPSI */}
+      <AnimatePresence>
+        {showSidangBulkDeleteModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            <div
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowSidangBulkDeleteModal(false)}
+            ></div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+            >
+              <div className="flex items-center justify-between pb-6">
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                  Konfirmasi Hapus Data
+                </h2>
+              </div>
+              <div>
+                <p className="mb-6 text-gray-500 dark:text-gray-400">
+                  Apakah Anda yakin ingin menghapus{" "}
+                  <span className="font-semibold text-gray-800 dark:text-white">
+                    {selectedSidangItems.length}
+                  </span>{" "}
+                  jadwal Sidang Skripsi terpilih? Data yang dihapus tidak dapat dikembalikan.
+                </p>
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    onClick={() => setShowSidangBulkDeleteModal(false)}
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    onClick={confirmSidangBulkDelete}
+                    disabled={isSidangDeleting}
+                    className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSidangDeleting ? (
+                      <>
+                        <svg
+                          className="w-5 h-5 mr-2 animate-spin text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                          ></path>
+                        </svg>
+                        Menghapus...
+                      </>
+                    ) : (
+                      "Hapus"
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 } 

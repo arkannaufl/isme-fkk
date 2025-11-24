@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 
-import { useRef, useEffect, useState, useCallback, ChangeEvent } from "react";
+import { useRef, useEffect, useState, useCallback, useMemo, ChangeEvent } from "react";
 import api, { API_BASE_URL, handleApiError, getUser } from "../utils/api";
 
 import { ChevronLeftIcon } from "../icons";
@@ -1441,11 +1441,8 @@ export default function DetailBlok() {
     });
   }
 
-  // Helper function untuk membuat options ruangan
-
-  const getRuanganOptionsLocal = () => {
-    return getRuanganOptions(ruanganList || []);
-  };
+  // Memoized ruangan options untuk optimisasi performa
+  const ruanganOptions = useMemo(() => getRuanganOptions(ruanganList || []), [ruanganList]);
 
   function handleFormChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -17324,9 +17321,9 @@ export default function DetailBlok() {
                           </div>
                         ) : (
                           <Select
-                            options={getRuanganOptionsLocal()}
+                            options={ruanganOptions}
                             value={
-                              getRuanganOptionsLocal().find(
+                              ruanganOptions.find(
                                 (opt) => opt.value === form.lokasi
                               ) || null
                             }
@@ -18810,9 +18807,9 @@ export default function DetailBlok() {
                           </div>
                         ) : (
                           <Select
-                            options={getRuanganOptionsLocal()}
+                            options={ruanganOptions}
                             value={
-                              getRuanganOptionsLocal().find(
+                              ruanganOptions.find(
                                 (opt) => opt.value === form.lokasi
                               ) || null
                             }
@@ -19532,9 +19529,9 @@ export default function DetailBlok() {
                             </div>
                           ) : (
                             <Select
-                              options={getRuanganOptionsLocal()}
+                              options={ruanganOptions}
                               value={
-                                getRuanganOptionsLocal().find(
+                                ruanganOptions.find(
                                   (opt) => opt.value === form.lokasi
                                 ) || null
                               }
@@ -20667,9 +20664,9 @@ export default function DetailBlok() {
                           </div>
                         ) : (
                           <Select
-                            options={getRuanganOptionsLocal()}
+                            options={ruanganOptions}
                             value={
-                              getRuanganOptionsLocal().find(
+                              ruanganOptions.find(
                                 (opt) => opt.value === form.lokasi
                               ) || null
                             }
@@ -21698,9 +21695,9 @@ export default function DetailBlok() {
                           </div>
                         ) : (
                           <Select
-                            options={getRuanganOptionsLocal()}
+                            options={ruanganOptions}
                             value={
-                              getRuanganOptionsLocal().find(
+                              ruanganOptions.find(
                                 (opt) => opt.value === form.lokasi
                               ) || null
                             }
@@ -22889,9 +22886,9 @@ export default function DetailBlok() {
                           </div>
                         ) : (
                           <Select
-                            options={getRuanganOptionsLocal()}
+                            options={ruanganOptions}
                             value={
-                              getRuanganOptionsLocal().find(
+                              ruanganOptions.find(
                                 (opt) => opt.value === form.lokasi
                               ) || null
                             }
@@ -24132,9 +24129,9 @@ export default function DetailBlok() {
                           </div>
                         ) : (
                           <Select
-                            options={getRuanganOptionsLocal()}
+                            options={ruanganOptions}
                             value={
-                              getRuanganOptionsLocal().find(
+                              ruanganOptions.find(
                                 (opt) => opt.value === form.lokasi
                               ) || null
                             }

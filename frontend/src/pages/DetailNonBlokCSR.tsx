@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import api, { handleApiError } from '../utils/api';
 import { ChevronLeftIcon } from '../icons';
 import Select from 'react-select';
@@ -351,20 +351,23 @@ export default function DetailNonBlokCSR() {
   const [selectedKategoriValue, setSelectedKategoriValue] = useState<string | null>(null); // State untuk value dropdown
   const [selectedKeahlian, setSelectedKeahlian] = useState<string | null>(null); // State untuk keahlian yang dipilih
   
-  // Pagination logic functions
-  const getPaginatedData = (data: any[], page: number, pageSize: number): any[] => {
+  // Memoized ruangan options untuk optimisasi performa
+  const ruanganOptions = useMemo(() => getRuanganOptions(ruanganList || []), [ruanganList]);
+
+  // Pagination logic functions - optimized with useCallback
+  const getPaginatedData = useCallback((data: any[], page: number, pageSize: number): any[] => {
     const startIndex = (page - 1) * pageSize;
     const endIndex = startIndex + pageSize;
     return data.slice(startIndex, endIndex);
-  };
+  }, []);
 
-  const getTotalPages = (dataLength: number, pageSize: number): number => {
+  const getTotalPages = useCallback((dataLength: number, pageSize: number): number => {
     return Math.ceil(dataLength / pageSize);
-  };
+  }, []);
 
-  const resetPagination = () => {
+  const resetPagination = useCallback(() => {
     setCsrPage(1);
-  };
+  }, []);
 
   // State untuk import Excel CSR
   const [showCSRTemplateSelectionModal, setShowCSRTemplateSelectionModal] = useState(false);
@@ -404,7 +407,8 @@ export default function DetailNonBlokCSR() {
   const [showCSRExportModal, setShowCSRExportModal] = useState(false);
   const [selectedCSRExportTemplate, setSelectedCSRExportTemplate] = useState<'APLIKASI' | 'SIAKAD' | null>(null);
 
-  function hitungJamSelesai(jamMulai: string, jumlahSesi: number) {
+  // Hitung jam selesai otomatis - optimized with useCallback
+  const hitungJamSelesai = useCallback((jamMulai: string, jumlahSesi: number) => {
     if (!jamMulai) return '';
     const [jamStr, menitStr] = jamMulai.split(/[.:]/);
     const jam = Number(jamStr);
@@ -414,7 +418,7 @@ export default function DetailNonBlokCSR() {
     const jamAkhir = Math.floor(totalMenit / 60).toString().padStart(2, '0');
     const menitAkhir = (totalMenit % 60).toString().padStart(2, '0');
     return `${jamAkhir}.${menitAkhir}`;
-  }
+  }, []);
 
   // Fungsi untuk download template Excel CSR
   const downloadCSRTemplate = async () => {
@@ -628,8 +632,8 @@ export default function DetailNonBlokCSR() {
     }
   };
 
-  // Helper function untuk konversi format waktu
-  const convertTimeFormat = (timeStr: string) => {
+  // Helper function untuk konversi format waktu - optimized with useCallback
+  const convertTimeFormat = useCallback((timeStr: string) => {
     if (!timeStr || timeStr.trim() === '') return '';
     
     // Hapus spasi dan konversi ke string
@@ -645,14 +649,8 @@ export default function DetailNonBlokCSR() {
       return '0' + time.replace('.', ':');
     }
     
-    // Cek apakah format HH:MM atau HH.MM (2 digit jam)
-    if (time.match(/^\d{2}[:.]\d{2}$/)) {
-      return time.replace('.', ':');
-    }
-    
-    // Jika tidak sesuai format, return as is
     return time;
-  };
+  }, []);
 
   // Fungsi untuk membaca file Excel CSR
   const readCSRExcelFile = async (file: File) => {
@@ -1933,8 +1931,11 @@ export default function DetailNonBlokCSR() {
   }
   
   // Fetch batch data untuk optimasi performa
-  const fetchBatchData = async () => {
+  // Fetch batch data - optimized with useCallback for reuse
+  const fetchBatchData = useCallback(async (showLoading = true) => {
     if (!kode) return;
+    
+    if (showLoading) setLoading(true);
     
     try {
       const response = await api.get(`/csr/${kode}/batch-data`);
@@ -1955,8 +1956,10 @@ export default function DetailNonBlokCSR() {
       
     } catch (error: any) {
       setError(handleApiError(error, 'Memuat data batch'));
+    } finally {
+      if (showLoading) setLoading(false);
     }
-  };
+  }, [kode]);
 
   // Fungsi untuk export Excel CSR (Template Aplikasi)
   const exportCSRExcelAplikasi = async () => {
@@ -2122,39 +2125,10 @@ export default function DetailNonBlokCSR() {
   };
 
   // Initial load dengan loading state
-  const initialLoad = async () => {
-    if (!kode) return;
-    
-    setLoading(true);
-    
-    try {
-      const response = await api.get(`/csr/${kode}/batch-data`);
-      const batchData = response.data;
-      
-      // Set mata kuliah data
-      setData(batchData.mata_kuliah);
-      
-      // Set jadwal CSR data
-      setJadwalCSR(batchData.jadwal_csr);
-      
-      // Set reference data
-      setDosenList(batchData.dosen_list);
-      setRuanganList(batchData.ruangan_list);
-      setKelompokKecilList(batchData.kelompok_kecil);
-      setKategoriList(batchData.kategori_list);
-      setJamOptions(batchData.jam_options);
-      
-    } catch (error: any) {
-      setError(handleApiError(error, 'Memuat data batch'));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Fetch batch data on component mount
   useEffect(() => {
-    initialLoad();
-  }, [kode]);
+    fetchBatchData(true);
+  }, [fetchBatchData]);
 
   // Effect untuk memastikan selectedKeahlian diset dengan benar saat edit modal
   useEffect(() => {
@@ -3278,8 +3252,8 @@ export default function DetailNonBlokCSR() {
                   </div>
                 ) : (
                   <Select
-                    options={getRuanganOptions(ruanganList)}
-                    value={getRuanganOptions(ruanganList).find(opt => opt.value === form.ruangan_id) || null}
+                    options={ruanganOptions}
+                    value={ruanganOptions.find(opt => opt.value === form.ruangan_id) || null}
                     onChange={opt => setForm(f => ({ ...f, ruangan_id: opt?.value || null }))}
                     placeholder="Pilih Ruangan"
                     isClearable

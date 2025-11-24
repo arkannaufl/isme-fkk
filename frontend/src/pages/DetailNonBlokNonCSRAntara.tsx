@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import api, { handleApiError } from '../utils/api';
 import { ChevronLeftIcon } from '../icons';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -119,20 +119,23 @@ export default function DetailNonBlokNonCSR() {
   const [nonCsrPage, setNonCsrPage] = useState(1);
   const [nonCsrPageSize, setNonCsrPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
   
-  // Pagination logic functions
-  const getPaginatedData = (data: any[], page: number, pageSize: number): any[] => {
+  // Memoized ruangan options untuk optimisasi performa
+  const ruanganOptions = useMemo(() => getRuanganOptions(ruanganList || []), [ruanganList]);
+
+  // Pagination logic functions - optimized with useCallback
+  const getPaginatedData = useCallback((data: any[], page: number, pageSize: number): any[] => {
     const startIndex = (page - 1) * pageSize;
     const endIndex = startIndex + pageSize;
     return data.slice(startIndex, endIndex);
-  };
+  }, []);
 
-  const getTotalPages = (dataLength: number, pageSize: number): number => {
+  const getTotalPages = useCallback((dataLength: number, pageSize: number): number => {
     return Math.ceil(dataLength / pageSize);
-  };
+  }, []);
 
-  const resetPagination = () => {
+  const resetPagination = useCallback(() => {
     setNonCsrPage(1);
-  };
+  }, []);
   
   // State untuk modal kelola kelompok
   const [activeTab, setActiveTab] = useState<'besar' | 'kecil'>('besar');
@@ -158,8 +161,8 @@ export default function DetailNonBlokNonCSR() {
   const [isCreatingKelompokKecilAntara, setIsCreatingKelompokKecilAntara] = useState(false);
   const [isLoadingKelompokKecilAntara, setIsLoadingKelompokKecilAntara] = useState(false);
 
-  // Reset form function
-  const resetForm = () => {
+  // Reset form function - optimized with useCallback
+  const resetForm = useCallback(() => {
     setForm({
       hariTanggal: '',
       jamMulai: '',
@@ -176,7 +179,7 @@ export default function DetailNonBlokNonCSR() {
     setEditIndex(null);
     setErrorForm('');
     setErrorBackend('');
-  };
+  }, []);
 
   // Fetch kelompok besar options untuk agenda khusus
   const fetchKelompokBesarAgendaOptions = async () => {
@@ -331,8 +334,8 @@ export default function DetailNonBlokNonCSR() {
     return filtered;
   };
 
-  // Fetch batch data untuk optimasi performa
-  const fetchBatchData = async () => {
+  // Fetch batch data untuk optimasi performa - optimized with useCallback
+  const fetchBatchData = useCallback(async () => {
     if (!kode) return;
     
     setLoading(true);
@@ -357,9 +360,10 @@ export default function DetailNonBlokNonCSR() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [kode]);
 
-  function formatTanggalKonsisten(dateStr: string) {
+  // Helper functions - optimized with useCallback
+  const formatTanggalKonsisten = useCallback((dateStr: string) => {
     if (!dateStr) return '';
     
     const date = new Date(dateStr);
@@ -372,9 +376,9 @@ export default function DetailNonBlokNonCSR() {
     const year = date.getFullYear();
     
     return `${hariIndo}, ${day}/${month}/${year}`;
-  }
+  }, []);
 
-  function formatJamTanpaDetik(jam: string) {
+  const formatJamTanpaDetik = useCallback((jam: string) => {
     if (!jam) return '';
     // Jika format sudah HH:MM, return as is
     if (/^\d{2}:\d{2}$/.test(jam)) return jam;
@@ -387,10 +391,10 @@ export default function DetailNonBlokNonCSR() {
       return jam.replace('.', ':');
     }
     return jam;
-  }
+  }, []);
 
-  // Hitung jam selesai otomatis
-  function hitungJamSelesai(jamMulai: string, jumlahKali: number) {
+  // Hitung jam selesai otomatis - optimized with useCallback
+  const hitungJamSelesai = useCallback((jamMulai: string, jumlahKali: number) => {
     if (!jamMulai) return '';
     // Support format jam dengan titik (misal 09.00, 07.20)
     const [jamStr, menitStr] = jamMulai.split(/[.:]/); // support titik atau titik dua
@@ -401,7 +405,7 @@ export default function DetailNonBlokNonCSR() {
     const jamAkhir = Math.floor(totalMenit / 60).toString().padStart(2, '0');
     const menitAkhir = (totalMenit % 60).toString().padStart(2, '0');
     return `${jamAkhir}.${menitAkhir}`;
-  }
+  }, []);
 
   // Update jam selesai saat jam mulai/jumlah kali berubah
   function handleFormChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
@@ -585,7 +589,7 @@ export default function DetailNonBlokNonCSR() {
   // Fetch batch data on component mount
   useEffect(() => {
     fetchBatchData();
-  }, [kode]);
+  }, [fetchBatchData]);
 
   // Fetch kelompok besar options saat modal agenda khusus dibuka
   useEffect(() => {
@@ -1494,9 +1498,9 @@ export default function DetailNonBlokNonCSR() {
                           </div>
                         ) : (
                           <Select
-                            options={getRuanganOptions(ruanganList || [])}
+                            options={ruanganOptions}
                             value={
-                              getRuanganOptions(ruanganList || []).find(
+                              ruanganOptions.find(
                                 (opt: any) => opt.value === form.lokasi
                               ) || null
                             }
@@ -1851,8 +1855,8 @@ export default function DetailNonBlokNonCSR() {
                       </div>
                     ) : (
                       <Select
-                        options={getRuanganOptions(ruanganList || [])}
-                        value={getRuanganOptions(ruanganList || []).find((opt: any) => opt.value === form.lokasi) || null}
+                        options={ruanganOptions}
+                        value={ruanganOptions.find((opt: any) => opt.value === form.lokasi) || null}
                         onChange={(opt: any) => {
                           setForm({ ...form, lokasi: opt?.value || null });
                           setErrorForm(''); // Reset error when selection changes

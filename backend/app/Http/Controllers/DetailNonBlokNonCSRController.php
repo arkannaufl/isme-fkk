@@ -9,25 +9,65 @@ use App\Models\Ruangan;
 use App\Models\KelompokBesar;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
 class DetailNonBlokNonCSRController extends Controller
 {
     public function getBatchData($kode)
     {
         try {
-            // Get mata kuliah data
-            $mataKuliah = MataKuliah::where('kode', $kode)->first();
+            // Get mata kuliah data - optimized with cache
+            $cacheKey = 'mata_kuliah_' . $kode;
+            $mataKuliah = Cache::remember($cacheKey, 3600, function () use ($kode) {
+                return MataKuliah::where('kode', $kode)->first();
+            });
             if (!$mataKuliah) {
                 return response()->json(['message' => 'Mata kuliah tidak ditemukan'], 404);
             }
 
             // Get jadwal Non-Blok Non-CSR with eager loading
-            $jadwalNonBlokNonCSR = JadwalNonBlokNonCSR::with(['dosen', 'ruangan', 'kelompokBesar'])
+            // Filter berdasarkan jenis_baris untuk memisahkan jadwal
+            $jadwalNonBlokNonCSR = JadwalNonBlokNonCSR::with(['dosen', 'pembimbing', 'ruangan', 'kelompokBesar'])
                 ->where('mata_kuliah_kode', $kode)
                 ->orderBy('tanggal', 'asc')
                 ->orderBy('jam_mulai', 'asc')
-                ->get()
-                ->map(function ($item) {
+                ->get();
+            
+            // Optimized: Batch load all komentator and penguji IDs to avoid N+1 queries
+            $allKomentatorIds = [];
+            $allPengujiIds = [];
+            foreach ($jadwalNonBlokNonCSR as $item) {
+                if ($item->komentator_ids && is_array($item->komentator_ids)) {
+                    $allKomentatorIds = array_merge($allKomentatorIds, $item->komentator_ids);
+                }
+                if ($item->penguji_ids && is_array($item->penguji_ids)) {
+                    $allPengujiIds = array_merge($allPengujiIds, $item->penguji_ids);
+                }
+            }
+            $allKomentatorIds = array_unique($allKomentatorIds);
+            $allPengujiIds = array_unique($allPengujiIds);
+            
+            // Batch load all komentator and penguji users
+            $komentatorUsersMap = !empty($allKomentatorIds) 
+                ? User::whereIn('id', $allKomentatorIds)->get()->keyBy('id') 
+                : collect();
+            $pengujiUsersMap = !empty($allPengujiIds) 
+                ? User::whereIn('id', $allPengujiIds)->get()->keyBy('id') 
+                : collect();
+            
+            // Batch load all mahasiswa NIMs to avoid N+1 queries
+            $allMahasiswaNims = [];
+            foreach ($jadwalNonBlokNonCSR as $item) {
+                if ($item->mahasiswa_nims && is_array($item->mahasiswa_nims)) {
+                    $allMahasiswaNims = array_merge($allMahasiswaNims, $item->mahasiswa_nims);
+                }
+            }
+            $allMahasiswaNims = array_unique($allMahasiswaNims);
+            $mahasiswaUsersMap = !empty($allMahasiswaNims)
+                ? User::where('role', 'mahasiswa')->whereIn('nim', $allMahasiswaNims)->get()->keyBy('nim')
+                : collect();
+            
+            $jadwalNonBlokNonCSR = $jadwalNonBlokNonCSR->map(function ($item) use ($komentatorUsersMap, $pengujiUsersMap, $mahasiswaUsersMap) {
                     // Add dosen_names attribute for frontend
                     $item->dosen_names = $item->dosen_names;
                     
@@ -80,18 +120,77 @@ class DetailNonBlokNonCSRController extends Controller
                             $item->jumlah_sesi = $originalJumlahSesi;
                         }
                     }
+                    // Ensure pembimbing_id is included
+                    if (!$item->pembimbing_id && $item->pembimbing) {
+                        $item->pembimbing_id = $item->pembimbing->id;
+                    }
+                    // Ensure komentator_ids is included (from JSON)
+                    if (!$item->komentator_ids) {
+                        $originalKomentatorIds = $item->getOriginal('komentator_ids');
+                        if ($originalKomentatorIds) {
+                            $item->komentator_ids = $originalKomentatorIds;
+                        }
+                    }
+                    // Load komentator names if komentator_ids exists - optimized with batch loading
+                    if ($item->komentator_ids && is_array($item->komentator_ids) && count($item->komentator_ids) > 0) {
+                        $item->komentator = collect($item->komentator_ids)
+                            ->map(function ($id) use ($komentatorUsersMap) {
+                                $user = $komentatorUsersMap->get($id);
+                                return $user ? [
+                                    'id' => $user->id,
+                                    'name' => $user->name,
+                                    'nid' => $user->nid
+                                ] : null;
+                            })
+                            ->filter()
+                            ->values()
+                            ->toArray();
+                    }
+                    // Ensure penguji_ids is included (from JSON)
+                    if (!$item->penguji_ids) {
+                        $originalPengujiIds = $item->getOriginal('penguji_ids');
+                        if ($originalPengujiIds) {
+                            $item->penguji_ids = $originalPengujiIds;
+                        }
+                    }
+                    // Load penguji names if penguji_ids exists - optimized with batch loading
+                    if ($item->penguji_ids && is_array($item->penguji_ids) && count($item->penguji_ids) > 0) {
+                        $item->penguji = collect($item->penguji_ids)
+                            ->map(function ($id) use ($pengujiUsersMap) {
+                                $user = $pengujiUsersMap->get($id);
+                                return $user ? [
+                                    'id' => $user->id,
+                                    'name' => $user->name,
+                                    'nid' => $user->nid
+                                ] : null;
+                            })
+                            ->filter()
+                            ->values()
+                            ->toArray();
+                    }
+                    // Ensure mahasiswa_nims is included (from JSON)
+                    if (!$item->mahasiswa_nims) {
+                        $originalMahasiswaNims = $item->getOriginal('mahasiswa_nims');
+                        if ($originalMahasiswaNims) {
+                            $item->mahasiswa_nims = $originalMahasiswaNims;
+                        }
+                    }
                     return $item;
                 });
 
-            // Get reference data
-            $dosenList = User::where('role', 'dosen')
-                ->select('id', 'name', 'nid')
-                ->orderBy('name', 'asc')
-                ->get();
+            // Get reference data - optimized with cache
+            $dosenList = Cache::remember('dosen_list_all', 1800, function () {
+                return User::where('role', 'dosen')
+                    ->select('id', 'name', 'nid')
+                    ->orderBy('name', 'asc')
+                    ->get();
+            });
 
-            $ruanganList = Ruangan::select('id', 'nama', 'kapasitas', 'gedung')
-                ->orderBy('nama', 'asc')
-                ->get();
+            $ruanganList = Cache::remember('ruangan_list_all', 1800, function () {
+                return Ruangan::select('id', 'nama', 'kapasitas', 'gedung')
+                    ->orderBy('nama', 'asc')
+                    ->get();
+            });
 
             // Get jam options (hardcoded for now, can be moved to config)
             $jamOptions = [
@@ -99,27 +198,56 @@ class DetailNonBlokNonCSRController extends Controller
                 '13.25', '14.15', '15.05', '15.35', '16.25', '17.15'
             ];
 
-            // Get kelompok besar options untuk agenda dan materi - hanya semester yang sesuai dengan mata kuliah
+            // Get mahasiswa options untuk Seminar Proposal (semua mahasiswa, tidak peduli kelompok) - optimized with cache
+            $mahasiswaList = Cache::remember('mahasiswa_list_all', 1800, function () {
+                return User::where('role', 'mahasiswa')
+                    ->whereNotNull('nim')
+                    ->select('id', 'name', 'nim')
+                    ->orderBy('name', 'asc')
+                    ->get()
+                    ->map(function ($mahasiswa) {
+                        return [
+                            'id' => $mahasiswa->id,
+                            'nim' => $mahasiswa->nim,
+                            'name' => $mahasiswa->name,
+                            'label' => "{$mahasiswa->name} ({$mahasiswa->nim})"
+                        ];
+                    });
+            });
+
+            // Get kelompok besar options untuk agenda dan materi - filter berdasarkan semester mata kuliah
+            // Catatan: kelompok_besar_id menyimpan semester, bukan ID unik per mahasiswa
+            // Hanya kirim kelompok besar yang semester nya sama dengan mata kuliah
             $kelompokBesarAgendaOptions = [];
             $kelompokBesarMateriOptions = [];
             
-            // Hanya ambil kelompok besar yang sesuai dengan semester mata kuliah
+            // Filter berdasarkan semester mata kuliah
             $semesterMataKuliah = $mataKuliah->semester;
-            $jumlahMahasiswa = KelompokBesar::where('semester', $semesterMataKuliah)->count();
-
-            if ($jumlahMahasiswa > 0) {
-                $kelompokBesarAgendaOptions[] = [
-                    'id' => $semesterMataKuliah, // Gunakan semester sebagai ID
-                    'label' => "Kelompok Besar Semester {$semesterMataKuliah} ({$jumlahMahasiswa} mahasiswa)",
-                    'jumlah_mahasiswa' => $jumlahMahasiswa
-                ];
+            
+            if ($semesterMataKuliah) {
+                $jumlahMahasiswa = KelompokBesar::where('semester', $semesterMataKuliah)->count();
                 
-                $kelompokBesarMateriOptions[] = [
-                    'id' => $semesterMataKuliah, // Gunakan semester sebagai ID
-                    'label' => "Kelompok Besar Semester {$semesterMataKuliah} ({$jumlahMahasiswa} mahasiswa)",
-                    'jumlah_mahasiswa' => $jumlahMahasiswa
-                ];
+                if ($jumlahMahasiswa > 0) {
+                    // Gunakan semester sebagai ID (sesuai dengan bagaimana validateRuanganCapacity bekerja)
+                    $kelompokBesarAgendaOptions[] = [
+                        'id' => $semesterMataKuliah,
+                        'label' => "Kelompok Besar Semester {$semesterMataKuliah} ({$jumlahMahasiswa} mahasiswa)",
+                        'jumlah_mahasiswa' => $jumlahMahasiswa
+                    ];
+                    
+                    $kelompokBesarMateriOptions[] = [
+                        'id' => $semesterMataKuliah,
+                        'label' => "Kelompok Besar Semester {$semesterMataKuliah} ({$jumlahMahasiswa} mahasiswa)",
+                        'jumlah_mahasiswa' => $jumlahMahasiswa
+                    ];
+                }
             }
+            
+            // Untuk import excel, kita tetap perlu semua semester untuk menampilkan jumlah mahasiswa
+            // meskipun tidak valid (untuk error handling). Tapi untuk modal input manual,
+            // kita hanya kirim yang sesuai semester mata kuliah.
+            // Note: Frontend akan menggunakan allKelompokBesarOptions untuk import excel
+            // yang diambil dari endpoint terpisah atau dihitung di frontend
 
             return response()->json([
                 'mata_kuliah' => $mataKuliah,
@@ -129,6 +257,7 @@ class DetailNonBlokNonCSRController extends Controller
                 'jam_options' => $jamOptions,
                 'kelompok_besar_agenda_options' => $kelompokBesarAgendaOptions,
                 'kelompok_besar_materi_options' => $kelompokBesarMateriOptions,
+                'mahasiswa_list' => $mahasiswaList,
             ]);
 
         } catch (\Exception $e) {
