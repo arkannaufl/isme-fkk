@@ -36,6 +36,7 @@ class AuthController extends Controller
 
         // Prevent timing attacks with constant time comparison
         $user = User::where('username', $request->login)
+            ->orWhere('email', $request->login)
             ->orWhere('nip', $request->login)
             ->orWhere('nid', $request->login)
             ->orWhere('nim', $request->login)
