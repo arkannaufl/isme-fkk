@@ -140,7 +140,7 @@ class HybridMahasiswaImport implements ToCollection, WithHeadingRow, WithChunkRe
             'username' => trim($row['username']),
             'email' => trim($row['email']),
             'telp' => $this->cleanPhoneNumber($row['telepon'] ?? ''),
-            'password' => bcrypt($this->generatePassword($row['nim'])),
+            'password' => bcrypt($this->resolvePassword($row)),
             'gender' => $this->validateGender($row['gender'] ?? ''),
             'ipk' => $this->validateIPK($row['ipk'] ?? ''),
             'status' => $this->validateStatus($row['status'] ?? ''),
@@ -165,9 +165,32 @@ class HybridMahasiswaImport implements ToCollection, WithHeadingRow, WithChunkRe
         return !empty($phone) ? $phone : '0000000000';
     }
 
-    private function generatePassword($nim)
+    private function resolvePassword($row)
     {
-        // Generate password based on NIM for security
+        // WithHeadingRow akan mengubah header menjadi lowercase snake_case.
+        // Tetap handle variasi umum jika pengguna menamai kolom secara berbeda.
+        $possibleKeys = [
+            'password',
+            'pass',
+            'kata_sandi',
+        ];
+
+        foreach ($possibleKeys as $key) {
+            if (isset($row[$key])) {
+                $value = trim((string)$row[$key]);
+                if ($value !== '') {
+                    return $value;
+                }
+            }
+        }
+
+        // Fallback ke generator lama jika kolom password tidak ada / kosong
+        return $this->generateDefaultPassword($row['nim']);
+    }
+
+    private function generateDefaultPassword($nim)
+    {
+        // Generate password berdasarkan NIM agar konsisten
         return 'mahasiswa' . substr($nim, -4);
     }
 

@@ -53,6 +53,51 @@ class MahasiswaImport implements ToCollection, WithHeadingRow, WithChunkReading
             $rowArray['name'] = $originalRowArray['nama'] ?? null;
             $rowArray['telp'] = $originalRowArray['telepon'] ?? null;
 
+            // Ambil password dari Excel dengan berbagai variasi nama kolom
+            // WithHeadingRow mengubah nama kolom menjadi lowercase dan snake_case
+            // Jadi "Password" di Excel akan menjadi "password" di array
+            $passwordFromExcel = null;
+
+            // Cek dengan berbagai variasi nama kolom (case-insensitive)
+            $possiblePasswordKeys = [
+                'password',
+                'Password',
+                'PASSWORD',
+                'pass',
+                'Pass',
+                'PASS',
+                'kata_sandi',
+                'Kata_Sandi',
+                'KATA_SANDI',
+            ];
+
+            // Cek semua keys yang ada di originalRowArray (case-insensitive)
+            foreach ($originalRowArray as $key => $value) {
+                $keyLower = strtolower(trim((string)$key));
+                if (in_array($keyLower, ['password', 'pass', 'kata_sandi']) && !empty(trim((string)$value))) {
+                    $passwordFromExcel = trim((string)$value);
+                    break;
+                }
+            }
+
+            // Jika masih tidak ketemu, cek dengan exact match
+            if ($passwordFromExcel === null) {
+                foreach ($possiblePasswordKeys as $key) {
+                    if (isset($originalRowArray[$key]) && !empty(trim((string)$originalRowArray[$key]))) {
+                        $passwordFromExcel = trim((string)$originalRowArray[$key]);
+                        break;
+                    }
+                }
+            }
+
+            // Log untuk debugging (hanya baris pertama)
+            if ($index === 0) {
+                Log::info('Excel column keys found:', array_keys($originalRowArray));
+                Log::info('Password from Excel (first row):', ['found' => $passwordFromExcel !== null, 'value' => $passwordFromExcel ? '***' : 'NOT FOUND']);
+            }
+
+            $rowArray['password'] = $passwordFromExcel;
+
             $currentRowErrors = [];
 
             // Minimal validation for speed - only check essential fields
@@ -170,13 +215,23 @@ class MahasiswaImport implements ToCollection, WithHeadingRow, WithChunkReading
             }
 
             // Add to valid users array for batch insert with default values
+            // Pastikan password dari Excel digunakan, jika kosong/null gunakan default
+            $passwordToUse = !empty($rowArray['password']) ? trim((string)$rowArray['password']) : 'password123';
+
+            // Log untuk debugging (hanya baris pertama dan jika password dari Excel digunakan)
+            if ($index === 0 || !empty($rowArray['password'])) {
+                Log::info("Import mahasiswa - Username: " . ($rowArray['username'] ?? 'unknown') .
+                         ", Password from Excel: " . (!empty($rowArray['password']) ? 'YES' : 'NO') .
+                         ", Will use: " . (!empty($rowArray['password']) ? $rowArray['password'] : 'password123 (default)'));
+            }
+
             $validUsers[] = [
                 'nim' => $rowArray['nim'],
                 'name' => $rowArray['name'],
                 'username' => $rowArray['username'],
                 'email' => $rowArray['email'],
                 'telp' => $rowArray['telp'] ?? '0000000000',
-                'password' => Hash::make($rowArray['password'] ?? 'password123'),
+                'password' => Hash::make($passwordToUse),
                 'gender' => $rowArray['gender'] ?? 'Laki-laki',
                 'ipk' => $rowArray['ipk'] ?? 0,
                 'status' => $rowArray['status'] ?? 'aktif',
