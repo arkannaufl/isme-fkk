@@ -439,6 +439,15 @@ export default function MataKuliah() {
   }, [success]);
 
   useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        setError(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
+
+  useEffect(() => {
     if (importedCount > 0) {
       const timer = setTimeout(() => {
         setImportedCount(0);
@@ -651,8 +660,8 @@ export default function MataKuliah() {
             }
           );
           rpsFileName = rpsResponse.data.filename;
-        } catch (error) {
-          setError("Gagal mengupload file RPS");
+        } catch (error: any) {
+          setError(handleApiError(error, "Mengupload file RPS"));
           setIsSaving(false);
           return;
         }
@@ -683,8 +692,8 @@ export default function MataKuliah() {
           });
 
           await Promise.all(uploadPromises);
-        } catch (error) {
-          setError("Gagal mengupload file materi");
+        } catch (error: any) {
+          setError(handleApiError(error, "Mengupload file materi"));
           setIsSaving(false);
           return;
         }
@@ -702,8 +711,8 @@ export default function MataKuliah() {
               });
             })
           );
-        } catch (error) {
-          setError("Gagal mengupdate judul materi");
+        } catch (error: any) {
+          setError(handleApiError(error, "Mengupdate judul materi"));
           setIsSaving(false);
           return;
         }
@@ -922,21 +931,15 @@ export default function MataKuliah() {
       }
     } catch (error: any) {
       console.error("Error in handleSaveData:", error);
-      console.error("Error response:", error.response);
-      console.error("Error message:", error.message);
-
+      
+      // Handle validation errors dari Laravel
       if (error.response?.data?.errors) {
         const errorMessages = Object.values(error.response.data.errors).flat();
         setError(errorMessages.join(", "));
-      } else if (error.response?.data?.message) {
-        setError(error.response.data.message);
-      } else if (error.message) {
-        setError(error.message);
       } else {
-        setError("Gagal menyimpan data mata kuliah");
+        setError(handleApiError(error, "Menyimpan data mata kuliah"));
       }
     } finally {
-      // handleSaveData finished, isSaving set to false
       setIsSaving(false);
     }
   };
@@ -954,8 +957,8 @@ export default function MataKuliah() {
         await api.delete(`/mata-kuliah/${selectedDeleteKode}`);
         setSuccess("Data mata kuliah berhasil dihapus");
         fetchData();
-      } catch (error) {
-        setError("Gagal menghapus data mata kuliah");
+      } catch (error: any) {
+        setError(handleApiError(error, "Menghapus data mata kuliah"));
       } finally {
         setIsDeleting(false);
         setShowDeleteModal(false);
@@ -968,6 +971,9 @@ export default function MataKuliah() {
   };
 
   const handleEdit = async (mk: MataKuliah) => {
+    // Reset error state saat membuka modal edit
+    setError(null);
+    
     setForm({
       ...mk,
       tanggalMulai: mk.tanggal_mulai ? mk.tanggal_mulai.slice(0, 10) : "",
@@ -1284,10 +1290,16 @@ export default function MataKuliah() {
     setMateriItems([]);
     setExistingMateriItems([]);
     if (materiFileInputRef.current) materiFileInputRef.current.value = "";
+    
+    // Reset error state saat modal ditutup
+    setError(null);
   };
 
   // Handle buka modal untuk input data baru
   const handleOpenModal = () => {
+    // Reset error state saat membuka modal input baru
+    setError(null);
+    
     setShowModal(true);
     setEditMode(false);
 
@@ -1418,8 +1430,8 @@ export default function MataKuliah() {
       setSuccess(`${selectedRows.length} data berhasil dihapus.`);
       setSelectedRows([]);
       fetchData();
-    } catch (err) {
-      setError("Gagal menghapus data terpilih");
+    } catch (err: any) {
+      setError(handleApiError(err, "Menghapus data terpilih"));
     } finally {
       setLoading(false);
     }
@@ -2296,8 +2308,8 @@ export default function MataKuliah() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-    } catch (error) {
-      setError("Gagal mengunduh file RPS");
+    } catch (error: any) {
+      setError(handleApiError(error, "Mengunduh file RPS"));
     }
   };
 
@@ -2644,8 +2656,8 @@ export default function MataKuliah() {
       // Reset download state saat modal dibuka
       setDownloadProgress({});
       setIsZipDownloading(false);
-    } catch (error) {
-      setError("Gagal mengambil data materi");
+    } catch (error: any) {
+      setError(handleApiError(error, "Mengambil data materi"));
       // Fallback ke data yang ada
       setSelectedMateriMataKuliah(mk);
       setShowViewMateriModal(true);
@@ -5126,6 +5138,21 @@ export default function MataKuliah() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Error Message di dalam Modal */}
+                  <AnimatePresence>
+                    {error && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2 }}
+                        className="mt-4 p-3 rounded-lg text-sm bg-red-100 text-red-700"
+                      >
+                        {error}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
                   <div className="flex justify-end gap-2 pt-2 relative z-20">
                     <button

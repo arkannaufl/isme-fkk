@@ -60,6 +60,15 @@ export default function TimAkademik() {
   }, [success]);
 
   useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        setError("");
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
+
+  useEffect(() => {
     if (importedCount > 0) {
       const timer = setTimeout(() => {
         setImportedCount(0);
@@ -139,14 +148,18 @@ export default function TimAkademik() {
       setEditMode(false);
       setForm({ nip: "", name: "", username: "", email: "", telp: "", ket: "", password: "", role: "tim_akademik" });
       setShowPassword(false);
+      // Reset error saat modal ditutup
+      setError("");
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Gagal simpan data");
+      setError(handleApiError(err, "Menyimpan data tim akademik"));
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleEdit = (t: UserTimAkademik) => {
+    // Reset error saat membuka modal edit
+    setError("");
     setForm({ ...t, password: t.password || "" });
     setShowModal(true);
     setEditMode(true);
@@ -167,8 +180,8 @@ export default function TimAkademik() {
       }
       setShowDeleteModal(false);
       setSelectedDeleteNip(null);
-    } catch {
-      setError("Gagal menghapus data");
+    } catch (err: any) {
+      setError(handleApiError(err, "Menghapus data tim akademik"));
     } finally {
       setIsDeleting(false);
     }
@@ -181,6 +194,8 @@ export default function TimAkademik() {
     setShowModal(false);
     setForm({ nip: "", name: "", username: "", email: "", telp: "", ket: "", password: "", role: "tim_akademik" });
     setEditMode(false);
+    // Reset error saat modal ditutup
+    setError("");
   };
 
   const userToDelete = data.find((u) => String(u.id) === String(selectedDeleteNip));
@@ -350,7 +365,7 @@ export default function TimAkademik() {
       setCellErrors(validationResult.cellErrors);
       setError("");
     } catch (err: any) {
-      setError(err.message || "Gagal membaca file Excel");
+      setError(handleApiError(err, "Membaca file Excel"));
       setPreviewData([]);
       setValidationErrors([]);
       setCellErrors([]);
@@ -426,7 +441,7 @@ export default function TimAkademik() {
       }
     } catch (err: any) {
       setImportedCount(0);
-      setError(err.message || 'Gagal mengimpor data');
+      setError(handleApiError(err, "Mengimpor data tim akademik"));
       setCellErrors([]);
     } finally {
       setIsSaving(false);
@@ -623,7 +638,12 @@ export default function TimAkademik() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
         <div className="flex gap-2">
           <button
-            onClick={() => { setShowModal(true); setEditMode(false); }}
+            onClick={() => { 
+              // Reset error saat membuka modal input baru
+              setError("");
+              setShowModal(true); 
+              setEditMode(false); 
+            }}
             className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition"
           >
             Input Data
@@ -1368,9 +1388,20 @@ export default function TimAkademik() {
                     </button>
                   </div>
                 </div>
-                {error && (
-                  <div className="text-sm text-red-500 bg-red-100 rounded p-2 mt-6">{error}</div>
-                )}
+                {/* Error Message di dalam Modal */}
+                <AnimatePresence>
+                  {error && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.2 }}
+                      className="mt-4 p-3 rounded-lg text-sm bg-red-100 text-red-700"
+                    >
+                      {error}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </motion.div>
           </div>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CSR;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class CSRController extends Controller
 {
@@ -160,6 +161,10 @@ class CSRController extends Controller
 
             $csr->update($request->all());
 
+            // Clear cache untuk mata kuliah terkait
+            Cache::forget('mata_kuliah_' . $csr->mata_kuliah_kode);
+            Cache::forget('csr_kategori_' . $csr->mata_kuliah_kode);
+
             return response()->json([
                 'message' => 'Mata kuliah CSR berhasil diupdate',
                 'data' => $csr
@@ -173,7 +178,12 @@ class CSRController extends Controller
     public function destroy(CSR $csr)
     {
         try {
+            $mataKuliahKode = $csr->mata_kuliah_kode;
             $csr->delete();
+
+            // Clear cache untuk mata kuliah terkait
+            Cache::forget('mata_kuliah_' . $mataKuliahKode);
+            Cache::forget('csr_kategori_' . $mataKuliahKode);
 
             return response()->json(['message' => 'Mata kuliah CSR berhasil dihapus']);
         } catch (\Exception $e) {

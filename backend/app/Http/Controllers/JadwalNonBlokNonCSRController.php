@@ -509,6 +509,9 @@ class JadwalNonBlokNonCSRController extends Controller
             $this->sendJadwalNotifications($jadwal);
             $this->sendNotificationToMahasiswa($jadwal);
 
+            // Clear cache untuk mata kuliah terkait
+            Cache::forget('mata_kuliah_' . $kode);
+
             return response()->json([
                 'message' => 'Jadwal Non Blok Non CSR berhasil ditambahkan',
                 'data' => $jadwal
@@ -794,6 +797,9 @@ class JadwalNonBlokNonCSRController extends Controller
                 'use_ruangan' => $request->use_ruangan ?? true,
             ]);
 
+            // Clear cache untuk mata kuliah terkait
+            Cache::forget('mata_kuliah_' . $kode);
+
             return response()->json([
                 'message' => 'Jadwal Non Blok Non CSR berhasil diperbarui',
                 'data' => $jadwal
@@ -830,6 +836,9 @@ class JadwalNonBlokNonCSRController extends Controller
                 ->firstOrFail();
 
             $jadwal->delete();
+
+            // Clear cache untuk mata kuliah terkait
+            Cache::forget('mata_kuliah_' . $kode);
 
             return response()->json([
                 'message' => 'Jadwal Non Blok Non CSR berhasil dihapus'

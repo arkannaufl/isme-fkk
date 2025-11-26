@@ -117,6 +117,15 @@ export default function Mahasiswa() {
   }, [success]);
 
   useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        setError("");
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
+
+  useEffect(() => {
     setLoading(true);
     Promise.all([
       api.get("/users?role=mahasiswa"),
@@ -212,12 +221,15 @@ export default function Mahasiswa() {
       setEditMode(false);
       setForm({ nim: "", name: "", username: "", telp: "", email: "", gender: "Laki-laki", ipk: 0, status: "aktif", angkatan: "", password: "" });
       setShowPassword(false);
+      // Reset error saat modal ditutup
+      setError("");
     } catch (err: any) {
+      // Handle validation errors dari Laravel
       if (err?.response?.data?.errors) {
         const errorMessages = Object.values(err.response.data.errors).flat().join(', ');
         setError(errorMessages);
       } else {
-        setError(err?.response?.data?.message || "Gagal simpan data");
+        setError(handleApiError(err, "Menyimpan data mahasiswa"));
       }
     } finally {
       setIsSaving(false);
@@ -225,6 +237,8 @@ export default function Mahasiswa() {
   };
 
   const handleEdit = (m: UserMahasiswa) => {
+    // Reset error saat membuka modal edit
+    setError("");
     setForm({ ...m, password: "" });
     setShowModal(true);
     setEditMode(true);
@@ -245,8 +259,8 @@ export default function Mahasiswa() {
       }
       setShowDeleteModal(false);
       setSelectedDeleteNim(null);
-    } catch {
-      setError("Gagal menghapus data");
+    } catch (err: any) {
+      setError(handleApiError(err, "Menghapus data mahasiswa"));
     } finally {
       setIsDeleting(false);
     }
@@ -492,7 +506,7 @@ export default function Mahasiswa() {
       setValidationErrors(validationResult.errors);
       setCellErrors(validationResult.cellErrors);
     } catch (err: any) {
-      setError(err.message || "Gagal membaca file Excel");
+      setError(handleApiError(err, "Membaca file Excel"));
       setPreviewData([]);
       setValidationErrors([]);
       setCellErrors([]);
@@ -579,7 +593,7 @@ export default function Mahasiswa() {
       }
     } catch (err: any) {
       setImportedCount(0);
-      setError(err.message || 'Gagal mengimpor data');
+      setError(handleApiError(err, "Mengimpor data mahasiswa"));
       setCellErrors([]);
     } finally {
       setIsSaving(false);
@@ -849,7 +863,12 @@ export default function Mahasiswa() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
         <div className="flex gap-2">
           <button
-            onClick={() => { setShowModal(true); setEditMode(false); }}
+            onClick={() => { 
+              // Reset error saat membuka modal input baru
+              setError("");
+              setShowModal(true); 
+              setEditMode(false); 
+            }}
             className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition"
           >
             Input Data
@@ -1536,9 +1555,9 @@ export default function Mahasiswa() {
                       }
                       
                       setSelectedRows([]);
-                    } catch (error) {
+                    } catch (error: any) {
                       console.error('Bulk delete error:', error);
-                      setError("Gagal menghapus data terpilih");
+                      setError(handleApiError(error, "Menghapus data terpilih"));
                     } finally {
                       setIsDeleting(false);
                       setLoading(false);
@@ -1587,7 +1606,11 @@ export default function Mahasiswa() {
           {/* Overlay */}
           <div
             className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
-            onClick={() => { setShowModal(false); setForm({ nim: "", name: "", username: "", telp: "", email: "", gender: "Laki-laki", ipk: 0, status: "aktif", angkatan: "", password: "" }); }}
+            onClick={() => { 
+              setError("");
+              setShowModal(false); 
+              setForm({ nim: "", name: "", username: "", telp: "", email: "", gender: "Laki-laki", ipk: 0, status: "aktif", angkatan: "", password: "" }); 
+            }}
           ></div>
           {/* Modal Content */}
             <motion.div 
@@ -1599,7 +1622,11 @@ export default function Mahasiswa() {
             >
             {/* Close Button */}
             <button
-              onClick={() => { setShowModal(false); setForm({ nim: "", name: "", username: "", telp: "", email: "", gender: "Laki-laki", ipk: 0, status: "aktif", angkatan: "", password: "" }); }}
+              onClick={() => { 
+              setError("");
+              setShowModal(false); 
+              setForm({ nim: "", name: "", username: "", telp: "", email: "", gender: "Laki-laki", ipk: 0, status: "aktif", angkatan: "", password: "" }); 
+            }}
               className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
             >
               <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
@@ -1770,13 +1797,28 @@ export default function Mahasiswa() {
                       </p>
                     </div>
                   </div>
-                  {error && (
-                    <div className="text-sm text-red-500 bg-red-100 rounded p-2 mt-6">{error}</div>
-                  )}
+                  {/* Error Message di dalam Modal */}
+                  <AnimatePresence>
+                    {error && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2 }}
+                        className="mt-4 p-3 rounded-lg text-sm bg-red-100 text-red-700"
+                      >
+                        {error}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                   <div className="flex justify-end gap-2 pt-6">
                     <button
                       type="button"
-                      onClick={() => { setShowModal(false); setForm({ nim: "", name: "", username: "", telp: "", email: "", gender: "Laki-laki", ipk: 0, status: "aktif", angkatan: "", password: "" }); }}
+                      onClick={() => { 
+              setError("");
+              setShowModal(false); 
+              setForm({ nim: "", name: "", username: "", telp: "", email: "", gender: "Laki-laki", ipk: 0, status: "aktif", angkatan: "", password: "" }); 
+            }}
                       className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
                     >
                       Batal

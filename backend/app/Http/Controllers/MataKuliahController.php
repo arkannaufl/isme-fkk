@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class MataKuliahController extends Controller
 {
@@ -400,6 +401,9 @@ class MataKuliahController extends Controller
         $data['peran_dalam_kurikulum'] = $request->input('peran_dalam_kurikulum', []);
         $mataKuliah->update($data);
 
+        // Clear cache untuk mata kuliah yang diupdate
+        Cache::forget('mata_kuliah_' . $kode);
+
         // Log activity
         activity()
             ->performedOn($mataKuliah)
@@ -433,6 +437,10 @@ class MataKuliahController extends Controller
             ->log("Mata Kuliah deleted: {$mataKuliah->nama}");
 
         $mataKuliah->delete();
+
+        // Clear cache untuk mata kuliah yang dihapus
+        Cache::forget('mata_kuliah_' . $kode);
+
         return response()->json(['message' => 'Mata kuliah berhasil dihapus']);
     }
 
@@ -449,6 +457,9 @@ class MataKuliahController extends Controller
         $data['keahlian_required'] = $request->input('keahlian_required', []);
         $data['peran_dalam_kurikulum'] = $request->input('peran_dalam_kurikulum', []);
         $mataKuliah = MataKuliah::create($data);
+
+        // Clear cache untuk mata kuliah yang baru dibuat (jika sudah ada cache sebelumnya)
+        Cache::forget('mata_kuliah_' . $mataKuliah->kode);
 
         // Log activity
         activity()

@@ -265,6 +265,24 @@ export default function Dosen() {
   }, [success]);
 
   useEffect(() => {
+    if (modalError) {
+      const timer = setTimeout(() => {
+        setModalError("");
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [modalError]);
+
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        setError("");
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
+
+  useEffect(() => {
     if (importedCount > 0) {
       const timer = setTimeout(() => {
         setImportedCount(0);
@@ -1072,20 +1090,15 @@ export default function Dosen() {
       setCurrentEditingDosenPeran([]); // Reset current editing dosen peran
       // Legacy note removed
     } catch (err: any) {
-      // Cek error dari backend (axios)
-      const backendMsg = err?.response?.data?.message;
-      if (backendMsg) {
-        setModalError(backendMsg);
-      } else if (err?.message) {
-        setModalError(err.message);
-      } else {
-        setModalError("Gagal simpan data");
-      }
+      setModalError(handleApiError(err, "Menyimpan data dosen"));
     } finally {
       setIsSaving(false);
     }
   };
   const handleEdit = (d: UserDosen) => {
+    // Reset modalError saat membuka modal edit
+    setModalError("");
+    
     // Pastikan kompetensi dan keahlian selalu array
     let kompetensiArr: string[] = [];
     if (Array.isArray(d.kompetensi)) {
@@ -1152,13 +1165,15 @@ export default function Dosen() {
     if (Array.isArray(d.dosen_peran) && d.dosen_peran.length > 0) {
       // Ambil hanya peran non-mengajar untuk UI ini
       // Filter: koordinator dan tim_blok saja (bukan mengajar atau dosen_mengajar)
-      const nonMengajar = d.dosen_peran.filter(
-        (p) =>
-          p.tipe_peran &&
-          p.tipe_peran !== "mengajar" &&
-          p.tipe_peran !== "dosen_mengajar" &&
-          (p.tipe_peran === "koordinator" || p.tipe_peran === "tim_blok")
-      );
+      const nonMengajar = d.dosen_peran.filter((p) => {
+        const tipePeran = String(p.tipe_peran || "");
+        return (
+          tipePeran &&
+          tipePeran !== "mengajar" &&
+          tipePeran !== "dosen_mengajar" &&
+          (tipePeran === "koordinator" || tipePeran === "tim_blok")
+        );
+      });
 
       if (nonMengajar.length > 0) {
         // Load data ke peranSections (section-based)
@@ -1233,8 +1248,8 @@ export default function Dosen() {
       }
       setShowDeleteModal(false);
       setSelectedDeleteNid(null);
-    } catch {
-      setError("Gagal menghapus data");
+    } catch (err: any) {
+      setError(handleApiError(err, "Menghapus data dosen"));
     } finally {
       setIsDeleting(false);
     }
@@ -1363,7 +1378,7 @@ export default function Dosen() {
       setCellErrors(validationResult.cellErrors);
       setError("");
     } catch (err: any) {
-      setError(err.message || "Gagal membaca file Excel");
+      setError(handleApiError(err, "Membaca file Excel"));
       setPreviewData([]);
       setValidationErrors([]);
       setCellErrors([]);
@@ -1489,7 +1504,7 @@ export default function Dosen() {
           "Import memakan waktu terlalu lama. Data mungkin terlalu banyak. Silakan coba dengan file yang lebih kecil atau hubungi administrator."
         );
       } else {
-        setError(err.message || "Gagal mengimpor data");
+        setError(handleApiError(err, "Mengimpor data dosen"));
       }
       setCellErrors([]);
     } finally {
@@ -3002,6 +3017,8 @@ export default function Dosen() {
       <div className="flex flex-wrap gap-2 mb-6">
         <button
           onClick={() => {
+            // Reset modalError saat membuka modal input baru
+            setModalError("");
             setShowModal(true);
             setEditMode(false);
           }}
@@ -5937,11 +5954,20 @@ export default function Dosen() {
                   </div>
                 </form>
               </div>
-              {modalError && (
-                <div className="text-sm text-red-500 bg-red-100 rounded p-2 mt-6">
-                  {modalError}
-                </div>
-              )}
+              {/* Error Message di dalam Modal */}
+              <AnimatePresence>
+                {modalError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.2 }}
+                    className="mt-4 p-3 rounded-lg text-sm bg-red-100 text-red-700"
+                  >
+                    {modalError}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           </div>
         )}

@@ -7,6 +7,7 @@ use App\Models\CSR;
 use App\Models\MataKuliah;
 use App\Models\KeahlianCSR;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Cache;
 
 class MataKuliahCSRController extends Controller
 {
@@ -57,6 +58,10 @@ class MataKuliahCSRController extends Controller
                 'tanggal_akhir' => $csr->tanggal_akhir
             ])
             ->log("CSR created: {$csr->nomor_csr}");
+
+        // Clear cache untuk mata kuliah terkait
+        Cache::forget('mata_kuliah_' . $kode);
+        Cache::forget('csr_kategori_' . $kode);
         
         return response()->json($csr, Response::HTTP_CREATED);
     }
@@ -115,6 +120,10 @@ class MataKuliahCSRController extends Controller
                 'tanggal_akhir' => $csr->tanggal_akhir
             ])
             ->log("CSR updated: {$csr->nomor_csr}");
+
+        // Clear cache untuk mata kuliah terkait
+        Cache::forget('mata_kuliah_' . $csr->mata_kuliah_kode);
+        Cache::forget('csr_kategori_' . $csr->mata_kuliah_kode);
         
         return response()->json($csr);
     }
@@ -141,7 +150,12 @@ class MataKuliahCSRController extends Controller
             ])
             ->log("CSR deleted: {$csr->nomor_csr}");
 
+        $mataKuliahKode = $csr->mata_kuliah_kode;
         $csr->delete();
+
+        // Clear cache untuk mata kuliah terkait
+        Cache::forget('mata_kuliah_' . $mataKuliahKode);
+        Cache::forget('csr_kategori_' . $mataKuliahKode);
         
         return response()->json(null, Response::HTTP_NO_CONTENT);
     }
