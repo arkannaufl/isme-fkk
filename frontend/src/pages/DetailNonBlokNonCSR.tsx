@@ -5,7 +5,7 @@ import { ChevronLeftIcon } from '../icons';
 import { AnimatePresence, motion } from 'framer-motion';
 import Select from 'react-select';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPenToSquare, faTrash, faFileExcel, faDownload, faUpload, faExclamationTriangle, faCheckCircle } from '@fortawesome/free-solid-svg-icons';
+import { faPenToSquare, faTrash, faFileExcel, faDownload, faUpload, faExclamationTriangle, faCheckCircle, faEye } from '@fortawesome/free-solid-svg-icons';
 import { getRuanganOptions } from '../utils/ruanganHelper';
 import * as XLSX from 'xlsx';
 
@@ -5257,6 +5257,17 @@ export default function DetailNonBlokNonCSR() {
                         </td>
                       <td className="px-4 py-4 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5 flex-nowrap">
+                        <button onClick={(e) => {
+                          e.stopPropagation();
+                          if (row.id) {
+                            navigate(`/bimbingan-akhir/seminar-proposal/${row.id}`);
+                          } else {
+                            console.error("Row ID is missing:", row);
+                          }
+                        }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-500 hover:text-green-700 dark:hover:text-green-300 transition mr-1" title="Detail Seminar Proposal">
+                          <FontAwesomeIcon icon={faEye} className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
+                          <span className="hidden sm:inline">Detail</span>
+                        </button>
                         <button onClick={() => {
                           const correctIndex = jadwalSeminarProposal.findIndex(j => j.id === row.id);
                           handleEditJadwal(correctIndex >= 0 ? correctIndex : idx, 'seminar_proposal');
@@ -5628,6 +5639,15 @@ export default function DetailNonBlokNonCSR() {
                         </td>
                       <td className="px-4 py-4 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5 flex-nowrap">
+                        <button onClick={(e) => {
+                          e.stopPropagation();
+                          if (row.id) {
+                            navigate(`/bimbingan-akhir/sidang-skripsi/${row.id}`);
+                          }
+                        }} className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-500 hover:text-green-700 dark:hover:text-green-300 transition mr-1" title="Detail Sidang Skripsi">
+                          <FontAwesomeIcon icon={faEye} className="w-4 h-4 sm:w-5 sm:h-5 text-green-500" />
+                          <span className="hidden sm:inline">Detail</span>
+                        </button>
                         <button onClick={() => {
                           const correctIndex = jadwalSidangSkripsi.findIndex(j => j.id === row.id);
                           handleEditJadwal(correctIndex >= 0 ? correctIndex : idx, 'sidang_skripsi');

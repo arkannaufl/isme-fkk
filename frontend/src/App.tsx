@@ -19,6 +19,11 @@ import RedirectIfAuth from "./components/common/RedirectIfAuth";
 import { SessionProvider, useSession } from "./context/SessionContext";
 import SessionExpiredModal from "./components/common/SessionExpiredModal";
 import PetaAkademikPage from "./pages/PetaAkademikPage";
+import BimbinganAkhir from "./pages/BimbinganAkhir";
+import DetailSeminarProposal from "./pages/DetailSeminarProposal";
+import DetailSidangSkripsi from "./pages/DetailSidangSkripsi";
+import PenilaianSeminarProposal from "./pages/PenilaianSeminarProposal";
+import PenilaianSidangSkripsi from "./pages/PenilaianSidangSkripsi";
 import Kelas from "./pages/Kelas";
 import KelompokBesar from "./pages/KelompokBesar";
 import Kelompok from "./pages/Kelompok";
@@ -462,6 +467,33 @@ function AppContent() {
               <Route path="/peta-blok/:semester/:blok" element={
                 <RequireDosenRole allowedRoles={["super_admin", "dosen", "tim_akademik"]}>
                   <PetaBlok />
+                </RequireDosenRole>
+              } />
+              
+              {/* Bimbingan Akhir - Dosen Only */}
+              <Route path="/bimbingan-akhir" element={
+                <RequireDosenRole allowedRoles={["dosen"]}>
+                  <BimbinganAkhir />
+                </RequireDosenRole>
+              } />
+              <Route path="/bimbingan-akhir/seminar-proposal/:id" element={
+                <RequireDosenRole allowedRoles={["dosen", "super_admin", "tim_akademik"]}>
+                  <DetailSeminarProposal />
+                </RequireDosenRole>
+              } />
+              <Route path="/bimbingan-akhir/seminar-proposal/:id/penilaian" element={
+                <RequireDosenRole allowedRoles={["dosen", "super_admin", "tim_akademik"]}>
+                  <PenilaianSeminarProposal />
+                </RequireDosenRole>
+              } />
+              <Route path="/bimbingan-akhir/sidang-skripsi/:id" element={
+                <RequireDosenRole allowedRoles={["dosen", "super_admin", "tim_akademik"]}>
+                  <DetailSidangSkripsi />
+                </RequireDosenRole>
+              } />
+              <Route path="/bimbingan-akhir/sidang-skripsi/:id/penilaian" element={
+                <RequireDosenRole allowedRoles={["dosen", "super_admin", "tim_akademik"]}>
+                  <PenilaianSidangSkripsi />
                 </RequireDosenRole>
               } />
 

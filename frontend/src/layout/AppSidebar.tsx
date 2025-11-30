@@ -210,6 +210,11 @@ const getNavItems = (userRole?: string): NavItem[] => {
           path: "/peta-blok",
           roles: ["super_admin", "dosen", "tim_akademik"],
         },
+        {
+          name: "Bimbingan Akhir",
+          path: "/bimbingan-akhir",
+          roles: ["dosen"],
+        },
       ],
       roles: ["super_admin", "dosen", "tim_akademik"],
     },

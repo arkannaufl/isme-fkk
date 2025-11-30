@@ -322,6 +322,32 @@ Route::middleware('auth:sanctum')->get('/jadwal-non-blok-non-csr/dosen/{dosenId}
 Route::middleware('auth:sanctum')->put('/jadwal-non-blok-non-csr/{id}/konfirmasi', [App\Http\Controllers\JadwalNonBlokNonCSRController::class, 'konfirmasiJadwal']);
 Route::middleware('auth:sanctum')->post('/jadwal-non-blok-non-csr/{id}/reschedule', [App\Http\Controllers\JadwalNonBlokNonCSRController::class, 'reschedule']);
 
+// Penilaian Seminar Proposal
+Route::middleware('auth:sanctum')->get('/penilaian-seminar-proposal/jadwal/{jadwalId}', [App\Http\Controllers\PenilaianSeminarProposalController::class, 'getByJadwal']);
+Route::middleware('auth:sanctum')->get('/penilaian-seminar-proposal/jadwal/{jadwalId}/mahasiswa/{mahasiswaId}', [App\Http\Controllers\PenilaianSeminarProposalController::class, 'getSummary']);
+Route::middleware('auth:sanctum')->get('/penilaian-seminar-proposal/jadwal/{jadwalId}/mahasiswa/{mahasiswaId}/my', [App\Http\Controllers\PenilaianSeminarProposalController::class, 'getMyPenilaian']);
+Route::middleware('auth:sanctum')->post('/penilaian-seminar-proposal', [App\Http\Controllers\PenilaianSeminarProposalController::class, 'store']);
+
+// Hasil Seminar Proposal (Keputusan Moderator)
+Route::middleware('auth:sanctum')->get('/hasil-seminar-proposal/jadwal/{jadwalId}', [App\Http\Controllers\HasilSeminarProposalController::class, 'getByJadwal']);
+Route::middleware('auth:sanctum')->get('/hasil-seminar-proposal/jadwal/{jadwalId}/mahasiswa/{mahasiswaId}', [App\Http\Controllers\HasilSeminarProposalController::class, 'getByMahasiswa']);
+Route::middleware('auth:sanctum')->post('/hasil-seminar-proposal', [App\Http\Controllers\HasilSeminarProposalController::class, 'store']);
+Route::middleware('auth:sanctum')->post('/hasil-seminar-proposal/finalize', [App\Http\Controllers\HasilSeminarProposalController::class, 'finalize']);
+Route::middleware('auth:sanctum')->post('/hasil-seminar-proposal/unfinalize', [App\Http\Controllers\HasilSeminarProposalController::class, 'unfinalize']);
+
+// Penilaian Sidang Skripsi
+Route::middleware('auth:sanctum')->get('/penilaian-sidang-skripsi/jadwal/{jadwalId}', [App\Http\Controllers\PenilaianSidangSkripsiController::class, 'getByJadwal']);
+Route::middleware('auth:sanctum')->get('/penilaian-sidang-skripsi/jadwal/{jadwalId}/mahasiswa/{mahasiswaId}', [App\Http\Controllers\PenilaianSidangSkripsiController::class, 'getSummary']);
+Route::middleware('auth:sanctum')->get('/penilaian-sidang-skripsi/jadwal/{jadwalId}/mahasiswa/{mahasiswaId}/my', [App\Http\Controllers\PenilaianSidangSkripsiController::class, 'getMyPenilaian']);
+Route::middleware('auth:sanctum')->post('/penilaian-sidang-skripsi', [App\Http\Controllers\PenilaianSidangSkripsiController::class, 'store']);
+
+// Hasil Sidang Skripsi
+Route::middleware('auth:sanctum')->get('/hasil-sidang-skripsi/jadwal/{jadwalId}', [App\Http\Controllers\HasilSidangSkripsiController::class, 'getByJadwal']);
+Route::middleware('auth:sanctum')->get('/hasil-sidang-skripsi/jadwal/{jadwalId}/mahasiswa/{mahasiswaId}', [App\Http\Controllers\HasilSidangSkripsiController::class, 'getByMahasiswa']);
+Route::middleware('auth:sanctum')->post('/hasil-sidang-skripsi', [App\Http\Controllers\HasilSidangSkripsiController::class, 'store']);
+Route::middleware('auth:sanctum')->post('/hasil-sidang-skripsi/finalize', [App\Http\Controllers\HasilSidangSkripsiController::class, 'finalize']);
+Route::middleware('auth:sanctum')->post('/hasil-sidang-skripsi/unfinalize', [App\Http\Controllers\HasilSidangSkripsiController::class, 'unfinalize']);
+
 // Jadwal Hari Ini untuk dosen
 Route::middleware('auth:sanctum')->get('/dosen/{dosenId}/today-schedule', [App\Http\Controllers\JadwalHarianController::class, 'getTodayScheduleForDosen']);
 

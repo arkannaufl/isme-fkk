@@ -591,6 +591,13 @@ export default function DashboardDosen() {
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  // State untuk modal mahasiswa
+  const [showMahasiswaModal, setShowMahasiswaModal] = useState(false);
+  const [selectedMahasiswaList, setSelectedMahasiswaList] = useState<any[]>([]);
+  const [mahasiswaSearchQuery, setMahasiswaSearchQuery] = useState("");
+  const [mahasiswaModalPage, setMahasiswaModalPage] = useState(1);
+  const [mahasiswaModalPageSize, setMahasiswaModalPageSize] = useState(10);
+
   // Check if user is dosen
   useEffect(() => {
     const user = getUser();
@@ -1739,10 +1746,13 @@ export default function DashboardDosen() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {item.topik || "N/A"}
                         </td>
-                      ) : jadwalType === "non_blok_non_csr" ? (
+                      ) : jadwalType === "non_blok_non_csr" && (item.jenis_baris === "materi" || item.jenis_baris === "agenda") ? (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {item.agenda || item.materi || "N/A"}
                         </td>
+                      ) : jadwalType === "non_blok_non_csr" && (item.jenis_baris === "seminar_proposal" || item.jenis_baris === "sidang_skripsi") ? (
+                        // Skip kolom materi/agenda untuk Seminar Proposal dan Sidang Skripsi
+                        null
                       ) : (
                         jadwalType !== "pbl" && (
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
@@ -1771,6 +1781,116 @@ export default function DashboardDosen() {
                         </>
                       )}
                       {jadwalType === "non_blok_non_csr" && (
+                        <>
+                          {/* Untuk Seminar Proposal dan Sidang Skripsi, tampilkan kolom khusus */}
+                          {item.jenis_baris === "seminar_proposal" ? (
+                            <>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                {item.pembimbing?.name || "-"}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                {(() => {
+                                  const komentatorIds = Array.isArray(item.komentator_ids) 
+                                    ? item.komentator_ids 
+                                    : item.komentator_ids 
+                                    ? JSON.parse(item.komentator_ids) 
+                                    : [];
+                                  if (komentatorIds.length === 0) return "-";
+                                  // Coba ambil nama komentator dari allDosenList jika tersedia
+                                  const komentatorNames = komentatorIds
+                                    .map((id: number) => {
+                                      const dosen = allDosenList.find((d: any) => d.id === id);
+                                      return dosen ? dosen.name : null;
+                                    })
+                                    .filter(Boolean);
+                                  if (komentatorNames.length > 0) {
+                                    return komentatorNames.length > 2 
+                                      ? `${komentatorNames.slice(0, 2).join(", ")} +${komentatorNames.length - 2}`
+                                      : komentatorNames.join(", ");
+                                  }
+                                  return `${komentatorIds.length} komentator`;
+                                })()}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                {(() => {
+                                  const mahasiswaNims = Array.isArray(item.mahasiswa_nims) 
+                                    ? item.mahasiswa_nims 
+                                    : item.mahasiswa_nims 
+                                    ? JSON.parse(item.mahasiswa_nims) 
+                                    : [];
+                                  if (mahasiswaNims.length === 0) return "-";
+                                  return (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedMahasiswaList(item.mahasiswa_list || mahasiswaNims.map((nim: string) => ({ nim, name: nim })));
+                                        setMahasiswaSearchQuery('');
+                                        setMahasiswaModalPage(1);
+                                        setShowMahasiswaModal(true);
+                                      }}
+                                      className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-700 hover:bg-green-200 dark:hover:bg-green-800 transition cursor-pointer"
+                                    >
+                                      {mahasiswaNims.length} mahasiswa
+                                    </button>
+                                  );
+                                })()}
+                              </td>
+                            </>
+                          ) : item.jenis_baris === "sidang_skripsi" ? (
+                            <>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                {item.pembimbing?.name || "-"}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                {(() => {
+                                  const pengujiIds = Array.isArray(item.penguji_ids) 
+                                    ? item.penguji_ids 
+                                    : item.penguji_ids 
+                                    ? JSON.parse(item.penguji_ids) 
+                                    : [];
+                                  if (pengujiIds.length === 0) return "-";
+                                  // Coba ambil nama penguji dari allDosenList jika tersedia
+                                  const pengujiNames = pengujiIds
+                                    .map((id: number) => {
+                                      const dosen = allDosenList.find((d: any) => d.id === id);
+                                      return dosen ? dosen.name : null;
+                                    })
+                                    .filter(Boolean);
+                                  if (pengujiNames.length > 0) {
+                                    return pengujiNames.length > 2 
+                                      ? `${pengujiNames.slice(0, 2).join(", ")} +${pengujiNames.length - 2}`
+                                      : pengujiNames.join(", ");
+                                  }
+                                  return `${pengujiIds.length} penguji`;
+                                })()}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                {(() => {
+                                  const mahasiswaNims = Array.isArray(item.mahasiswa_nims) 
+                                    ? item.mahasiswa_nims 
+                                    : item.mahasiswa_nims 
+                                    ? JSON.parse(item.mahasiswa_nims) 
+                                    : [];
+                                  if (mahasiswaNims.length === 0) return "-";
+                                  return (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedMahasiswaList(item.mahasiswa_list || mahasiswaNims.map((nim: string) => ({ nim, name: nim })));
+                                        setMahasiswaSearchQuery('');
+                                        setMahasiswaModalPage(1);
+                                        setShowMahasiswaModal(true);
+                                      }}
+                                      className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-700 hover:bg-green-200 dark:hover:bg-green-800 transition cursor-pointer"
+                                    >
+                                      {mahasiswaNims.length} mahasiswa
+                                    </button>
+                                  );
+                                })()}
+                              </td>
+                            </>
+                          ) : (
+                            // Untuk materi dan agenda, tampilkan seperti biasa
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           <span
                             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -1784,6 +1904,8 @@ export default function DashboardDosen() {
                               : "Agenda"}
                           </span>
                         </td>
+                          )}
+                        </>
                       )}
                       {jadwalType === "persamaan_persepsi" || jadwalType === "seminar_pleno" ? (
                         <>
@@ -1794,6 +1916,9 @@ export default function DashboardDosen() {
                             {item.pengampu_names || "-"}
                           </td>
                         </>
+                      ) : jadwalType === "non_blok_non_csr" && (item.jenis_baris === "seminar_proposal" || item.jenis_baris === "sidang_skripsi") ? (
+                        // Untuk Seminar Proposal dan Sidang Skripsi, skip kolom pengampu dan dosen pengganti
+                        null
                       ) : (
                         <>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
@@ -1823,7 +1948,7 @@ export default function DashboardDosen() {
                       {(jadwalType === "kuliah_besar" ||
                         jadwalType === "jurnal" ||
                         jadwalType === "seminar_pleno" ||
-                        jadwalType === "non_blok_non_csr") && (
+                        (jadwalType === "non_blok_non_csr" && (item.jenis_baris === "materi" || item.jenis_baris === "agenda"))) && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {jadwalType === "kuliah_besar"
                             ? item.kelompok_besar?.semester
@@ -1852,6 +1977,8 @@ export default function DashboardDosen() {
                           {item.kelompok_kecil?.nama || "N/A"}
                         </td>
                       )}
+                      {/* Kolom Lokasi - hanya tampilkan jika bukan Seminar Proposal atau Sidang Skripsi */}
+                      {!(jadwalType === "non_blok_non_csr" && (item.jenis_baris === "seminar_proposal" || item.jenis_baris === "sidang_skripsi")) && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {jadwalType === "persamaan_persepsi"
                           ? (item.use_ruangan && item.ruangan?.nama) 
@@ -1872,6 +1999,21 @@ export default function DashboardDosen() {
                           ? item.ruangan?.nama || "N/A"
                           : item.lokasi || item.ruangan}
                       </td>
+                      )}
+                      {/* Kolom Ruangan untuk Seminar Proposal dan Sidang Skripsi */}
+                      {jadwalType === "non_blok_non_csr" && (item.jenis_baris === "seminar_proposal" || item.jenis_baris === "sidang_skripsi") && (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          {item.ruangan?.nama || "N/A"}
+                        </td>
+                      )}
+                      {/* Kolom Role untuk Seminar Proposal dan Sidang Skripsi */}
+                      {jadwalType === "non_blok_non_csr" && (item.jenis_baris === "seminar_proposal" || item.jenis_baris === "sidang_skripsi") && (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border border-purple-200 dark:border-purple-700">
+                            {item.dosen_role || "-"}
+                          </span>
+                        </td>
+                      )}
                       {jadwalType === "jurnal" && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {item.file_jurnal ? (
@@ -1946,14 +2088,41 @@ export default function DashboardDosen() {
                           )}
                         </td>
                       )}
+                      {/* Kolom Jenis Semester - hanya untuk jadwal yang bukan Seminar Proposal atau Sidang Skripsi */}
+                      {!(jadwalType === "non_blok_non_csr" && (item.jenis_baris === "seminar_proposal" || item.jenis_baris === "sidang_skripsi")) && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {getSemesterTypeBadge(item.semester_type)}
                       </td>
+                      )}
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         <div className="flex items-center gap-2">
                           {getStatusBadge(
                             item.status_konfirmasi,
                             item.status_reschedule
+                          )}
+                          {/* Untuk Seminar Proposal, tampilkan tombol Detail tanpa kondisi status */}
+                          {jadwalType === "non_blok_non_csr" && (item.jenis_baris === "seminar_proposal" || item.jenis_baris === "Seminar Proposal") && (
+                            <button
+                              onClick={() => {
+                                navigate(`/bimbingan-akhir/seminar-proposal/${item.id}`);
+                              }}
+                              className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
+                              title="Detail Seminar Proposal"
+                            >
+                              Detail
+                            </button>
+                          )}
+                          {/* Untuk Sidang Skripsi, tampilkan tombol Detail tanpa kondisi status */}
+                          {jadwalType === "non_blok_non_csr" && (item.jenis_baris === "sidang_skripsi" || item.jenis_baris === "Sidang Skripsi") && (
+                            <button
+                              onClick={() => {
+                                navigate(`/bimbingan-akhir/sidang-skripsi/${item.id}`);
+                              }}
+                              className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
+                              title="Detail Sidang Skripsi"
+                            >
+                              Detail
+                            </button>
                           )}
                           {/* Persamaan Persepsi dan Seminar Pleno tidak ada button konfirmasi (langsung bisa) */}
                           {jadwalType === "persamaan_persepsi" || jadwalType === "seminar_pleno" ? (
@@ -2065,40 +2234,45 @@ export default function DashboardDosen() {
                                 </>
                               ) : jadwalType === "non_blok_non_csr" ? (
                                 <>
-                                  <button
-                                    onClick={() => {
-                                      // Cek apakah non-blok non-CSR antara berdasarkan semester_type atau semester
-                                      const isAntara = item.semester_type === 'antara' || 
-                                                       (item.mata_kuliah && item.mata_kuliah.semester === 'Antara');
-                                      const routePath = isAntara 
-                                        ? `/absensi-non-blok-non-csr-antara/${item.mata_kuliah_kode}/${item.id}`
-                                        : `/absensi-non-blok-non-csr/${item.mata_kuliah_kode}/${item.id}`;
-                                      navigate(routePath);
-                                    }}
-                                    className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors mr-1"
-                                    title="Absensi Non-Blok Non-CSR"
-                                  >
-                                    Absensi
-                                  </button>
-                                  <button
-                                    onClick={() =>
-                                      handlePenilaianClick(item, jadwalType)
-                                    }
-                                    className={`px-3 py-1 rounded text-xs transition-colors ${
-                                      item.penilaian_submitted
-                                        ? "bg-gray-500 text-white hover:bg-gray-600"
-                                        : "bg-green-500 text-white hover:bg-green-600"
-                                    }`}
-                                    title={
-                                      item.penilaian_submitted
-                                        ? "Lihat Penilaian"
-                                        : "Penilaian"
-                                    }
-                                  >
-                                    {item.penilaian_submitted
-                                      ? "Lihat Penilaian"
-                                      : "Penilaian"}
-                                  </button>
+                                  {/* Untuk non-blok non-CSR yang bukan seminar proposal */}
+                                  {item.jenis_baris !== "seminar_proposal" && (
+                                    <>
+                                      <button
+                                        onClick={() => {
+                                          // Cek apakah non-blok non-CSR antara berdasarkan semester_type atau semester
+                                          const isAntara = item.semester_type === 'antara' || 
+                                                           (item.mata_kuliah && item.mata_kuliah.semester === 'Antara');
+                                          const routePath = isAntara 
+                                            ? `/absensi-non-blok-non-csr-antara/${item.mata_kuliah_kode}/${item.id}`
+                                            : `/absensi-non-blok-non-csr/${item.mata_kuliah_kode}/${item.id}`;
+                                          navigate(routePath);
+                                        }}
+                                        className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors mr-1"
+                                        title="Absensi Non-Blok Non-CSR"
+                                      >
+                                        Absensi
+                                      </button>
+                                      <button
+                                        onClick={() =>
+                                          handlePenilaianClick(item, jadwalType)
+                                        }
+                                        className={`px-3 py-1 rounded text-xs transition-colors ${
+                                          item.penilaian_submitted
+                                            ? "bg-gray-500 text-white hover:bg-gray-600"
+                                            : "bg-green-500 text-white hover:bg-green-600"
+                                        }`}
+                                        title={
+                                          item.penilaian_submitted
+                                            ? "Lihat Penilaian"
+                                            : "Penilaian"
+                                        }
+                                      >
+                                        {item.penilaian_submitted
+                                          ? "Lihat Penilaian"
+                                          : "Penilaian"}
+                                      </button>
+                                    </>
+                                  )}
                                 </>
                               ) : jadwalType === "praktikum" ? (
                                 <>
@@ -3730,7 +3904,12 @@ export default function DashboardDosen() {
                 </motion.div>
               )}
 
-              {/* Jadwal Non Blok Non CSR */}
+              {/* Jadwal Non Blok Non CSR - Materi & Agenda */}
+              {(() => {
+                const jadwalMateriAgenda = jadwalNonBlokNonCSR.filter(
+                  (j) => j.jenis_baris === "materi" || j.jenis_baris === "agenda"
+                );
+                return jadwalMateriAgenda.length > 0 ? (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -3738,9 +3917,9 @@ export default function DashboardDosen() {
                 className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
               >
                 {renderJadwalTable(
-                  "Non Blok Non CSR",
+                      "Non Blok Non CSR - Materi & Agenda",
                   faFileAlt,
-                  jadwalNonBlokNonCSR,
+                      jadwalMateriAgenda,
                   [
                     "NO",
                     "HARI/TANGGAL",
@@ -3756,9 +3935,81 @@ export default function DashboardDosen() {
                     "AKSI",
                   ],
                   "non_blok_non_csr",
-                  "Tidak ada data Non Blok Non CSR"
+                      "Tidak ada data Non Blok Non CSR - Materi & Agenda"
                 )}
               </motion.div>
+                ) : null;
+              })()}
+
+              {/* Jadwal Seminar Proposal */}
+              {(() => {
+                const jadwalSeminarProposal = jadwalNonBlokNonCSR.filter(
+                  (j) => j.jenis_baris === "seminar_proposal"
+                );
+                return jadwalSeminarProposal.length > 0 ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 1.0 }}
+                    className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+                  >
+                    {renderJadwalTable(
+                      "Seminar Proposal",
+                      faGraduationCap,
+                      jadwalSeminarProposal,
+                      [
+                        "NO",
+                        "HARI/TANGGAL",
+                        "PUKUL",
+                        "WAKTU",
+                        "PEMBIMBING",
+                        "KOMENTATOR",
+                        "MAHASISWA",
+                        "RUANGAN",
+                        "PERAN",
+                        "AKSI",
+                      ],
+                      "non_blok_non_csr",
+                      "Tidak ada data Seminar Proposal"
+                    )}
+                  </motion.div>
+                ) : null;
+              })()}
+
+              {/* Jadwal Sidang Skripsi */}
+              {(() => {
+                const jadwalSidangSkripsi = jadwalNonBlokNonCSR.filter(
+                  (j) => j.jenis_baris === "sidang_skripsi"
+                );
+                return jadwalSidangSkripsi.length > 0 ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 1.05 }}
+                    className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
+                  >
+                    {renderJadwalTable(
+                      "Sidang Skripsi",
+                      faGraduationCap,
+                      jadwalSidangSkripsi,
+                      [
+                        "NO",
+                        "HARI/TANGGAL",
+                        "PUKUL",
+                        "WAKTU",
+                        "PEMBIMBING",
+                        "PENGUJI",
+                        "MAHASISWA",
+                        "RUANGAN",
+                        "PERAN",
+                        "AKSI",
+                      ],
+                      "non_blok_non_csr",
+                      "Tidak ada data Sidang Skripsi"
+                    )}
+                  </motion.div>
+                ) : null;
+              })()}
             </div>
           </motion.div>
         </div>
@@ -4446,6 +4697,211 @@ export default function DashboardDosen() {
                   OK
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Daftar Mahasiswa */}
+      <AnimatePresence>
+        {showMahasiswaModal && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowMahasiswaModal(false)}
+            />
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-4xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => setShowMahasiswaModal(false)}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" className="w-6 h-6">
+                  <path fillRule="evenodd" clipRule="evenodd" d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z" fill="currentColor" />
+                </svg>
+              </button>
+
+              {/* Header */}
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                  Daftar Mahasiswa
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Total {selectedMahasiswaList.length} mahasiswa
+                </p>
+              </div>
+
+              {/* Search Bar */}
+              <div className="mb-6">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Cari berdasarkan nama atau NIM..."
+                    value={mahasiswaSearchQuery}
+                    onChange={(e) => {
+                      setMahasiswaSearchQuery(e.target.value);
+                      setMahasiswaModalPage(1);
+                    }}
+                    className="w-full px-4 py-3 pl-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                  />
+                  <svg
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                  {mahasiswaSearchQuery && (
+                    <button
+                      onClick={() => {
+                        setMahasiswaSearchQuery('');
+                        setMahasiswaModalPage(1);
+                      }}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Table */}
+              {(() => {
+                const filteredMahasiswa = selectedMahasiswaList.filter((m) => {
+                  if (!mahasiswaSearchQuery.trim()) return true;
+                  const query = mahasiswaSearchQuery.toLowerCase().trim();
+                  return (
+                    (m.name || '').toLowerCase().includes(query) ||
+                    (m.nim || '').toLowerCase().includes(query)
+                  );
+                });
+                const totalPages = Math.ceil(filteredMahasiswa.length / mahasiswaModalPageSize);
+                const paginatedData = filteredMahasiswa.slice(
+                  (mahasiswaModalPage - 1) * mahasiswaModalPageSize,
+                  mahasiswaModalPage * mahasiswaModalPageSize
+                );
+
+                return (
+                  <>
+                    {mahasiswaSearchQuery && (
+                      <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+                        Menampilkan {filteredMahasiswa.length} dari {selectedMahasiswaList.length} mahasiswa
+                      </div>
+                    )}
+
+                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                      <div className="max-w-full overflow-x-auto hide-scroll">
+                        <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                          <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                            <tr>
+                              <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">NIM</th>
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Nama</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {paginatedData.length === 0 ? (
+                              <tr>
+                                <td colSpan={3} className="text-center py-6 text-gray-400">
+                                  {mahasiswaSearchQuery ? 'Tidak ada mahasiswa yang sesuai dengan pencarian' : 'Tidak ada data mahasiswa'}
+                                </td>
+                              </tr>
+                            ) : (
+                              paginatedData.map((mahasiswa, idx) => {
+                                const actualIndex = (mahasiswaModalPage - 1) * mahasiswaModalPageSize + idx;
+                                return (
+                                  <tr key={mahasiswa.id || mahasiswa.nim || idx} className={idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
+                                    <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{actualIndex + 1}</td>
+                                    <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{mahasiswa.nim || '-'}</td>
+                                    <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{mahasiswa.name || '-'}</td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Pagination */}
+                    {filteredMahasiswa.length > mahasiswaModalPageSize && (
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 border-t border-gray-200 dark:border-gray-700 mt-6">
+                        <div className="flex items-center gap-4">
+                          <select
+                            value={mahasiswaModalPageSize}
+                            onChange={(e) => {
+                              setMahasiswaModalPageSize(Number(e.target.value));
+                              setMahasiswaModalPage(1);
+                            }}
+                            className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                          >
+                            <option value={10}>10 per halaman</option>
+                            <option value={20}>20 per halaman</option>
+                            <option value={50}>50 per halaman</option>
+                            <option value={100}>100 per halaman</option>
+                          </select>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">
+                            Menampilkan {((mahasiswaModalPage - 1) * mahasiswaModalPageSize) + 1}-{Math.min(mahasiswaModalPage * mahasiswaModalPageSize, filteredMahasiswa.length)} dari {filteredMahasiswa.length} mahasiswa
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setMahasiswaModalPage((p) => Math.max(1, p - 1))}
+                            disabled={mahasiswaModalPage === 1}
+                            className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Prev
+                          </button>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">
+                            Halaman {mahasiswaModalPage} dari {totalPages}
+                          </span>
+                          <button
+                            onClick={() => setMahasiswaModalPage((p) => Math.min(totalPages, p + 1))}
+                            disabled={mahasiswaModalPage >= totalPages}
+                            className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Next
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Footer */}
+                    <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700 mt-6">
+                      <button
+                        onClick={() => {
+                          setShowMahasiswaModal(false);
+                          setMahasiswaSearchQuery('');
+                          setMahasiswaModalPage(1);
+                        }}
+                        className="px-6 py-3 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                      >
+                        Tutup
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
             </motion.div>
           </div>
         )}

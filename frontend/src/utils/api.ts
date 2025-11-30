@@ -22,7 +22,7 @@ const retryRequest = async (config: AxiosRequestConfig, retryCount = 0): Promise
        axiosError.code === 'ECONNABORTED') &&
       retryCount < MAX_RETRIES
     ) {
-      console.warn(`Network error detected, retrying... (${retryCount + 1}/${MAX_RETRIES})`);
+      // Network error detected, retrying...
       await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (retryCount + 1)));
       return retryRequest(config, retryCount + 1);
     }
@@ -82,7 +82,7 @@ api.interceptors.response.use(
       try {
         return await retryRequest(originalRequest);
       } catch (retryError) {
-        console.error('All retry attempts failed:', retryError);
+        // All retry attempts failed
         return Promise.reject(retryError);
       }
     }
@@ -112,24 +112,24 @@ api.interceptors.response.use(
     
     // Handle 403 Forbidden
     if (error.response?.status === 403) {
-      console.warn('Access forbidden:', error.response?.data?.message);
+      // Access forbidden
       return Promise.reject(error);
     }
     
     // Handle 422 Validation Error
     if (error.response?.status === 422) {
-      console.warn('Validation error:', error.response?.data?.errors);
+      // Validation error
       return Promise.reject(error);
     }
     
     // Handle 500 Server Error
     if (error.response?.status >= 500) {
-      console.error('Server error:', error.response?.data?.message);
+      // Server error
       return Promise.reject(error);
     }
     
     // Handle other errors
-    console.error('API Error:', error.message);
+    // API Error
     return Promise.reject(error);
   }
 );
@@ -191,7 +191,7 @@ export const retryWithBackoff = async <T>(
       ) {
         if (i < maxRetries - 1) {
           const delay = baseDelay * Math.pow(2, i);
-          console.warn(`Retrying in ${delay}ms... (${i + 1}/${maxRetries})`);
+          // Retrying...
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
