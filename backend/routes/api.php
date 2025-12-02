@@ -304,7 +304,6 @@ Route::middleware('auth:sanctum')->get('/riwayat-konfirmasi/dosen/{dosenId}', [J
 // Jadwal Praktikum untuk dosen
 Route::middleware('auth:sanctum')->get('/jadwal-praktikum/dosen/{dosenId}', [App\Http\Controllers\JadwalPraktikumController::class, 'getJadwalForDosen']);
 Route::middleware('auth:sanctum')->put('/jadwal-praktikum/{id}/konfirmasi', [App\Http\Controllers\JadwalPraktikumController::class, 'konfirmasi']);
-Route::middleware('auth:sanctum')->post('/jadwal-praktikum/{id}/reschedule', [App\Http\Controllers\JadwalPraktikumController::class, 'reschedule']);
 
 // Jadwal Jurnal Reading untuk dosen
 Route::middleware('auth:sanctum')->get('/jadwal-jurnal-reading/dosen/{dosenId}', [App\Http\Controllers\JadwalJurnalReadingController::class, 'getJadwalForDosen']);
@@ -433,6 +432,17 @@ Route::middleware('auth:sanctum')->prefix('praktikum')->group(function () {
     Route::post('/{kode}/jadwal/{jadwalId}/absensi', [App\Http\Controllers\JadwalPraktikumController::class, 'saveAbsensi']);
     Route::put('/{kode}/jadwal/{jadwalId}/toggle-qr', [App\Http\Controllers\JadwalPraktikumController::class, 'toggleQr']);
     Route::get('/{kode}/jadwal/{jadwalId}/qr-token', [App\Http\Controllers\JadwalPraktikumController::class, 'generateQrToken']);
+    // Routes untuk absensi dosen (hanya tim akademik)
+    Route::get('/{kode}/jadwal/{jadwalId}/absensi-dosen', [App\Http\Controllers\JadwalPraktikumController::class, 'getAbsensiDosen']);
+    Route::post('/{kode}/jadwal/{jadwalId}/absensi-dosen', [App\Http\Controllers\JadwalPraktikumController::class, 'storeAbsensiDosen']);
+    // Routes untuk koordinator signature
+    Route::get('/{kode}/jadwal/{jadwalId}/koordinator-signature', [App\Http\Controllers\JadwalPraktikumController::class, 'getKoordinatorSignature']);
+    Route::post('/{kode}/jadwal/{jadwalId}/koordinator-signature', [App\Http\Controllers\JadwalPraktikumController::class, 'storeKoordinatorSignature']);
+});
+
+// Route untuk praktikum koordinator pending signature
+Route::middleware('auth:sanctum')->prefix('praktikum')->group(function () {
+    Route::get('/koordinator-pending-signature/{dosenId}', [App\Http\Controllers\JadwalPraktikumController::class, 'getKoordinatorPendingSignature']);
 });
 
 Route::middleware('auth:sanctum')->prefix('jurnal-reading')->group(function () {

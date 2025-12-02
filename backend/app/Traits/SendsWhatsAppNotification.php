@@ -89,6 +89,21 @@ trait SendsWhatsAppNotification
             $message .= "Materi: {$jadwalData['materi']}\n";
         }
 
+        if (isset($jadwalData['agenda'])) {
+            $message .= "Agenda: {$jadwalData['agenda']}\n";
+        }
+
+        if (isset($jadwalData['jenis_baris'])) {
+            $jenisLabels = [
+                'materi' => 'Materi',
+                'agenda' => 'Agenda Khusus',
+                'seminar_proposal' => 'Seminar Proposal',
+                'sidang_skripsi' => 'Sidang Skripsi',
+            ];
+            $jenisLabel = $jenisLabels[$jadwalData['jenis_baris']] ?? ucfirst($jadwalData['jenis_baris']);
+            $message .= "Jenis: {$jenisLabel}\n";
+        }
+
         $message .= "\nSilakan konfirmasi ketersediaan Anda melalui sistem akademik.\n";
         $message .= "\n_ISME - Sistem Akademik FKK UMJ_";
 

@@ -15,6 +15,7 @@ use App\Services\SemesterService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Models\AbsensiDosenPraktikum;
 
 
 class UserController extends Controller
@@ -247,15 +248,15 @@ class UserController extends Controller
             foreach ($request->dosen_peran as $peran) {
                 // Pastikan hanya koordinator dan tim_blok yang disimpan
                 if (in_array($peran['tipe_peran'] ?? '', ['koordinator', 'tim_blok'])) {
-                DosenPeran::create([
-                    'user_id' => $user->id,
-                    'mata_kuliah_kode' => $peran['mata_kuliah_kode'],
-                    'peran_kurikulum' => $peran['peran_kurikulum'],
-                    'blok' => $peran['blok'] ?? null,
-                    'semester' => $peran['semester'] ?? null,
-                    'tipe_peran' => $peran['tipe_peran'],
-                ]);
-            }
+                    DosenPeran::create([
+                        'user_id' => $user->id,
+                        'mata_kuliah_kode' => $peran['mata_kuliah_kode'],
+                        'peran_kurikulum' => $peran['peran_kurikulum'],
+                        'blok' => $peran['blok'] ?? null,
+                        'semester' => $peran['semester'] ?? null,
+                        'tipe_peran' => $peran['tipe_peran'],
+                    ]);
+                }
             }
         } else {
             // Jika dosen_peran tidak ada di request (selectedPeranType === "none"),
@@ -596,7 +597,38 @@ class UserController extends Controller
                 $praktikumData = $praktikumResponse->getData();
 
                 if (isset($praktikumData->data)) {
-                    $jadwalPraktikum = collect($praktikumData->data)->map(function ($item) {
+                    $jadwalPraktikum = collect($praktikumData->data)->map(function ($item) use ($id) {
+                        // Fetch absensi dosen untuk jadwal ini
+                        $absensiDosen = AbsensiDosenPraktikum::where('jadwal_praktikum_id', $item->id)
+                            ->where('dosen_id', $id)
+                            ->first();
+
+                        // Pastikan boolean casting yang benar
+                        $absensiHadir = $absensiDosen ? (bool)($absensiDosen->hadir ?? false) : false;
+                        $absensiCatatan = $absensiDosen ? ($absensiDosen->catatan ?? null) : null;
+                        // Pastikan penilaian_submitted di-cast sebagai boolean
+                        $penilaianSubmitted = (bool)($item->penilaian_submitted ?? false);
+
+                        // Tentukan absensi_status berdasarkan logika:
+                        // 1. Jika status_konfirmasi = "tidak_bisa" → langsung "tidak_hadir"
+                        // 2. Jika penilaian_submitted = false → "menunggu" (walaupun sudah simpan, tetap menunggu sampai submit)
+                        // 3. Jika penilaian_submitted = true:
+                        //    - Jika absensi_hadir = true → "hadir"
+                        //    - Jika absensi_hadir = false → "tidak_hadir"
+                        $statusKonfirmasi = $item->status_konfirmasi ?? 'belum_konfirmasi';
+                        $absensiStatus = 'menunggu'; // Default
+
+                        if ($statusKonfirmasi === 'tidak_bisa') {
+                            // Jika tidak bisa mengajar, langsung tidak hadir
+                            $absensiStatus = 'tidak_hadir';
+                        } elseif ($penilaianSubmitted) {
+                            // Jika sudah submit, tentukan berdasarkan absensi_hadir
+                            $absensiStatus = $absensiHadir ? 'hadir' : 'tidak_hadir';
+                        } else {
+                            // Jika belum submit, tetap menunggu (walaupun sudah simpan)
+                            $absensiStatus = 'menunggu';
+                        }
+
                         return (object) [
                             'id' => $item->id,
                             'mata_kuliah_kode' => $item->mata_kuliah_kode,
@@ -611,12 +643,16 @@ class UserController extends Controller
                             'semester' => $item->mata_kuliah->semester ?? '',
                             'blok' => $item->mata_kuliah->blok ?? null,
                             'kelompok_kecil' => $item->kelas_praktikum,
-                            'status_konfirmasi' => $item->status_konfirmasi ?? 'belum_konfirmasi',
+                            'status_konfirmasi' => $statusKonfirmasi,
                             'alasan_konfirmasi' => $item->alasan_konfirmasi ?? null,
                             'status_reschedule' => $item->status_reschedule ?? null,
                             'reschedule_reason' => $item->reschedule_reason ?? null,
                             'semester_type' => $item->semester_type ?? ($item->mata_kuliah && $item->mata_kuliah->semester === 'Antara' ? 'antara' : 'reguler'),
-                            'mata_kuliah' => $item->mata_kuliah ?? null
+                            'mata_kuliah' => $item->mata_kuliah ?? null,
+                            'absensi_hadir' => $absensiHadir,
+                            'absensi_catatan' => $absensiCatatan,
+                            'penilaian_submitted' => $penilaianSubmitted,
+                            'absensi_status' => $absensiStatus
                         ];
                     });
                     $jadwalMengajar = $jadwalMengajar->concat($jadwalPraktikum);
@@ -866,19 +902,23 @@ class UserController extends Controller
                                         // Ada data absensi, cek apakah hadir
                                         $absensiHadir = (bool)($absensiData->hadir ?? false);
                                         $absensiStatus = $absensiHadir ? 'hadir' : 'tidak_hadir';
+                                        $absensiCatatan = $absensiData->catatan ?? null;
                                     } else {
                                         // Belum ada data absensi untuk pengampu, status menunggu
                                         $absensiHadir = false;
                                         $absensiStatus = 'menunggu';
+                                        $absensiCatatan = null;
                                     }
                                 }
                             } else {
                                 // Belum submitted, status menunggu
                                 $absensiStatus = 'menunggu';
                                 $absensiHadir = false;
+                                $absensiCatatan = null;
                             }
                         } catch (\Exception $e) {
                             Log::warning("Error fetching absensi for persamaan persepsi jadwal {$jadwalId}: " . $e->getMessage());
+                            $absensiCatatan = null;
                         }
 
                         return (object) [
@@ -962,6 +1002,7 @@ class UserController extends Controller
                             'dosen_ids' => $dosenIds,
                             'koordinator_ids' => $koordinatorIds,
                             'absensi_hadir' => $absensiHadir,
+                            'absensi_catatan' => $absensiCatatan ?? null,
                             'role_type' => $roleType, // 'koordinator' atau 'pengampu'
                             'absensi_status' => $absensiStatus, // 'menunggu', 'hadir', atau 'tidak_hadir'
                             'mata_kuliah' => (function () use ($mataKuliahKode) {
@@ -1077,19 +1118,23 @@ class UserController extends Controller
                                         // Ada data absensi, cek apakah hadir
                                         $absensiHadir = (bool)($absensiData->hadir ?? false);
                                         $absensiStatus = $absensiHadir ? 'hadir' : 'tidak_hadir';
+                                        $absensiCatatan = $absensiData->catatan ?? null;
                                     } else {
                                         // Belum ada data absensi untuk pengampu, status menunggu
                                         $absensiHadir = false;
                                         $absensiStatus = 'menunggu';
+                                        $absensiCatatan = null;
                                     }
                                 }
                             } else {
                                 // Belum submitted, status menunggu
                                 $absensiStatus = 'menunggu';
                                 $absensiHadir = false;
+                                $absensiCatatan = null;
                             }
                         } catch (\Exception $e) {
                             Log::warning("Error fetching absensi for seminar pleno jadwal {$jadwalId}: " . $e->getMessage());
+                            $absensiCatatan = null;
                         }
 
                         // Get kelompok besar

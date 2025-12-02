@@ -97,14 +97,15 @@ type JadwalMengajar = {
   status_reschedule?: "waiting" | "approved" | "rejected" | null;
   reschedule_reason?: string | null;
   // Additional fields for penilaian
-  penilaian_submitted?: boolean;
+  penilaian_submitted?: boolean | number; // Bisa boolean atau integer (0/1) dari backend
   // Peran untuk Persamaan Persepsi dan Seminar Pleno
   peran?: "koordinator" | "pengampu";
   peran_display?: string;
   // Additional fields for persamaan persepsi
   dosen_ids?: number[];
   koordinator_ids?: number[];
-  absensi_hadir?: boolean; // Untuk dosen pengampu: apakah dosen hadir
+  absensi_hadir?: boolean | number; // Untuk dosen pengampu: apakah dosen hadir (bisa boolean atau integer 0/1)
+  absensi_catatan?: string | null; // Catatan absensi dosen
   role_type?: "koordinator" | "pengampu"; // Role dosen: koordinator atau pengampu
   absensi_status?: "menunggu" | "hadir" | "tidak_hadir"; // Status absensi: menunggu, hadir, atau tidak hadir
 };
@@ -537,6 +538,40 @@ export default function DosenRiwayat() {
     return perencanaan;
   };
 
+  // Function to calculate Praktikum perencanaan per blok
+  const getPraktikumPerencanaanPerBlok = (blokNumber: number): number => {
+    // Filter jadwal praktikum untuk blok tertentu
+    const praktikumJadwalBlok = jadwalMengajar.filter((j) => {
+      const blokMataKuliah = getBlokFromMataKuliah(j.mata_kuliah_kode);
+      return (
+        j.jenis_jadwal === "praktikum" &&
+        blokMataKuliah === blokNumber.toString()
+      );
+    });
+
+    // Perencanaan = jumlah sesi dari jadwal (1 sesi = 1 perencanaan, 2 sesi = 2 perencanaan)
+    const perencanaan = praktikumJadwalBlok.reduce((total, jadwal) => {
+      return total + (jadwal.jumlah_sesi || 0);
+    }, 0);
+
+    return perencanaan;
+  };
+
+  // Function to calculate total Praktikum perencanaan for all blocks
+  const getTotalPraktikumPerencanaan = (): number => {
+    // Filter jadwal praktikum untuk semua blok
+    const praktikumJadwal = jadwalMengajar.filter(
+      (j) => j.jenis_jadwal === "praktikum"
+    );
+
+    // Perencanaan = jumlah sesi dari jadwal (1 sesi = 1 perencanaan, 2 sesi = 2 perencanaan)
+    const perencanaan = praktikumJadwal.reduce((total, jadwal) => {
+      return total + (jadwal.jumlah_sesi || 0);
+    }, 0);
+
+    return perencanaan;
+  };
+
   // Function to calculate total PBL sesi for all blocks
   const getTotalPblSesi = (): number => {
     let totalSesi = 0;
@@ -609,6 +644,13 @@ export default function DosenRiwayat() {
     return totalSesi;
   };
 
+  // Helper function untuk convert boolean atau integer ke boolean
+  const toBoolean = (value: boolean | number | null | undefined): boolean => {
+    if (value === true || value === 1) return true;
+    if (value === false || value === 0) return false;
+    return false;
+  };
+
   // Fungsi untuk menghitung data per blok
   const getBlokData = (blokNumber: number) => {
     const jadwalBlok = filteredJadwal.filter((j) => {
@@ -643,9 +685,13 @@ export default function DosenRiwayat() {
         return submitted;
       }
 
-      // Filter realisasi Praktikum: hanya hitung jika status_konfirmasi = "bisa"
+      // Filter realisasi Praktikum: hanya hitung jika absensi_hadir = true dan penilaian_submitted = true
+      // (Dosen harus hadir dan absensi dosen sudah disubmit)
       if (j.jenis_jadwal === "praktikum") {
-        return j.status_konfirmasi === "bisa";
+        // Handle boolean dan integer (0/1) dari backend
+        const submitted = toBoolean(j.penilaian_submitted);
+        const hadir = toBoolean(j.absensi_hadir);
+        return submitted && hadir;
       }
 
       // Filter realisasi Kuliah Besar: hanya hitung jika penilaian_submitted = true
@@ -1167,17 +1213,16 @@ export default function DosenRiwayat() {
         } else {
           doc.text(jenisKegiatan.label, colJenis, yPos);
         }
-        // Kolom Perencanaan: "-" untuk praktikum, materi; sesi untuk PBL; jumlah_sesi untuk yang lain
+        // Kolom Perencanaan: "-" untuk materi; sesi untuk PBL; jumlah_sesi untuk yang lain
         let perencanaanValue = "0";
-        if (
-          jenisKegiatan.jenis === "praktikum" ||
-          jenisKegiatan.jenis === "materi"
-        ) {
+        if (jenisKegiatan.jenis === "materi") {
           perencanaanValue = "-";
         } else if (jenisKegiatan.jenis === "pbl") {
           perencanaanValue = getTotalPblSesi().toString();
         } else if (jenisKegiatan.jenis === "kuliah_besar") {
           perencanaanValue = getTotalKuliahBesarPerencanaan().toString();
+        } else if (jenisKegiatan.jenis === "praktikum") {
+          perencanaanValue = getTotalPraktikumPerencanaan().toString();
         } else if (jenisKegiatan.jenis === "jurnal_reading") {
           perencanaanValue = getTotalJurnalReadingPerencanaan().toString();
         } else if (jenisKegiatan.jenis === "csr") {
@@ -1301,12 +1346,9 @@ export default function DosenRiwayat() {
           } else {
             doc.text(jenisKegiatan.label, colJenis, yPos);
           }
-          // Kolom Perencanaan: "-" untuk praktikum, materi; sesi untuk PBL; jumlah_sesi untuk yang lain
+          // Kolom Perencanaan: "-" untuk materi; sesi untuk PBL; jumlah_sesi untuk yang lain
           let perencanaanValue = "0";
-          if (
-            jenisKegiatan.jenis === "praktikum" ||
-            jenisKegiatan.jenis === "materi"
-          ) {
+          if (jenisKegiatan.jenis === "materi") {
             perencanaanValue = "-";
           } else if (jenisKegiatan.jenis === "pbl") {
             const sesiBlok = getPblSesiPerBlok(blokNumber);
@@ -1315,6 +1357,10 @@ export default function DosenRiwayat() {
             const perencanaanKuliahBesar =
               getKuliahBesarPerencanaanPerBlok(blokNumber);
             perencanaanValue = perencanaanKuliahBesar.toString();
+          } else if (jenisKegiatan.jenis === "praktikum") {
+            const perencanaanPraktikum =
+              getPraktikumPerencanaanPerBlok(blokNumber);
+            perencanaanValue = perencanaanPraktikum.toString();
           } else if (jenisKegiatan.jenis === "jurnal_reading") {
             const perencanaanJurnal =
               getJurnalReadingPerencanaanPerBlok(blokNumber);
@@ -1448,12 +1494,9 @@ export default function DosenRiwayat() {
           } else {
             doc.text(jenisKegiatan.label, colJenis, yPos);
           }
-          // Kolom Perencanaan: "-" untuk praktikum, materi; sesi untuk PBL; jumlah_sesi untuk yang lain
+          // Kolom Perencanaan: "-" untuk materi; sesi untuk PBL; jumlah_sesi untuk yang lain
           let perencanaanValue = "0";
-          if (
-            jenisKegiatan.jenis === "praktikum" ||
-            jenisKegiatan.jenis === "materi"
-          ) {
+          if (jenisKegiatan.jenis === "materi") {
             perencanaanValue = "-";
           } else if (jenisKegiatan.jenis === "pbl") {
             const sesiBlok = getPblSesiPerBlok(blokNumber);
@@ -1462,6 +1505,10 @@ export default function DosenRiwayat() {
             const perencanaanKuliahBesar =
               getKuliahBesarPerencanaanPerBlok(blokNumber);
             perencanaanValue = perencanaanKuliahBesar.toString();
+          } else if (jenisKegiatan.jenis === "praktikum") {
+            const perencanaanPraktikum =
+              getPraktikumPerencanaanPerBlok(blokNumber);
+            perencanaanValue = perencanaanPraktikum.toString();
           } else if (jenisKegiatan.jenis === "jurnal_reading") {
             const perencanaanJurnal =
               getJurnalReadingPerencanaanPerBlok(blokNumber);
@@ -1725,12 +1772,15 @@ export default function DosenRiwayat() {
       return total;
     }
 
-    // Untuk Praktikum, realisasi hanya dihitung bila status_konfirmasi = "bisa"
-    if (
-      jadwal.jenis_jadwal === "praktikum" &&
-      jadwal.status_konfirmasi !== "bisa"
-    ) {
-      return total;
+    // Untuk Praktikum, realisasi hanya dihitung bila absensi_hadir = true dan penilaian_submitted = true
+    // (Dosen harus hadir dan absensi dosen sudah disubmit)
+    if (jadwal.jenis_jadwal === "praktikum") {
+      // Handle boolean dan integer (0/1) dari backend
+      const submitted = toBoolean(jadwal.penilaian_submitted);
+      const hadir = toBoolean(jadwal.absensi_hadir);
+      if (!submitted || !hadir) {
+        return total;
+      }
     }
 
     // Untuk CSR, realisasi hanya dihitung bila penilaian_submitted = true (mengikuti pola PBL/Jurnal)
@@ -1844,9 +1894,15 @@ export default function DosenRiwayat() {
       return acc;
     }
 
-    // Untuk Praktikum, realisasi hanya dihitung bila status_konfirmasi = "bisa"
-    if (jenis === "praktikum" && jadwal.status_konfirmasi !== "bisa") {
-      return acc;
+    // Untuk Praktikum, realisasi hanya dihitung bila absensi_hadir = true dan penilaian_submitted = true
+    // (Dosen harus hadir dan absensi dosen sudah disubmit)
+    if (jenis === "praktikum") {
+      // Handle boolean dan integer (0/1) dari backend
+      const submitted = toBoolean(jadwal.penilaian_submitted);
+      const hadir = toBoolean(jadwal.absensi_hadir);
+      if (!submitted || !hadir) {
+        return acc;
+      }
     }
 
     // Untuk CSR, realisasi hanya dihitung bila penilaian_submitted = true (mengikuti pola PBL/Jurnal)
@@ -2512,6 +2568,18 @@ export default function DosenRiwayat() {
                                 Status Absensi
                               </th>
                             )}
+                            {jenis === "praktikum" && (
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Hadir
+                              </th>
+                            )}
+                            {(jenis === "praktikum" ||
+                              jenis === "seminar_pleno" ||
+                              jenis === "persamaan_persepsi") && (
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                Catatan
+                              </th>
+                            )}
                             <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                               Detail
                             </th>
@@ -2650,6 +2718,43 @@ export default function DosenRiwayat() {
                                       ? "Tidak Hadir"
                                       : "Menunggu"}
                                   </span>
+                                </td>
+                              )}
+                              {jenis === "praktikum" && (
+                                <td className="px-6 py-4 whitespace-nowrap text-gray-900 dark:text-white/90">
+                                  <span
+                                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                      jadwal.absensi_status === "hadir"
+                                        ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-700"
+                                        : jadwal.absensi_status === "tidak_hadir"
+                                        ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-700"
+                                        : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700"
+                                    }`}
+                                  >
+                                    {jadwal.absensi_status === "hadir"
+                                      ? "Hadir"
+                                      : jadwal.absensi_status === "tidak_hadir"
+                                      ? "Tidak Hadir"
+                                      : "Menunggu"}
+                                  </span>
+                                </td>
+                              )}
+                              {(jenis === "praktikum" ||
+                                jenis === "seminar_pleno" ||
+                                jenis === "persamaan_persepsi") && (
+                                <td className="px-6 py-4 text-gray-900 dark:text-white/90">
+                                  {jadwal.absensi_catatan ? (
+                                    <div
+                                      className="text-xs max-w-xs truncate"
+                                      title={jadwal.absensi_catatan}
+                                    >
+                                      {jadwal.absensi_catatan}
+                                    </div>
+                                  ) : (
+                                    <div className="text-xs text-gray-400">
+                                      -
+                                    </div>
+                                  )}
                                 </td>
                               )}
                               <td className="px-6 py-4 min-w-[300px] text-gray-900 dark:text-white/90">

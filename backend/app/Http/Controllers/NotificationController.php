@@ -2589,67 +2589,119 @@ class NotificationController extends Controller
         $jadwalNonBlokNonCSR = $query->get();
 
         foreach ($jadwalNonBlokNonCSR as $jadwal) {
+            // Kumpulkan semua dosen yang perlu dikirimi reminder
+            $dosenIds = [];
+
+            // Dosen utama (dosen_id dan dosen_ids)
             if ($jadwal->dosen_id) {
-                $dosen = $jadwal->dosen;
-                if ($dosen) {
-                    // Check if dosen has valid email
-                    $hasValidEmail = !empty($dosen->email) && filter_var($dosen->email, FILTER_VALIDATE_EMAIL);
+                $dosenIds[] = $jadwal->dosen_id;
+            }
 
-                    // Check if dosen has valid WhatsApp phone (verification)
-                    $hasValidWhatsApp = !empty($dosen->whatsapp_phone) && preg_match('/^62\d+$/', $dosen->whatsapp_phone);
-
-                    // Create reminder notification based on type
-                    if ($reminderType === 'unconfirmed') {
-                        $title = 'Pengingat: Konfirmasi Ketersediaan Non Blok Non CSR';
-                        $message = "Pengingat: Silakan konfirmasi ketersediaan Anda untuk jadwal Non Blok Non CSR {$jadwal->mataKuliah->nama} pada tanggal " .
-                            date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
-                            str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
-                            " di ruangan {$jadwal->ruangan->nama}.";
-                    } else { // upcoming
-                        $title = 'Pengingat: Persiapan Mengajar Non Blok Non CSR';
-                        $message = "Pengingat: Anda memiliki jadwal Non Blok Non CSR {$jadwal->mataKuliah->nama} pada tanggal " .
-                            date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
-                            str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
-                            " di ruangan {$jadwal->ruangan->nama}. Silakan persiapkan diri untuk mengajar.";
-                    }
-
-                    Notification::create([
-                        'user_id' => $dosen->id,
-                        'title' => $title,
-                        'message' => $message,
-                        'type' => 'warning',
-                        'is_read' => false,
-                        'data' => [
-                            'jadwal_id' => $jadwal->id,
-                            'jadwal_type' => 'non_blok_non_csr',
-                            'mata_kuliah' => $jadwal->mataKuliah->nama,
-                            'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
-                            'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
-                            'ruangan' => $jadwal->ruangan->nama,
-                            'reminder' => true,
-                            'reminder_type' => $reminderType
-                        ]
-                    ]);
-
-                    // Send email reminder if dosen has valid email
-                    if ($hasValidEmail) {
-                        $this->sendEmailReminderConsistent($dosen, 'Non Blok Non CSR', $jadwal, $reminderType);
-                    }
-
-                    // Prepare WhatsApp message if dosen has valid WhatsApp phone
-                    if ($hasValidWhatsApp) {
-                        // Send text message (both unconfirmed and upcoming use same approach)
-                        $whatsappMessage = $this->buildWhatsAppMessageContent($dosen, 'Non Blok Non CSR', $jadwal, $reminderType);
-                        $whatsappMessages[] = [
-                            'phone' => $dosen->whatsapp_phone,
-                            'message' => $whatsappMessage,
-                            'isGroup' => 'false',
-                            'ref_id' => "reminder_non_blok_non_csr_{$jadwal->id}_{$dosen->id}_{$reminderType}"
-                        ];
-                    }
-
-                    $reminderCount++;
+            // Untuk seminar_proposal dan sidang_skripsi: tambahkan pembimbing, komentator, penguji
+            if ($jadwal->jenis_baris === 'seminar_proposal' || $jadwal->jenis_baris === 'sidang_skripsi') {
+                // Tambahkan pembimbing
+                if ($jadwal->pembimbing_id) {
+                    $dosenIds[] = $jadwal->pembimbing_id;
                 }
+
+                // Untuk seminar_proposal: tambahkan komentator
+                if ($jadwal->jenis_baris === 'seminar_proposal' && $jadwal->komentator_ids && is_array($jadwal->komentator_ids)) {
+                    $dosenIds = array_merge($dosenIds, $jadwal->komentator_ids);
+                }
+
+                // Untuk sidang_skripsi: tambahkan penguji
+                if ($jadwal->jenis_baris === 'sidang_skripsi' && $jadwal->penguji_ids && is_array($jadwal->penguji_ids)) {
+                    $dosenIds = array_merge($dosenIds, $jadwal->penguji_ids);
+                }
+            }
+
+            $dosenIds = array_unique($dosenIds);
+
+            // Load semua dosen dalam satu query
+            $dosenList = \App\Models\User::whereIn('id', $dosenIds)->get()->keyBy('id');
+
+            foreach ($dosenIds as $dosenId) {
+                $dosen = $dosenList->get($dosenId);
+                if (!$dosen) continue;
+                
+                // Check if dosen has valid email
+                $hasValidEmail = !empty($dosen->email) && filter_var($dosen->email, FILTER_VALIDATE_EMAIL);
+
+                // Check if dosen has valid WhatsApp phone (verification)
+                $hasValidWhatsApp = !empty($dosen->whatsapp_phone) && preg_match('/^62\d+$/', $dosen->whatsapp_phone);
+
+                // Tentukan jenis jadwal untuk pesan
+                $jenisJadwalLabel = 'Non Blok Non CSR';
+                if ($jadwal->jenis_baris === 'seminar_proposal') {
+                    $jenisJadwalLabel = 'Seminar Proposal';
+                } elseif ($jadwal->jenis_baris === 'sidang_skripsi') {
+                    $jenisJadwalLabel = 'Sidang Skripsi';
+                } elseif ($jadwal->jenis_baris === 'agenda') {
+                    $jenisJadwalLabel = 'Agenda Khusus';
+                } elseif ($jadwal->jenis_baris === 'materi') {
+                    $jenisJadwalLabel = 'Materi Kuliah';
+                }
+
+                // Handle ruangan (bisa online atau offline)
+                $ruanganNama = 'Online';
+                $ruanganInfo = 'secara online';
+                if ($jadwal->use_ruangan && $jadwal->ruangan) {
+                    $ruanganNama = $jadwal->ruangan->nama;
+                    $ruanganInfo = "di ruangan {$ruanganNama}";
+                }
+
+                // Create reminder notification based on type
+                if ($reminderType === 'unconfirmed') {
+                    $title = "Pengingat: Konfirmasi Ketersediaan {$jenisJadwalLabel}";
+                    $message = "Pengingat: Silakan konfirmasi ketersediaan Anda untuk jadwal {$jenisJadwalLabel} {$jadwal->mataKuliah->nama} pada tanggal " .
+                        date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                        str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                        " {$ruanganInfo}.";
+                } else { // upcoming
+                    $title = "Pengingat: Persiapan {$jenisJadwalLabel}";
+                    $message = "Pengingat: Anda memiliki jadwal {$jenisJadwalLabel} {$jadwal->mataKuliah->nama} pada tanggal " .
+                        date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                        str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                        " {$ruanganInfo}. Silakan persiapkan diri.";
+                }
+
+                Notification::create([
+                    'user_id' => $dosen->id,
+                    'title' => $title,
+                    'message' => $message,
+                    'type' => 'warning',
+                    'is_read' => false,
+                    'data' => [
+                        'jadwal_id' => $jadwal->id,
+                        'jadwal_type' => 'non_blok_non_csr',
+                        'mata_kuliah' => $jadwal->mataKuliah->nama,
+                        'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                        'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                        'ruangan' => $ruanganNama,
+                        'ruangan_info' => $ruanganInfo,
+                        'reminder' => true,
+                        'reminder_type' => $reminderType
+                    ]
+                ]);
+
+                // Send email reminder if dosen has valid email
+                if ($hasValidEmail) {
+                    $this->sendEmailReminderConsistent($dosen, $jenisJadwalLabel, $jadwal, $reminderType);
+                }
+
+                // Prepare WhatsApp message if dosen has valid WhatsApp phone
+                if ($hasValidWhatsApp) {
+                    // Send text message (both unconfirmed and upcoming use same approach)
+                    $whatsappMessage = $this->buildWhatsAppMessageContent($dosen, $jenisJadwalLabel, $jadwal, $reminderType);
+                    $whatsappMessages[] = [
+                        'phone' => $dosen->whatsapp_phone,
+                        'message' => $whatsappMessage,
+                        'isGroup' => 'false',
+                        'ref_id' => "reminder_non_blok_non_csr_{$jadwal->id}_{$dosen->id}_{$reminderType}"
+                    ];
+                }
+
+                $reminderCount++;
             }
         }
 
@@ -3524,12 +3576,12 @@ class NotificationController extends Controller
 
         // Send email reminder if dosen has valid email
         if ($hasValidEmail) {
-            $this->sendEmailReminderConsistent($dosen, 'Non Blok Non CSR', $jadwal, $reminderType);
+            $this->sendEmailReminderConsistent($dosen, $jenisJadwalLabel, $jadwal, $reminderType);
         }
 
         // Prepare WhatsApp message if dosen has valid WhatsApp phone
         if ($hasValidWhatsApp) {
-            $whatsappMessage = $this->buildWhatsAppMessageContent($dosen, 'Non Blok Non CSR', $jadwal, $reminderType);
+            $whatsappMessage = $this->buildWhatsAppMessageContent($dosen, $jenisJadwalLabel, $jadwal, $reminderType);
             $whatsappMessages[] = [
                 'phone' => $dosen->whatsapp_phone,
                 'message' => $whatsappMessage,

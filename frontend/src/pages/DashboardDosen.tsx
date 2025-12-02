@@ -20,6 +20,7 @@ import {
   faInfoCircle,
   faChevronDown,
   faChevronUp,
+  faChevronRight,
   faEye,
   faExclamationTriangle,
   faComments,
@@ -123,6 +124,12 @@ interface JadwalPraktikum {
   dosen: Array<{
     id: number;
     name: string;
+    status_konfirmasi?:
+      | "belum_konfirmasi"
+      | "bisa"
+      | "tidak_bisa"
+      | "waiting_reschedule";
+    alasan_konfirmasi?: string;
   }>;
   ruangan: {
     id: number;
@@ -537,6 +544,22 @@ export default function DashboardDosen() {
   const [jadwalCSR, setJadwalCSR] = useState<any[]>([]);
   const [jadwalNonBlokNonCSR, setJadwalNonBlokNonCSR] = useState<any[]>([]);
   const [todaySchedule, setTodaySchedule] = useState<TodayScheduleItem[]>([]);
+  const [praktikumKoordinator, setPraktikumKoordinator] = useState<
+    Array<{
+      id: number;
+      mata_kuliah_kode: string;
+      mata_kuliah_nama: string;
+      tanggal: string;
+      jam_mulai: string;
+      jam_selesai: string;
+      ruangan: string;
+      kelas_praktikum: string;
+      materi: string;
+      topik?: string;
+      koordinator_signature: string | null;
+      action_url: string;
+    }>
+  >([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeSemester, setActiveSemester] = useState<
@@ -557,6 +580,9 @@ export default function DashboardDosen() {
   const [loadingBlok, setLoadingBlok] = useState(true);
   const [isBlokMinimized] = useState(false);
   const [allDosenList, setAllDosenList] = useState<any[]>([]);
+  const [expandedPraktikumRows, setExpandedPraktikumRows] = useState<
+    Set<number>
+  >(new Set());
 
   // Reschedule states
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
@@ -590,13 +616,6 @@ export default function DashboardDosen() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-
-  // State untuk modal mahasiswa
-  const [showMahasiswaModal, setShowMahasiswaModal] = useState(false);
-  const [selectedMahasiswaList, setSelectedMahasiswaList] = useState<any[]>([]);
-  const [mahasiswaSearchQuery, setMahasiswaSearchQuery] = useState("");
-  const [mahasiswaModalPage, setMahasiswaModalPage] = useState(1);
-  const [mahasiswaModalPageSize, setMahasiswaModalPageSize] = useState(10);
 
   // Check if user is dosen
   useEffect(() => {
@@ -797,7 +816,9 @@ export default function DashboardDosen() {
         api.get(`/jadwal-kuliah-besar/dosen/${userData.id}${semesterParams}`),
         api.get(`/jadwal-praktikum/dosen/${userData.id}${semesterParams}`),
         api.get(`/jadwal-jurnal-reading/dosen/${userData.id}${semesterParams}`),
-        api.get(`/jadwal-persamaan-persepsi/dosen/${userData.id}${semesterParams}`),
+        api.get(
+          `/jadwal-persamaan-persepsi/dosen/${userData.id}${semesterParams}`
+        ),
         api.get(`/jadwal-seminar-pleno/dosen/${userData.id}${semesterParams}`),
         api.get(`/notifications/dosen/${userData.id}`),
         api.get(`/dosen/${userData.id}/today-schedule`),
@@ -915,13 +936,69 @@ export default function DashboardDosen() {
         console.warn("Failed to fetch dosen list:", error);
         setAllDosenList([]);
       }
+
+      // Fetch praktikum yang memerlukan tanda tangan koordinator
+      try {
+        const semesterParamsForKoordinator =
+          activeSemester !== "all"
+            ? `?semester=${activeSemester}&semester_type=${activeSemesterType}`
+            : `?semester_type=${activeSemesterType}`;
+        const praktikumKoordinatorRes = await api.get(
+          `/praktikum/koordinator-pending-signature/${userData.id}${semesterParamsForKoordinator}`
+        );
+        if (praktikumKoordinatorRes.data?.data) {
+          setPraktikumKoordinator(praktikumKoordinatorRes.data.data);
+        } else {
+          setPraktikumKoordinator([]);
+        }
+      } catch (err) {
+        // Jika endpoint belum ada atau error, set empty array
+        console.error("Error fetching koordinator praktikum:", err);
+        setPraktikumKoordinator([]);
+      }
     } catch (error: any) {
       console.error("Gagal memuat data dashboard:", error);
     } finally {
       setLoading(false);
       setLoadingBlok(false);
     }
-  }, [semesterParams, activeSemesterType]);
+  }, [activeSemester, activeSemesterType]);
+
+  // Listen to koordinator signature updates
+  useEffect(() => {
+    const handleKoordinatorSignatureUpdate = async () => {
+      const userData = getUser();
+      if (!userData) return;
+
+      const semesterParams =
+        activeSemester !== "all"
+          ? `?semester=${activeSemester}&semester_type=${activeSemesterType}`
+          : `?semester_type=${activeSemesterType}`;
+
+      try {
+        const praktikumKoordinatorRes = await api.get(
+          `/praktikum/koordinator-pending-signature/${userData.id}${semesterParams}`
+        );
+        if (praktikumKoordinatorRes.data?.data) {
+          setPraktikumKoordinator(praktikumKoordinatorRes.data.data);
+        }
+      } catch (err) {
+        console.error("Error refreshing koordinator praktikum:", err);
+      }
+    };
+
+    window.addEventListener(
+      "koordinator-signature-updated",
+      handleKoordinatorSignatureUpdate
+    );
+
+    return () => {
+      window.removeEventListener(
+        "koordinator-signature-updated",
+        handleKoordinatorSignatureUpdate
+      );
+    };
+  }, [activeSemester, activeSemesterType]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -1009,11 +1086,22 @@ export default function DashboardDosen() {
       } else if (selectedJadwal.file_jurnal !== undefined) {
         endpoint = `/jadwal-jurnal-reading/${selectedJadwal.id}/konfirmasi`;
         payload.dosen_id = getUser()?.id;
-      } else if (selectedJadwal.kelompok_besar_id !== undefined || selectedJadwal.kelompok_besar) {
-        // Seminar Pleno memiliki kelompok_besar_id atau kelompok_besar
+      } else if (
+        selectedJadwal.koordinator_ids !== undefined &&
+        (selectedJadwal.kelompok_besar_id !== undefined ||
+          selectedJadwal.kelompok_besar)
+      ) {
+        // Seminar Pleno memiliki koordinator_ids DAN kelompok_besar_id/kelompok_besar
         endpoint = `/jadwal-seminar-pleno/${selectedJadwal.id}/konfirmasi`;
         payload.dosen_id = getUser()?.id;
-      } else if (selectedJadwal.koordinator_ids !== undefined && !selectedJadwal.modul && !selectedJadwal.kelas_praktikum && !selectedJadwal.file_jurnal && !selectedJadwal.jenis_csr && !selectedJadwal.jenis_baris) {
+      } else if (
+        selectedJadwal.koordinator_ids !== undefined &&
+        !selectedJadwal.modul &&
+        !selectedJadwal.kelas_praktikum &&
+        !selectedJadwal.file_jurnal &&
+        !selectedJadwal.jenis_csr &&
+        !selectedJadwal.jenis_baris
+      ) {
         // Persamaan Persepsi memiliki koordinator_ids tapi tidak memiliki kelompok_besar_id
         endpoint = `/jadwal-persamaan-persepsi/${selectedJadwal.id}/konfirmasi`;
         payload.dosen_id = getUser()?.id;
@@ -1023,7 +1111,15 @@ export default function DashboardDosen() {
       } else if (selectedJadwal.jenis_baris !== undefined) {
         endpoint = `/jadwal-non-blok-non-csr/${selectedJadwal.id}/konfirmasi`;
         payload.dosen_id = getUser()?.id;
+      } else if (
+        selectedJadwal.kelompok_besar_id !== undefined ||
+        selectedJadwal.kelompok_besar
+      ) {
+        // Jadwal Kuliah Besar memiliki kelompok_besar_id/kelompok_besar tapi tidak memiliki koordinator_ids
+        endpoint = `/jadwal-kuliah-besar/${selectedJadwal.id}/konfirmasi`;
+        payload.dosen_id = getUser()?.id;
       } else {
+        // Default: Jadwal Kuliah Besar
         endpoint = `/jadwal-kuliah-besar/${selectedJadwal.id}/konfirmasi`;
         payload.dosen_id = getUser()?.id;
       }
@@ -1048,23 +1144,40 @@ export default function DashboardDosen() {
       };
 
       // Determine endpoint based on jadwal type
+      // Praktikum tidak memiliki reschedule
       if (selectedJadwal.modul) {
         endpoint = `/jadwal-pbl/${selectedJadwal.id}/reschedule`;
-      } else if (selectedJadwal.kelas_praktikum !== undefined) {
-        endpoint = `/jadwal-praktikum/${selectedJadwal.id}/reschedule`;
       } else if (selectedJadwal.file_jurnal !== undefined) {
         endpoint = `/jadwal-jurnal-reading/${selectedJadwal.id}/reschedule`;
-      } else if (selectedJadwal.kelompok_besar_id !== undefined || selectedJadwal.kelompok_besar) {
-        // Seminar Pleno memiliki kelompok_besar_id atau kelompok_besar
+      } else if (
+        selectedJadwal.koordinator_ids !== undefined &&
+        (selectedJadwal.kelompok_besar_id !== undefined ||
+          selectedJadwal.kelompok_besar)
+      ) {
+        // Seminar Pleno memiliki koordinator_ids DAN kelompok_besar_id/kelompok_besar
         endpoint = `/jadwal-seminar-pleno/${selectedJadwal.id}/reschedule`;
-      } else if (selectedJadwal.koordinator_ids !== undefined && !selectedJadwal.modul && !selectedJadwal.kelas_praktikum && !selectedJadwal.file_jurnal && !selectedJadwal.jenis_csr && !selectedJadwal.jenis_baris) {
+      } else if (
+        selectedJadwal.koordinator_ids !== undefined &&
+        !selectedJadwal.modul &&
+        !selectedJadwal.kelas_praktikum &&
+        !selectedJadwal.file_jurnal &&
+        !selectedJadwal.jenis_csr &&
+        !selectedJadwal.jenis_baris
+      ) {
         // Persamaan Persepsi memiliki koordinator_ids tapi tidak memiliki kelompok_besar_id
         endpoint = `/jadwal-persamaan-persepsi/${selectedJadwal.id}/reschedule`;
       } else if (selectedJadwal.jenis_csr !== undefined) {
         endpoint = `/jadwal-csr/${selectedJadwal.id}/reschedule`;
       } else if (selectedJadwal.jenis_baris !== undefined) {
         endpoint = `/jadwal-non-blok-non-csr/${selectedJadwal.id}/reschedule`;
+      } else if (
+        selectedJadwal.kelompok_besar_id !== undefined ||
+        selectedJadwal.kelompok_besar
+      ) {
+        // Jadwal Kuliah Besar memiliki kelompok_besar_id/kelompok_besar tapi tidak memiliki koordinator_ids
+        endpoint = `/jadwal-kuliah-besar/${selectedJadwal.id}/reschedule`;
       } else {
+        // Default: Jadwal Kuliah Besar
         endpoint = `/jadwal-kuliah-besar/${selectedJadwal.id}/reschedule`;
       }
 
@@ -1160,14 +1273,20 @@ export default function DashboardDosen() {
     }
 
     // Validasi Alamat (required)
-    if (!whatsAppData.whatsapp_address || !whatsAppData.whatsapp_address.trim()) {
+    if (
+      !whatsAppData.whatsapp_address ||
+      !whatsAppData.whatsapp_address.trim()
+    ) {
       setErrorMessage("Alamat wajib diisi.");
       setShowErrorModal(true);
       return;
     }
 
     // Validasi Tanggal Lahir (required)
-    if (!whatsAppData.whatsapp_birth_day || !whatsAppData.whatsapp_birth_day.trim()) {
+    if (
+      !whatsAppData.whatsapp_birth_day ||
+      !whatsAppData.whatsapp_birth_day.trim()
+    ) {
       setErrorMessage("Tanggal Lahir wajib diisi.");
       setShowErrorModal(true);
       return;
@@ -1237,8 +1356,8 @@ export default function DashboardDosen() {
           // Jika wablas_synced false, berarti sync gagal dan data tidak tersimpan
           // Tampilkan error message
           setErrorMessage(
-            response.data.message || 
-            "Gagal menyinkronkan data ke Wablas. Data tidak tersimpan. Silakan coba lagi."
+            response.data.message ||
+              "Gagal menyinkronkan data ke Wablas. Data tidak tersimpan. Silakan coba lagi."
           );
           setShowErrorModal(true);
         }
@@ -1301,7 +1420,7 @@ export default function DashboardDosen() {
 
       setErrorMessage(errorMsg);
       setShowErrorModal(true);
-      
+
       // Jika sync gagal, refresh data untuk mendapatkan data terbaru (karena rollback)
       if (error.response?.status === 422 || error.response?.status === 500) {
         window.dispatchEvent(new Event("user-updated"));
@@ -1312,40 +1431,49 @@ export default function DashboardDosen() {
     }
   };
 
-  const getStatusBadge = (status: string, statusReschedule?: string) => {
+  const getStatusBadge = (
+    status: string,
+    statusReschedule?: string,
+    jadwalType?: string
+  ) => {
     switch (status) {
       case "bisa":
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-700">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-700 whitespace-nowrap">
             <FontAwesomeIcon icon={faCheckCircle} className="w-3 h-3 mr-1" />
             Bisa
           </span>
         );
       case "tidak_bisa":
+        // Untuk praktikum, tidak ada "Diganti Dosen" karena praktikum tidak ada reschedule
+        const label =
+          jadwalType === "praktikum"
+            ? "Tidak Bisa Mengajar"
+            : "Tidak Bisa (Diganti Dosen)";
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-700">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-700 whitespace-nowrap">
             <FontAwesomeIcon icon={faTimesCircle} className="w-3 h-3 mr-1" />
-            Tidak Bisa (Diganti Dosen)
+            {label}
           </span>
         );
       case "waiting_reschedule":
         if (statusReschedule === "approved") {
           return (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-700">
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-700 whitespace-nowrap">
               <FontAwesomeIcon icon={faCheckCircle} className="w-3 h-3 mr-1" />
               Reschedule Disetujui
             </span>
           );
         } else if (statusReschedule === "rejected") {
           return (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-700">
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-700 whitespace-nowrap">
               <FontAwesomeIcon icon={faTimesCircle} className="w-3 h-3 mr-1" />
               Reschedule Ditolak
             </span>
           );
         } else {
           return (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700">
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700 whitespace-nowrap">
               <FontAwesomeIcon icon={faClock} className="w-3 h-3 mr-1" />
               Menunggu Reschedule
             </span>
@@ -1354,20 +1482,29 @@ export default function DashboardDosen() {
       case "belum_konfirmasi":
         if (statusReschedule === "approved") {
           return (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-700">
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-700 whitespace-nowrap">
               <FontAwesomeIcon icon={faCheckCircle} className="w-3 h-3 mr-1" />
               Reschedule Disetujui - Konfirmasi Ulang
             </span>
           );
         } else if (statusReschedule === "rejected") {
           return (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-700">
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-700 whitespace-nowrap">
               <FontAwesomeIcon icon={faTimesCircle} className="w-3 h-3 mr-1" />
               Reschedule Ditolak
             </span>
           );
         } else {
-          return null; // Tidak menampilkan badge untuk "belum_konfirmasi" biasa
+          // Untuk praktikum, tampilkan badge "Menunggu Dosen" untuk belum_konfirmasi
+          if (jadwalType === "praktikum") {
+            return (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700 whitespace-nowrap">
+                <FontAwesomeIcon icon={faClock} className="w-3 h-3 mr-1" />
+                Menunggu Dosen
+              </span>
+            );
+          }
+          return null; // Tidak menampilkan badge untuk "belum_konfirmasi" biasa (selain praktikum)
         }
       default:
         return null; // Tidak menampilkan badge untuk status lain
@@ -1393,6 +1530,61 @@ export default function DashboardDosen() {
   // Helper function untuk mendapatkan nama dosen pengampu
   // - Untuk dosen baru (is_active_dosen = true): tampilkan dosen baru itu sendiri
   // - Untuk dosen lama (is_in_history = true): tampilkan dosen_ids[0] (dosen awal)
+  // Helper function untuk mendapatkan array nama dosen pengampu (untuk praktikum)
+  const getPengampuNamesArray = (item: any): string[] => {
+    try {
+      // Untuk praktikum, gunakan array dosen langsung seperti di DashboardMahasiswa.tsx
+      if (item.dosen && Array.isArray(item.dosen) && item.dosen.length > 0) {
+        // Filter out dosen with roles 'super_admin', 'tim_akademik', 'admin'
+        const filteredDosen = item.dosen.filter((d: any) => {
+          const dosen = allDosenList.find((dl) => dl.id === d.id);
+          return (
+            dosen &&
+            dosen.role !== "super_admin" &&
+            dosen.role !== "tim_akademik" &&
+            dosen.role !== "admin"
+          );
+        });
+        return filteredDosen
+          .map((d) => d.name)
+          .filter((name) => name && name.trim() !== "");
+      }
+    } catch (error) {
+      console.error("Error getting pengampu names array:", error);
+    }
+    return [];
+  };
+
+  // Helper function untuk mendapatkan array dosen dengan status konfirmasi (untuk praktikum)
+  const getPengampuWithStatus = (
+    item: any
+  ): Array<{ id: number; name: string; status_konfirmasi?: string }> => {
+    try {
+      if (item.dosen && Array.isArray(item.dosen) && item.dosen.length > 0) {
+        // Filter out dosen with roles 'super_admin', 'tim_akademik', 'admin'
+        const filteredDosen = item.dosen.filter((d: any) => {
+          const dosen = allDosenList.find((dl) => dl.id === d.id);
+          return (
+            dosen &&
+            dosen.role !== "super_admin" &&
+            dosen.role !== "tim_akademik" &&
+            dosen.role !== "admin"
+          );
+        });
+        return filteredDosen
+          .map((d: any) => ({
+            id: d.id,
+            name: d.name,
+            status_konfirmasi: d.status_konfirmasi || "belum_konfirmasi",
+          }))
+          .filter((d) => d.name && d.name.trim() !== "");
+      }
+    } catch (error) {
+      console.error("Error getting pengampu with status:", error);
+    }
+    return [];
+  };
+
   const getPengampuName = (item: any, jadwalType: string): string => {
     try {
       const user = getUser();
@@ -1458,16 +1650,70 @@ export default function DashboardDosen() {
           }
         }
       } else if (jadwalType === "praktikum") {
-        if (item.dosen && Array.isArray(item.dosen) && item.dosen.length > 0) {
-          const firstDosen = item.dosen[0];
-          const dosen = allDosenList.find((d) => d.id === firstDosen.id);
+        // Untuk praktikum, cek apakah dosen aktif atau history
+        if (item.is_active_dosen && item.dosen_id) {
+          const activeDosen = allDosenList.find(
+            (d) => d.id === Number(item.dosen_id)
+          );
           if (
-            dosen &&
-            dosen.role !== "super_admin" &&
-            dosen.role !== "tim_akademik" &&
-            dosen.role !== "admin"
+            activeDosen &&
+            activeDosen.role !== "super_admin" &&
+            activeDosen.role !== "tim_akademik" &&
+            activeDosen.role !== "admin"
           ) {
-            return firstDosen.name;
+            return activeDosen.name;
+          }
+        }
+
+        // Jika dosen history atau tidak ada dosen_id, gunakan dosen_ids[0]
+        if (item.is_in_history || !item.is_active_dosen) {
+          let dosenIds: number[] = [];
+          if (item.dosen_ids) {
+            dosenIds = Array.isArray(item.dosen_ids)
+              ? item.dosen_ids
+              : typeof item.dosen_ids === "string"
+              ? JSON.parse(item.dosen_ids || "[]")
+              : [];
+          }
+
+          if (dosenIds.length > 0) {
+            const originalDosenId = dosenIds[0];
+            const originalDosen = allDosenList.find(
+              (d) => d.id === Number(originalDosenId)
+            );
+            if (
+              originalDosen &&
+              originalDosen.role !== "super_admin" &&
+              originalDosen.role !== "tim_akademik" &&
+              originalDosen.role !== "admin"
+            ) {
+              return originalDosen.name;
+            }
+          }
+        }
+
+        // Fallback: gunakan array dosen jika ada (prioritas pertama)
+        if (item.dosen && Array.isArray(item.dosen) && item.dosen.length > 0) {
+          // Jika allDosenList sudah ter-load, filter dosen yang bukan admin/tim akademik
+          if (allDosenList.length > 0) {
+            const validDosen = item.dosen.find((d: any) => {
+              const dosen = allDosenList.find((dl) => dl.id === d.id);
+              return (
+                dosen &&
+                dosen.role !== "super_admin" &&
+                dosen.role !== "tim_akademik" &&
+                dosen.role !== "admin"
+              );
+            });
+            if (validDosen) {
+              return validDosen.name;
+            }
+          } else {
+            // Jika allDosenList belum ter-load, gunakan dosen pertama dari array
+            const firstDosen = item.dosen[0];
+            if (firstDosen && firstDosen.name) {
+              return firstDosen.name;
+            }
           }
         }
       } else if (item.pengampu) {
@@ -1620,7 +1866,7 @@ export default function DashboardDosen() {
                   {headers.map((header, index) => (
                     <th
                       key={index}
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap"
                     >
                       {header}
                     </th>
@@ -1653,13 +1899,13 @@ export default function DashboardDosen() {
                       key={index}
                       className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
                     >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white font-medium">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white font-medium align-top">
                         {index + 1}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
                         {item.tanggal}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
                         {jadwalType === "kuliah_besar" ||
                         jadwalType === "praktikum" ||
                         jadwalType === "agenda_khusus" ||
@@ -1689,25 +1935,34 @@ export default function DashboardDosen() {
                         </>
                       )}
                       {jadwalType === "praktikum" && (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
                           {item.kelas_praktikum}
                         </td>
                       )}
                       {jadwalType !== "pbl" && (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {                        jadwalType === "kuliah_besar" ||
-                        jadwalType === "praktikum" ||
-                        jadwalType === "agenda_khusus" ||
-                        jadwalType === "jurnal" ||
-                        jadwalType === "persamaan_persepsi" ||
-                        jadwalType === "seminar_pleno" ||
-                        jadwalType === "csr" ||
-                        jadwalType === "non_blok_non_csr"
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
+                          {jadwalType === "kuliah_besar" ||
+                          jadwalType === "praktikum" ||
+                          jadwalType === "agenda_khusus" ||
+                          jadwalType === "jurnal" ||
+                          jadwalType === "persamaan_persepsi" ||
+                          jadwalType === "seminar_pleno" ||
+                          jadwalType === "csr" ||
+                          jadwalType === "non_blok_non_csr"
                             ? `${item.jumlah_sesi || 1} x 50 menit`
                             : `${item.durasi} menit`}
                         </td>
                       )}
-                      {jadwalType === "jurnal" ? (
+                      {jadwalType === "praktikum" ? (
+                        <>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
+                            {item.materi || "N/A"}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
+                            {item.topik || "N/A"}
+                          </td>
+                        </>
+                      ) : jadwalType === "jurnal" ? (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {item.topik || "N/A"}
                         </td>
@@ -1721,10 +1976,12 @@ export default function DashboardDosen() {
                               // Cek apakah ada mata_kuliah object dengan semester dan blok
                               const mataKuliah = item.mata_kuliah;
                               const semester = mataKuliah?.semester || "";
-                              const blok = mataKuliah?.blok !== null && mataKuliah?.blok !== undefined 
-                                ? `Blok ${mataKuliah.blok}` 
-                                : "";
-                              
+                              const blok =
+                                mataKuliah?.blok !== null &&
+                                mataKuliah?.blok !== undefined
+                                  ? `Blok ${mataKuliah.blok}`
+                                  : "";
+
                               // Gabungkan semester dan blok
                               const parts = [];
                               if (semester) {
@@ -1733,8 +1990,10 @@ export default function DashboardDosen() {
                               if (blok) {
                                 parts.push(blok);
                               }
-                              
-                              return parts.length > 0 ? parts.join(" / ") : "N/A";
+
+                              return parts.length > 0
+                                ? parts.join(" / ")
+                                : "N/A";
                             })()}
                           </td>
                         </>
@@ -1746,13 +2005,10 @@ export default function DashboardDosen() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {item.topik || "N/A"}
                         </td>
-                      ) : jadwalType === "non_blok_non_csr" && (item.jenis_baris === "materi" || item.jenis_baris === "agenda") ? (
+                      ) : jadwalType === "non_blok_non_csr" ? (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {item.agenda || item.materi || "N/A"}
                         </td>
-                      ) : jadwalType === "non_blok_non_csr" && (item.jenis_baris === "seminar_proposal" || item.jenis_baris === "sidang_skripsi") ? (
-                        // Skip kolom materi/agenda untuk Seminar Proposal dan Sidang Skripsi
-                        null
                       ) : (
                         jadwalType !== "pbl" && (
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
@@ -1781,116 +2037,6 @@ export default function DashboardDosen() {
                         </>
                       )}
                       {jadwalType === "non_blok_non_csr" && (
-                        <>
-                          {/* Untuk Seminar Proposal dan Sidang Skripsi, tampilkan kolom khusus */}
-                          {item.jenis_baris === "seminar_proposal" ? (
-                            <>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                                {item.pembimbing?.name || "-"}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                                {(() => {
-                                  const komentatorIds = Array.isArray(item.komentator_ids) 
-                                    ? item.komentator_ids 
-                                    : item.komentator_ids 
-                                    ? JSON.parse(item.komentator_ids) 
-                                    : [];
-                                  if (komentatorIds.length === 0) return "-";
-                                  // Coba ambil nama komentator dari allDosenList jika tersedia
-                                  const komentatorNames = komentatorIds
-                                    .map((id: number) => {
-                                      const dosen = allDosenList.find((d: any) => d.id === id);
-                                      return dosen ? dosen.name : null;
-                                    })
-                                    .filter(Boolean);
-                                  if (komentatorNames.length > 0) {
-                                    return komentatorNames.length > 2 
-                                      ? `${komentatorNames.slice(0, 2).join(", ")} +${komentatorNames.length - 2}`
-                                      : komentatorNames.join(", ");
-                                  }
-                                  return `${komentatorIds.length} komentator`;
-                                })()}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                                {(() => {
-                                  const mahasiswaNims = Array.isArray(item.mahasiswa_nims) 
-                                    ? item.mahasiswa_nims 
-                                    : item.mahasiswa_nims 
-                                    ? JSON.parse(item.mahasiswa_nims) 
-                                    : [];
-                                  if (mahasiswaNims.length === 0) return "-";
-                                  return (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedMahasiswaList(item.mahasiswa_list || mahasiswaNims.map((nim: string) => ({ nim, name: nim })));
-                                        setMahasiswaSearchQuery('');
-                                        setMahasiswaModalPage(1);
-                                        setShowMahasiswaModal(true);
-                                      }}
-                                      className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-700 hover:bg-green-200 dark:hover:bg-green-800 transition cursor-pointer"
-                                    >
-                                      {mahasiswaNims.length} mahasiswa
-                                    </button>
-                                  );
-                                })()}
-                              </td>
-                            </>
-                          ) : item.jenis_baris === "sidang_skripsi" ? (
-                            <>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                                {item.pembimbing?.name || "-"}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                                {(() => {
-                                  const pengujiIds = Array.isArray(item.penguji_ids) 
-                                    ? item.penguji_ids 
-                                    : item.penguji_ids 
-                                    ? JSON.parse(item.penguji_ids) 
-                                    : [];
-                                  if (pengujiIds.length === 0) return "-";
-                                  // Coba ambil nama penguji dari allDosenList jika tersedia
-                                  const pengujiNames = pengujiIds
-                                    .map((id: number) => {
-                                      const dosen = allDosenList.find((d: any) => d.id === id);
-                                      return dosen ? dosen.name : null;
-                                    })
-                                    .filter(Boolean);
-                                  if (pengujiNames.length > 0) {
-                                    return pengujiNames.length > 2 
-                                      ? `${pengujiNames.slice(0, 2).join(", ")} +${pengujiNames.length - 2}`
-                                      : pengujiNames.join(", ");
-                                  }
-                                  return `${pengujiIds.length} penguji`;
-                                })()}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                                {(() => {
-                                  const mahasiswaNims = Array.isArray(item.mahasiswa_nims) 
-                                    ? item.mahasiswa_nims 
-                                    : item.mahasiswa_nims 
-                                    ? JSON.parse(item.mahasiswa_nims) 
-                                    : [];
-                                  if (mahasiswaNims.length === 0) return "-";
-                                  return (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedMahasiswaList(item.mahasiswa_list || mahasiswaNims.map((nim: string) => ({ nim, name: nim })));
-                                        setMahasiswaSearchQuery('');
-                                        setMahasiswaModalPage(1);
-                                        setShowMahasiswaModal(true);
-                                      }}
-                                      className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-700 hover:bg-green-200 dark:hover:bg-green-800 transition cursor-pointer"
-                                    >
-                                      {mahasiswaNims.length} mahasiswa
-                                    </button>
-                                  );
-                                })()}
-                              </td>
-                            </>
-                          ) : (
-                            // Untuk materi dan agenda, tampilkan seperti biasa
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           <span
                             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -1904,10 +2050,9 @@ export default function DashboardDosen() {
                               : "Agenda"}
                           </span>
                         </td>
-                          )}
-                        </>
                       )}
-                      {jadwalType === "persamaan_persepsi" || jadwalType === "seminar_pleno" ? (
+                      {jadwalType === "persamaan_persepsi" ||
+                      jadwalType === "seminar_pleno" ? (
                         <>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                             {item.koordinator_names || "-"}
@@ -1916,9 +2061,75 @@ export default function DashboardDosen() {
                             {item.pengampu_names || "-"}
                           </td>
                         </>
-                      ) : jadwalType === "non_blok_non_csr" && (item.jenis_baris === "seminar_proposal" || item.jenis_baris === "sidang_skripsi") ? (
-                        // Untuk Seminar Proposal dan Sidang Skripsi, skip kolom pengampu dan dosen pengganti
-                        null
+                      ) : jadwalType === "praktikum" ? (
+                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-white align-top">
+                          {(() => {
+                            const dosenNames = getPengampuNamesArray(item);
+                            const isExpanded = expandedPraktikumRows.has(
+                              item.id
+                            );
+                            const maxVisible = 3;
+
+                            if (dosenNames.length === 0) {
+                              return "N/A";
+                            }
+
+                            if (dosenNames.length <= maxVisible || isExpanded) {
+                              return (
+                                <span
+                                  className={
+                                    isExpanded ? "" : "whitespace-nowrap"
+                                  }
+                                >
+                                  {dosenNames.join(", ")}
+                                  {isExpanded &&
+                                    dosenNames.length > maxVisible && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const newSet = new Set(
+                                            expandedPraktikumRows
+                                          );
+                                          newSet.delete(item.id);
+                                          setExpandedPraktikumRows(newSet);
+                                        }}
+                                        className="ml-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs underline"
+                                      >
+                                        (sembunyikan)
+                                      </button>
+                                    )}
+                                </span>
+                              );
+                            }
+
+                            // Tampilkan 3 pertama + link "tampilkan semuanya"
+                            const visibleNames = dosenNames.slice(
+                              0,
+                              maxVisible
+                            );
+                            const remainingCount =
+                              dosenNames.length - maxVisible;
+
+                            return (
+                              <span className="whitespace-nowrap">
+                                {visibleNames.join(", ")}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const newSet = new Set(
+                                      expandedPraktikumRows
+                                    );
+                                    newSet.add(item.id);
+                                    setExpandedPraktikumRows(newSet);
+                                  }}
+                                  className="ml-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs underline"
+                                >
+                                  +{remainingCount} lainnya
+                                </button>
+                              </span>
+                            );
+                          })()}
+                        </td>
                       ) : (
                         <>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
@@ -1940,7 +2151,8 @@ export default function DashboardDosen() {
                         jadwalType !== "seminar_pleno" &&
                         jadwalType !== "csr" &&
                         jadwalType !== "non_blok_non_csr" &&
-                        jadwalType !== "kuliah_besar" && (
+                        jadwalType !== "kuliah_besar" &&
+                        jadwalType !== "praktikum" && (
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                             {item.topik}
                           </td>
@@ -1948,7 +2160,7 @@ export default function DashboardDosen() {
                       {(jadwalType === "kuliah_besar" ||
                         jadwalType === "jurnal" ||
                         jadwalType === "seminar_pleno" ||
-                        (jadwalType === "non_blok_non_csr" && (item.jenis_baris === "materi" || item.jenis_baris === "agenda"))) && (
+                        jadwalType === "non_blok_non_csr") && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {jadwalType === "kuliah_besar"
                             ? item.kelompok_besar?.semester
@@ -1977,41 +2189,29 @@ export default function DashboardDosen() {
                           {item.kelompok_kecil?.nama || "N/A"}
                         </td>
                       )}
-                      {/* Kolom Lokasi - hanya tampilkan jika bukan Seminar Proposal atau Sidang Skripsi */}
-                      {!(jadwalType === "non_blok_non_csr" && (item.jenis_baris === "seminar_proposal" || item.jenis_baris === "sidang_skripsi")) && (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {jadwalType === "persamaan_persepsi"
-                          ? (item.use_ruangan && item.ruangan?.nama) 
-                            ? item.ruangan.nama 
-                            : "Online"
-                          : jadwalType === "seminar_pleno"
-                          ? (item.use_ruangan && item.ruangan?.nama)
-                            ? item.ruangan.nama
-                            : "Online"
-                          : jadwalType === "kuliah_besar" ||
-                            jadwalType === "praktikum" ||
-                            jadwalType === "jurnal"
-                          ? item.ruangan?.nama || "N/A"
-                          : jadwalType === "pbl"
-                          ? item.ruangan || "N/A"
-                          : jadwalType === "csr" ||
-                            jadwalType === "non_blok_non_csr"
-                          ? item.ruangan?.nama || "N/A"
-                          : item.lokasi || item.ruangan}
-                      </td>
-                      )}
-                      {/* Kolom Ruangan untuk Seminar Proposal dan Sidang Skripsi */}
-                      {jadwalType === "non_blok_non_csr" && (item.jenis_baris === "seminar_proposal" || item.jenis_baris === "sidang_skripsi") && (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      {jadwalType === "praktikum" ? (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
                           {item.ruangan?.nama || "N/A"}
                         </td>
-                      )}
-                      {/* Kolom Role untuk Seminar Proposal dan Sidang Skripsi */}
-                      {jadwalType === "non_blok_non_csr" && (item.jenis_baris === "seminar_proposal" || item.jenis_baris === "sidang_skripsi") && (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border border-purple-200 dark:border-purple-700">
-                            {item.dosen_role || "-"}
-                          </span>
+                      ) : (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
+                          {jadwalType === "persamaan_persepsi"
+                            ? item.use_ruangan && item.ruangan?.nama
+                              ? item.ruangan.nama
+                              : "Online"
+                            : jadwalType === "seminar_pleno"
+                            ? item.use_ruangan && item.ruangan?.nama
+                              ? item.ruangan.nama
+                              : "Online"
+                            : jadwalType === "kuliah_besar" ||
+                              jadwalType === "jurnal"
+                            ? item.ruangan?.nama || "N/A"
+                            : jadwalType === "pbl"
+                            ? item.ruangan || "N/A"
+                            : jadwalType === "csr" ||
+                              jadwalType === "non_blok_non_csr"
+                            ? item.ruangan?.nama || "N/A"
+                            : item.lokasi || item.ruangan}
                         </td>
                       )}
                       {jadwalType === "jurnal" && (
@@ -2088,79 +2288,63 @@ export default function DashboardDosen() {
                           )}
                         </td>
                       )}
-                      {/* Kolom Jenis Semester - hanya untuk jadwal yang bukan Seminar Proposal atau Sidang Skripsi */}
-                      {!(jadwalType === "non_blok_non_csr" && (item.jenis_baris === "seminar_proposal" || item.jenis_baris === "sidang_skripsi")) && (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
                         {getSemesterTypeBadge(item.semester_type)}
                       </td>
-                      )}
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
                         <div className="flex items-center gap-2">
                           {getStatusBadge(
                             item.status_konfirmasi,
-                            item.status_reschedule
-                          )}
-                          {/* Untuk Seminar Proposal, tampilkan tombol Detail tanpa kondisi status */}
-                          {jadwalType === "non_blok_non_csr" && (item.jenis_baris === "seminar_proposal" || item.jenis_baris === "Seminar Proposal") && (
-                            <button
-                              onClick={() => {
-                                navigate(`/bimbingan-akhir/seminar-proposal/${item.id}`);
-                              }}
-                              className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
-                              title="Detail Seminar Proposal"
-                            >
-                              Detail
-                            </button>
-                          )}
-                          {/* Untuk Sidang Skripsi, tampilkan tombol Detail tanpa kondisi status */}
-                          {jadwalType === "non_blok_non_csr" && (item.jenis_baris === "sidang_skripsi" || item.jenis_baris === "Sidang Skripsi") && (
-                            <button
-                              onClick={() => {
-                                navigate(`/bimbingan-akhir/sidang-skripsi/${item.id}`);
-                              }}
-                              className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
-                              title="Detail Sidang Skripsi"
-                            >
-                              Detail
-                            </button>
+                            item.status_reschedule,
+                            jadwalType
                           )}
                           {/* Persamaan Persepsi dan Seminar Pleno tidak ada button konfirmasi (langsung bisa) */}
-                          {jadwalType === "persamaan_persepsi" || jadwalType === "seminar_pleno" ? (
+                          {jadwalType === "persamaan_persepsi" ||
+                          jadwalType === "seminar_pleno" ? (
                             <>
                               {/* Button Absensi hanya muncul jika dosen adalah koordinator */}
                               {(() => {
                                 const user = getUser();
                                 if (!user) return null;
-                                
+
                                 // Cek apakah dosen ini ada di koordinator_ids
-                                const koordinatorIds = item.koordinator_ids || [];
-                                const isKoordinator = Array.isArray(koordinatorIds) 
+                                const koordinatorIds =
+                                  item.koordinator_ids || [];
+                                const isKoordinator = Array.isArray(
+                                  koordinatorIds
+                                )
                                   ? koordinatorIds.includes(Number(user.id))
                                   : false;
-                                
+
                                 if (isKoordinator) {
                                   // Cek apakah antara berdasarkan semester_type
-                                  const isAntara = item.semester_type === 'antara';
-                                  
-                                  let routePath = '';
+                                  const isAntara =
+                                    item.semester_type === "antara";
+
+                                  let routePath = "";
                                   if (jadwalType === "persamaan_persepsi") {
-                                    routePath = isAntara 
+                                    routePath = isAntara
                                       ? `/absensi-persamaan-persepsi-antara/${item.mata_kuliah_kode}/${item.id}`
                                       : `/absensi-persamaan-persepsi/${item.mata_kuliah_kode}/${item.id}`;
                                   } else if (jadwalType === "seminar_pleno") {
-                                    routePath = isAntara 
+                                    routePath = isAntara
                                       ? `/absensi-seminar-pleno-antara/${item.mata_kuliah_kode}/${item.id}`
                                       : `/absensi-seminar-pleno/${item.mata_kuliah_kode}/${item.id}`;
                                   }
-                                  
+
                                   return (
                                     <button
                                       onClick={() => navigate(routePath)}
                                       className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/20 rounded transition-colors shrink-0"
                                       title="Buka Absensi"
                                     >
-                                      <FontAwesomeIcon icon={faCheckCircle} className="w-3.5 h-3.5 shrink-0" />
-                                      <span className="hidden xl:inline whitespace-nowrap">Absensi</span>
+                                      <FontAwesomeIcon
+                                        icon={faCheckCircle}
+                                        className="w-3.5 h-3.5 shrink-0"
+                                      />
+                                      <span className="hidden xl:inline whitespace-nowrap">
+                                        Absensi
+                                      </span>
                                     </button>
                                   );
                                 }
@@ -2170,88 +2354,130 @@ export default function DashboardDosen() {
                           ) : (
                             <>
                               {/* Untuk jadwal lain, tampilkan button konfirmasi jika belum konfirmasi */}
-                              {item.is_active_dosen && item.status_konfirmasi === "belum_konfirmasi" && (
-                                <button
-                                  onClick={() => openKonfirmasiModal(item)}
-                                  className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
-                                  title="Konfirmasi Ketersediaan"
-                                >
-                                  Konfirmasi
-                                </button>
-                              )}
+                              {item.is_active_dosen &&
+                                item.status_konfirmasi ===
+                                  "belum_konfirmasi" && (
+                                  <button
+                                    onClick={() => openKonfirmasiModal(item)}
+                                    className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
+                                    title="Konfirmasi Ketersediaan"
+                                  >
+                                    Konfirmasi
+                                  </button>
+                                )}
                               {/* Tampilkan button aksi jika status sudah "bisa" */}
-                              {item.is_active_dosen && item.status_konfirmasi === "bisa" && (
-                                <>
-                                  {jadwalType === "csr" ? (
-                                    <button
-                                      onClick={() =>
-                                        navigate(
-                                          `/absensi-csr/${item.mata_kuliah_kode}/${item.id}`
-                                        )
-                                      }
-                                      className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
-                                      title="Absensi CSR"
-                                    >
-                                      Absensi
-                                    </button>
-                                  ) : jadwalType === "kuliah_besar" ? (
-                                <>
-                                  {/* Cek apakah kuliah besar antara berdasarkan semester_type atau semester */}
-                                  {(() => {
-                                    const isAntara = item.semester_type === 'antara' || 
-                                                     (item.mata_kuliah && item.mata_kuliah.semester === 'Antara');
-                                    if (isAntara) {
-                                      return (
-                                        <button
-                                          onClick={() =>
-                                            navigate(
-                                              `/absensi-kuliah-besar-antara/${item.mata_kuliah_kode}/${item.id}`
-                                            )
-                                          }
-                                          className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors mr-1"
-                                          title="Absensi Kuliah Besar Antara"
-                                        >
-                                          Absensi
-                                        </button>
-                                      );
-                                    } else {
-                                      // Untuk kuliah besar reguler, langsung ke halaman absensi
-                                      return (
-                                        <button
-                                          onClick={() =>
-                                            navigate(
-                                              `/absensi-kuliah-besar/${item.mata_kuliah_kode}/${item.id}`
-                                            )
-                                          }
-                                          className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors mr-1"
-                                          title="Absensi Kuliah Besar"
-                                        >
-                                          Absensi
-                                        </button>
-                                      );
-                                    }
-                                  })()}
-                                </>
-                              ) : jadwalType === "non_blok_non_csr" ? (
-                                <>
-                                  {/* Untuk non-blok non-CSR yang bukan seminar proposal */}
-                                  {item.jenis_baris !== "seminar_proposal" && (
-                                    <>
+                              {item.is_active_dosen &&
+                                item.status_konfirmasi === "bisa" && (
+                                  <>
+                                    {jadwalType === "csr" ? (
                                       <button
-                                        onClick={() => {
-                                          // Cek apakah non-blok non-CSR antara berdasarkan semester_type atau semester
-                                          const isAntara = item.semester_type === 'antara' || 
-                                                           (item.mata_kuliah && item.mata_kuliah.semester === 'Antara');
-                                          const routePath = isAntara 
-                                            ? `/absensi-non-blok-non-csr-antara/${item.mata_kuliah_kode}/${item.id}`
-                                            : `/absensi-non-blok-non-csr/${item.mata_kuliah_kode}/${item.id}`;
-                                          navigate(routePath);
-                                        }}
-                                        className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors mr-1"
-                                        title="Absensi Non-Blok Non-CSR"
+                                        onClick={() =>
+                                          navigate(
+                                            `/absensi-csr/${item.mata_kuliah_kode}/${item.id}`
+                                          )
+                                        }
+                                        className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
+                                        title="Absensi CSR"
                                       >
                                         Absensi
                                       </button>
+                                    ) : jadwalType === "kuliah_besar" ? (
+                                      <>
+                                        {/* Cek apakah kuliah besar antara berdasarkan semester_type atau semester */}
+                                        {(() => {
+                                          const isAntara =
+                                            item.semester_type === "antara" ||
+                                            (item.mata_kuliah &&
+                                              item.mata_kuliah.semester ===
+                                                "Antara");
+                                          if (isAntara) {
+                                            return (
+                                              <button
+                                                onClick={() =>
+                                                  navigate(
+                                                    `/absensi-kuliah-besar-antara/${item.mata_kuliah_kode}/${item.id}`
+                                                  )
+                                                }
+                                                className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors mr-1"
+                                                title="Absensi Kuliah Besar Antara"
+                                              >
+                                                Absensi
+                                              </button>
+                                            );
+                                          } else {
+                                            // Untuk kuliah besar reguler, langsung ke halaman absensi
+                                            return (
+                                              <button
+                                                onClick={() =>
+                                                  navigate(
+                                                    `/absensi-kuliah-besar/${item.mata_kuliah_kode}/${item.id}`
+                                                  )
+                                                }
+                                                className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors mr-1"
+                                                title="Absensi Kuliah Besar"
+                                              >
+                                                Absensi
+                                              </button>
+                                            );
+                                          }
+                                        })()}
+                                      </>
+                                    ) : jadwalType === "non_blok_non_csr" ? (
+                                      <>
+                                        <button
+                                          onClick={() => {
+                                            // Cek apakah non-blok non-CSR antara berdasarkan semester_type atau semester
+                                            const isAntara =
+                                              item.semester_type === "antara" ||
+                                              (item.mata_kuliah &&
+                                                item.mata_kuliah.semester ===
+                                                  "Antara");
+                                            const routePath = isAntara
+                                              ? `/absensi-non-blok-non-csr-antara/${item.mata_kuliah_kode}/${item.id}`
+                                              : `/absensi-non-blok-non-csr/${item.mata_kuliah_kode}/${item.id}`;
+                                            navigate(routePath);
+                                          }}
+                                          className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors mr-1"
+                                          title="Absensi Non-Blok Non-CSR"
+                                        >
+                                          Absensi
+                                        </button>
+                                        <button
+                                          onClick={() =>
+                                            handlePenilaianClick(
+                                              item,
+                                              jadwalType
+                                            )
+                                          }
+                                          className={`px-3 py-1 rounded text-xs transition-colors ${
+                                            item.penilaian_submitted
+                                              ? "bg-gray-500 text-white hover:bg-gray-600"
+                                              : "bg-green-500 text-white hover:bg-green-600"
+                                          }`}
+                                          title={
+                                            item.penilaian_submitted
+                                              ? "Lihat Penilaian"
+                                              : "Penilaian"
+                                          }
+                                        >
+                                          {item.penilaian_submitted
+                                            ? "Lihat Penilaian"
+                                            : "Penilaian"}
+                                        </button>
+                                      </>
+                                    ) : jadwalType === "praktikum" ? (
+                                      <button
+                                        onClick={() => {
+                                          navigate(
+                                            `/absensi-praktikum/${item.mata_kuliah_kode}/${item.id}`
+                                          );
+                                        }}
+                                        className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors"
+                                        title="Absensi Praktikum"
+                                      >
+                                        Absensi
+                                      </button>
+                                    ) : jadwalType === "jurnal" ? (
                                       <button
                                         onClick={() =>
                                           handlePenilaianClick(item, jadwalType)
@@ -2271,93 +2497,48 @@ export default function DashboardDosen() {
                                           ? "Lihat Penilaian"
                                           : "Penilaian"}
                                       </button>
-                                    </>
-                                  )}
-                                </>
-                              ) : jadwalType === "praktikum" ? (
-                                <>
-                                  <button
-                                    onClick={() => {
-                                      navigate(`/absensi-praktikum/${item.mata_kuliah_kode}/${item.id}`);
-                                    }}
-                                    className="px-3 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors mr-1"
-                                    title="Absensi Praktikum"
-                                  >
-                                    Absensi
-                                  </button>
-                                  <button
-                                    onClick={() =>
-                                      handlePenilaianClick(item, jadwalType)
-                                    }
-                                    className={`px-3 py-1 rounded text-xs transition-colors ${
-                                      item.penilaian_submitted
-                                        ? "bg-gray-500 text-white hover:bg-gray-600"
-                                        : "bg-green-500 text-white hover:bg-green-600"
-                                    }`}
-                                    title={
-                                      item.penilaian_submitted
-                                        ? "Lihat Penilaian"
-                                        : "Penilaian"
-                                    }
-                                  >
-                                    {item.penilaian_submitted
-                                      ? "Lihat Penilaian"
-                                      : "Penilaian"}
-                                  </button>
-                                </>
-                              ) : jadwalType === "jurnal" ? (
-                                <button
-                                  onClick={() =>
-                                    handlePenilaianClick(item, jadwalType)
-                                  }
-                                  className={`px-3 py-1 rounded text-xs transition-colors ${
-                                    item.penilaian_submitted
-                                      ? "bg-gray-500 text-white hover:bg-gray-600"
-                                      : "bg-green-500 text-white hover:bg-green-600"
-                                  }`}
-                                  title={
-                                    item.penilaian_submitted
-                                      ? "Lihat Penilaian"
-                                      : "Penilaian"
-                                  }
-                                >
-                                  {item.penilaian_submitted
-                                    ? "Lihat Penilaian"
-                                    : "Penilaian"}
-                                </button>
-                              ) : jadwalType === "pbl" ? (
-                                <button
-                                  onClick={() =>
-                                    handlePenilaianClick(item, jadwalType)
-                                  }
-                                  className={`px-3 py-1 rounded text-xs transition-colors ${
-                                    item.penilaian_submitted
-                                      ? "bg-gray-500 text-white hover:bg-gray-600"
-                                      : "bg-green-500 text-white hover:bg-green-600"
-                                  }`}
-                                  title={
-                                    item.penilaian_submitted
-                                      ? "Lihat Penilaian"
-                                      : "Penilaian"
-                                  }
-                                >
-                                  {item.penilaian_submitted
-                                    ? "Lihat Penilaian"
-                                    : "Penilaian"}
-                                </button>
-                              ) : null}
-                                </>
-                              )}
+                                    ) : jadwalType === "pbl" ? (
+                                      <button
+                                        onClick={() =>
+                                          handlePenilaianClick(item, jadwalType)
+                                        }
+                                        className={`px-3 py-1 rounded text-xs transition-colors ${
+                                          item.penilaian_submitted
+                                            ? "bg-gray-500 text-white hover:bg-gray-600"
+                                            : "bg-green-500 text-white hover:bg-green-600"
+                                        }`}
+                                        title={
+                                          item.penilaian_submitted
+                                            ? "Lihat Penilaian"
+                                            : "Penilaian"
+                                        }
+                                      >
+                                        {item.penilaian_submitted
+                                          ? "Lihat Penilaian"
+                                          : "Penilaian"}
+                                      </button>
+                                    ) : null}
+                                  </>
+                                )}
                               {/* Persamaan Persepsi dan Seminar Pleno tidak ada button reschedule (langsung bisa) */}
-                              {(jadwalType === "pbl" || jadwalType === "kuliah_besar" || jadwalType === "praktikum" || jadwalType === "agenda_khusus" || jadwalType === "jurnal" || jadwalType === "csr" || jadwalType === "non_blok_non_csr") && item.is_active_dosen && item.status_konfirmasi === "belum_konfirmasi" && (
-                                <button
-                                  onClick={() => openRescheduleModal(item)}
-                                  className="px-3 py-1 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 transition-colors"
-                                  title="Ajukan Reschedule"
-                                >
-                                  Reschedule
-                                </button>
-                              )}
+                              {/* Praktikum tidak ada button reschedule */}
+                              {(jadwalType === "pbl" ||
+                                jadwalType === "kuliah_besar" ||
+                                jadwalType === "agenda_khusus" ||
+                                jadwalType === "jurnal" ||
+                                jadwalType === "csr" ||
+                                jadwalType === "non_blok_non_csr") &&
+                                item.is_active_dosen &&
+                                item.status_konfirmasi ===
+                                  "belum_konfirmasi" && (
+                                  <button
+                                    onClick={() => openRescheduleModal(item)}
+                                    className="px-3 py-1 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 transition-colors"
+                                    title="Ajukan Reschedule"
+                                  >
+                                    Reschedule
+                                  </button>
+                                )}
                             </>
                           )}
                         </div>
@@ -2820,12 +3001,80 @@ export default function DashboardDosen() {
                     Notifikasi Terbaru
                   </h2>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {notifications.filter((n) => !n.is_read).length} notifikasi
-                    belum dibaca
+                    {notifications.filter((n) => !n.is_read).length +
+                      (praktikumKoordinator.filter(
+                        (p) => !p.koordinator_signature
+                      ).length > 0
+                        ? 1
+                        : 0)}{" "}
+                    notifikasi belum dibaca
                   </p>
                 </div>
               </div>
             </div>
+
+            {/* Notifikasi Koordinator Blok yang belum tanda tangan */}
+            {praktikumKoordinator.filter((p) => !p.koordinator_signature)
+              .length > 0 && (
+              <div
+                onClick={() => {
+                  // Scroll ke section koordinator blok
+                  const koordinatorSection = document.getElementById(
+                    "koordinator-blok-section"
+                  );
+                  if (koordinatorSection) {
+                    koordinatorSection.scrollIntoView({
+                      behavior: "smooth",
+                      block: "start",
+                    });
+                  }
+                }}
+                className="mb-4 p-4 rounded-xl border border-orange-200 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/20 cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-all duration-300 hover:shadow-md"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-orange-100 dark:bg-orange-900/30">
+                    <FontAwesomeIcon
+                      icon={faFlask}
+                      className="w-5 h-5 text-orange-600 dark:text-orange-400"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="font-medium text-gray-900 dark:text-white">
+                        Tanda Tangan Koordinator Blok Diperlukan
+                      </h4>
+                      <span className="w-2 h-2 bg-orange-500 rounded-full flex-shrink-0"></span>
+                    </div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                      Anda memiliki{" "}
+                      {
+                        praktikumKoordinator.filter(
+                          (p) => !p.koordinator_signature
+                        ).length
+                      }{" "}
+                      praktikum yang memerlukan tanda tangan koordinator blok.
+                      Silakan lengkapi tanda tangan Anda.
+                    </p>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-300">
+                        <FontAwesomeIcon
+                          icon={faFlask}
+                          className="w-3 h-3 mr-1"
+                        />
+                        Koordinator Blok
+                      </span>
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+                        <FontAwesomeIcon
+                          icon={faCalendar}
+                          className="w-3 h-3 mr-1"
+                        />
+                        Klik untuk lihat detail
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {notifications.length > 0 ? (
               <div className="space-y-4">
@@ -3143,6 +3392,132 @@ export default function DashboardDosen() {
                 </h3>
                 <p className="text-gray-600 dark:text-gray-400">
                   Anda tidak memiliki jadwal mengajar untuk hari ini
+                </p>
+              </div>
+            )}
+          </motion.div>
+        </div>
+
+        {/* Praktikum Koordinator Signature Section */}
+        <div id="koordinator-blok-section" className="col-span-12 mb-6">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+            className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center shadow-lg">
+                  <FontAwesomeIcon
+                    icon={faFlask}
+                    className="text-white text-lg"
+                  />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Tanda Tangan Koordinator Blok
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Praktikum yang memerlukan tanda tangan koordinator
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {praktikumKoordinator.length > 0 ? (
+              <div className="space-y-3">
+                {praktikumKoordinator.map((praktikum, index) => (
+                  <motion.div
+                    key={praktikum.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      navigate(`${praktikum.action_url}?tab=dosen`);
+                    }}
+                    className={`p-4 rounded-lg border cursor-pointer transition-all duration-300 hover:shadow-md ${
+                      praktikum.koordinator_signature
+                        ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+                        : "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-900/30"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                            {praktikum.mata_kuliah_nama}
+                          </p>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              praktikum.koordinator_signature
+                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                : "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
+                            }`}
+                          >
+                            {praktikum.koordinator_signature
+                              ? "✓ Sudah Ditandatangani"
+                              : "⏳ Belum Ditandatangani"}
+                          </span>
+                        </div>
+                        <div className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
+                          <p>
+                            <span className="font-medium">Tanggal:</span>{" "}
+                            {new Date(praktikum.tanggal).toLocaleDateString(
+                              "id-ID",
+                              {
+                                weekday: "long",
+                                day: "numeric",
+                                month: "long",
+                                year: "numeric",
+                              }
+                            )}
+                          </p>
+                          <p>
+                            <span className="font-medium">Waktu:</span>{" "}
+                            {praktikum.jam_mulai} - {praktikum.jam_selesai}
+                          </p>
+                          <p>
+                            <span className="font-medium">Ruangan:</span>{" "}
+                            {praktikum.ruangan}
+                          </p>
+                          <p>
+                            <span className="font-medium">Kelas:</span>{" "}
+                            {praktikum.kelas_praktikum}
+                          </p>
+                          {praktikum.materi && (
+                            <p>
+                              <span className="font-medium">Materi:</span>{" "}
+                              {praktikum.materi}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex-shrink-0 ml-4">
+                        <FontAwesomeIcon
+                          icon={faChevronRight}
+                          className="w-5 h-5 text-gray-400"
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FontAwesomeIcon
+                    icon={faFlask}
+                    className="w-8 h-8 text-gray-400"
+                  />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Tidak Ada Praktikum yang Memerlukan Tanda Tangan
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400">
+                  Semua praktikum sudah memiliki tanda tangan koordinator blok
                 </p>
               </div>
             )}
@@ -3801,8 +4176,7 @@ export default function DashboardDosen() {
                       "MATERI",
                       "TOPIK",
                       "PENGAMPU",
-                      "DOSEN PENGGANTI",
-                      "LOKASI",
+                      "RUANGAN",
                       "JENIS SEMESTER",
                       "AKSI",
                     ],
@@ -3904,12 +4278,7 @@ export default function DashboardDosen() {
                 </motion.div>
               )}
 
-              {/* Jadwal Non Blok Non CSR - Materi & Agenda */}
-              {(() => {
-                const jadwalMateriAgenda = jadwalNonBlokNonCSR.filter(
-                  (j) => j.jenis_baris === "materi" || j.jenis_baris === "agenda"
-                );
-                return jadwalMateriAgenda.length > 0 ? (
+              {/* Jadwal Non Blok Non CSR */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -3917,9 +4286,9 @@ export default function DashboardDosen() {
                 className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
               >
                 {renderJadwalTable(
-                      "Non Blok Non CSR - Materi & Agenda",
+                  "Non Blok Non CSR",
                   faFileAlt,
-                      jadwalMateriAgenda,
+                  jadwalNonBlokNonCSR,
                   [
                     "NO",
                     "HARI/TANGGAL",
@@ -3935,81 +4304,9 @@ export default function DashboardDosen() {
                     "AKSI",
                   ],
                   "non_blok_non_csr",
-                      "Tidak ada data Non Blok Non CSR - Materi & Agenda"
+                  "Tidak ada data Non Blok Non CSR"
                 )}
               </motion.div>
-                ) : null;
-              })()}
-
-              {/* Jadwal Seminar Proposal */}
-              {(() => {
-                const jadwalSeminarProposal = jadwalNonBlokNonCSR.filter(
-                  (j) => j.jenis_baris === "seminar_proposal"
-                );
-                return jadwalSeminarProposal.length > 0 ? (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 1.0 }}
-                    className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
-                  >
-                    {renderJadwalTable(
-                      "Seminar Proposal",
-                      faGraduationCap,
-                      jadwalSeminarProposal,
-                      [
-                        "NO",
-                        "HARI/TANGGAL",
-                        "PUKUL",
-                        "WAKTU",
-                        "PEMBIMBING",
-                        "KOMENTATOR",
-                        "MAHASISWA",
-                        "RUANGAN",
-                        "PERAN",
-                        "AKSI",
-                      ],
-                      "non_blok_non_csr",
-                      "Tidak ada data Seminar Proposal"
-                    )}
-                  </motion.div>
-                ) : null;
-              })()}
-
-              {/* Jadwal Sidang Skripsi */}
-              {(() => {
-                const jadwalSidangSkripsi = jadwalNonBlokNonCSR.filter(
-                  (j) => j.jenis_baris === "sidang_skripsi"
-                );
-                return jadwalSidangSkripsi.length > 0 ? (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 1.05 }}
-                    className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
-                  >
-                    {renderJadwalTable(
-                      "Sidang Skripsi",
-                      faGraduationCap,
-                      jadwalSidangSkripsi,
-                      [
-                        "NO",
-                        "HARI/TANGGAL",
-                        "PUKUL",
-                        "WAKTU",
-                        "PEMBIMBING",
-                        "PENGUJI",
-                        "MAHASISWA",
-                        "RUANGAN",
-                        "PERAN",
-                        "AKSI",
-                      ],
-                      "non_blok_non_csr",
-                      "Tidak ada data Sidang Skripsi"
-                    )}
-                  </motion.div>
-                ) : null;
-              })()}
             </div>
           </motion.div>
         </div>
@@ -4697,211 +4994,6 @@ export default function DashboardDosen() {
                   OK
                 </button>
               </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Modal Daftar Mahasiswa */}
-      <AnimatePresence>
-        {showMahasiswaModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
-            {/* Overlay */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
-              onClick={() => setShowMahasiswaModal(false)}
-            />
-            {/* Modal Content */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.2 }}
-              className="relative w-full max-w-4xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
-            >
-              {/* Close Button */}
-              <button
-                onClick={() => setShowMahasiswaModal(false)}
-                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
-              >
-                <svg width="20" height="20" fill="none" viewBox="0 0 24 24" className="w-6 h-6">
-                  <path fillRule="evenodd" clipRule="evenodd" d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z" fill="currentColor" />
-                </svg>
-              </button>
-
-              {/* Header */}
-              <div className="mb-6">
-                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
-                  Daftar Mahasiswa
-                </h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Total {selectedMahasiswaList.length} mahasiswa
-                </p>
-              </div>
-
-              {/* Search Bar */}
-              <div className="mb-6">
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Cari berdasarkan nama atau NIM..."
-                    value={mahasiswaSearchQuery}
-                    onChange={(e) => {
-                      setMahasiswaSearchQuery(e.target.value);
-                      setMahasiswaModalPage(1);
-                    }}
-                    className="w-full px-4 py-3 pl-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                  />
-                  <svg
-                    className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    />
-                  </svg>
-                  {mahasiswaSearchQuery && (
-                    <button
-                      onClick={() => {
-                        setMahasiswaSearchQuery('');
-                        setMahasiswaModalPage(1);
-                      }}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Table */}
-              {(() => {
-                const filteredMahasiswa = selectedMahasiswaList.filter((m) => {
-                  if (!mahasiswaSearchQuery.trim()) return true;
-                  const query = mahasiswaSearchQuery.toLowerCase().trim();
-                  return (
-                    (m.name || '').toLowerCase().includes(query) ||
-                    (m.nim || '').toLowerCase().includes(query)
-                  );
-                });
-                const totalPages = Math.ceil(filteredMahasiswa.length / mahasiswaModalPageSize);
-                const paginatedData = filteredMahasiswa.slice(
-                  (mahasiswaModalPage - 1) * mahasiswaModalPageSize,
-                  mahasiswaModalPage * mahasiswaModalPageSize
-                );
-
-                return (
-                  <>
-                    {mahasiswaSearchQuery && (
-                      <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
-                        Menampilkan {filteredMahasiswa.length} dari {selectedMahasiswaList.length} mahasiswa
-                      </div>
-                    )}
-
-                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-                      <div className="max-w-full overflow-x-auto hide-scroll">
-                        <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-                          <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
-                            <tr>
-                              <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
-                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">NIM</th>
-                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Nama</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {paginatedData.length === 0 ? (
-                              <tr>
-                                <td colSpan={3} className="text-center py-6 text-gray-400">
-                                  {mahasiswaSearchQuery ? 'Tidak ada mahasiswa yang sesuai dengan pencarian' : 'Tidak ada data mahasiswa'}
-                                </td>
-                              </tr>
-                            ) : (
-                              paginatedData.map((mahasiswa, idx) => {
-                                const actualIndex = (mahasiswaModalPage - 1) * mahasiswaModalPageSize + idx;
-                                return (
-                                  <tr key={mahasiswa.id || mahasiswa.nim || idx} className={idx % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
-                                    <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{actualIndex + 1}</td>
-                                    <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{mahasiswa.nim || '-'}</td>
-                                    <td className="px-6 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">{mahasiswa.name || '-'}</td>
-                                  </tr>
-                                );
-                              })
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
-                    {/* Pagination */}
-                    {filteredMahasiswa.length > mahasiswaModalPageSize && (
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 border-t border-gray-200 dark:border-gray-700 mt-6">
-                        <div className="flex items-center gap-4">
-                          <select
-                            value={mahasiswaModalPageSize}
-                            onChange={(e) => {
-                              setMahasiswaModalPageSize(Number(e.target.value));
-                              setMahasiswaModalPage(1);
-                            }}
-                            className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-                          >
-                            <option value={10}>10 per halaman</option>
-                            <option value={20}>20 per halaman</option>
-                            <option value={50}>50 per halaman</option>
-                            <option value={100}>100 per halaman</option>
-                          </select>
-                          <span className="text-sm text-gray-500 dark:text-gray-400">
-                            Menampilkan {((mahasiswaModalPage - 1) * mahasiswaModalPageSize) + 1}-{Math.min(mahasiswaModalPage * mahasiswaModalPageSize, filteredMahasiswa.length)} dari {filteredMahasiswa.length} mahasiswa
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => setMahasiswaModalPage((p) => Math.max(1, p - 1))}
-                            disabled={mahasiswaModalPage === 1}
-                            className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Prev
-                          </button>
-                          <span className="text-sm text-gray-500 dark:text-gray-400">
-                            Halaman {mahasiswaModalPage} dari {totalPages}
-                          </span>
-                          <button
-                            onClick={() => setMahasiswaModalPage((p) => Math.min(totalPages, p + 1))}
-                            disabled={mahasiswaModalPage >= totalPages}
-                            className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Next
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Footer */}
-                    <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700 mt-6">
-                      <button
-                        onClick={() => {
-                          setShowMahasiswaModal(false);
-                          setMahasiswaSearchQuery('');
-                          setMahasiswaModalPage(1);
-                        }}
-                        className="px-6 py-3 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
-                      >
-                        Tutup
-                      </button>
-                    </div>
-                  </>
-                );
-              })()}
             </motion.div>
           </div>
         )}

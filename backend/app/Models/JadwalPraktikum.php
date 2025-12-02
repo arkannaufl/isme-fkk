@@ -24,12 +24,17 @@ class JadwalPraktikum extends Model
         'jam_selesai',
         'jumlah_sesi',
         'created_by',
-
+        'penilaian_submitted',
+        'penilaian_submitted_by',
+        'penilaian_submitted_at',
         'qr_enabled',
+        'koordinator_signature',
     ];
 
     protected $casts = [
         'qr_enabled' => 'boolean',
+        'penilaian_submitted' => 'boolean',
+        'penilaian_submitted_at' => 'datetime',
         // SIAKAD fields
         'siakad_kurikulum',
         'siakad_kode_mk',

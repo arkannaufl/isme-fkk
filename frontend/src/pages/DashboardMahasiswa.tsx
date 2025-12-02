@@ -16,7 +16,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { useNavigate } from "react-router-dom";
 import api, { getUser } from "../utils/api";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import PetaAkademikPage from "./PetaAkademikPage";
 import PetaBlok from "./PetaBlok";
 
@@ -262,6 +262,9 @@ export default function DashboardMahasiswa() {
   const [loading, setLoading] = useState(true);
 
   const [currentSemester, setCurrentSemester] = useState<string>("ganjil"); // ganjil/genap
+  const [expandedPraktikumRows, setExpandedPraktikumRows] = useState<Set<number>>(new Set());
+  const [showPraktikumPengampuModal, setShowPraktikumPengampuModal] = useState(false);
+  const [selectedPraktikumPengampu, setSelectedPraktikumPengampu] = useState<any>(null);
 
   // Guard role mahasiswa
   useEffect(() => {
@@ -461,6 +464,34 @@ export default function DashboardMahasiswa() {
     },
     []
   );
+
+  // Helper function untuk mendapatkan array nama dosen pengampu (untuk praktikum)
+  const getPengampuNamesArray = useCallback((item: JadwalPraktikum): string[] => {
+    try {
+      if (item.dosen && Array.isArray(item.dosen) && item.dosen.length > 0) {
+        return item.dosen.map((d) => d.name).filter((name) => name && name.trim() !== "");
+      }
+    } catch (error) {
+      console.error("Error getting pengampu names array:", error);
+    }
+    return [];
+  }, []);
+
+  // Helper function untuk mendapatkan array dosen dengan status konfirmasi (untuk praktikum)
+  const getPengampuWithStatus = useCallback((item: JadwalPraktikum): Array<{id: number; name: string; status_konfirmasi?: string}> => {
+    try {
+      if (item.dosen && Array.isArray(item.dosen) && item.dosen.length > 0) {
+        return item.dosen.map((d: any) => ({
+          id: d.id,
+          name: d.name,
+          status_konfirmasi: d.status_konfirmasi || 'belum_konfirmasi',
+        })).filter((d) => d.name && d.name.trim() !== "");
+      }
+    } catch (error) {
+      console.error("Error getting pengampu with status:", error);
+    }
+    return [];
+  }, []);
 
   const getStatusBadge = useCallback(
     (
@@ -684,6 +715,15 @@ export default function DashboardMahasiswa() {
                         {item.agenda || item.materi || "N/A"}
                       </td>
                       </>
+                    ) : jadwalType === "praktikum" ? (
+                      <>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
+                          {item.materi || "N/A"}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
+                          {item.topik || "N/A"}
+                        </td>
+                      </>
                     ) : (
                       jadwalType !== "pbl" && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
@@ -691,23 +731,6 @@ export default function DashboardMahasiswa() {
                         </td>
                       )
                     )}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {jadwalType === "agenda_besar"
-                        ? "-"
-                        : jadwalType === "kuliah_besar"
-                        ? item.dosen?.name || "N/A"
-                        : jadwalType === "praktikum"
-                        ? item.dosen
-                            ?.map((d: { id: number; name: string }) => d.name)
-                            .join(", ") || "N/A"
-                        : jadwalType === "jurnal"
-                        ? item.dosen?.name || "N/A"
-                        : jadwalType === "seminar_pleno"
-                        ? item.pengampu_names || "N/A"
-                        : jadwalType === "pbl"
-                        ? item.pengampu || "N/A"
-                        : item.pengampu || item.dosen?.name || "N/A"}
-                    </td>
                     {jadwalType === "kuliah_besar" && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {item.topik || "N/A"}
@@ -720,7 +743,7 @@ export default function DashboardMahasiswa() {
                           : "N/A"}
                       </td>
                     )}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
                       {jadwalType === "kuliah_besar" ||
                       jadwalType === "praktikum" ||
                       jadwalType === "jurnal" ||
@@ -733,20 +756,50 @@ export default function DashboardMahasiswa() {
                           (item.use_ruangan === false ? "-" : "N/A")
                         : item.ruangan?.nama || "N/A"}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {jadwalType === "agenda_besar"
-                        ? "-"
-                        : jadwalType === "non_blok_non_csr" &&
-                          item.status_konfirmasi === "-"
-                        ? "-"
-                        : getStatusBadge(
-                            item.status_konfirmasi,
-                            item.status_reschedule
-                          )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
                       {getSemesterTypeBadge(item.semester_type)}
                     </td>
+                    {jadwalType === "praktikum" ? (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPraktikumPengampu(item);
+                            setShowPraktikumPengampuModal(true);
+                          }}
+                          className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium underline"
+                        >
+                          Lihat Pengampu
+                        </button>
+                      </td>
+                    ) : (
+                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                        {jadwalType === "agenda_besar"
+                          ? "-"
+                          : jadwalType === "kuliah_besar"
+                          ? item.dosen?.name || "N/A"
+                          : jadwalType === "jurnal"
+                          ? item.dosen?.name || "N/A"
+                          : jadwalType === "seminar_pleno"
+                          ? item.pengampu_names || "N/A"
+                          : jadwalType === "pbl"
+                          ? item.pengampu || "N/A"
+                          : item.pengampu || item.dosen?.name || "N/A"}
+                      </td>
+                    )}
+                    {jadwalType === "praktikum" ? null : (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {jadwalType === "agenda_besar"
+                          ? "-"
+                          : jadwalType === "non_blok_non_csr" &&
+                            item.status_konfirmasi === "-"
+                          ? "-"
+                          : getStatusBadge(
+                              item.status_konfirmasi,
+                              item.status_reschedule
+                            )}
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -755,7 +808,7 @@ export default function DashboardMahasiswa() {
         </div>
       </div>
     ),
-    [getSemesterTypeBadge, getStatusBadge]
+    [getSemesterTypeBadge, getStatusBadge, getPengampuNamesArray, getPengampuWithStatus, expandedPraktikumRows]
   );
 
   if (loading) {
@@ -1349,10 +1402,10 @@ export default function DashboardMahasiswa() {
                       "KELAS",
                       "WAKTU",
                       "MATERI",
-                      "PENGAMPU",
+                      "TOPIK",
                       "RUANGAN",
-                      "STATUS",
                       "JENIS",
+                      "PENGAMPU",
                     ],
                     "praktikum",
                     "Tidak ada data Praktikum"
@@ -1503,6 +1556,126 @@ export default function DashboardMahasiswa() {
           </motion.div>
         </div>
       </div>
+
+      {/* Modal Lihat Pengampu Praktikum */}
+      <AnimatePresence>
+        {showPraktikumPengampuModal && selectedPraktikumPengampu && (
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowPraktikumPengampuModal(false)}
+            />
+
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-2xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => setShowPraktikumPengampuModal(false)}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+
+              <div>
+                {/* Header */}
+                <div className="flex items-center justify-between pb-4 sm:pb-6">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-2xl flex items-center justify-center shadow-lg">
+                      <FontAwesomeIcon
+                        icon={faUsers}
+                        className="w-6 h-6 text-purple-600 dark:text-purple-400"
+                      />
+                    </div>
+                    <div>
+                      <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
+                        Dosen Pengampu Praktikum
+                      </h2>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {selectedPraktikumPengampu.materi || selectedPraktikumPengampu.topik || "N/A"} - {selectedPraktikumPengampu.tanggal}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dosen List */}
+                <div className="space-y-3">
+                  {(() => {
+                    const dosenWithStatus = getPengampuWithStatus(selectedPraktikumPengampu);
+                    if (dosenWithStatus.length === 0) {
+                      return (
+                        <div className="text-center py-8">
+                          <p className="text-gray-500 dark:text-gray-400">
+                            Tidak ada dosen pengampu
+                          </p>
+                        </div>
+                      );
+                    }
+                    return dosenWithStatus.map((d) => (
+                      <div
+                        key={d.id}
+                        className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
+                            <FontAwesomeIcon
+                              icon={faGraduationCap}
+                              className="w-5 h-5 text-purple-600 dark:text-purple-400"
+                            />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {d.name}
+                            </p>
+                          </div>
+                        </div>
+                        <div>
+                          {getStatusBadge(
+                            d.status_konfirmasi || 'belum_konfirmasi',
+                            undefined
+                          )}
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+
+                {/* Footer */}
+                <div className="flex justify-end gap-3 pt-6 mt-6 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    onClick={() => setShowPraktikumPengampuModal(false)}
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
+                  >
+                    Tutup
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

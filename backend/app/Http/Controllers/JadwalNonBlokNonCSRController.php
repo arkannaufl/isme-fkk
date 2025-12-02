@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Notification;
 use App\Models\KelompokBesar;
 use App\Models\AbsensiNonBlokNonCSR;
+use App\Traits\SendsWhatsAppNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
@@ -17,13 +18,13 @@ use Carbon\Carbon;
 
 class JadwalNonBlokNonCSRController extends Controller
 {
+    use SendsWhatsAppNotification;
     public function show($id)
     {
         try {
             $jadwal = JadwalNonBlokNonCSR::with([
                 'mataKuliah:kode,nama,semester,tanggal_mulai,tanggal_akhir',
                 'dosen:id,name,nid,nidn,nuptk,signature_image',
-                'pembimbing:id,name,nid,nidn,nuptk,signature_image',
                 'ruangan:id,nama,gedung',
                 'kelompokBesar:id,semester',
                 'kelompokBesarAntara:id,nama_kelompok'
@@ -36,89 +37,9 @@ class JadwalNonBlokNonCSRController extends Controller
                 ], 404);
             }
 
-            // Format tanggal
-            $tanggalFormatted = $jadwal->tanggal ? $jadwal->tanggal->format('d-m-Y') : null;
-
-            // Get komentator list
-            $komentatorIds = $jadwal->komentator_ids ?? [];
-            if (!is_array($komentatorIds)) {
-                $komentatorIds = json_decode($komentatorIds, true) ?? [];
-            }
-            $komentatorList = [];
-            if (!empty($komentatorIds)) {
-                $komentatorList = User::whereIn('id', $komentatorIds)
-                    ->select('id', 'name', 'nid')
-                    ->get()
-                    ->toArray();
-            }
-
-            // Get penguji list
-            $pengujiIds = $jadwal->penguji_ids ?? [];
-            if (!is_array($pengujiIds)) {
-                $pengujiIds = json_decode($pengujiIds, true) ?? [];
-            }
-            $pengujiList = [];
-            if (!empty($pengujiIds)) {
-                $pengujiList = User::whereIn('id', $pengujiIds)
-                    ->select('id', 'name', 'nid')
-                    ->get()
-                    ->toArray();
-            }
-
-            // Get mahasiswa list
-            $mahasiswaNims = $jadwal->mahasiswa_nims ?? [];
-            if (!is_array($mahasiswaNims)) {
-                $mahasiswaNims = json_decode($mahasiswaNims, true) ?? [];
-            }
-            $mahasiswaList = [];
-            if (!empty($mahasiswaNims)) {
-                $mahasiswaList = User::whereIn('nim', $mahasiswaNims)
-                    ->where('role', 'mahasiswa')
-                    ->select('id', 'nim', 'name')
-                    ->get()
-                    ->toArray();
-            }
-
-            // Determine dosen_role for current user
-            $currentUserId = auth()->id();
-            $dosenRole = null;
-            
-            if ($currentUserId) {
-                // Check if pembimbing/moderator
-                if ($jadwal->pembimbing_id == $currentUserId) {
-                    $dosenRole = 'Pembimbing / Moderator';
-                }
-                // Check if komentator
-                elseif (in_array($currentUserId, $komentatorIds)) {
-                    $komentatorIndex = array_search($currentUserId, $komentatorIds);
-                    if ($komentatorIndex === 0) {
-                        $dosenRole = 'Komentator 1 (Materi)';
-                    } else {
-                        $dosenRole = 'Komentator 2 (Metlit)';
-                    }
-                }
-                // Check if penguji
-                elseif (in_array($currentUserId, $pengujiIds)) {
-                    $pengujiIndex = array_search($currentUserId, $pengujiIds);
-                    $dosenRole = 'Penguji ' . ($pengujiIndex + 1);
-                }
-                // Check if dosen
-                elseif ($jadwal->dosen_id == $currentUserId) {
-                    $dosenRole = 'Dosen';
-                }
-            }
-
-            // Build response
-            $responseData = $jadwal->toArray();
-            $responseData['tanggal'] = $tanggalFormatted;
-            $responseData['komentator_list'] = $komentatorList;
-            $responseData['penguji_list'] = $pengujiList;
-            $responseData['mahasiswa_list'] = $mahasiswaList;
-            $responseData['dosen_role'] = $dosenRole;
-
             return response()->json([
                 'message' => 'Data jadwal berhasil diambil',
-                'data' => $responseData
+                'data' => $jadwal
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -136,7 +57,6 @@ class JadwalNonBlokNonCSRController extends Controller
             $query = JadwalNonBlokNonCSR::with([
                 'mataKuliah:kode,nama,semester',
                 'dosen:id,name,nid,nidn,nuptk,signature_image',
-                'pembimbing:id,name,nid,nidn,nuptk,signature_image',
                 'ruangan:id,nama,gedung',
                 'kelompokBesar:id,semester',
                 'kelompokBesarAntara:id,nama_kelompok'
@@ -152,10 +72,6 @@ class JadwalNonBlokNonCSRController extends Controller
                     'jenis_baris',
                     'dosen_id',
                     'dosen_ids',
-                    'pembimbing_id',
-                    'komentator_ids',
-                    'penguji_ids',
-                    'mahasiswa_nims',
                     'ruangan_id',
                     'kelompok_besar_id',
                     'kelompok_besar_antara_id',
@@ -195,51 +111,6 @@ class JadwalNonBlokNonCSRController extends Controller
                     } elseif ($semesterType === 'antara') {
                         $q->whereNotNull('kelompok_besar_antara_id');
                     }
-                })
-                ->orWhere(function ($q) use ($dosenId, $semesterType) {
-                    // Kondisi 3: Dosen sebagai Pembimbing (untuk Seminar Proposal & Sidang Skripsi)
-                    $q->where('pembimbing_id', $dosenId);
-
-                    // Filter semester_type untuk kondisi 3
-                    if ($semesterType === 'reguler') {
-                        $q->whereNull('kelompok_besar_antara_id');
-                    } elseif ($semesterType === 'antara') {
-                        $q->whereNotNull('kelompok_besar_antara_id');
-                    }
-                })
-                ->orWhere(function ($q) use ($dosenId, $semesterType) {
-                    // Kondisi 4: Dosen sebagai Komentator (untuk Seminar Proposal)
-                    $q->whereNotNull('komentator_ids')
-                        ->where(function ($subQ) use ($dosenId) {
-                            $subQ->whereRaw('JSON_CONTAINS(komentator_ids, ?)', [json_encode($dosenId)])
-                                ->orWhereRaw('JSON_SEARCH(komentator_ids, "one", ?) IS NOT NULL', [$dosenId])
-                                ->orWhereRaw('CAST(komentator_ids AS CHAR) LIKE ?', ['%"' . $dosenId . '"%'])
-                                ->orWhereRaw('CAST(komentator_ids AS CHAR) LIKE ?', ['%' . $dosenId . '%']);
-                        });
-
-                    // Filter semester_type untuk kondisi 4
-                    if ($semesterType === 'reguler') {
-                        $q->whereNull('kelompok_besar_antara_id');
-                    } elseif ($semesterType === 'antara') {
-                        $q->whereNotNull('kelompok_besar_antara_id');
-                    }
-                })
-                ->orWhere(function ($q) use ($dosenId, $semesterType) {
-                    // Kondisi 5: Dosen sebagai Penguji (untuk Sidang Skripsi)
-                    $q->whereNotNull('penguji_ids')
-                        ->where(function ($subQ) use ($dosenId) {
-                            $subQ->whereRaw('JSON_CONTAINS(penguji_ids, ?)', [json_encode($dosenId)])
-                                ->orWhereRaw('JSON_SEARCH(penguji_ids, "one", ?) IS NOT NULL', [$dosenId])
-                                ->orWhereRaw('CAST(penguji_ids AS CHAR) LIKE ?', ['%"' . $dosenId . '"%'])
-                                ->orWhereRaw('CAST(penguji_ids AS CHAR) LIKE ?', ['%' . $dosenId . '%']);
-                        });
-
-                    // Filter semester_type untuk kondisi 5
-                    if ($semesterType === 'reguler') {
-                        $q->whereNull('kelompok_besar_antara_id');
-                    } elseif ($semesterType === 'antara') {
-                        $q->whereNotNull('kelompok_besar_antara_id');
-                    }
                 });
 
             $jadwalData = $query->orderBy('tanggal', 'asc')
@@ -247,7 +118,7 @@ class JadwalNonBlokNonCSRController extends Controller
                 ->get();
 
 
-            // Filter jadwal yang benar-benar memiliki dosenId (untuk dosen_ids, komentator_ids, penguji_ids array)
+            // Filter jadwal yang benar-benar memiliki dosenId (untuk dosen_ids array)
             $jadwalData = $jadwalData->filter(function ($item) use ($dosenId) {
                 // Jika single dosen_id, langsung return true jika match
                 if ($item->dosen_id == $dosenId) {
@@ -257,24 +128,6 @@ class JadwalNonBlokNonCSRController extends Controller
                 if (!empty($item->dosen_ids)) {
                     $dosenIds = is_array($item->dosen_ids) ? $item->dosen_ids : json_decode($item->dosen_ids, true);
                     if (is_array($dosenIds) && in_array($dosenId, $dosenIds)) {
-                        return true;
-                    }
-                }
-                // Jika pembimbing_id, cek apakah match
-                if ($item->pembimbing_id == $dosenId) {
-                    return true;
-                }
-                // Jika komentator_ids (array), cek apakah dosenId ada di dalam array
-                if (!empty($item->komentator_ids)) {
-                    $komentatorIds = is_array($item->komentator_ids) ? $item->komentator_ids : json_decode($item->komentator_ids, true);
-                    if (is_array($komentatorIds) && in_array($dosenId, $komentatorIds)) {
-                        return true;
-                    }
-                }
-                // Jika penguji_ids (array), cek apakah dosenId ada di dalam array
-                if (!empty($item->penguji_ids)) {
-                    $pengujiIds = is_array($item->penguji_ids) ? $item->penguji_ids : json_decode($item->penguji_ids, true);
-                    if (is_array($pengujiIds) && in_array($dosenId, $pengujiIds)) {
                         return true;
                     }
                 }
@@ -293,50 +146,11 @@ class JadwalNonBlokNonCSRController extends Controller
                     }
                 }
 
-                // Parse komentator_ids jika ada
-                $komentatorIds = [];
-                if ($jadwal->komentator_ids) {
-                    $komentatorIds = is_array($jadwal->komentator_ids) ? $jadwal->komentator_ids : json_decode($jadwal->komentator_ids, true);
-                    if (!is_array($komentatorIds)) {
-                        $komentatorIds = [];
-                    }
-                }
-
-                // Parse penguji_ids jika ada
-                $pengujiIds = [];
-                if ($jadwal->penguji_ids) {
-                    $pengujiIds = is_array($jadwal->penguji_ids) ? $jadwal->penguji_ids : json_decode($jadwal->penguji_ids, true);
-                    if (!is_array($pengujiIds)) {
-                        $pengujiIds = [];
-                    }
-                }
-
-                // Tentukan role dosen dalam jadwal ini
+                // PENTING: Tentukan apakah dosen ini adalah dosen aktif (dosen_id) atau hanya ada di history (dosen_ids)
                 $isActiveDosen = ($jadwal->dosen_id == $dosenId);
                 $isInHistory = false;
-                $isPembimbing = ($jadwal->pembimbing_id == $dosenId);
-                $isKomentator = in_array($dosenId, $komentatorIds);
-                $isPenguji = in_array($dosenId, $pengujiIds);
-
                 if (!$isActiveDosen && !empty($dosenIds)) {
                     $isInHistory = in_array($dosenId, $dosenIds);
-                }
-
-                // Tentukan role dosen untuk ditampilkan
-                $dosenRole = [];
-                if ($isActiveDosen) {
-                    $dosenRole[] = 'Pengampu';
-                } elseif ($isInHistory) {
-                    $dosenRole[] = 'Pengampu (History)';
-                }
-                if ($isPembimbing) {
-                    $dosenRole[] = 'Pembimbing';
-                }
-                if ($isKomentator) {
-                    $dosenRole[] = 'Komentator';
-                }
-                if ($isPenguji) {
-                    $dosenRole[] = 'Penguji';
                 }
 
                 // Jika dosen hanya ada di history (sudah diganti), status harus "tidak_bisa" dan tidak bisa diubah
@@ -384,38 +198,6 @@ class JadwalNonBlokNonCSRController extends Controller
                     $pengampu = $jadwal->dosen->name;
                 }
 
-                // Get mahasiswa list with names
-                $mahasiswaNims = $jadwal->mahasiswa_nims ?? [];
-                if (!is_array($mahasiswaNims)) {
-                    $mahasiswaNims = json_decode($mahasiswaNims, true) ?? [];
-                }
-                $mahasiswaList = [];
-                if (!empty($mahasiswaNims)) {
-                    $mahasiswaList = User::whereIn('nim', $mahasiswaNims)
-                        ->where('role', 'mahasiswa')
-                        ->select('id', 'nim', 'name')
-                        ->get()
-                        ->toArray();
-                }
-
-                // Get komentator list with names
-                $komentatorList = [];
-                if (!empty($komentatorIds)) {
-                    $komentatorList = User::whereIn('id', $komentatorIds)
-                        ->select('id', 'name')
-                        ->get()
-                        ->toArray();
-                }
-
-                // Get penguji list with names
-                $pengujiList = [];
-                if (!empty($pengujiIds)) {
-                    $pengujiList = User::whereIn('id', $pengujiIds)
-                        ->select('id', 'name')
-                        ->get()
-                        ->toArray();
-                }
-
                 return [
                     'id' => $jadwal->id,
                     'mata_kuliah_kode' => $jadwal->mata_kuliah_kode,
@@ -431,20 +213,8 @@ class JadwalNonBlokNonCSRController extends Controller
                     'dosen' => $jadwal->dosen,
                     'dosen_id' => $jadwal->dosen_id,
                     'dosen_ids' => $dosenIds,
-                    'pembimbing' => $jadwal->pembimbing,
-                    'pembimbing_id' => $jadwal->pembimbing_id,
-                    'komentator_ids' => $komentatorIds,
-                    'komentator_list' => $komentatorList,
-                    'penguji_ids' => $pengujiIds,
-                    'penguji_list' => $pengujiList,
-                    'mahasiswa_nims' => $mahasiswaNims,
-                    'mahasiswa_list' => $mahasiswaList,
-                    'dosen_role' => implode(', ', $dosenRole), // Role dosen dalam jadwal ini
                     'is_active_dosen' => $isActiveDosen, // Flag: apakah dosen ini adalah dosen aktif
                     'is_in_history' => $isInHistory, // Flag: apakah dosen ini hanya ada di history
-                    'is_pembimbing' => $isPembimbing, // Flag: apakah dosen ini adalah pembimbing
-                    'is_komentator' => $isKomentator, // Flag: apakah dosen ini adalah komentator
-                    'is_penguji' => $isPenguji, // Flag: apakah dosen ini adalah penguji
                     'ruangan' => $jadwal->ruangan,
                     'kelompok_besar' => $jadwal->kelompokBesar ? [
                         'id' => $jadwal->kelompokBesar->id,
@@ -785,12 +555,10 @@ class JadwalNonBlokNonCSRController extends Controller
             if (!$jadwal->relationLoaded('createdBy')) {
                 $jadwal->load('createdBy');
             }
-            if (!$jadwal->relationLoaded('pembimbing')) {
-                $jadwal->load('pembimbing');
-            }
 
             $dosenIds = [];
 
+            // Untuk semua jenis jadwal: dosen_id dan dosen_ids
             if ($jadwal->dosen_id) {
                 $dosenIds[] = $jadwal->dosen_id;
             }
@@ -799,157 +567,106 @@ class JadwalNonBlokNonCSRController extends Controller
                 $dosenIds = array_merge($dosenIds, $jadwal->dosen_ids);
             }
 
+            // Untuk seminar_proposal dan sidang_skripsi: tambahkan pembimbing, komentator, penguji
+            if ($jadwal->jenis_baris === 'seminar_proposal' || $jadwal->jenis_baris === 'sidang_skripsi') {
+                // Tambahkan pembimbing
+                if ($jadwal->pembimbing_id) {
+                    $dosenIds[] = $jadwal->pembimbing_id;
+                }
+
+                // Untuk seminar_proposal: tambahkan komentator
+                if ($jadwal->jenis_baris === 'seminar_proposal' && $jadwal->komentator_ids && is_array($jadwal->komentator_ids)) {
+                    $dosenIds = array_merge($dosenIds, $jadwal->komentator_ids);
+                }
+
+                // Untuk sidang_skripsi: tambahkan penguji
+                if ($jadwal->jenis_baris === 'sidang_skripsi' && $jadwal->penguji_ids && is_array($jadwal->penguji_ids)) {
+                    $dosenIds = array_merge($dosenIds, $jadwal->penguji_ids);
+                }
+            }
+
             $dosenIds = array_unique($dosenIds);
 
+            if (empty($dosenIds)) {
+                return;
+            }
+
+            // Load all dosen in one query
+            $dosenList = User::whereIn('id', $dosenIds)->get()->keyBy('id');
             $createdBy = $jadwal->createdBy;
-            $mataKuliah = $jadwal->mataKuliah;
-            $ruangan = $jadwal->ruangan;
+                $mataKuliah = $jadwal->mataKuliah;
+                $ruangan = $jadwal->ruangan;
+
+            $baseMessage = "Anda telah di-assign untuk mengajar Non Blok Non CSR {$mataKuliah->nama} pada tanggal {$jadwal->tanggal->format('d/m/Y')} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai}";
+                if ($ruangan && $jadwal->use_ruangan) {
+                $baseMessage .= " di ruangan {$ruangan->nama}";
+            }
+            $baseMessage .= ". Silakan konfirmasi ketersediaan Anda.";
 
             $baseData = [
-                'jadwal_id' => $jadwal->id,
-                'jadwal_type' => 'non_blok_non_csr',
-                'mata_kuliah_kode' => $jadwal->mata_kuliah_kode,
-                'mata_kuliah_nama' => $mataKuliah->nama,
-                'tanggal' => $jadwal->tanggal->format('Y-m-d'),
-                'jam_mulai' => $jadwal->jam_mulai,
-                'jam_selesai' => $jadwal->jam_selesai,
-                'materi' => $jadwal->materi,
-                'agenda' => $jadwal->agenda,
-                'jenis_baris' => $jadwal->jenis_baris,
-                'ruangan' => $ruangan ? $ruangan->nama : null,
-                'use_ruangan' => $jadwal->use_ruangan,
+                        'jadwal_id' => $jadwal->id,
+                        'jadwal_type' => 'non_blok_non_csr',
+                        'mata_kuliah_kode' => $jadwal->mata_kuliah_kode,
+                        'mata_kuliah_nama' => $mataKuliah->nama,
+                        'tanggal' => $jadwal->tanggal->format('Y-m-d'),
+                        'jam_mulai' => $jadwal->jam_mulai,
+                        'jam_selesai' => $jadwal->jam_selesai,
+                        'materi' => $jadwal->materi,
+                        'agenda' => $jadwal->agenda,
+                        'jenis_baris' => $jadwal->jenis_baris,
+                        'ruangan' => $ruangan ? $ruangan->nama : null,
+                        'use_ruangan' => $jadwal->use_ruangan,
                 'created_by' => $createdBy ? $createdBy->name : 'Admin',
                 'created_by_role' => $createdBy ? $createdBy->role : 'admin',
                 'sender_name' => $createdBy ? $createdBy->name : 'Admin',
                 'sender_role' => $createdBy ? $createdBy->role : 'admin'
             ];
 
-            // Send notifications to regular dosen (dosen_id / dosen_ids)
-            if (!empty($dosenIds)) {
-                $dosenList = User::whereIn('id', $dosenIds)->get()->keyBy('id');
-                $baseMessage = "Anda telah di-assign untuk mengajar Non Blok Non CSR {$mataKuliah->nama} pada tanggal {$jadwal->tanggal->format('d/m/Y')} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai}";
-                if ($ruangan && $jadwal->use_ruangan) {
-                    $baseMessage .= " di ruangan {$ruangan->nama}";
-                }
-                $baseMessage .= ". Silakan konfirmasi ketersediaan Anda.";
+            foreach ($dosenIds as $dosenId) {
+                $dosen = $dosenList->get($dosenId);
+                if (!$dosen) continue;
 
-                foreach ($dosenIds as $dosenId) {
-                    $dosen = $dosenList->get($dosenId);
-                    if (!$dosen) continue;
+                Notification::create([
+                    'user_id' => $dosenId,
+                    'title' => 'Jadwal Non Blok Non CSR Baru',
+                    'message' => $baseMessage,
+                    'type' => 'info',
+                    'is_read' => false,
+                    'data' => array_merge($baseData, [
+                        'dosen_id' => $dosen->id,
+                        'dosen_name' => $dosen->name,
+                        'dosen_role' => $dosen->role
+                    ])
+                ]);
 
-                    Notification::create([
-                        'user_id' => $dosenId,
-                        'title' => 'Jadwal Non Blok Non CSR Baru',
-                        'message' => $baseMessage,
-                        'type' => 'info',
-                        'data' => array_merge($baseData, [
-                            'dosen_id' => $dosen->id,
-                            'dosen_name' => $dosen->name,
-                            'dosen_role' => $dosen->role
-                        ])
+                // Kirim WhatsApp notification
+                try {
+                    $whatsappMessage = $this->formatScheduleMessage('non_blok_non_csr', [
+                        'mata_kuliah_nama' => $mataKuliah->nama,
+                        'tanggal' => $jadwal->tanggal->format('Y-m-d'),
+                        'jam_mulai' => $jadwal->jam_mulai,
+                        'jam_selesai' => $jadwal->jam_selesai,
+                        'ruangan' => $ruangan && $jadwal->use_ruangan ? $ruangan->nama : null,
+                        'materi' => $jadwal->materi,
+                        'agenda' => $jadwal->agenda,
+                        'jenis_baris' => $jadwal->jenis_baris,
                     ]);
-                }
-            }
 
-            // Send notifications for Seminar Proposal
-            if ($jadwal->jenis_baris === 'seminar_proposal') {
-                // Notifikasi untuk Pembimbing
-                if ($jadwal->pembimbing_id) {
-                    $pembimbing = User::find($jadwal->pembimbing_id);
-                    if ($pembimbing) {
-                        $ruanganInfo = $ruangan && $jadwal->use_ruangan ? " di ruangan {$ruangan->nama}" : "";
-                        $message = "Anda telah di-assign sebagai Pembimbing untuk Seminar Proposal {$mataKuliah->nama} pada tanggal {$jadwal->tanggal->format('d/m/Y')} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai}{$ruanganInfo}. Silakan konfirmasi ketersediaan Anda.";
+                    $this->sendWhatsAppNotification($dosen, $whatsappMessage, [
+                        'jadwal_id' => $jadwal->id,
+                        'jadwal_type' => 'non_blok_non_csr',
+                        'mata_kuliah_kode' => $jadwal->mata_kuliah_kode,
+                        'mata_kuliah_nama' => $mataKuliah->nama,
+                    ]);
 
-                        Notification::create([
-                            'user_id' => $jadwal->pembimbing_id,
-                            'title' => 'Jadwal Seminar Proposal - Pembimbing',
-                            'message' => $message,
-                            'type' => 'info',
-                            'data' => array_merge($baseData, [
-                                'dosen_id' => $pembimbing->id,
-                                'dosen_name' => $pembimbing->name,
-                                'dosen_role' => $pembimbing->role,
-                                'pembimbing_id' => $jadwal->pembimbing_id
-                            ])
-                        ]);
-                    }
-                }
-
-                // Notifikasi untuk Komentator
-                if ($jadwal->komentator_ids && is_array($jadwal->komentator_ids)) {
-                    $komentatorList = User::whereIn('id', $jadwal->komentator_ids)->get();
-                    foreach ($komentatorList as $index => $komentator) {
-                        $ruanganInfo = $ruangan && $jadwal->use_ruangan ? " di ruangan {$ruangan->nama}" : "";
-                        $komentatorNumber = $index + 1;
-                        $message = "Anda telah di-assign sebagai Komentator {$komentatorNumber} untuk Seminar Proposal {$mataKuliah->nama} pada tanggal {$jadwal->tanggal->format('d/m/Y')} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai}{$ruanganInfo}. Silakan konfirmasi ketersediaan Anda.";
-
-                        Notification::create([
-                            'user_id' => $komentator->id,
-                            'title' => 'Jadwal Seminar Proposal - Komentator',
-                            'message' => $message,
-                            'type' => 'info',
-                            'data' => array_merge($baseData, [
-                                'dosen_id' => $komentator->id,
-                                'dosen_name' => $komentator->name,
-                                'dosen_role' => $komentator->role,
-                                'komentator_ids' => $jadwal->komentator_ids,
-                                'komentator_number' => $komentatorNumber
-                            ])
-                        ]);
-                    }
-                }
-            }
-
-            // Send notifications for Sidang Skripsi
-            if ($jadwal->jenis_baris === 'sidang_skripsi') {
-                // Notifikasi untuk Pembimbing
-                if ($jadwal->pembimbing_id) {
-                    $pembimbing = User::find($jadwal->pembimbing_id);
-                    if ($pembimbing) {
-                        $ruanganInfo = $ruangan && $jadwal->use_ruangan ? " di ruangan {$ruangan->nama}" : "";
-                        $message = "Anda telah di-assign sebagai Pembimbing untuk Sidang Skripsi {$mataKuliah->nama} pada tanggal {$jadwal->tanggal->format('d/m/Y')} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai}{$ruanganInfo}. Silakan konfirmasi ketersediaan Anda.";
-
-                        Notification::create([
-                            'user_id' => $jadwal->pembimbing_id,
-                            'title' => 'Jadwal Sidang Skripsi - Pembimbing',
-                            'message' => $message,
-                            'type' => 'info',
-                            'data' => array_merge($baseData, [
-                                'dosen_id' => $pembimbing->id,
-                                'dosen_name' => $pembimbing->name,
-                                'dosen_role' => $pembimbing->role,
-                                'pembimbing_id' => $jadwal->pembimbing_id
-                            ])
-                        ]);
-                    }
-                }
-
-                // Notifikasi untuk Penguji
-                if ($jadwal->penguji_ids && is_array($jadwal->penguji_ids)) {
-                    $pengujiList = User::whereIn('id', $jadwal->penguji_ids)->get();
-                    foreach ($pengujiList as $index => $penguji) {
-                        $ruanganInfo = $ruangan && $jadwal->use_ruangan ? " di ruangan {$ruangan->nama}" : "";
-                        $pengujiNumber = $index + 1;
-                        $message = "Anda telah di-assign sebagai Penguji {$pengujiNumber} untuk Sidang Skripsi {$mataKuliah->nama} pada tanggal {$jadwal->tanggal->format('d/m/Y')} jam {$jadwal->jam_mulai}-{$jadwal->jam_selesai}{$ruanganInfo}. Silakan konfirmasi ketersediaan Anda.";
-
-                        Notification::create([
-                            'user_id' => $penguji->id,
-                            'title' => 'Jadwal Sidang Skripsi - Penguji',
-                            'message' => $message,
-                            'type' => 'info',
-                            'data' => array_merge($baseData, [
-                                'dosen_id' => $penguji->id,
-                                'dosen_name' => $penguji->name,
-                                'dosen_role' => $penguji->role,
-                                'penguji_ids' => $jadwal->penguji_ids,
-                                'penguji_number' => $pengujiNumber
-                            ])
-                        ]);
-                    }
+                    Log::info("Notifikasi WhatsApp jadwal non_blok_non_csr berhasil dikirim ke dosen {$dosen->name} (ID: {$dosenId})");
+                } catch (\Exception $whatsappError) {
+                    Log::error("Gagal mengirim WhatsApp notification ke dosen {$dosenId}: " . $whatsappError->getMessage());
+                    // Continue dengan dosen berikutnya, jangan stop proses
                 }
             }
         } catch (\Exception $e) {
-            // Silently fail
+            Log::error("Gagal mengirim notifikasi jadwal non_blok_non_csr: " . $e->getMessage());
         }
     }
 

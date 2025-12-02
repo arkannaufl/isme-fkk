@@ -1541,7 +1541,8 @@ const AdminNotifications: React.FC = () => {
         pendingDosenPageSize,
         pendingDosenSemester,
         pendingDosenBlok,
-        "unconfirmed"
+        "unconfirmed",
+        pendingDosenJadwalType // PERBAIKAN: Include jadwal type filter
       );
 
       // Close modal and reset
@@ -2848,12 +2849,15 @@ const AdminNotifications: React.FC = () => {
               <>
               <button
                 onClick={async () => {
+                  // Reset jadwal type filter saat membuka modal agar semua jadwal muncul
+                  setPendingDosenJadwalType("");
                   await loadPendingDosen(
                     pendingDosenPage,
                     pendingDosenPageSize,
                     pendingDosenSemester,
                     pendingDosenBlok,
-                    pendingDosenReminderType
+                    pendingDosenReminderType,
+                    "" // Reset to empty to show all jadwal types
                   );
                     setSelectedReminderDosen(new Set());
                   setShowReminderModal(true);
@@ -2873,7 +2877,8 @@ const AdminNotifications: React.FC = () => {
                       pendingDosenPageSize,
                       pendingDosenSemester,
                       pendingDosenBlok,
-                      "unconfirmed"
+                      "unconfirmed",
+                      pendingDosenJadwalType // PERBAIKAN: Include jadwal type filter
                     );
                     setShowChangeStatusModal(true);
                   }}
@@ -4876,7 +4881,8 @@ const AdminNotifications: React.FC = () => {
                                     pendingDosenPageSize,
                                     pendingDosenSemester,
                                     pendingDosenBlok,
-                                    pendingDosenReminderType
+                                    pendingDosenReminderType,
+                                    pendingDosenJadwalType // PERBAIKAN: Include jadwal type filter
                                   );
                                 }}
                                 disabled={pendingDosenPage <= 1}
@@ -4896,7 +4902,8 @@ const AdminNotifications: React.FC = () => {
                                     pendingDosenPageSize,
                                     pendingDosenSemester,
                                     pendingDosenBlok,
-                                    pendingDosenReminderType
+                                    pendingDosenReminderType,
+                                    pendingDosenJadwalType // PERBAIKAN: Include jadwal type filter
                                   );
                                 }}
                                 disabled={
@@ -5064,7 +5071,8 @@ const AdminNotifications: React.FC = () => {
                               pendingDosenPageSize,
                               e.target.value,
                               pendingDosenBlok,
-                              "unconfirmed"
+                              "unconfirmed",
+                              pendingDosenJadwalType // PERBAIKAN: Include jadwal type filter
                             );
                           }}
                           className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
@@ -5094,7 +5102,8 @@ const AdminNotifications: React.FC = () => {
                               pendingDosenPageSize,
                               pendingDosenSemester,
                               e.target.value,
-                              "unconfirmed"
+                              "unconfirmed",
+                              pendingDosenJadwalType // PERBAIKAN: Include jadwal type filter
                             );
                           }}
                           className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
@@ -5403,7 +5412,8 @@ const AdminNotifications: React.FC = () => {
                                     pendingDosenPageSize,
                                     pendingDosenSemester,
                                     pendingDosenBlok,
-                                    "unconfirmed"
+                                    "unconfirmed",
+                                    pendingDosenJadwalType // PERBAIKAN: Include jadwal type filter
                                   );
                                 }}
                                 disabled={pendingDosenPage <= 1}
@@ -5423,7 +5433,8 @@ const AdminNotifications: React.FC = () => {
                                     pendingDosenPageSize,
                                     pendingDosenSemester,
                                     pendingDosenBlok,
-                                    "unconfirmed"
+                                    "unconfirmed",
+                                    pendingDosenJadwalType // PERBAIKAN: Include jadwal type filter
                                   );
                                 }}
                                 disabled={

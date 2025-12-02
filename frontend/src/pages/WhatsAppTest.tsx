@@ -94,8 +94,8 @@ export default function WhatsAppTest() {
   const [loadingSettings, setLoadingSettings] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const [settings, setSettings] = useState({
-    token: "",
-    secret_key: "",
+    token: "8nJAtEBEAggiJRZ4sii7wsTlbhEcDBXJnvPa9PZto5LN9n7U9nf3rZ3", // Default token
+    secret_key: "W6hDTKYG", // Default secret key
     base_url: "https://tegal.wablas.com/api",
     enabled: false, // Default false, akan di-update dari loadSettings
   });
@@ -466,24 +466,71 @@ export default function WhatsAppTest() {
   const loadSettings = async () => {
     if (!isSuperAdmin) return;
 
+    // Default values yang akan digunakan jika tidak ada di backend
+    const DEFAULT_TOKEN = "8nJAtEBEAggiJRZ4sii7wsTlbhEcDBXJnvPa9PZto5LN9n7U9nf3rZ3";
+    const DEFAULT_SECRET_KEY = "W6hDTKYG";
+    const DEFAULT_BASE_URL = "https://tegal.wablas.com/api";
+
     try {
       setLoadingSettings(true);
       const response = await api.get("/whatsapp/settings");
-      if (response.data) {
-        // Otomatis set enabled = true jika token dan secret_key ada
+      if (response.data && response.data.token && response.data.secret_key) {
+        // Jika ada data di backend, gunakan data dari backend
         const hasTokenAndSecret = !!(
           response.data.token && response.data.secret_key
         );
         setSettings({
-          token: response.data.token || "",
-          secret_key: response.data.secret_key || "",
-          base_url: response.data.base_url || "https://tegal.wablas.com/api",
-          enabled: hasTokenAndSecret, // Otomatis true jika token dan secret_key ada
+          token: response.data.token,
+          secret_key: response.data.secret_key,
+          base_url: response.data.base_url || DEFAULT_BASE_URL,
+          enabled: hasTokenAndSecret,
         });
+      } else {
+        // Jika tidak ada data di backend atau kosong, gunakan default values
+        // dan auto-save ke backend agar tidak hilang
+        setSettings({
+          token: DEFAULT_TOKEN,
+          secret_key: DEFAULT_SECRET_KEY,
+          base_url: DEFAULT_BASE_URL,
+          enabled: true,
+        });
+        
+        // Auto-save default values ke backend agar tidak hilang
+        try {
+          await api.put("/whatsapp/settings", {
+            token: DEFAULT_TOKEN,
+            secret_key: DEFAULT_SECRET_KEY,
+            base_url: DEFAULT_BASE_URL,
+            enabled: true,
+          });
+          console.log("[loadSettings] Default values telah disimpan ke backend");
+        } catch (saveErr: any) {
+          console.error("[loadSettings] Error auto-saving default values:", saveErr);
+          // Tidak set error karena ini opsional, user masih bisa menggunakan default values
+        }
       }
     } catch (err: any) {
       console.error("Error loading settings:", err);
-      setSettingsError("Gagal memuat settings");
+      // Jika error, tetap gunakan default values
+      setSettings({
+        token: DEFAULT_TOKEN,
+        secret_key: DEFAULT_SECRET_KEY,
+        base_url: DEFAULT_BASE_URL,
+        enabled: true,
+      });
+      // Coba auto-save default values ke backend
+      try {
+        await api.put("/whatsapp/settings", {
+          token: DEFAULT_TOKEN,
+          secret_key: DEFAULT_SECRET_KEY,
+          base_url: DEFAULT_BASE_URL,
+          enabled: true,
+        });
+        console.log("[loadSettings] Default values telah disimpan ke backend setelah error");
+      } catch (saveErr: any) {
+        console.error("[loadSettings] Error auto-saving default values setelah error:", saveErr);
+      }
+      setSettingsError("Gagal memuat settings, menggunakan default values");
     } finally {
       setLoadingSettings(false);
     }

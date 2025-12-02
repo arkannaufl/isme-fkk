@@ -3316,7 +3316,8 @@ export default function AbsensiSeminarPlenoPage() {
                           <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Nama</th>
                           <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Peran</th>
                           <th className="px-6 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Status</th>
-                          <th className="px-6 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Aksi</th>
+                          <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Catatan</th>
+                          <th className="px-6 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Hadir</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -3337,7 +3338,7 @@ export default function AbsensiSeminarPlenoPage() {
                           if (filteredData.length === 0) {
                             return (
                               <tr>
-                                <td colSpan={6} className="px-6 py-16 text-center">
+                                <td colSpan={7} className="px-6 py-16 text-center">
                                   <div className="flex flex-col items-center gap-3 text-gray-400 dark:text-gray-500">
                                     <svg className="w-10 h-10" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1 4h.01M12 9h.01" />
@@ -3387,6 +3388,22 @@ export default function AbsensiSeminarPlenoPage() {
                                     {hadir ? "Hadir" : "Tidak Hadir"}
                                   </span>
                                 </td>
+                                <td className="px-6 py-4">
+                                  <input
+                                    type="text"
+                                    value={absensiDosen[d.id.toString()]?.catatan || ""}
+                                    onChange={(e) =>
+                                      handleCatatanDosenChange(d.id, e.target.value)
+                                    }
+                                    disabled={isReportSubmitted}
+                                    placeholder="Catatan..."
+                                    className={`w-full text-sm border rounded-md px-3 py-2 dark:text-gray-100 dark:placeholder-gray-400 ${
+                                      !isReportSubmitted
+                                        ? "bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                                        : "bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 cursor-not-allowed opacity-60"
+                                    }`}
+                                  />
+                                </td>
                                 <td className="px-6 py-4 text-center">
                                   <div className="flex items-center justify-center gap-2">
                                     <div className="relative flex items-center justify-center select-none mx-auto" style={{ width: 24, height: 24 }}>
@@ -3410,19 +3427,6 @@ export default function AbsensiSeminarPlenoPage() {
                                         </span>
                                       )}
                                     </div>
-                                    <button
-                                      onClick={() => handleOpenCatatanModalDosen(d)}
-                                      disabled={isReportSubmitted}
-                                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 rounded-lg transition-all duration-200 ${
-                                        isReportSubmitted ? "opacity-50 cursor-not-allowed" : ""
-                                      }`}
-                                      title={isReportSubmitted ? "Tidak bisa diubah setelah submit" : "Tambah/Edit Catatan"}
-                                    >
-                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                      </svg>
-                                      Catatan
-                                    </button>
                                   </div>
                                 </td>
                               </tr>

@@ -18,6 +18,7 @@ use App\Models\JadwalAgendaKhusus;
 use App\Models\AbsensiPBL;
 use App\Models\AbsensiJurnal;
 use App\Models\AbsensiCSR;
+use App\Models\AbsensiDosenPraktikum;
 use App\Models\PenilaianPBL;
 use App\Models\PenilaianJurnal;
 use App\Models\TahunAjaran;
@@ -71,6 +72,9 @@ class DashboardTimAkademikController extends Controller
             // Get low attendance alerts
             $lowAttendanceAlerts = $this->getLowAttendanceAlerts();
 
+            // Get praktikum pending absensi dosen
+            $praktikumPendingAbsensi = $this->getPraktikumPendingAbsensi();
+
             return response()->json([
                 'totalMataKuliah' => $totalMataKuliah,
                 'totalKelas' => $totalKelas,
@@ -86,6 +90,7 @@ class DashboardTimAkademikController extends Controller
                 'academicOverview' => $academicOverview,
                 'scheduleStats' => $scheduleStats,
                 'lowAttendanceAlerts' => $lowAttendanceAlerts,
+                'praktikumPendingAbsensi' => $praktikumPendingAbsensi,
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -794,6 +799,61 @@ class DashboardTimAkademikController extends Controller
                 'message' => 'Failed to fetch assessment progress',
                 'error' => $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Get praktikum jadwal that need dosen attendance
+     * Returns all praktikum jadwal with status (selesai or belum_diselesaikan)
+     */
+    private function getPraktikumPendingAbsensi(): array
+    {
+        try {
+            // Get all praktikum jadwal (both submitted and not submitted)
+            // Order by tanggal desc to show latest first
+            $praktikumJadwal = JadwalPraktikum::with(['mataKuliah', 'ruangan', 'dosen'])
+                ->orderBy('tanggal', 'desc')
+                ->orderBy('jam_mulai', 'desc')
+                ->limit(20) // Limit to latest 20 jadwal
+                ->get();
+
+            $result = [];
+            foreach ($praktikumJadwal as $jadwal) {
+                // Check if there are any dosen assigned
+                if ($jadwal->dosen->count() > 0) {
+                    // Get dosen names
+                    $dosenNames = $jadwal->dosen->pluck('name')->toArray();
+                    
+                    // Check if absensi dosen has been submitted
+                    $absensiDosenCount = AbsensiDosenPraktikum::where('jadwal_praktikum_id', $jadwal->id)->count();
+                    $totalDosen = $jadwal->dosen->count();
+                    $isSubmitted = $jadwal->penilaian_submitted === true;
+                    
+                    $result[] = [
+                        'id' => $jadwal->id,
+                        'mata_kuliah_kode' => $jadwal->mata_kuliah_kode,
+                        'mata_kuliah_nama' => $jadwal->mataKuliah->nama ?? 'Unknown',
+                        'tanggal' => $jadwal->tanggal,
+                        'jam_mulai' => $jadwal->jam_mulai,
+                        'jam_selesai' => $jadwal->jam_selesai,
+                        'ruangan' => $jadwal->ruangan->nama ?? 'Unknown',
+                        'kelas_praktikum' => $jadwal->kelas_praktikum,
+                        'materi' => $jadwal->materi,
+                        'topik' => $jadwal->topik ?? null,
+                        'dosen_names' => $dosenNames,
+                        'total_dosen' => $totalDosen,
+                        'absensi_dosen_count' => $absensiDosenCount,
+                        'is_submitted' => $isSubmitted,
+                        'status' => $isSubmitted ? 'selesai' : 'belum_diselesaikan',
+                        'action_url' => "/absensi-praktikum/{$jadwal->mata_kuliah_kode}/{$jadwal->id}"
+                    ];
+                }
+            }
+
+            return $result;
+        } catch (\Exception $e) {
+            \Log::error('Error getting praktikum pending absensi: ' . $e->getMessage());
+            return [];
         }
     }
 }
