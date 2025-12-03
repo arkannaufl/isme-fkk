@@ -13,6 +13,7 @@ import {
   faExternalLinkAlt,
   faCheckCircle,
   faTimesCircle,
+  faUsers,
 } from "@fortawesome/free-solid-svg-icons";
 import { useNavigate } from "react-router-dom";
 import api, { getUser } from "../utils/api";
@@ -1813,7 +1814,7 @@ export default function DashboardMahasiswa() {
                         </div>
                         <div>
                           {getStatusBadge(
-                            d.status_konfirmasi || 'belum_konfirmasi',
+                            (d.status_konfirmasi || 'belum_konfirmasi') as "belum_konfirmasi" | "bisa" | "tidak_bisa" | "waiting_reschedule",
                             undefined
                           )}
                         </div>
