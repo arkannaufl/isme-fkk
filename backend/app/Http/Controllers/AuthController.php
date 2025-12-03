@@ -353,6 +353,7 @@ class AuthController extends Controller
             'username' => 'required|string|unique:users,username,' . $user->id,
             'email' => 'nullable|email|unique:users,email,' . $user->id . ',id,role,' . $user->role,
             'telp' => 'nullable|string|max:50',
+            'gender' => 'nullable|string|in:Laki-laki,Perempuan',
             'ket' => 'nullable|string|max:255',
             'current_password' => 'nullable|string',
             'password' => 'nullable|string|min:6',
@@ -388,6 +389,9 @@ class AuthController extends Controller
         }
         if (array_key_exists('telp', $validated)) {
             $user->telp = $validated['telp'];
+        }
+        if (array_key_exists('gender', $validated)) {
+            $user->gender = $validated['gender'];
         }
         if (array_key_exists('ket', $validated)) {
             $user->ket = $validated['ket'];

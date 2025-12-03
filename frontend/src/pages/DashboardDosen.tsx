@@ -2297,10 +2297,106 @@ export default function DashboardDosen() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
                         <div className="flex items-center gap-2">
-                          {getStatusBadge(
-                            item.status_konfirmasi,
-                            item.status_reschedule,
-                            jadwalType
+                          {/* Untuk Seminar Proposal dan Sidang Skripsi, jangan tampilkan getStatusBadge karena sudah ada logika khusus */}
+                          {!(jadwalType === "non_blok_non_csr" && (item.jenis_baris === "seminar_proposal" || item.jenis_baris === "Seminar Proposal" || item.jenis_baris === "sidang_skripsi" || item.jenis_baris === "Sidang Skripsi")) && (
+                            getStatusBadge(
+                              item.status_konfirmasi,
+                              item.status_reschedule,
+                              jadwalType
+                            )
+                          )}
+                          {/* Untuk Seminar Proposal dan Sidang Skripsi, tampilkan konfirmasi/reschedule jika belum konfirmasi - HANYA untuk pembimbing */}
+                          {jadwalType === "non_blok_non_csr" && (item.jenis_baris === "seminar_proposal" || item.jenis_baris === "Seminar Proposal" || item.jenis_baris === "sidang_skripsi" || item.jenis_baris === "Sidang Skripsi") && (
+                            <>
+                              {/* Tampilkan button konfirmasi/reschedule HANYA jika pembimbing dan belum konfirmasi */}
+                              {item.is_pembimbing && item.status_konfirmasi === "belum_konfirmasi" && (
+                                <>
+                                  <button
+                                    onClick={() => openKonfirmasiModal(item)}
+                                    className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors mr-1"
+                                    title="Konfirmasi Ketersediaan"
+                                  >
+                                    Konfirmasi
+                                  </button>
+                                  <button
+                                    onClick={() => openRescheduleModal(item)}
+                                    className="px-3 py-1 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 transition-colors mr-1"
+                                    title="Reschedule Jadwal"
+                                  >
+                                    Reschedule
+                                  </button>
+                                </>
+                              )}
+                              {/* Tampilkan status "Menunggu" untuk komentator/penguji HANYA jika pembimbing belum konfirmasi (belum_konfirmasi) */}
+                              {(() => {
+                                const user = getUser();
+                                if (!user) return null;
+                                
+                                // Cek apakah dosen ini terlibat (komentator atau penguji) tapi bukan pembimbing
+                                const isKomentator = (item.komentator_ids && Array.isArray(item.komentator_ids) && item.komentator_ids.includes(Number(user.id))) ||
+                                                     (item.komentator_list && Array.isArray(item.komentator_list) && item.komentator_list.some((k: any) => k.id === Number(user.id)));
+                                const isPenguji = (item.penguji_ids && Array.isArray(item.penguji_ids) && item.penguji_ids.includes(Number(user.id))) ||
+                                                  (item.penguji_list && Array.isArray(item.penguji_list) && item.penguji_list.some((p: any) => p.id === Number(user.id)));
+                                
+                                const isTerlibatBukanPembimbing = !item.is_pembimbing && (item.is_active_dosen || isKomentator || isPenguji);
+                                
+                                if (isTerlibatBukanPembimbing && item.status_konfirmasi === "belum_konfirmasi") {
+                                  return (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700">
+                                      <FontAwesomeIcon icon={faClock} className="w-3 h-3 mr-1" />
+                                      Menunggu Konfirmasi Pembimbing
+                                    </span>
+                                  );
+                                }
+                                return null;
+                              })()}
+                              {/* Tampilkan badge "Dibatalkan" jika pembimbing sudah konfirmasi "tidak_bisa" */}
+                              {item.is_pembimbing && item.status_konfirmasi === "tidak_bisa" && (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-700">
+                                  <FontAwesomeIcon icon={faTimesCircle} className="w-3 h-3 mr-1" />
+                                  Tidak Bisa Mengajar
+                                </span>
+                              )}
+                              {/* Tampilkan badge "Pembimbing Tidak Bisa" untuk komentator/penguji jika pembimbing sudah konfirmasi "tidak_bisa" */}
+                              {(() => {
+                                const user = getUser();
+                                if (!user) return null;
+                                
+                                // Cek apakah dosen ini terlibat (komentator atau penguji) tapi bukan pembimbing
+                                const isKomentator = (item.komentator_ids && Array.isArray(item.komentator_ids) && item.komentator_ids.includes(Number(user.id))) ||
+                                                     (item.komentator_list && Array.isArray(item.komentator_list) && item.komentator_list.some((k: any) => k.id === Number(user.id)));
+                                const isPenguji = (item.penguji_ids && Array.isArray(item.penguji_ids) && item.penguji_ids.includes(Number(user.id))) ||
+                                                  (item.penguji_list && Array.isArray(item.penguji_list) && item.penguji_list.some((p: any) => p.id === Number(user.id)));
+                                
+                                const isTerlibatBukanPembimbing = !item.is_pembimbing && (item.is_active_dosen || isKomentator || isPenguji);
+                                
+                                if (isTerlibatBukanPembimbing && item.status_konfirmasi === "tidak_bisa") {
+                                  return (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-700">
+                                      <FontAwesomeIcon icon={faTimesCircle} className="w-3 h-3 mr-1" />
+                                      Pembimbing Tidak Bisa
+                                    </span>
+                                  );
+                                }
+                                return null;
+                              })()}
+                              {/* Tampilkan button Detail jika sudah konfirmasi 'bisa' - untuk semua dosen terlibat */}
+                              {item.is_active_dosen && item.status_konfirmasi === "bisa" && (
+                                <button
+                                  onClick={() => {
+                                    if (item.jenis_baris === "seminar_proposal" || item.jenis_baris === "Seminar Proposal") {
+                                      navigate(`/bimbingan-akhir/seminar-proposal/${item.id}`);
+                                    } else {
+                                      navigate(`/bimbingan-akhir/sidang-skripsi/${item.id}`);
+                                    }
+                                  }}
+                                  className="px-3 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
+                                  title={item.jenis_baris === "seminar_proposal" || item.jenis_baris === "Seminar Proposal" ? "Detail Seminar Proposal" : "Detail Sidang Skripsi"}
+                                >
+                                  Detail
+                                </button>
+                              )}
+                            </>
                           )}
                           {/* Persamaan Persepsi dan Seminar Pleno tidak ada button konfirmasi (langsung bisa) */}
                           {jadwalType === "persamaan_persepsi" ||
@@ -4460,6 +4556,7 @@ export default function DashboardDosen() {
                           ? "bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-600"
                           : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
                       }`}
+                      onClick={() => setSelectedStatus("bisa")}
                     >
                       <div
                         className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mr-4 ${
@@ -4516,6 +4613,7 @@ export default function DashboardDosen() {
                           ? "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-600"
                           : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
                       }`}
+                      onClick={() => setSelectedStatus("tidak_bisa")}
                     >
                       <div
                         className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mr-4 ${

@@ -13,6 +13,7 @@ import {
   faGraduationCap,
   faClipboardCheck,
   faDownload,
+  faCheckCircle,
 } from "@fortawesome/free-solid-svg-icons";
 import api from "../utils/api";
 import PageMeta from "../components/common/PageMeta";
@@ -31,6 +32,7 @@ interface JadwalDetail {
   ruangan?: { id: number; nama: string; gedung?: string };
   jumlah_sesi?: number;
   dosen_role?: string;
+  status_konfirmasi?: string;
 }
 
 const DetailSeminarProposal = () => {
@@ -42,6 +44,10 @@ const DetailSeminarProposal = () => {
   const [hasilData, setHasilData] = useState<Record<number, any>>({});
   const [penilaianData, setPenilaianData] = useState<Record<number, any>>({});
   const [downloadingPDF, setDownloadingPDF] = useState<Record<number, boolean>>({});
+  const [showKonfirmasiModal, setShowKonfirmasiModal] = useState(false);
+  const [konfirmasiStatus, setKonfirmasiStatus] = useState<'bisa' | 'tidak_bisa'>('bisa');
+  const [konfirmasiAlasan, setKonfirmasiAlasan] = useState('');
+  const [submittingKonfirmasi, setSubmittingKonfirmasi] = useState(false);
 
   const fetchJadwalDetail = useCallback(async () => {
     try {
@@ -1129,14 +1135,35 @@ const DetailSeminarProposal = () => {
               </span>
             </button>
             
-            {/* Tombol Mulai Penilaian */}
-            <button
-              onClick={() => navigate(`/bimbingan-akhir/seminar-proposal/${id}/penilaian`)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-orange-500 text-white font-semibold hover:bg-orange-600 transition shadow-lg shadow-orange-500/25"
-            >
-              <FontAwesomeIcon icon={faClipboardCheck} />
-              <span className="hidden sm:inline">Mulai Penilaian</span>
-            </button>
+            {/* Konfirmasi Button - hanya tampil jika pembimbing dan belum konfirmasi */}
+            {jadwal && jadwal.status_konfirmasi === 'belum_konfirmasi' && jadwal.dosen_role && (jadwal.dosen_role.includes('Pembimbing') || jadwal.dosen_role.includes('Moderator')) && (
+              <button
+                onClick={() => setShowKonfirmasiModal(true)}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-500 text-white font-semibold hover:bg-blue-600 transition shadow-lg shadow-blue-500/25"
+              >
+                <FontAwesomeIcon icon={faCheckCircle} />
+                <span className="hidden sm:inline">Konfirmasi Ketersediaan</span>
+              </button>
+            )}
+            
+            {/* Status Menunggu - untuk komentator/penguji HANYA jika pembimbing belum konfirmasi (belum_konfirmasi) */}
+            {jadwal && jadwal.status_konfirmasi === 'belum_konfirmasi' && jadwal.dosen_role && !jadwal.dosen_role.includes('Pembimbing') && !jadwal.dosen_role.includes('Moderator') && (
+              <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700">
+                <FontAwesomeIcon icon={faClock} />
+                <span className="hidden sm:inline">Menunggu Konfirmasi Pembimbing</span>
+              </div>
+            )}
+            
+            {/* Penilaian Button - hanya tampil jika sudah konfirmasi 'bisa' */}
+            {jadwal && jadwal.status_konfirmasi === 'bisa' && (
+              <button
+                onClick={() => navigate(`/bimbingan-akhir/seminar-proposal/${id}/penilaian`)}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-orange-500 text-white font-semibold hover:bg-orange-600 transition shadow-lg shadow-orange-500/25"
+              >
+                <FontAwesomeIcon icon={faClipboardCheck} />
+                <span className="hidden sm:inline">Mulai Penilaian</span>
+              </button>
+            )}
           </div>
         </motion.div>
 
@@ -1399,6 +1426,102 @@ const DetailSeminarProposal = () => {
           )}
         </motion.div>
       </div>
+
+      {/* Modal Konfirmasi */}
+      {showKonfirmasiModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 w-full max-w-md mx-4"
+          >
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Konfirmasi Ketersediaan
+            </h3>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Status
+              </label>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setKonfirmasiStatus('bisa')}
+                  className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                    konfirmasiStatus === 'bisa'
+                      ? 'bg-green-500 text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  Bisa
+                </button>
+                <button
+                  onClick={() => setKonfirmasiStatus('tidak_bisa')}
+                  className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
+                    konfirmasiStatus === 'tidak_bisa'
+                      ? 'bg-red-500 text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  Tidak Bisa
+                </button>
+              </div>
+            </div>
+
+            {konfirmasiStatus === 'tidak_bisa' && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Alasan (Opsional)
+                </label>
+                <textarea
+                  value={konfirmasiAlasan}
+                  onChange={(e) => setKonfirmasiAlasan(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  rows={3}
+                  placeholder="Masukkan alasan jika tidak bisa..."
+                />
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowKonfirmasiModal(false);
+                  setKonfirmasiStatus('bisa');
+                  setKonfirmasiAlasan('');
+                }}
+                className="flex-1 py-2 px-4 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    setSubmittingKonfirmasi(true);
+                    const user = JSON.parse(localStorage.getItem('user') || '{}');
+                    await api.put(`/jadwal-non-blok-non-csr/${id}/konfirmasi`, {
+                      status: konfirmasiStatus,
+                      alasan: konfirmasiAlasan,
+                      dosen_id: user.id,
+                    });
+                    setShowKonfirmasiModal(false);
+                    setKonfirmasiStatus('bisa');
+                    setKonfirmasiAlasan('');
+                    fetchJadwalDetail();
+                  } catch (error) {
+                    alert('Gagal menyimpan konfirmasi');
+                  } finally {
+                    setSubmittingKonfirmasi(false);
+                  }
+                }}
+                disabled={submittingKonfirmasi}
+                className="flex-1 py-2 px-4 rounded-lg bg-blue-500 text-white font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submittingKonfirmasi ? 'Menyimpan...' : 'Simpan'}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </>
   );
 };

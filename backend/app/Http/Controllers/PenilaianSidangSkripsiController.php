@@ -17,7 +17,7 @@ class PenilaianSidangSkripsiController extends Controller
     public function getByJadwal($jadwalId)
     {
         $jadwal = JadwalNonBlokNonCSR::findOrFail($jadwalId);
-        
+
         // Get all penilaian for this jadwal
         $penilaian = PenilaianSidangSkripsi::where('jadwal_id', $jadwalId)
             ->with(['mahasiswa:id,name,nim', 'penguji:id,name,nid'])
@@ -44,8 +44,8 @@ class PenilaianSidangSkripsiController extends Controller
 
             // Hitung nilai akhir mahasiswa (rata-rata dari semua penguji)
             $nilaiAkhirPenguji = $nilaiPerPenguji->pluck('nilai_akhir')->filter()->values();
-            $nilaiAkhirMahasiswa = $nilaiAkhirPenguji->count() > 0 
-                ? round($nilaiAkhirPenguji->avg(), 2) 
+            $nilaiAkhirMahasiswa = $nilaiAkhirPenguji->count() > 0
+                ? round($nilaiAkhirPenguji->avg(), 2)
                 : null;
 
             return [
@@ -83,6 +83,15 @@ class PenilaianSidangSkripsiController extends Controller
 
         $pengujiId = Auth::id();
         $user = Auth::user();
+
+        // Cek status konfirmasi jadwal - harus 'bisa' sebelum bisa menilai
+        $jadwal = JadwalNonBlokNonCSR::findOrFail($request->jadwal_id);
+        if ($jadwal->status_konfirmasi !== 'bisa') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Jadwal belum dikonfirmasi oleh ketua. Silakan konfirmasi terlebih dahulu sebelum melakukan penilaian.',
+            ], 403);
+        }
 
         // Check if hasil is finalized
         $hasil = HasilSidangSkripsi::where('jadwal_id', $request->jadwal_id)
@@ -140,8 +149,8 @@ class PenilaianSidangSkripsiController extends Controller
             ->get();
 
         $nilaiAkhirPenguji = $penilaian->pluck('nilai_akhir')->filter()->values();
-        $nilaiAkhirMahasiswa = $nilaiAkhirPenguji->count() > 0 
-            ? round($nilaiAkhirPenguji->avg(), 2) 
+        $nilaiAkhirMahasiswa = $nilaiAkhirPenguji->count() > 0
+            ? round($nilaiAkhirPenguji->avg(), 2)
             : null;
 
         return response()->json([

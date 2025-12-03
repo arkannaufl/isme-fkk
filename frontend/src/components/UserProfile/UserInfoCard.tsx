@@ -21,6 +21,7 @@ export default function UserInfoCard() {
     username: "",
     email: "",
     telp: "",
+    gender: "",
     ket: "",
     current_password: "",
     new_password: "",
@@ -95,6 +96,7 @@ export default function UserInfoCard() {
           username: userData.username || "",
           email: userData.email || "",
           telp: telpFromWhatsApp, // Get dari whatsapp_phone (sinkronisasi)
+          gender: userData.gender || "",
           ket: userData.ket || "",
           current_password: "",
           new_password: "",
@@ -148,6 +150,7 @@ export default function UserInfoCard() {
           username: userData.username || "",
           email: userData.email || "",
           telp: telpFromWhatsApp, // Get dari whatsapp_phone (sinkronisasi)
+          gender: userData.gender || "",
           ket: userData.ket || "",
           current_password: "",
           new_password: "",
@@ -279,7 +282,7 @@ export default function UserInfoCard() {
 
   if (!user) return null;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
@@ -320,6 +323,7 @@ export default function UserInfoCard() {
       username: user.username || "",
       email: user.email || "",
       telp: telpFromWhatsApp, // Get dari whatsapp_phone
+      gender: user.gender || "",
       ket: user.ket || "",
       current_password: "",
       new_password: "",
@@ -412,6 +416,7 @@ export default function UserInfoCard() {
         username: form.username,
         email: form.email,
         telp: form.telp,
+        gender: form.gender,
         ket: form.ket,
       };
 
@@ -824,6 +829,40 @@ export default function UserInfoCard() {
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                           Format: YYYY-mm-dd (contoh: 1990-01-15)
                         </p>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Mahasiswa extra fields */}
+                  {user.role === "mahasiswa" && (
+                    <>
+                      <div className="mb-3 sm:mb-4">
+                        <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">
+                          Gender
+                        </label>
+                        <select
+                          name="gender"
+                          value={form.gender}
+                          onChange={handleChange}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        >
+                          <option value="">Pilih Gender</option>
+                          <option value="Laki-laki">Laki-laki</option>
+                          <option value="Perempuan">Perempuan</option>
+                        </select>
+                      </div>
+                      <div className="mb-3 sm:mb-4">
+                        <label className="block mb-1 text-gray-700 dark:text-gray-300 font-medium text-sm">
+                          Nomor Telepon
+                        </label>
+                        <input
+                          type="tel"
+                          name="telp"
+                          value={form.telp}
+                          onChange={handleChange}
+                          placeholder="081234567890"
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        />
                       </div>
                     </>
                   )}

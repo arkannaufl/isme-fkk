@@ -152,8 +152,11 @@ interface JadwalNonBlokNonCSR {
   pengampu: string;
   ruangan: string;
   tipe: string; // Added for jenis_baris
-  jenis_baris: "materi" | "agenda"; // Added for backend data
+  jenis_baris: "materi" | "agenda" | "seminar_proposal" | "sidang_skripsi"; // Added for backend data
   use_ruangan?: boolean; // Added for ruangan check
+  pembimbing_id?: number;
+  komentator_list?: string[];
+  penguji_list?: string[];
   status_konfirmasi?:
     | "belum_konfirmasi"
     | "bisa"
@@ -256,6 +259,9 @@ export default function DashboardMahasiswa() {
   >([]);
   const [jadwalSeminarPleno, setJadwalSeminarPleno] = useState<
     JadwalSeminarPleno[]
+  >([]);
+  const [jadwalBimbinganAkhir, setJadwalBimbinganAkhir] = useState<
+    JadwalNonBlokNonCSR[]
   >([]);
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -365,8 +371,15 @@ export default function DashboardMahasiswa() {
             : [];
 
         // Filter out replaced lecturers (status_konfirmasi = "tidak_bisa")
+        // Tapi jangan filter jadwal bimbingan akhir (seminar_proposal dan sidang_skripsi)
         const filterActiveLecturers = (data: JadwalItem[]) => {
-          return data.filter((item) => item.status_konfirmasi !== "tidak_bisa");
+          return data.filter((item) => {
+            // Untuk jadwal bimbingan akhir, jangan filter berdasarkan status_konfirmasi
+            if (item.jenis_baris === "seminar_proposal" || item.jenis_baris === "sidang_skripsi") {
+              return true;
+            }
+            return item.status_konfirmasi !== "tidak_bisa";
+          });
         };
 
         setJadwalPBL(filterActiveLecturers(pblData));
@@ -418,23 +431,51 @@ export default function DashboardMahasiswa() {
             )
         );
         const jadwalNonBlokNonCSRResult = otherResults[1];
+        const nonBlokNonCSRData = jadwalNonBlokNonCSRResult?.status === "fulfilled"
+          ? jadwalNonBlokNonCSRResult.value.data.data || []
+          : [];
+        
+        // Filter jadwal bimbingan akhir (seminar proposal dan sidang skripsi) SEBELUM filterActiveLecturers
+        const bimbinganAkhirData = nonBlokNonCSRData.filter(
+          (item: JadwalNonBlokNonCSR) =>
+            item.jenis_baris === "seminar_proposal" ||
+            item.jenis_baris === "sidang_skripsi"
+        );
+        setJadwalBimbinganAkhir(bimbinganAkhirData);
+        
+        // Filter jadwal non blok non csr lainnya (bukan bimbingan akhir)
+        const nonBimbinganAkhirData = nonBlokNonCSRData.filter(
+          (item: JadwalNonBlokNonCSR) =>
+            item.jenis_baris !== "seminar_proposal" &&
+            item.jenis_baris !== "sidang_skripsi"
+        );
         setJadwalNonBlokNonCSR(
-            filterActiveLecturers(
-          jadwalNonBlokNonCSRResult?.status === "fulfilled"
-            ? jadwalNonBlokNonCSRResult.value.data.data || []
-            : []
-            )
+          filterActiveLecturers(nonBimbinganAkhirData)
         );
       } else {
         setJadwalCSR([]);
         const jadwalNonBlokNonCSRResult = otherResults[0];
+        const nonBlokNonCSRData = jadwalNonBlokNonCSRResult?.status === "fulfilled"
+          ? jadwalNonBlokNonCSRResult.value.data.data || []
+          : [];
+        
+        // Filter jadwal bimbingan akhir (seminar proposal dan sidang skripsi) SEBELUM filterActiveLecturers
+        const bimbinganAkhirData = nonBlokNonCSRData.filter(
+          (item: JadwalNonBlokNonCSR) =>
+            item.jenis_baris === "seminar_proposal" ||
+            item.jenis_baris === "sidang_skripsi"
+        );
+        setJadwalBimbinganAkhir(bimbinganAkhirData);
+        
+        // Filter jadwal non blok non csr lainnya (bukan bimbingan akhir)
+        const nonBimbinganAkhirData = nonBlokNonCSRData.filter(
+          (item: JadwalNonBlokNonCSR) =>
+            item.jenis_baris !== "seminar_proposal" &&
+            item.jenis_baris !== "sidang_skripsi"
+        );
         setJadwalNonBlokNonCSR(
-            filterActiveLecturers(
-          jadwalNonBlokNonCSRResult?.status === "fulfilled"
-            ? jadwalNonBlokNonCSRResult.value.data.data || []
-            : []
-            )
-          );
+          filterActiveLecturers(nonBimbinganAkhirData)
+        );
         }
       } catch {
         // Error handling - could be logged to monitoring service
@@ -706,6 +747,10 @@ export default function DashboardMahasiswa() {
                         {item.topik || "N/A"}
                       </td>
                       </>
+                    ) : jadwalType === "bimbingan_akhir_sempro" || jadwalType === "bimbingan_akhir_sidang" ? (
+                      <>
+                        {/* Kolom ini akan diisi di bagian bawah */}
+                      </>
                     ) : jadwalType === "non_blok_non_csr" ? (
                       <>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
@@ -731,6 +776,41 @@ export default function DashboardMahasiswa() {
                         </td>
                       )
                     )}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      {jadwalType === "bimbingan_akhir_sempro" || jadwalType === "bimbingan_akhir_sidang"
+                        ? item.pengampu || "N/A"
+                        : jadwalType === "agenda_besar"
+                        ? "-"
+                        : jadwalType === "kuliah_besar"
+                        ? item.dosen?.name || "N/A"
+                        : jadwalType === "praktikum"
+                        ? item.dosen
+                            ?.map((d: { id: number; name: string }) => d.name)
+                            .join(", ") || "N/A"
+                        : jadwalType === "jurnal"
+                        ? item.dosen?.name || "N/A"
+                        : jadwalType === "seminar_pleno"
+                        ? item.pengampu_names || "N/A"
+                        : jadwalType === "pbl"
+                        ? item.pengampu || "N/A"
+                        : item.pengampu || item.dosen?.name || "N/A"}
+                    </td>
+                    {/* Kolom Komentator untuk Seminar Proposal */}
+                    {jadwalType === "bimbingan_akhir_sempro" && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {item.komentator_list && item.komentator_list.length > 0
+                          ? item.komentator_list.join(", ")
+                          : "N/A"}
+                      </td>
+                    )}
+                    {/* Kolom Penguji untuk Sidang Skripsi */}
+                    {jadwalType === "bimbingan_akhir_sidang" && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {item.penguji_list && item.penguji_list.length > 0
+                          ? item.penguji_list.join(", ")
+                          : "N/A"}
+                      </td>
+                    )}
                     {jadwalType === "kuliah_besar" && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {item.topik || "N/A"}
@@ -743,8 +823,10 @@ export default function DashboardMahasiswa() {
                           : "N/A"}
                       </td>
                     )}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
-                      {jadwalType === "kuliah_besar" ||
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      {jadwalType === "bimbingan_akhir_sempro" || jadwalType === "bimbingan_akhir_sidang"
+                        ? item.ruangan?.nama || (item.use_ruangan === false ? "-" : "N/A")
+                        : jadwalType === "kuliah_besar" ||
                       jadwalType === "praktikum" ||
                       jadwalType === "jurnal" ||
                       jadwalType === "seminar_pleno"
@@ -756,11 +838,8 @@ export default function DashboardMahasiswa() {
                           (item.use_ruangan === false ? "-" : "N/A")
                         : item.ruangan?.nama || "N/A"}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
-                      {getSemesterTypeBadge(item.semester_type)}
-                    </td>
                     {jadwalType === "praktikum" ? (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -798,6 +877,12 @@ export default function DashboardMahasiswa() {
                               item.status_konfirmasi,
                               item.status_reschedule
                             )}
+                      </td>
+                    )}
+                    {/* Hanya tampilkan badge semester type jika bukan jadwal bimbingan akhir */}
+                    {jadwalType !== "bimbingan_akhir_sempro" && jadwalType !== "bimbingan_akhir_sidang" && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {getSemesterTypeBadge(item.semester_type)}
                       </td>
                     )}
                   </tr>
@@ -1255,6 +1340,81 @@ export default function DashboardMahasiswa() {
                 ))}
               </div>
             )}
+          </motion.div>
+        </div>
+
+        {/* Bimbingan Akhir Section */}
+        <div className="col-span-12">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.45 }}
+            className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-purple-500 rounded-2xl flex items-center justify-center">
+                <FontAwesomeIcon
+                  icon={faGraduationCap}
+                  className="text-white text-lg"
+                />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  Bimbingan Akhir
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Jadwal Seminar Proposal dan Sidang Skripsi
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {/* Seminar Proposal */}
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                {renderJadwalTable(
+                  "Seminar Proposal",
+                  faGraduationCap,
+                  jadwalBimbinganAkhir.filter(
+                    (item) => item.jenis_baris === "seminar_proposal"
+                  ),
+                  [
+                    "NO",
+                    "TANGGAL",
+                    "PUKUL",
+                    "WAKTU",
+                    "PEMBIMBING",
+                    "KOMENTATOR",
+                    "RUANGAN",
+                    "STATUS",
+                  ],
+                  "bimbingan_akhir_sempro",
+                  "Tidak ada data Seminar Proposal"
+                )}
+              </div>
+
+              {/* Sidang Skripsi */}
+              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                {renderJadwalTable(
+                  "Sidang Skripsi",
+                  faGraduationCap,
+                  jadwalBimbinganAkhir.filter(
+                    (item) => item.jenis_baris === "sidang_skripsi"
+                  ),
+                  [
+                    "NO",
+                    "TANGGAL",
+                    "PUKUL",
+                    "WAKTU",
+                    "PEMBIMBING",
+                    "PENGUJI",
+                    "RUANGAN",
+                    "STATUS",
+                  ],
+                  "bimbingan_akhir_sidang",
+                  "Tidak ada data Sidang Skripsi"
+                )}
+              </div>
+            </div>
           </motion.div>
         </div>
 
