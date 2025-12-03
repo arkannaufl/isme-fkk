@@ -59,7 +59,11 @@ return [
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+                PDO::MYSQL_ATTR_INIT_COMMAND => "SET sql_mode='STRICT_TRANS_TABLES'",
+                PDO::ATTR_PERSISTENT => false, // Disable persistent connections untuk better connection pooling
             ]) : [],
+            // Connection pooling settings untuk high concurrency
+            'sticky' => true,
         ],
 
         'mariadb' => [

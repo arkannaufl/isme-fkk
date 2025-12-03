@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Symfony\Component\HttpFoundation\Response;
 
 class ValidateActiveToken
@@ -29,8 +30,27 @@ class ValidateActiveToken
         $user = Auth::user();
         $currentToken = $request->bearerToken();
 
+        // Optimize: Cache user login status untuk mengurangi database queries
+        // Cache key: user_login_status_{user_id}
+        $cacheKey = 'user_login_status_' . $user->id;
+        $cachedStatus = Cache::get($cacheKey);
+        
+        // Jika cache miss, ambil dari database dan cache
+        if ($cachedStatus === null) {
+            // Refresh user untuk mendapatkan data terbaru
+            $user->refresh(['is_logged_in', 'current_token']);
+            $cachedStatus = [
+                'is_logged_in' => $user->is_logged_in,
+                'current_token' => $user->current_token,
+            ];
+            // Cache selama 5 menit (sesuai dengan session lifetime)
+            Cache::put($cacheKey, $cachedStatus, 300);
+        }
+
         // Check if user is marked as logged in
-        if (!$user->is_logged_in) {
+        if (!$cachedStatus['is_logged_in']) {
+            // Clear cache dan logout
+            Cache::forget($cacheKey);
             Auth::logout();
             return response()->json([
                 'message' => 'Sesi Anda telah berakhir. Silakan login kembali.',
@@ -39,9 +59,10 @@ class ValidateActiveToken
         }
 
         // Check if current token matches the stored token
-        if ($user->current_token !== $currentToken) {
+        if ($cachedStatus['current_token'] !== $currentToken) {
             // Token tidak valid, kemungkinan login di perangkat lain
-            // Jangan langsung update database untuk menghindari race condition
+            // Clear cache dan logout
+            Cache::forget($cacheKey);
             Auth::logout();
             return response()->json([
                 'message' => 'Akun ini sedang digunakan di perangkat lain.',

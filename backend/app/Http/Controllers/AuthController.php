@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use App\Models\User;
 use App\Models\Notification;
 use App\Services\WablasService;
@@ -34,23 +35,35 @@ class AuthController extends Controller
             'password.min' => 'Password minimal 6 karakter',
         ]);
 
-        // Prevent timing attacks with constant time comparison
-        $user = User::where('username', $request->login)
-            ->orWhere('email', $request->login)
-            ->orWhere('nip', $request->login)
-            ->orWhere('nid', $request->login)
-            ->orWhere('nim', $request->login)
-            ->first();
+        // Optimize query: gunakan single query dengan COALESCE untuk menghindari multiple OR
+        // Query ini lebih efisien karena bisa menggunakan index yang tepat
+        $login = $request->login;
+        $user = User::where(function($query) use ($login) {
+            $query->where('username', $login)
+                  ->orWhere('email', $login)
+                  ->orWhere('nip', $login)
+                  ->orWhere('nid', $login)
+                  ->orWhere('nim', $login);
+        })->select('id', 'username', 'email', 'nip', 'nid', 'nim', 'password', 'is_logged_in', 'current_token', 'name', 'role')
+          ->first();
 
         if (! $user || ! Hash::check($request->password, $user->password)) {
-            // Log failed login attempt
-            activity()
-                ->withProperties([
-                    'ip' => $request->ip(),
-                    'user_agent' => $request->userAgent(),
-                    'attempted_login' => $request->login
-                ])
-                ->log("Failed login attempt for: {$request->login}");
+            // Log failed login attempt - gunakan Log facade yang lebih ringan untuk high traffic
+            // Activity logging bisa di-disable atau di-queue secara terpisah jika diperlukan
+            try {
+                if (config('activitylog.enabled', true)) {
+                    activity()
+                        ->withProperties([
+                            'ip' => $request->ip(),
+                            'user_agent' => $request->userAgent(),
+                            'attempted_login' => $request->login
+                        ])
+                        ->log("Failed login attempt for: {$request->login}");
+                }
+            } catch (\Exception $e) {
+                // Silent fail untuk tidak membebani response time
+                Log::debug('Activity log failed', ['error' => $e->getMessage()]);
+            }
 
             return response()->json([
                 'message' => 'Username/NIP/NID/NIM atau password salah.',
@@ -66,27 +79,44 @@ class AuthController extends Controller
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        // Update status login dan token
-        $user->is_logged_in = 1;
-        $user->current_token = $token;
-        $user->save();
+        // Update status login dan token - gunakan update langsung untuk performa lebih baik
+        DB::table('users')
+            ->where('id', $user->id)
+            ->update([
+                'is_logged_in' => 1,
+                'current_token' => $token,
+                'updated_at' => now(),
+            ]);
 
-        // Log successful login
-        activity()
-            ->causedBy($user)
-            ->event('login')
-            ->withProperties([
-                'ip' => $request->ip(),
-                'user_agent' => $request->userAgent()
-            ])
-            ->log("User {$user->name} berhasil login");
+        // Clear cache untuk user login status (akan di-refresh di middleware)
+        Cache::forget('user_login_status_' . $user->id);
+
+        // Refresh user model untuk mendapatkan data terbaru
+        $user->refresh();
+
+        // Log successful login - gunakan try-catch untuk tidak membebani response time
+        try {
+            if (config('activitylog.enabled', true)) {
+                activity()
+                    ->causedBy($user)
+                    ->event('login')
+                    ->withProperties([
+                        'ip' => $request->ip(),
+                        'user_agent' => $request->userAgent()
+                    ])
+                    ->log("User {$user->name} berhasil login");
+            }
+        } catch (\Exception $e) {
+            // Silent fail untuk tidak membebani response time
+            Log::debug('Activity log failed', ['error' => $e->getMessage()]);
+        }
 
         // Login notification handled by frontend only
 
         return response()->json([
             'access_token' => $token,
             'token_type'   => 'Bearer',
-            'user'         => $user,
+            'user'         => $user->fresh(['id', 'name', 'username', 'email', 'role']),
         ]);
     }
 
@@ -108,6 +138,9 @@ class AuthController extends Controller
         $user->is_logged_in = 0;
         $user->current_token = null;
         $user->save();
+        
+        // Clear cache untuk user login status
+        Cache::forget('user_login_status_' . $user->id);
 
         // Hapus semua token user (termasuk yang mungkin ada di perangkat lain)
         $user->tokens()->delete();

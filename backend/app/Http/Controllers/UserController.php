@@ -41,10 +41,14 @@ class UserController extends Controller
             $keahlian = $request->keahlian;
             $query->whereJsonContains('keahlian', $keahlian);
         }
-        $users = $query->get();
+        
+        // Optimize: Gunakan pagination untuk menghindari load semua data sekaligus
+        $perPage = $request->get('per_page', 50); // Default 50 items per page
+        $users = $query->paginate($perPage);
+        
         // Tambahan: jika role dosen, tambahkan field peran multi
         if ($request->role === 'dosen') {
-            $users = $users->map(function ($user) {
+            $users->getCollection()->transform(function ($user) {
                 $userArr = $user->toArray();
                 $userArr['dosen_peran'] = $user->dosenPeran()->with('mataKuliah')->get()->map(function ($peran) {
                     return [

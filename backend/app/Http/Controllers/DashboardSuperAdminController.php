@@ -20,6 +20,7 @@ use App\Models\JadwalAgendaKhusus;
 use App\Models\Notification;
 use Spatie\Activitylog\Models\Activity;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 
@@ -31,17 +32,34 @@ class DashboardSuperAdminController extends Controller
     public function index(): JsonResponse
     {
         try {
-            // Get user statistics
-            $totalUsers = User::count();
-            $totalMahasiswa = User::where('role', 'mahasiswa')->count();
-            $totalDosen = User::where('role', 'dosen')->count();
-            $totalTimAkademik = User::where('role', 'tim_akademik')->count();
-            $totalSuperAdmin = User::where('role', 'super_admin')->count();
+            // Optimize: Cache statistics untuk mengurangi database load saat banyak user akses bersamaan
+            // Get user statistics dengan caching (5 menit TTL)
+            $totalUsers = Cache::remember('stats_total_users', 300, function () {
+                return User::count();
+            });
+            $totalMahasiswa = Cache::remember('stats_total_mahasiswa', 300, function () {
+                return User::where('role', 'mahasiswa')->count();
+            });
+            $totalDosen = Cache::remember('stats_total_dosen', 300, function () {
+                return User::where('role', 'dosen')->count();
+            });
+            $totalTimAkademik = Cache::remember('stats_total_tim_akademik', 300, function () {
+                return User::where('role', 'tim_akademik')->count();
+            });
+            $totalSuperAdmin = Cache::remember('stats_total_super_admin', 300, function () {
+                return User::where('role', 'super_admin')->count();
+            });
 
-            // Get academic statistics
-            $totalMataKuliah = MataKuliah::count();
-            $totalKelas = Kelas::count();
-            $totalRuangan = Ruangan::count();
+            // Get academic statistics dengan caching
+            $totalMataKuliah = Cache::remember('stats_total_mata_kuliah', 300, function () {
+                return MataKuliah::count();
+            });
+            $totalKelas = Cache::remember('stats_total_kelas', 300, function () {
+                return Kelas::count();
+            });
+            $totalRuangan = Cache::remember('stats_total_ruangan', 300, function () {
+                return Ruangan::count();
+            });
 
             // Get active schedules count
             $totalJadwalAktif = $this->getActiveSchedulesCount();

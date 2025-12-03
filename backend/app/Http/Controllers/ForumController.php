@@ -353,31 +353,46 @@ class ForumController extends Controller
             Log::info('Forum ID: ' . $forum->id);
             Log::info('Replies count: ' . $replies->count());
 
-            // Recursive function untuk load semua level children tanpa batas
-            $loadChildrenRecursively = function ($parentId) use (&$loadChildrenRecursively) {
-                $children = ForumReply::where('parent_id', $parentId)
-                    ->where('status', 'active')
-                    ->with(['user:id,name,role', 'attachments']) // Load attachments for children too
-                    ->orderBy('created_at', 'desc')
-                    ->get();
-
-                $children->each(function ($child) use (&$loadChildrenRecursively) {
-                    // Load children untuk setiap child (recursive - infinite levels)
-                    $child->setRelation('children', $loadChildrenRecursively($child->id));
-
-                    // Load parent data untuk setiap child
+            // Optimize: Load semua replies sekaligus dengan eager loading untuk menghindari N+1 queries
+            // Limit depth untuk menghindari infinite recursion dan memory issues
+            $maxDepth = 10; // Maximum depth untuk nested replies
+            
+            // Load semua replies untuk forum ini sekaligus (lebih efisien daripada recursive queries)
+            $allReplies = ForumReply::byForum($forum->id)
+                ->active()
+                ->with(['user:id,name,role', 'attachments'])
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->keyBy('id');
+            
+            // Build parent-child relationships
+            $repliesByParent = $allReplies->groupBy('parent_id');
+            
+            // Recursive function dengan depth limit untuk menghindari memory issues
+            $loadChildrenRecursively = function ($parentId, $depth = 0) use (&$loadChildrenRecursively, $repliesByParent, $allReplies, $maxDepth) {
+                if ($depth >= $maxDepth) {
+                    return collect([]); // Limit depth untuk menghindari infinite recursion
+                }
+                
+                $children = $repliesByParent->get($parentId, collect());
+                
+                return $children->map(function ($child) use (&$loadChildrenRecursively, $repliesByParent, $allReplies, $depth, $maxDepth) {
+                    // Load children untuk setiap child (recursive dengan depth limit)
+                    $child->setRelation('children', $loadChildrenRecursively($child->id, $depth + 1));
+                    
+                    // Load parent data dari cache (tidak perlu query lagi)
                     if ($child->parent_id) {
-                        $parentReply = ForumReply::with('user:id,name,role')->find($child->parent_id);
+                        $parentReply = $allReplies->get($child->parent_id);
                         if ($parentReply) {
                             $child->parent = $parentReply;
                         }
                     }
+                    
+                    return $child;
                 });
-
-                return $children;
             };
 
-            // Load semua children secara recursive untuk setiap top-level reply
+            // Load semua children untuk setiap top-level reply (parent_id = null)
             $replies->each(function ($reply) use ($loadChildrenRecursively) {
                 $reply->setRelation('children', $loadChildrenRecursively($reply->id));
             });

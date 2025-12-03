@@ -25,6 +25,7 @@ use App\Models\TahunAjaran;
 use App\Models\Semester;
 use Spatie\Activitylog\Models\Activity;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
 
 class DashboardTimAkademikController extends Controller
@@ -38,12 +39,27 @@ class DashboardTimAkademikController extends Controller
             $attendanceSemester = $request->get('attendance_semester', 'reguler');
             $assessmentSemester = $request->get('assessment_semester', 'reguler');
             $scheduleSemester = $request->get('schedule_semester', 'reguler');
-            // Get academic statistics
-            $totalMataKuliah = MataKuliah::count();
-            $totalKelas = Kelas::count();
-            $totalRuangan = Ruangan::count();
-            $totalDosen = User::where('role', 'dosen')->count();
-            $totalMahasiswa = User::where('role', 'mahasiswa')->count();
+            
+            // Optimize: Cache academic statistics untuk mengurangi database load
+            // Cache key berdasarkan semester untuk memastikan data fresh
+            $cacheKey = 'dashboard_tim_akademik_stats_' . $attendanceSemester . '_' . $assessmentSemester . '_' . $scheduleSemester;
+            
+            // Get academic statistics dengan caching (5 menit TTL)
+            $totalMataKuliah = Cache::remember('stats_total_mata_kuliah', 300, function () {
+                return MataKuliah::count();
+            });
+            $totalKelas = Cache::remember('stats_total_kelas', 300, function () {
+                return Kelas::count();
+            });
+            $totalRuangan = Cache::remember('stats_total_ruangan', 300, function () {
+                return Ruangan::count();
+            });
+            $totalDosen = Cache::remember('stats_total_dosen', 300, function () {
+                return User::where('role', 'dosen')->count();
+            });
+            $totalMahasiswa = Cache::remember('stats_total_mahasiswa', 300, function () {
+                return User::where('role', 'mahasiswa')->count();
+            });
 
             // Get active schedules count
             $totalJadwalAktif = $this->getActiveSchedulesCount();
@@ -105,21 +121,24 @@ class DashboardTimAkademikController extends Controller
      */
     private function getActiveSchedulesCount(): int
     {
-        $count = 0;
-        
-        try {
-            $count += JadwalKuliahBesar::count();
-            $count += JadwalPBL::count();
-            $count += JadwalJurnalReading::count();
-            $count += JadwalCSR::count();
-            $count += JadwalNonBlokNonCSR::count();
-            $count += JadwalPraktikum::count();
-            $count += JadwalAgendaKhusus::count();
-        } catch (\Exception $e) {
-            \Log::warning('Error counting schedules: ' . $e->getMessage());
-        }
+        // Optimize: Cache schedule count untuk mengurangi database load
+        return Cache::remember('stats_total_jadwal_aktif', 300, function () {
+            $count = 0;
+            
+            try {
+                $count += JadwalKuliahBesar::count();
+                $count += JadwalPBL::count();
+                $count += JadwalJurnalReading::count();
+                $count += JadwalCSR::count();
+                $count += JadwalNonBlokNonCSR::count();
+                $count += JadwalPraktikum::count();
+                $count += JadwalAgendaKhusus::count();
+            } catch (\Exception $e) {
+                \Log::warning('Error counting schedules: ' . $e->getMessage());
+            }
 
-        return $count;
+            return $count;
+        });
     }
 
     /**

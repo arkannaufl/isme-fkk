@@ -41,7 +41,8 @@ use App\Http\Controllers\ProportionalDistributionController;
 use App\Http\Controllers\WhatsAppController;
 
 
-Route::post('/login', [AuthController::class, 'login']);
+// Login dengan rate limiting lebih ketat untuk mencegah brute force
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
 
 Route::middleware(['auth:sanctum', 'validate.token'])->post('/logout', [AuthController::class, 'logout']);

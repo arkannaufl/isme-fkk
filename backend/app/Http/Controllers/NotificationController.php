@@ -23,7 +23,7 @@ class NotificationController extends Controller
     /**
      * Get notifications for a specific user (dosen)
      */
-    public function getUserNotifications($userId)
+    public function getUserNotifications($userId, Request $request)
     {
         $user = Auth::user();
 
@@ -32,13 +32,18 @@ class NotificationController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        // Get both personal notifications and public notifications
+        // Optimize: Add pagination and limit to prevent loading too many notifications
+        $perPage = $request->get('per_page', 50); // Default 50 notifications
+        $limit = $request->get('limit', 100); // Max 100 notifications
+        
+        // Get both personal notifications and public notifications with pagination
         $notifications = Notification::where(function ($query) use ($userId) {
             $query->where('user_id', $userId)
                 ->orWhere('user_id', null); // Public notifications
         })
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->limit($limit)
+            ->paginate($perPage);
 
         return response()->json($notifications);
     }
@@ -46,7 +51,7 @@ class NotificationController extends Controller
     /**
      * Get notifications for admin (super_admin)
      */
-    public function getAdminNotifications($userId)
+    public function getAdminNotifications($userId, Request $request)
     {
         $user = User::findOrFail($userId);
 
@@ -55,13 +60,18 @@ class NotificationController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        // Get both personal notifications and public notifications
+        // Optimize: Add pagination and limit to prevent loading too many notifications
+        $perPage = $request->get('per_page', 50); // Default 50 notifications
+        $limit = $request->get('limit', 100); // Max 100 notifications
+
+        // Get both personal notifications and public notifications with pagination
         $notifications = Notification::where(function ($query) use ($userId) {
             $query->where('user_id', $userId)
                 ->orWhere('user_id', null); // Public notifications
         })
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->limit($limit)
+            ->paginate($perPage);
 
         return response()->json($notifications);
     }
