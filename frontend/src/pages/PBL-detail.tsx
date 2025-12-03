@@ -199,7 +199,9 @@ export default function PBL() {
 
   // PERBAIKAN BARU: Fungsi untuk mengecek apakah sudah ada data yang di-generate
   const checkHasGeneratedData = () => {
-    const totalAssignedDosen = Object.values(assignedDosen).flat().length;
+    const totalAssignedDosen = Object.values(assignedDosen)
+      .filter(Array.isArray)
+      .flat().length;
     const hasData = totalAssignedDosen > 0;
     setHasGeneratedData(hasData);
     return hasData;
@@ -253,7 +255,7 @@ export default function PBL() {
           const updated = { ...prev };
           pblIds.forEach((pblId) => {
             if (pblId !== undefined) {
-              const assignments = assignmentsData[pblId] || [];
+              const assignments = Array.isArray(assignmentsData[pblId]) ? assignmentsData[pblId] : [];
               updated[pblId] = assignments.map((assignment) => ({
                 id: assignment.dosen.id,
                 name: assignment.dosen.name,
@@ -561,9 +563,10 @@ export default function PBL() {
       const currentBlok = mk.blok; // Ambil blok dari mata kuliah yang sedang di-assign
 
       const semesterPBLs = Object.values(pblData || {})
+        .filter(Array.isArray)
         .flat()
         .filter((p) => {
-          const mk = (blokMataKuliah || []).find(
+          const mk = (Array.isArray(blokMataKuliah) ? blokMataKuliah : []).find(
             (m) => m.kode === p.mata_kuliah_kode
           );
           // PERBAIKAN: Konversi kedua semester menjadi number untuk perbandingan yang benar
@@ -811,7 +814,7 @@ export default function PBL() {
       (mk) => mk.semester === semester
     );
     const semesterPblIds = semesterMataKuliah.flatMap((mk) =>
-      (pblData[mk.kode] || []).map((pbl) => pbl.id).filter(Boolean)
+      (Array.isArray(pblData[mk.kode]) ? pblData[mk.kode] : []).map((pbl) => pbl.id).filter(Boolean)
     );
 
     const semesterDosen = new Set<Dosen>();
@@ -950,8 +953,8 @@ export default function PBL() {
       // Handle pagination response
       const dosenData = Array.isArray(dosenRes.data) 
         ? dosenRes.data 
-        : (dosenRes.data?.data || []);
-      setDosenList(dosenData);
+        : (Array.isArray(dosenRes.data?.data) ? dosenRes.data.data : []);
+      setDosenList(Array.isArray(dosenData) ? dosenData : []);
 
       const dosenWithPeran = Array.isArray(dosenData) ? dosenData.filter(
         (d: any) => d.dosen_peran && d.dosen_peran.length > 0
@@ -982,7 +985,9 @@ export default function PBL() {
       );
 
       // Fetch assigned dosen batch (all pblId)
-      const allPbls = Object.values(pblMap).flat();
+      const allPbls = Object.values(pblMap)
+        .filter(Array.isArray)
+        .flat();
       const allPblIds = allPbls.map((pbl) => pbl.id).filter(Boolean);
 
       if (allPblIds.length > 0) {
@@ -1120,7 +1125,7 @@ export default function PBL() {
       // Cari semua PBL untuk semester ini
       const allPBLs: any[] = [];
       for (const mk of mkInSemester) {
-        const pbls = pblData[mk.kode] || [];
+        const pbls = Array.isArray(pblData[mk.kode]) ? pblData[mk.kode] : [];
         for (const pbl of pbls) {
           allPBLs.push({ mk, pbl });
         }
@@ -1172,7 +1177,7 @@ export default function PBL() {
       // PERBAIKAN: Hitung dosen yang sudah di-assign sebagai Dosen Mengajar di semester ini
       const assignedDosenMengajarIds = new Set();
       for (const mk of mkInSemester) {
-        const pbls = pblData[mk.kode] || [];
+        const pbls = Array.isArray(pblData[mk.kode]) ? pblData[mk.kode] : [];
         for (const pbl of pbls) {
           const assignedDosenForPbl = assignedDosen[pbl.id] || [];
           for (const assignedD of assignedDosenForPbl) {
@@ -1632,7 +1637,7 @@ export default function PBL() {
       try {
         // Fetch kelompok kecil yang tersedia untuk PBL (tidak digunakan oleh mata kuliah lain)
         const kelompokRes = await api.get("/pbl-kelompok-kecil/available");
-        setKelompokKecilList(kelompokRes.data || []);
+        setKelompokKecilList(Array.isArray(kelompokRes.data) ? kelompokRes.data : []);
       } catch (error) {
         setKelompokKecilList([]);
       }

@@ -872,7 +872,15 @@ export default function DosenAbsensiPraktikumPage() {
       } catch (err: any) {
         const errorMessage =
           err?.response?.data?.message || err?.message || "Unknown error";
-        setError(`Gagal memuat data mahasiswa: ${errorMessage}`);
+        
+        // Jika error 404 dengan message "Kelas praktikum tidak ditemukan", tampilkan pesan yang lebih informatif
+        if (err?.response?.status === 404 && errorMessage.includes("Kelas praktikum tidak ditemukan")) {
+          setError(
+            "Kelas praktikum tidak ditemukan. Pastikan kelas praktikum sudah dibuat dan sesuai dengan jadwal praktikum."
+          );
+        } else {
+          setError(`Gagal memuat data mahasiswa: ${errorMessage}`);
+        }
         setMahasiswaList([]);
       }
 

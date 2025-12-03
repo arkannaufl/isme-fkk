@@ -1359,9 +1359,22 @@ class JadwalPraktikumController extends Controller
                 ->first();
 
             if (!$kelas) {
+                // Log untuk debugging
+                Log::warning("Kelas praktikum tidak ditemukan", [
+                    'kode' => $kode,
+                    'jadwal_id' => $jadwalId,
+                    'kelas_praktikum' => $jadwal->kelas_praktikum,
+                    'semester' => $jadwal->mataKuliah->semester ?? null,
+                    'mata_kuliah_kode' => $jadwal->mata_kuliah_kode
+                ]);
+                
                 return response()->json([
                     'message' => 'Kelas praktikum tidak ditemukan',
-                    'mahasiswa' => []
+                    'mahasiswa' => [],
+                    'debug' => [
+                        'kelas_praktikum' => $jadwal->kelas_praktikum,
+                        'semester' => $jadwal->mataKuliah->semester ?? null
+                    ]
                 ], 404);
             }
 
