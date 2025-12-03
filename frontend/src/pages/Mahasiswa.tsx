@@ -56,6 +56,7 @@ const formatGenderDisplay = (gender: string): string => {
 
 // Function to get unique gender options for filter
 const getGenderOptions = (data: UserMahasiswa[]): string[] => {
+  if (!Array.isArray(data) || data.length === 0) return [];
   const uniqueGenders = Array.from(new Set(data.map(d => d.gender).filter(Boolean)));
   return uniqueGenders.map(gender => formatGenderDisplay(gender)).sort();
 };
@@ -128,10 +129,15 @@ export default function Mahasiswa() {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      api.get("/users?role=mahasiswa"),
+      api.get("/users?role=mahasiswa&per_page=1000"),
       api.get("/tahun-ajaran/active")
     ]).then(([mahasiswaRes, semesterRes]) => {
-      setData(mahasiswaRes.data);
+      // Handle pagination response: res.data bisa berupa array atau pagination object
+      const usersData = Array.isArray(mahasiswaRes.data) 
+        ? mahasiswaRes.data 
+        : (mahasiswaRes.data?.data || []);
+      
+      setData(usersData);
       if (semesterRes.data && semesterRes.data.semesters && semesterRes.data.semesters.length > 0) {
         const activeSem = semesterRes.data.semesters[0];
         setActiveSemester({
@@ -164,7 +170,7 @@ export default function Mahasiswa() {
   const angkatanOptions = Array.from(new Set(Array.isArray(data) ? data.map((d) => d.angkatan) : [])).sort((a, b) => Number(b) - Number(a));
 
   // Filter & Search - similar to MataKuliah
-  const filteredData = data.filter((m) => {
+  const filteredData = Array.isArray(data) ? data.filter((m) => {
     const q = search.toLowerCase();
     // Gabungkan semua value dari objek menjadi satu string
     const allValues = Object.values(m).join(' ').toLowerCase();
@@ -180,7 +186,7 @@ export default function Mahasiswa() {
     const matchAngkatan = filterAngkatan === "all" ? true : m.angkatan === filterAngkatan;
     
     return searchMatch && matchSemester && matchPeriode && matchStatus && matchGender && matchAngkatan;
-  });
+  }) : [];
 
   // Pagination
   const totalPages = Math.ceil(filteredData.length / pageSize);
@@ -215,8 +221,12 @@ export default function Mahasiswa() {
         await api.post("/users", payload);
         setSuccess("Data mahasiswa berhasil ditambahkan.");
       }
-      const res = await api.get("/users?role=mahasiswa");
-      setData(res.data);
+      const res = await api.get("/users?role=mahasiswa&per_page=1000");
+      // Handle pagination response
+      const usersData = Array.isArray(res.data) 
+        ? res.data 
+        : (res.data?.data || []);
+      setData(usersData);
       setShowModal(false);
       setEditMode(false);
       setForm({ nim: "", name: "", username: "", telp: "", email: "", gender: "Laki-laki", ipk: 0, status: "aktif", angkatan: "", password: "" });
@@ -253,8 +263,12 @@ export default function Mahasiswa() {
     try {
       if (selectedDeleteNim) {
         await api.delete(`/users/${selectedDeleteNim}`);
-        const res = await api.get("/users?role=mahasiswa");
-        setData(res.data);
+        const res = await api.get("/users?role=mahasiswa&per_page=1000");
+        // Handle pagination response
+        const usersData = Array.isArray(res.data) 
+          ? res.data 
+          : (res.data?.data || []);
+        setData(usersData);
         setSuccess("Data mahasiswa berhasil dihapus.");
       }
       setShowDeleteModal(false);
@@ -270,7 +284,7 @@ export default function Mahasiswa() {
     setSelectedDeleteNim(null);
   };
 
-  const userToDelete = data.find((u) => String(u.id) === String(selectedDeleteNim));
+  const userToDelete = Array.isArray(data) ? data.find((u) => String(u.id) === String(selectedDeleteNim)) : undefined;
 
   const isFormValid = form.nim && form.nim.length >= 8 && form.nim.length <= 15 && form.name && form.username && form.telp && form.email && form.gender && form.ipk !== undefined && form.status && form.angkatan && (editMode || form.password);
 
@@ -322,7 +336,7 @@ export default function Mahasiswa() {
   const exportToExcel = async () => {
     try {
       // Ambil semua data (tidak difilter) dengan format yang sesuai untuk import
-      const dataToExport = data.map((m: UserMahasiswa) => ({
+      const dataToExport = Array.isArray(data) ? data.map((m: UserMahasiswa) => ({
         'nim': m.nim,
         'nama': m.name,
         'username': m.username,
@@ -334,7 +348,7 @@ export default function Mahasiswa() {
         'status': m.status,
         'angkatan': m.angkatan,
         'semester': m.semester || 1
-      }));
+      })) : [];
 
       // Buat workbook baru
       const wb = XLSX.utils.book_new();
@@ -576,8 +590,12 @@ export default function Mahasiswa() {
         }
         
         // Refresh data
-        const mahasiswaRes = await api.get("/users?role=mahasiswa");
-        setData(mahasiswaRes.data);
+        const mahasiswaRes = await api.get("/users?role=mahasiswa&per_page=1000");
+        // Handle pagination response
+        const usersData = Array.isArray(mahasiswaRes.data) 
+          ? mahasiswaRes.data 
+          : (mahasiswaRes.data?.data || []);
+        setData(usersData);
       } else if (res.status === 422) {
         setImportedCount(0);
         setError(res.data.message || 'Gagal mengimpor data');
@@ -1545,8 +1563,12 @@ export default function Mahasiswa() {
                       const failedDeletes = results.filter(r => !r.success);
                       
                       // Refresh data
-                      const res = await api.get("/users?role=mahasiswa");
-                      setData(res.data);
+                      const res = await api.get("/users?role=mahasiswa&per_page=1000");
+                      // Handle pagination response
+                      const usersData = Array.isArray(res.data) 
+                        ? res.data 
+                        : (res.data?.data || []);
+                      setData(usersData);
                       
                       if (failedDeletes.length > 0) {
                         setError(`${failedDeletes.length} data gagal dihapus (mungkin sudah tidak ada). ${successfulDeletes.length} data berhasil dihapus.`);

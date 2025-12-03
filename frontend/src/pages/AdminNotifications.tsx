@@ -1253,8 +1253,12 @@ const AdminNotifications: React.FC = () => {
   const loadDosenList = async () => {
     try {
       setLoadingDosen(true);
-      const response = await api.get("/users?role=dosen");
-      setDosenList(response.data || []);
+      const response = await api.get("/users?role=dosen&per_page=1000");
+      // Handle pagination response
+      const dosenData = Array.isArray(response.data) 
+        ? response.data 
+        : (response.data?.data || []);
+      setDosenList(dosenData);
     } catch (error) {
       console.error("Failed to load dosen list:", error);
       setDosenList([]);

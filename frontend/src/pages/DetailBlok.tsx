@@ -1194,8 +1194,11 @@ export default function DetailBlok() {
       });
 
       // Ambil dosen standby (case insensitive)
-      const standbyRes = await api.get(`/users?role=dosen`);
-      const allDosenData = standbyRes.data || [];
+      const standbyRes = await api.get(`/users?role=dosen&per_page=1000`);
+      // Handle pagination response
+      const allDosenData = Array.isArray(standbyRes.data) 
+        ? standbyRes.data 
+        : (standbyRes.data?.data || []);
       const standbyDosen = allDosenData.filter((dosen: any) => {
         const keahlian = Array.isArray(dosen.keahlian)
           ? dosen.keahlian
@@ -1308,8 +1311,11 @@ export default function DetailBlok() {
       });
 
       // Ambil dosen standby (case insensitive)
-      const standbyRes = await api.get(`/users?role=dosen`);
-      const allDosenData = standbyRes.data || [];
+      const standbyRes = await api.get(`/users?role=dosen&per_page=1000`);
+      // Handle pagination response
+      const allDosenData = Array.isArray(standbyRes.data) 
+        ? standbyRes.data 
+        : (standbyRes.data?.data || []);
       const standbyDosen = allDosenData.filter((dosen: any) => {
         const keahlian = Array.isArray(dosen.keahlian)
           ? dosen.keahlian
@@ -5731,8 +5737,11 @@ export default function DetailBlok() {
       );
 
       // Ambil dosen standby untuk ditampilkan di template (case insensitive)
-      const standbyRes = await api.get(`/users?role=dosen`);
-      const allDosenData = standbyRes.data || [];
+      const standbyRes = await api.get(`/users?role=dosen&per_page=1000`);
+      // Handle pagination response
+      const allDosenData = Array.isArray(standbyRes.data) 
+        ? standbyRes.data 
+        : (standbyRes.data?.data || []);
       const standbyDosen = allDosenData.filter((dosen) => {
         const keahlian = Array.isArray(dosen.keahlian)
           ? dosen.keahlian
@@ -5940,8 +5949,11 @@ export default function DetailBlok() {
   const downloadTemplate = async () => {
     try {
       // Ambil dosen standby untuk ditampilkan di template (case insensitive)
-      const standbyRes = await api.get(`/users?role=dosen`);
-      const allDosenData = standbyRes.data || [];
+      const standbyRes = await api.get(`/users?role=dosen&per_page=1000`);
+      // Handle pagination response
+      const allDosenData = Array.isArray(standbyRes.data) 
+        ? standbyRes.data 
+        : (standbyRes.data?.data || []);
       const standbyDosen = allDosenData.filter((dosen) => {
         const keahlian = Array.isArray(dosen.keahlian)
           ? dosen.keahlian

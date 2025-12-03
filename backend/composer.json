@@ -56,6 +56,14 @@
             "@php -r \"file_exists('database/database.sqlite') || touch('database/database.sqlite');\"",
             "@php artisan migrate --graceful --ansi"
         ],
+        "setup:dev": [
+            "@php setup-env.php development",
+            "@php artisan config:clear"
+        ],
+        "setup:prod": [
+            "@php setup-env.php production",
+            "@php artisan config:clear"
+        ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
             "npx concurrently -c \"#93c5fd,#c4b5fd,#fdba74\" \"php artisan serve\" \"php artisan queue:listen --tries=1\" \"npm run dev\" --names='server,queue,vite'"

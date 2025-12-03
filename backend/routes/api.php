@@ -44,28 +44,30 @@ use App\Http\Controllers\WhatsAppController;
 // Login dengan rate limiting lebih ketat untuk mencegah brute force
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
+// Global rate limiting untuk semua API routes (120 requests per minute per user/IP)
+// Ini mencegah abuse dan overload server saat banyak user mengakses bersamaan
+Route::middleware('throttle:120,1')->group(function () {
+    Route::middleware(['auth:sanctum', 'validate.token'])->post('/logout', [AuthController::class, 'logout']);
+    Route::post('/force-logout-by-token', [AuthController::class, 'forceLogoutByToken']);
+    Route::post('/force-logout-by-user', [AuthController::class, 'forceLogoutByUser']);
+    Route::post('/force-logout-by-username', [AuthController::class, 'forceLogoutByUsername']);
 
-Route::middleware(['auth:sanctum', 'validate.token'])->post('/logout', [AuthController::class, 'logout']);
-Route::post('/force-logout-by-token', [AuthController::class, 'forceLogoutByToken']);
-Route::post('/force-logout-by-user', [AuthController::class, 'forceLogoutByUser']);
-Route::post('/force-logout-by-username', [AuthController::class, 'forceLogoutByUsername']);
+    Route::middleware(['auth:sanctum', 'validate.token'])->get('/me', function (Request $request) {
+        return $request->user();
+    });
 
-Route::middleware(['auth:sanctum', 'validate.token'])->get('/me', function (Request $request) {
-    return $request->user();
-});
+    Route::middleware(['auth:sanctum', 'validate.token'])->get('/profile', function (Request $request) {
+        return response()->json([
+            'user' => $request->user()
+        ]);
+    });
+    Route::middleware(['auth:sanctum', 'validate.token'])->put('/profile', [AuthController::class, 'updateProfile']);
+    Route::middleware(['auth:sanctum', 'validate.token'])->get('/profile/check-availability', [AuthController::class, 'checkAvailability']);
+    Route::middleware(['auth:sanctum', 'validate.token'])->post('/profile/avatar', [AuthController::class, 'updateAvatar']);
 
-Route::middleware(['auth:sanctum', 'validate.token'])->get('/profile', function (Request $request) {
-    return response()->json([
-        'user' => $request->user()
-    ]);
-});
-Route::middleware(['auth:sanctum', 'validate.token'])->put('/profile', [AuthController::class, 'updateProfile']);
-Route::middleware(['auth:sanctum', 'validate.token'])->get('/profile/check-availability', [AuthController::class, 'checkAvailability']);
-Route::middleware(['auth:sanctum', 'validate.token'])->post('/profile/avatar', [AuthController::class, 'updateAvatar']);
+    Route::middleware(['auth:sanctum', 'validate.token'])->get('/users/search', [UserController::class, 'search']);
 
-Route::middleware(['auth:sanctum', 'validate.token'])->get('/users/search', [UserController::class, 'search']);
-
-Route::middleware(['auth:sanctum', 'validate.token', 'role:super_admin,tim_akademik,dosen'])->apiResource('users', \App\Http\Controllers\UserController::class);
+    Route::middleware(['auth:sanctum', 'validate.token', 'role:super_admin,tim_akademik,dosen'])->apiResource('users', \App\Http\Controllers\UserController::class);
 
 Route::middleware(['auth:sanctum', 'validate.token', 'role:super_admin'])->post('/users/import-dosen', [UserController::class, 'importDosen']);
 
@@ -117,8 +119,6 @@ Route::middleware('auth:sanctum')->put('/mata-kuliah/{kode}/update-materi-judul'
 
 // Dosen Permission Routes
 Route::middleware('auth:sanctum')->get('/mata-kuliah/{kode}/dosen-permissions', [MataKuliahController::class, 'getDosenPermissions']);
-
-
 
 // Reporting routes
 Route::middleware('auth:sanctum')->prefix('reporting')->group(function () {
@@ -768,5 +768,6 @@ Route::middleware(['auth:sanctum', 'validate.token'])->group(function () {
     Route::put('/whatsapp/settings', [WhatsAppController::class, 'updateSettings']); // Update settings
 });
 
-// Webhook untuk Wablas (tidak perlu auth karena dari external service)
-Route::post('/whatsapp/webhook', [WhatsAppController::class, 'webhook']);
+    // Webhook untuk Wablas (tidak perlu auth karena dari external service)
+    Route::post('/whatsapp/webhook', [WhatsAppController::class, 'webhook']);
+}); // End of throttle middleware group

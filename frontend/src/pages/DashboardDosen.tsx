@@ -930,8 +930,12 @@ export default function DashboardDosen() {
 
       // Fetch all dosen list for resolving dosen_ids
       try {
-        const dosenResponse = await api.get("/users?role=dosen");
-        setAllDosenList(dosenResponse.data || []);
+        const dosenResponse = await api.get("/users?role=dosen&per_page=1000");
+        // Handle pagination response
+        const dosenData = Array.isArray(dosenResponse.data) 
+          ? dosenResponse.data 
+          : (dosenResponse.data?.data || []);
+        setAllDosenList(dosenData);
       } catch (error) {
         console.warn("Failed to fetch dosen list:", error);
         setAllDosenList([]);

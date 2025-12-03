@@ -930,7 +930,7 @@ export default function PBL() {
       // Fetch PBLs and dosen in parallel
       const [pblRes, dosenRes, kelompokKecilRes] = await Promise.all([
         api.get("/pbls/all"),
-        api.get("/users?role=dosen"),
+        api.get("/users?role=dosen&per_page=1000"),
         api.get("/kelompok-kecil"),
       ]);
 
@@ -946,11 +946,16 @@ export default function PBL() {
       );
       setBlokMataKuliah(blokListMapped);
       setPblData(pblMap);
-      setDosenList(dosenRes.data || []);
+      
+      // Handle pagination response
+      const dosenData = Array.isArray(dosenRes.data) 
+        ? dosenRes.data 
+        : (dosenRes.data?.data || []);
+      setDosenList(dosenData);
 
-      const dosenWithPeran = dosenRes.data?.filter(
+      const dosenWithPeran = Array.isArray(dosenData) ? dosenData.filter(
         (d: any) => d.dosen_peran && d.dosen_peran.length > 0
-      );
+      ) : [];
 
       // Calculate statistics (gunakan data yang sama dengan PBLGenerate.tsx)
       // Gunakan blokListMapped yang sudah difilter berdasarkan blokId (sama seperti PBLGenerate.tsx)
@@ -963,7 +968,7 @@ export default function PBL() {
 
       calculateStatistics(
         filteredBlokMataKuliah,
-        dosenRes.data || [],
+        dosenData,
         kelompokKecilRes.data || [],
         activeSemesterJenis,
         blokId || "semua"
@@ -972,7 +977,7 @@ export default function PBL() {
       // PERBAIKAN: Hitung kekurangan dosen dan warning seperti PBLGenerate.tsx
       calculateWarnings(
         filteredBlokMataKuliah,
-        dosenRes.data || [],
+        dosenData,
         kelompokKecilRes.data || []
       );
 
@@ -4654,9 +4659,13 @@ export default function PBL() {
 
                                             // Refresh dosenList untuk update assignment count
                                             const dosenRes = await api.get(
-                                              "/users?role=dosen"
+                                              "/users?role=dosen&per_page=1000"
                                             );
-                                            setDosenList(dosenRes.data || []);
+                                            // Handle pagination response
+                                            const dosenData = Array.isArray(dosenRes.data) 
+                                              ? dosenRes.data 
+                                              : (dosenRes.data?.data || []);
+                                            setDosenList(dosenData);
                                           } catch (error) {}
 
                                           // PERBAIKAN BARU: Hitung ulang warning setelah unassign dari PBL asal
@@ -5302,11 +5311,13 @@ export default function PBL() {
                                                         try {
                                                           const dosenRes =
                                                             await api.get(
-                                                              "/users?role=dosen"
+                                                              "/users?role=dosen&per_page=1000"
                                                             );
-                                                          setDosenList(
-                                                            dosenRes.data || []
-                                                          );
+                                                          // Handle pagination response
+                                                          const dosenData = Array.isArray(dosenRes.data) 
+                                                            ? dosenRes.data 
+                                                            : (dosenRes.data?.data || []);
+                                                          setDosenList(dosenData);
                                                         } catch (error) {}
 
                                                         // PERBAIKAN BARU: Refresh data setelah unassign berhasil

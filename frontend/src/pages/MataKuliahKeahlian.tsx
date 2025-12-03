@@ -72,7 +72,7 @@ export default function MataKuliahKeahlian() {
       try {
         const [pblRes, dosenRes, activeSemesterRes] = await Promise.all([
           api.get("/pbls/all"),
-          api.get("/users?role=dosen"),
+          api.get("/users?role=dosen&per_page=1000"),
           api.get("/tahun-ajaran/active"),
         ]);
 
@@ -83,7 +83,11 @@ export default function MataKuliahKeahlian() {
         ).map((item) => item.mata_kuliah);
 
         setMataKuliahList(blokListMapped);
-        setDosenList(dosenRes.data || []);
+        // Handle pagination response
+        const dosenData = Array.isArray(dosenRes.data) 
+          ? dosenRes.data 
+          : (dosenRes.data?.data || []);
+        setDosenList(dosenData);
 
         // Set active semester
         const semester = activeSemesterRes.data?.semesters?.[0];

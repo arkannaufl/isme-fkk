@@ -79,8 +79,12 @@ export default function TimAkademik() {
 
   useEffect(() => {
     setLoading(true);
-    api.get("/users?role=tim_akademik").then(res => {
-      setData(res.data);
+    api.get("/users?role=tim_akademik&per_page=1000").then(res => {
+      // Handle pagination response: res.data bisa berupa array atau pagination object
+      const usersData = Array.isArray(res.data) 
+        ? res.data 
+        : (res.data?.data || []);
+      setData(usersData);
       setLoading(false);
     }).catch(() => {
       setError("Gagal memuat data");
@@ -97,12 +101,12 @@ export default function TimAkademik() {
   }, [previewData, data]);
 
   // Filter & Search
-  const filteredData = data.filter((t) => {
+  const filteredData = Array.isArray(data) ? data.filter((t) => {
     const q = search.toLowerCase();
     // Gabungkan semua value dari objek menjadi satu string
     const allValues = Object.values(t).join(' ').toLowerCase();
     return allValues.includes(q);
-  });
+  }) : [];
 
   // Pagination
   const totalPages = Math.ceil(filteredData.length / pageSize);
@@ -142,8 +146,12 @@ export default function TimAkademik() {
         await api.post("/users", payload);
         setSuccess("Data tim akademik berhasil ditambahkan.");
       }
-      const res = await api.get("/users?role=tim_akademik");
-      setData(res.data);
+      const res = await api.get("/users?role=tim_akademik&per_page=1000");
+      // Handle pagination response
+      const usersData = Array.isArray(res.data) 
+        ? res.data 
+        : (res.data?.data || []);
+      setData(usersData);
       setShowModal(false);
       setEditMode(false);
       setForm({ nip: "", name: "", username: "", email: "", telp: "", ket: "", password: "", role: "tim_akademik" });
@@ -174,8 +182,12 @@ export default function TimAkademik() {
     try {
       if (selectedDeleteNip) {
         await api.delete(`/users/${selectedDeleteNip}`);
-        const res = await api.get("/users?role=tim_akademik");
-        setData(res.data);
+        const res = await api.get("/users?role=tim_akademik&per_page=1000");
+        // Handle pagination response
+        const usersData = Array.isArray(res.data) 
+          ? res.data 
+          : (res.data?.data || []);
+        setData(usersData);
         setSuccess("Data tim akademik berhasil dihapus.");
       }
       setShowDeleteModal(false);
@@ -198,7 +210,7 @@ export default function TimAkademik() {
     setError("");
   };
 
-  const userToDelete = data.find((u) => String(u.id) === String(selectedDeleteNip));
+  const userToDelete = Array.isArray(data) ? data.find((u) => String(u.id) === String(selectedDeleteNip)) : undefined;
 
   const isFormValid = form.nip && form.name && form.username && form.email && form.telp && form.ket && (editMode || form.password);
 
@@ -225,7 +237,7 @@ export default function TimAkademik() {
   const exportToExcel = async () => {
     try {
       // Ambil semua data (tidak difilter) dengan format yang sesuai untuk import
-      const dataToExport = data.map((t: UserTimAkademik) => ({
+      const dataToExport = Array.isArray(data) ? data.map((t: UserTimAkademik) => ({
         'nip': t.nip,
         'nama': t.name,
         'username': t.username,
@@ -233,7 +245,7 @@ export default function TimAkademik() {
         'telepon': t.telp,
         'keterangan': t.ket || '',
         'password': 'password123' // Default password untuk import
-      }));
+      })) : [];
 
       // Buat workbook baru
       const wb = XLSX.utils.book_new();
@@ -424,8 +436,12 @@ export default function TimAkademik() {
           setValidationErrors([]);
           setCellErrors([]);
         }
-        const timRes = await api.get("/users?role=tim_akademik");
-        setData(timRes.data);
+        const timRes = await api.get("/users?role=tim_akademik&per_page=1000");
+        // Handle pagination response
+        const usersData = Array.isArray(timRes.data) 
+          ? timRes.data 
+          : (timRes.data?.data || []);
+        setData(usersData);
       } else if (res.status === 422) {
         setImportedCount(0);
         setError(res.data.message || 'Gagal mengimpor data');
@@ -1192,8 +1208,12 @@ export default function TimAkademik() {
                       setIsDeleting(true);
                       try {
                         await Promise.all(selectedRows.map(id => api.delete(`/users/${id}`)));
-                        const res = await api.get("/users?role=tim_akademik");
-                        setData(res.data);
+                        const res = await api.get("/users?role=tim_akademik&per_page=1000");
+                        // Handle pagination response
+                        const usersData = Array.isArray(res.data) 
+                          ? res.data 
+                          : (res.data?.data || []);
+                        setData(usersData);
                         setSuccess(`${selectedRows.length} data tim akademik berhasil dihapus.`);
                       } catch {
                         setError("Gagal menghapus data terpilih");

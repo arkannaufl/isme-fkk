@@ -1061,10 +1061,14 @@ export default function Dosen() {
         setSuccess("Data dosen berhasil ditambahkan.");
       }
       // Refresh data dengan timestamp untuk memastikan data fresh dari database
-      const res = await api.get("/users?role=dosen", {
+      const res = await api.get("/users?role=dosen&per_page=1000", {
         params: { _ts: Date.now() },
       });
-      setData(res.data);
+      // Handle pagination response
+      const usersData = Array.isArray(res.data) 
+        ? res.data 
+        : (res.data?.data || []);
+      setData(usersData);
       setShowModal(false);
       setEditMode(false);
       setForm({
@@ -1242,8 +1246,12 @@ export default function Dosen() {
     try {
       if (selectedDeleteNid) {
         await api.delete(`/users/${selectedDeleteNid}`);
-        const res = await api.get("/users?role=dosen");
-        setData(res.data);
+        const res = await api.get("/users?role=dosen&per_page=1000");
+        // Handle pagination response
+        const usersData = Array.isArray(res.data) 
+          ? res.data 
+          : (res.data?.data || []);
+        setData(usersData);
         setSuccess("Data dosen berhasil dihapus.");
       }
       setShowDeleteModal(false);
@@ -1468,12 +1476,12 @@ export default function Dosen() {
       });
 
       // After successful import, re-fetch the entire list of users
-      const updatedDataRes = await api.get("/users?role=dosen");
-      if (Array.isArray(updatedDataRes.data)) {
-        setData(updatedDataRes.data);
-      } else {
-        setData([]); // Ensure data is always an array to prevent TypeError
-      }
+      const updatedDataRes = await api.get("/users?role=dosen&per_page=1000");
+      // Handle pagination response
+      const usersData = Array.isArray(updatedDataRes.data) 
+        ? updatedDataRes.data 
+        : (updatedDataRes.data?.data || []);
+      setData(usersData);
       if (res.status === 200) {
         setImportedCount(
           res.data.imported_count || res.data.importedCount || 0
@@ -1980,8 +1988,12 @@ export default function Dosen() {
     setIsDeleting(true);
     try {
       await Promise.all(selectedRows.map((id) => api.delete(`/users/${id}`)));
-      const res = await api.get("/users?role=dosen");
-      setData(res.data);
+      const res = await api.get("/users?role=dosen&per_page=1000");
+      // Handle pagination response
+      const usersData = Array.isArray(res.data) 
+        ? res.data 
+        : (res.data?.data || []);
+      setData(usersData);
       setSuccess(`${selectedRows.length} data dosen berhasil dihapus.`);
       setSelectedRows([]);
     } catch {
@@ -2969,8 +2981,15 @@ export default function Dosen() {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const res = await api.get("/users?role=dosen");
-        setData(res.data);
+        // Request dengan per_page besar untuk mendapatkan semua data
+        const res = await api.get("/users?role=dosen&per_page=1000");
+        
+        // Handle pagination response: res.data bisa berupa array atau pagination object
+        const usersData = Array.isArray(res.data) 
+          ? res.data 
+          : (res.data?.data || []);
+        
+        setData(usersData);
 
         // Fetch assignment data juga saat load pertama
         await fetchAssignmentData();

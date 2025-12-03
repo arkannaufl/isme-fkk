@@ -250,7 +250,7 @@ export default function PBLGenerate() {
         ] = await Promise.all([
           api.get("/pbls/all"),
           api.get("/jurnal-readings/all"),
-          api.get("/users?role=dosen"),
+          api.get("/users?role=dosen&per_page=1000"),
           api.get("/tahun-ajaran/active"),
           api.get("/kelompok-kecil"),
         ]);
@@ -425,7 +425,9 @@ export default function PBLGenerate() {
         // Calculate statistics
         calculateStatistics(
           filteredBlokMataKuliah,
-          dosenRes.data || [],
+          Array.isArray(dosenRes.data) 
+            ? dosenRes.data 
+            : (dosenRes.data?.data || []),
           kelompokKecilRes.data || [],
           semester?.jenis,
           blokId || "semua"
@@ -505,10 +507,14 @@ export default function PBLGenerate() {
         }
 
         // Also refresh dosen list to update assignment counts
-        const freshDosen = await api.get("/users?role=dosen", {
+        const freshDosen = await api.get("/users?role=dosen&per_page=1000", {
           params: { _ts: Date.now() },
         });
-        setDosenList(freshDosen.data || []);
+        // Handle pagination response
+        const dosenData = Array.isArray(freshDosen.data) 
+          ? freshDosen.data 
+          : (freshDosen.data?.data || []);
+        setDosenList(dosenData);
       } catch (error) {}
     };
 
@@ -1566,10 +1572,14 @@ export default function PBLGenerate() {
     // Pastikan data yang dipakai fresh dari database (hindari stale state)
     try {
       // Refetch dosen list (no cache)
-      const freshDosenRes = await api.get("/users?role=dosen", {
+      const freshDosenRes = await api.get("/users?role=dosen&per_page=1000", {
         params: { _ts: Date.now() },
       });
-      setDosenList(freshDosenRes.data || []);
+      // Handle pagination response
+      const dosenData = Array.isArray(freshDosenRes.data) 
+        ? freshDosenRes.data 
+        : (freshDosenRes.data?.data || []);
+      setDosenList(dosenData);
 
       // Refetch current assignments from DB for all visible PBLs
       const visiblePblIds: number[] = filteredMataKuliah.flatMap((mk) =>
@@ -2266,10 +2276,14 @@ export default function PBLGenerate() {
         })(),
         (async () => {
           try {
-            const freshDosen = await api.get("/users?role=dosen", {
+            const freshDosen = await api.get("/users?role=dosen&per_page=1000", {
               params: { _ts: Date.now() },
             });
-            setDosenList(freshDosen.data || []);
+            // Handle pagination response
+            const dosenData = Array.isArray(freshDosen.data) 
+              ? freshDosen.data 
+              : (freshDosen.data?.data || []);
+            setDosenList(dosenData);
           } catch {}
         })(),
       ]);
@@ -3221,16 +3235,21 @@ export default function PBLGenerate() {
               setLoading(true);
               try {
                 // Refresh data dosen
-                const dosenRes = await api.get("/users?role=dosen");
+                const dosenRes = await api.get("/users?role=dosen&per_page=1000");
+                
+                // Handle pagination response
+                const dosenData = Array.isArray(dosenRes.data) 
+                  ? dosenRes.data 
+                  : (dosenRes.data?.data || []);
 
                 // Cek dosen rizqiirkhamm setelah refresh
-                const dosenRizqi = dosenRes.data?.filter(
+                const dosenRizqi = Array.isArray(dosenData) ? dosenData.filter(
                   (dosen) =>
                     dosen.name &&
                     dosen.name.toLowerCase().includes("rizqiirkhamm")
-                );
+                ) : [];
 
-                setDosenList(dosenRes.data || []);
+                setDosenList(dosenData);
                 setSuccess("Data dosen berhasil di-refresh!");
               } catch (error) {
                 setError("Gagal refresh data dosen");
