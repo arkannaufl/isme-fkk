@@ -57,12 +57,10 @@
             "@php artisan migrate --graceful --ansi"
         ],
         "setup:dev": [
-            "@php setup-env.php development",
-            "@php artisan config:clear"
+            "@php setup-env.php development"
         ],
         "setup:prod": [
-            "@php setup-env.php production",
-            "@php artisan config:clear"
+            "@php setup-env.php production"
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",

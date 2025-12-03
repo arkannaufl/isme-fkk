@@ -33,7 +33,7 @@ $targetFile = $baseDir . '/.env';
 $developmentTemplate = <<<'ENV'
 APP_NAME=Isme
 APP_ENV=local
-APP_KEY=base64:U/+m/uaD1z10Y2HLuuaXIzmp71/80CpVYlWHPIINBgc=
+APP_KEY=
 APP_DEBUG=true
 APP_URL=http://localhost
 
@@ -43,8 +43,6 @@ APP_FAKER_LOCALE=en_US
 
 APP_MAINTENANCE_DRIVER=file
 # APP_MAINTENANCE_STORE=database
-
-PHP_CLI_SERVER_WORKERS=4
 
 BCRYPT_ROUNDS=12
 
@@ -106,9 +104,9 @@ ENV;
 // Template untuk production
 $productionTemplate = <<<'ENV'
 APP_NAME=Isme
-APP_ENV=local
-APP_KEY=base64:U/+m/uaD1z10Y2HLuuaXIzmp71/80CpVYlWHPIINBgc=
-APP_DEBUG=true
+APP_ENV=production
+APP_KEY=
+APP_DEBUG=false
 APP_URL=http://isme.fkkumj.ac.id
 
 APP_LOCALE=en
@@ -117,8 +115,6 @@ APP_FAKER_LOCALE=en_US
 
 APP_MAINTENANCE_DRIVER=file
 # APP_MAINTENANCE_STORE=database
-
-PHP_CLI_SERVER_WORKERS=4
 
 BCRYPT_ROUNDS=12
 
@@ -219,6 +215,16 @@ try {
         $envMap[$key] = $value;
     }
     
+    // Auto-generate APP_KEY if empty
+    $appKey = $envMap['APP_KEY'] ?? '';
+    if (empty($appKey)) {
+        echo "\n🔑 APP_KEY kosong, generating new key...\n";
+        $newKey = 'base64:' . base64_encode(random_bytes(32));
+        $envContent = preg_replace('/^APP_KEY=.*$/m', "APP_KEY={$newKey}", $envContent);
+        file_put_contents($targetFile, $envContent);
+        echo "✅ APP_KEY berhasil di-generate!\n";
+    }
+    
     // Display important configs
     $cacheStore = $envMap['CACHE_STORE'] ?? 'not set';
     $sessionDriver = $envMap['SESSION_DRIVER'] ?? 'not set';
@@ -238,7 +244,27 @@ try {
         echo "   ⚠️ Pastikan Redis sudah diinstall dan running!\n";
     }
     
-    echo "\n✅ Setup selesai! Jalankan: php artisan config:clear\n";
+    // Auto-clear cache and config
+    echo "\n🧹 Clearing cache dan config...\n";
+    $commands = [
+        'config:clear' => 'php artisan config:clear',
+        'cache:clear' => 'php artisan cache:clear',
+        'route:clear' => 'php artisan route:clear',
+        'view:clear' => 'php artisan view:clear',
+    ];
+    
+    foreach ($commands as $name => $command) {
+        $output = [];
+        $returnVar = 0;
+        exec($command . ' 2>&1', $output, $returnVar);
+        if ($returnVar === 0) {
+            echo "   ✅ {$name}\n";
+        } else {
+            echo "   ⚠️  {$name} (warning, mungkin tidak ada cache)\n";
+        }
+    }
+    
+    echo "\n✅ Setup selesai! Environment {$environment} sudah siap digunakan.\n";
     
 } catch (Exception $e) {
     echo "❌ Error saat setup environment: " . $e->getMessage() . "\n";
