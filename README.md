@@ -120,8 +120,13 @@ cd isme-fkk
 ```bash
 cd backend
 composer install
-cp .env.example .env
-php artisan key:generate
+
+# Setup environment (development - tidak perlu Redis)
+composer run setup:dev
+
+# APP_KEY akan auto-generate saat setup (jika kosong)
+
+# Run migrations
 php artisan migrate
 php artisan db:seed
 ```
@@ -154,7 +159,7 @@ Lihat dokumentasi lengkap di:
 ```bash
 # Backend
 cd backend
-composer run setup:dev
+composer run setup:dev  # Auto-generate APP_KEY, auto-clear cache, setup email
 
 # Frontend
 cd frontend
@@ -165,13 +170,23 @@ npm run setup:dev
 ```bash
 # Backend
 cd backend
-composer run setup:prod
+composer run setup:prod  # Auto-generate APP_KEY, auto-clear cache, setup email
 
 # Frontend
 cd frontend
 npm run setup:prod
 npm run build
 ```
+
+**Fitur Otomatis:**
+- ✅ **Auto-generate APP_KEY** - Jika `APP_KEY` kosong, akan di-generate otomatis dengan key unik per environment
+- ✅ **Auto-clear cache** - Otomatis clear config, cache, route, dan view cache setelah setup
+- ✅ **Email configuration** - Konfigurasi email Gmail sudah ter-setup (smtp.gmail.com:587)
+
+**Email Configuration:**
+- Development dan Production menggunakan Gmail SMTP
+- Setup Gmail App Password: https://myaccount.google.com/apppasswords
+- Email otomatis dikonfigurasi saat menjalankan `composer run setup:dev/prod`
 
 ## 🚀 Deployment & VPS Setup
 

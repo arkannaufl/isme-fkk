@@ -22,12 +22,11 @@ Backend API untuk sistem manajemen akademik ISME menggunakan Laravel 12 dengan a
 composer install
 
 # Setup environment
-composer run setup:dev  # Development
+composer run setup:dev  # Development (tidak perlu Redis)
 # atau
-composer run setup:prod # Production
+composer run setup:prod # Production (perlu Redis)
 
-# Generate application key
-php artisan key:generate
+# APP_KEY akan auto-generate saat setup (jika kosong)
 
 # Run migrations
 php artisan migrate
@@ -84,15 +83,24 @@ File `.env` dikelola melalui command:
 ```env
 APP_ENV=local
 APP_DEBUG=true
+APP_KEY=                    # Auto-generate saat setup
 CACHE_STORE=database
 SESSION_DRIVER=database
 QUEUE_CONNECTION=database
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USERNAME=epicgsnew20@gmail.com
+MAIL_PASSWORD="gpon stlr elhd rmcx"
+MAIL_FROM_ADDRESS="epicgsnew20@gmail.com"
+MAIL_FROM_NAME="${APP_NAME}"
 ```
 
 **Production (.env.production)**:
 ```env
 APP_ENV=production
 APP_DEBUG=false
+APP_KEY=                    # Auto-generate saat setup
 CACHE_STORE=redis
 SESSION_DRIVER=redis
 QUEUE_CONNECTION=redis
@@ -100,7 +108,34 @@ REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 REDIS_DB=0
 REDIS_CACHE_DB=1
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USERNAME=epicgsnew20@gmail.com
+MAIL_PASSWORD="gpon stlr elhd rmcx"
+MAIL_FROM_ADDRESS="epicgsnew20@gmail.com"
+MAIL_FROM_NAME="${APP_NAME}"
 ```
+
+### Email Configuration
+
+Sistem menggunakan **Gmail SMTP** untuk pengiriman email (OTP, notifikasi, dll).
+
+**Setup Gmail App Password:**
+1. Aktifkan 2-Step Verification di Google Account
+2. Buat App Password: https://myaccount.google.com/apppasswords
+3. Gunakan App Password sebagai `MAIL_PASSWORD` (bukan password biasa)
+
+**Catatan:**
+- Email akan otomatis dikonfigurasi saat menjalankan `composer run setup:dev` atau `composer run setup:prod`
+- Untuk production, pertimbangkan menggunakan service email khusus (SendGrid, Mailgun, dll)
+
+### Auto-Setup Features
+
+**Fitur Otomatis saat `composer run setup:dev/prod`:**
+- ✅ **Auto-generate APP_KEY** - Jika `APP_KEY` kosong, akan di-generate otomatis dengan key unik per environment
+- ✅ **Auto-clear cache** - Otomatis clear config, cache, route, dan view cache setelah setup
+- ✅ **Email configuration** - Konfigurasi email Gmail sudah ter-setup
 
 ### Redis Configuration
 
