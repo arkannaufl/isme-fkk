@@ -579,8 +579,13 @@ const AdminNotifications: React.FC = () => {
         `/notifications/admin/all?${params.toString()}`
       );
 
+      // Handle pagination response
+      const notificationsData = Array.isArray(response.data) 
+        ? response.data 
+        : (response.data?.data || []);
+
       // Process notifications to parse JSON data field
-      const processedNotifications = response.data.map((notification: any) => ({
+      const processedNotifications = notificationsData.map((notification: any) => ({
         ...notification,
         data:
           typeof notification.data === "string"

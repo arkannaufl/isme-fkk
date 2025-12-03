@@ -219,7 +219,7 @@ export const kelasApi = {
 export const mahasiswaApi = {
   // Get semua mahasiswa
   getAll: () =>
-    api.get<Mahasiswa[]>('/users?role=mahasiswa'),
+    api.get<Mahasiswa[]>('/users?role=mahasiswa&per_page=1000'),
 
   // Get mahasiswa yang tidak terdaftar di semester lain
   getAvailable: (currentSemester: string) =>

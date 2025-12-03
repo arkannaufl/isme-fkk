@@ -1014,8 +1014,11 @@ export default function DosenAbsensiPraktikumPage() {
 
               if (blok && semester) {
                 // Fetch dosen dengan peran koordinator untuk blok dan semester ini
-                const dosenResponse = await api.get("/users?role=dosen");
-                const allDosen = dosenResponse.data || [];
+                const dosenResponse = await api.get("/users?role=dosen&per_page=1000");
+                // Handle pagination response
+                const allDosen = Array.isArray(dosenResponse.data) 
+                  ? dosenResponse.data 
+                  : (dosenResponse.data?.data || []);
 
                 // Cari koordinator blok
                 const koordinator = allDosen.find((dosen: any) => {

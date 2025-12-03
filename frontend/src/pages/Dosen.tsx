@@ -517,13 +517,13 @@ export default function Dosen() {
   useEffect(() => {
     setLoading(true);
     api
-      .get("/users?role=dosen")
+      .get("/users?role=dosen&per_page=1000")
       .then((res) => {
-        if (Array.isArray(res.data)) {
-          setData(res.data);
-        } else {
-          setData([]); // Ensure data is always an array
-        }
+        // Handle pagination response
+        const usersData = Array.isArray(res.data) 
+          ? res.data 
+          : (res.data?.data || []);
+        setData(usersData);
         setLoading(false);
       })
       .catch(() => {

@@ -59,21 +59,25 @@ const KelompokBesar: React.FC = () => {
           mahasiswaApi.getAll(), // Ambil semua mahasiswa, bukan hanya semester tertentu
           kelompokBesarApi.batchBySemester({ semesters: [String(mapSemesterToNumber(semester))] })
         ]);
-        setMahasiswaList(mahasiswaResponse.data);
+        // Handle pagination response
+        const mahasiswaData = Array.isArray(mahasiswaResponse.data) 
+          ? mahasiswaResponse.data 
+          : (mahasiswaResponse.data?.data || []);
+        setMahasiswaList(mahasiswaData);
         setKelompokBesarData(kelompokResponse.data[String(mapSemesterToNumber(semester))]);
         
         // Pisahkan mahasiswa biasa dan veteran dari data yang dimuat
         const kelompokData = kelompokResponse.data[String(mapSemesterToNumber(semester))] || [];
         const selectedIds = kelompokData
           .filter((kb: any) => {
-            const mahasiswa = mahasiswaResponse.data.find((m: any) => m.id === kb.mahasiswa_id);
+            const mahasiswa = mahasiswaData.find((m: any) => m.id === kb.mahasiswa_id);
             return mahasiswa && !mahasiswa.is_veteran; // Hanya mahasiswa non-veteran
           })
           .map((kb: any) => kb.mahasiswa_id.toString());
         
         const veteranIds = kelompokData
           .filter((kb: any) => {
-            const mahasiswa = mahasiswaResponse.data.find((m: any) => m.id === kb.mahasiswa_id);
+            const mahasiswa = mahasiswaData.find((m: any) => m.id === kb.mahasiswa_id);
             return mahasiswa && mahasiswa.is_veteran; // Hanya mahasiswa veteran
           })
           .map((kb: any) => kb.mahasiswa_id.toString());

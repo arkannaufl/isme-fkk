@@ -83,7 +83,11 @@ const Kelas: React.FC = () => {
     const fetchMahasiswa = async () => {
       try {
         const res = await mahasiswaApi.getAll();
-        setMahasiswaList(Array.isArray(res.data) ? res.data : []);
+        // Handle pagination response
+        const mahasiswaData: any[] = Array.isArray(res.data) 
+          ? res.data 
+          : ((res.data as any)?.data || []);
+        setMahasiswaList(mahasiswaData);
       } catch (error) {
         // Silent fail - mahasiswa data is not critical for this page
         // Could be improved with handleApiError if needed

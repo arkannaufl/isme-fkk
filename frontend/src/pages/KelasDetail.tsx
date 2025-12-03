@@ -89,12 +89,17 @@ const KelasDetail: React.FC = () => {
         kelompokMap[kk.nama_kelompok].count++;
       });
       setKelompokList(Object.values(kelompokMap));
+      
+      // Handle pagination response untuk mahasiswa
+      const mahasiswaData = Array.isArray(mhsRes.data) 
+        ? mhsRes.data 
+        : (mhsRes.data?.data || []);
       // Mapping manual mahasiswa ke kelompok
       const kelompokMahasiswaMap: { [mahasiswaId: string]: string } = {};
       kelompokRes.data.forEach((kk: any) => {
         kelompokMahasiswaMap[kk.mahasiswa_id] = kk.nama_kelompok;
       });
-      const mahasiswaWithKelompok = mhsRes.data.map((m: any) => ({
+      const mahasiswaWithKelompok = mahasiswaData.map((m: any) => ({
         ...m,
         kelompok: kelompokMahasiswaMap[m.id] ? Number(kelompokMahasiswaMap[m.id]) : undefined,
       }));

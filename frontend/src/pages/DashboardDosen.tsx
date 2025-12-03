@@ -886,7 +886,9 @@ export default function DashboardDosen() {
       );
       setNotifications(
         notifResult.status === "fulfilled" 
-          ? (Array.isArray(notifResult.value.data) ? notifResult.value.data : [])
+          ? (Array.isArray(notifResult.value.data) 
+              ? notifResult.value.data 
+              : (notifResult.value.data?.data || []))
           : []
       );
       setTodaySchedule(
