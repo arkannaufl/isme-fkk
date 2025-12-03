@@ -331,12 +331,11 @@ This project is licensed under the MIT License.
 ## 📞 Support
 
 Untuk support dan pertanyaan:
-- **Email**: support@isme.fkkumj.ac.id
 - **Support Center**: Login ke aplikasi dan akses Support Center
 - **Documentation**: Lihat dokumentasi di folder `backend/` dan `frontend/`
 
 ---
 
 **Version**: 2.0.2  
-**Last Updated**: December 2024
+**Last Updated**: December 2025
 
