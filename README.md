@@ -173,6 +173,75 @@ npm run setup:prod
 npm run build
 ```
 
+## 🚀 Deployment & VPS Setup
+
+### Setup Permissions untuk VPS
+
+**⚠️ PENTING**: Setelah clone repository dan install dependencies di VPS, **WAJIB** menjalankan script `fix-permissions.sh` untuk memastikan semua permission sudah benar.
+
+#### Mengapa Perlu Fix Permissions?
+
+Laravel memerlukan permission yang tepat agar:
+- ✅ File uploads bisa berfungsi (RPS, Materi, Signature, dll)
+- ✅ Logging bisa berfungsi (error logs, activity logs)
+- ✅ Cache bisa berfungsi (config cache, route cache, view cache)
+- ✅ Session bisa berfungsi (user sessions)
+- ✅ Tidak ada error "Permission denied"
+
+#### Cara Menjalankan Fix Permissions
+
+```bash
+# 1. Masuk ke direktori backend
+cd /var/www/isme-fkk/backend
+
+# 2. Berikan execute permission pada script
+chmod +x fix-permissions.sh
+
+# 3. Jalankan script dengan sudo
+sudo ./fix-permissions.sh
+```
+
+Script akan otomatis:
+- Set ownership semua file ke `www-data:www-data` (web server user)
+- Set permission yang benar untuk semua directory
+- Test write permissions untuk memastikan web server bisa menulis
+- Menampilkan summary dan hasil test
+
+#### Kapan Harus Menjalankan Script?
+
+Jalankan script ini:
+- ✅ **Setelah clone repository baru** di VPS
+- ✅ **Setelah deploy update** (jika ada masalah permission)
+- ✅ **Setelah ada error "Permission denied"**
+- ✅ **Setelah mengubah ownership/permission secara manual**
+
+#### Verifikasi Permission
+
+Setelah menjalankan script, verifikasi dengan:
+
+```bash
+# Cek storage permissions
+ls -la /var/www/isme-fkk/backend/storage | head -5
+
+# Cek apakah web server bisa write
+sudo -u www-data touch /var/www/isme-fkk/backend/storage/test.txt
+sudo -u www-data rm /var/www/isme-fkk/backend/storage/test.txt
+echo "✅ Jika tidak ada error, permission sudah benar!"
+```
+
+#### Checklist Permission yang Benar
+
+| Directory/File | Permission | Owner | Status |
+|----------------|------------|-------|--------|
+| `backend/storage/` | `775` | `www-data:www-data` | ✅ Writable |
+| `backend/bootstrap/cache/` | `775` | `www-data:www-data` | ✅ Writable |
+| `backend/storage/logs/` | `775` | `www-data:www-data` | ✅ Writable |
+| `backend/.env` | `644` | `www-data:www-data` | ✅ Read-only |
+| `backend/vendor/` | `755` | `www-data:www-data` | ✅ Read-only |
+| `frontend/dist/` | `755` | `www-data:www-data` | ✅ Read-only |
+
+Lihat dokumentasi lengkap di [Backend README](./backend/README.md#-deployment--vps-setup)
+
 ## 📦 Teknologi yang Digunakan
 
 ### Backend

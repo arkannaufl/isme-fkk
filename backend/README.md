@@ -542,6 +542,101 @@ chmod -R 775 storage bootstrap/cache
 chown -R www-data:www-data storage bootstrap/cache
 ```
 
+## 🚀 Deployment & VPS Setup
+
+### Setup Permissions untuk VPS
+
+Setelah clone repository dan install dependencies di VPS, **WAJIB** menjalankan script `fix-permissions.sh` untuk memastikan semua permission sudah benar.
+
+#### Mengapa Perlu Fix Permissions?
+
+Laravel memerlukan permission yang tepat agar:
+- ✅ File uploads bisa berfungsi (RPS, Materi, Signature, dll)
+- ✅ Logging bisa berfungsi (error logs, activity logs)
+- ✅ Cache bisa berfungsi (config cache, route cache, view cache)
+- ✅ Session bisa berfungsi (user sessions)
+- ✅ Tidak ada error "Permission denied"
+
+#### Cara Menjalankan Fix Permissions
+
+```bash
+# 1. Masuk ke direktori backend
+cd /var/www/isme-fkk/backend
+
+# 2. Berikan execute permission pada script
+chmod +x fix-permissions.sh
+
+# 3. Jalankan script dengan sudo
+sudo ./fix-permissions.sh
+```
+
+#### Apa yang Dilakukan Script?
+
+Script `fix-permissions.sh` akan:
+1. ✅ Set ownership semua file ke `www-data:www-data` (web server user)
+2. ✅ Set permission `775` pada `storage/` dan `bootstrap/cache/` (writable)
+3. ✅ Set permission `644` pada `.env` (read-only untuk security)
+4. ✅ Set permission `755` pada `vendor/` dan `frontend/dist/` (read-only)
+5. ✅ Set permission `664` pada log files (writable)
+6. ✅ Membuat storage link jika belum ada
+7. ✅ Test write permissions untuk memastikan web server bisa menulis
+
+#### Kapan Harus Menjalankan Script?
+
+Jalankan script ini:
+- ✅ **Setelah clone repository baru** di VPS
+- ✅ **Setelah deploy update** (jika ada masalah permission)
+- ✅ **Setelah ada error "Permission denied"**
+- ✅ **Setelah mengubah ownership/permission secara manual**
+
+#### Verifikasi Permission
+
+Setelah menjalankan script, verifikasi dengan:
+
+```bash
+# Cek storage permissions
+ls -la /var/www/isme-fkk/backend/storage | head -5
+
+# Cek apakah web server bisa write
+sudo -u www-data touch /var/www/isme-fkk/backend/storage/test.txt
+sudo -u www-data rm /var/www/isme-fkk/backend/storage/test.txt
+echo "✅ Jika tidak ada error, permission sudah benar!"
+```
+
+#### Checklist Permission yang Benar
+
+| Directory/File | Permission | Owner | Status |
+|----------------|------------|-------|--------|
+| `storage/` | `775` | `www-data:www-data` | ✅ Writable |
+| `bootstrap/cache/` | `775` | `www-data:www-data` | ✅ Writable |
+| `storage/logs/` | `775` | `www-data:www-data` | ✅ Writable |
+| `storage/logs/laravel.log` | `664` | `www-data:www-data` | ✅ Writable |
+| `.env` | `644` | `www-data:www-data` | ✅ Read-only |
+| `vendor/` | `755` | `www-data:www-data` | ✅ Read-only |
+| `frontend/dist/` | `755` | `www-data:www-data` | ✅ Read-only |
+
+#### Troubleshooting Permission
+
+**Error: "The stream or file could not be opened"**
+```bash
+# Jalankan fix-permissions.sh lagi
+sudo ./fix-permissions.sh
+```
+
+**Error: "Permission denied" saat upload file**
+```bash
+# Pastikan storage/app/public writable
+sudo chmod -R 775 /var/www/isme-fkk/backend/storage/app/public
+sudo chown -R www-data:www-data /var/www/isme-fkk/backend/storage/app/public
+```
+
+**Error: "Cache write failed"**
+```bash
+# Pastikan bootstrap/cache writable
+sudo chmod -R 775 /var/www/isme-fkk/backend/bootstrap/cache
+sudo chown -R www-data:www-data /var/www/isme-fkk/backend/bootstrap/cache
+```
+
 ---
 
 **Version**: 2.0.2  
