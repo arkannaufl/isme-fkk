@@ -348,7 +348,7 @@ export default function PBLGenerate() {
         setPblData(pblMap);
         setJurnalReadingData(jurnalMap);
         setCsrKeahlianData(csrKeahlianMap);
-        setDosenList(dosenRes.data || []);
+        setDosenList(Array.isArray(dosenRes.data) ? dosenRes.data : []);
 
         // Set active semester
         const semester = activeSemesterRes.data?.semesters?.[0];
@@ -514,7 +514,7 @@ export default function PBLGenerate() {
         const dosenData = Array.isArray(freshDosen.data) 
           ? freshDosen.data 
           : (freshDosen.data?.data || []);
-        setDosenList(dosenData);
+        setDosenList(Array.isArray(dosenData) ? dosenData : []);
       } catch (error) {}
     };
 
@@ -614,7 +614,7 @@ export default function PBLGenerate() {
   useEffect(() => {
     if (
       blokMataKuliah.length > 0 &&
-      dosenList.length > 0 &&
+      Array.isArray(dosenList) && dosenList.length > 0 &&
       activeSemesterJenis
     ) {
       // OPTIMIZATION: Use cached data if available, otherwise fetch
@@ -779,7 +779,7 @@ export default function PBLGenerate() {
     setTotalKelompokKecilAllSemester(uniqueAllKelompok.size);
 
     // Calculate dosen counts by peran_utama - PERBAIKAN: Hitung keseluruhan, bukan per semester
-    const peranKoordinatorCount = dosenList.filter((dosen) => {
+    const peranKoordinatorCount = Array.isArray(dosenList) ? dosenList.filter((dosen) => {
       // Filter berdasarkan blok yang aktif
       if (filterBlok !== "semua") {
         const blokNumber = parseInt(filterBlok);
@@ -792,9 +792,9 @@ export default function PBLGenerate() {
       return dosen.dosen_peran?.some(
         (peran: any) => peran.tipe_peran === "koordinator"
       );
-    }).length;
+    }).length : 0;
 
-    const peranTimBlokCount = dosenList.filter((dosen) => {
+    const peranTimBlokCount = Array.isArray(dosenList) ? dosenList.filter((dosen) => {
       // Filter berdasarkan blok yang aktif
       if (filterBlok !== "semua") {
         const blokNumber = parseInt(filterBlok);
@@ -807,10 +807,10 @@ export default function PBLGenerate() {
       return dosen.dosen_peran?.some(
         (peran: any) => peran.tipe_peran === "tim_blok"
       );
-    }).length;
+    }).length : 0;
 
     // PERBAIKAN: Dosen Mengajar = Total dosen - Koordinator - Tim Blok
-    const totalDosen = dosenList.length;
+    const totalDosen = Array.isArray(dosenList) ? dosenList.length : 0;
     const dosenMengajarCount = Math.max(
       0,
       totalDosen - peranKoordinatorCount - peranTimBlokCount
@@ -857,7 +857,7 @@ export default function PBLGenerate() {
 
   // Function to calculate comprehensive statistics
   const calculateComprehensiveStatistics = useCallback(() => {
-    if (filteredMataKuliah.length === 0 || dosenList.length === 0) {
+    if (filteredMataKuliah.length === 0 || !Array.isArray(dosenList) || dosenList.length === 0) {
       return;
     }
 
@@ -2013,7 +2013,7 @@ export default function PBLGenerate() {
         });
 
         // Assign Dosen Mengajar sesuai distribusi proporsional
-        if (dosenMengajar.length > 0 && dosenMengajarNeeded > 0) {
+        if (Array.isArray(dosenMengajar) && dosenMengajar.length > 0 && dosenMengajarNeeded > 0) {
           // Dosen sudah diurutkan berdasarkan prioritas keahlian dari getDosenDenganPrioritasKeahlian
           // Tambahkan sorting berdasarkan blok dan skala
 
@@ -3336,7 +3336,7 @@ export default function PBLGenerate() {
             .filter(Boolean);
 
           // Cek dosen yang tersedia dengan keahlian yang sesuai
-          const dosenMengajar = dosenList.filter((dosen) => {
+          const dosenMengajar = Array.isArray(dosenList) ? dosenList.filter((dosen) => {
             // PERBAIKAN: Kecualikan dosen yang sudah menjadi Koordinator atau Tim Blok
             const isKoordinatorOrTimBlok = dosen.dosen_peran?.some(
               (peran: any) =>
@@ -3407,10 +3407,10 @@ export default function PBLGenerate() {
                 return isMatch;
               })
             );
-          });
+          }) : [];
 
           // Hitung kekurangan dosen dengan mempertimbangkan Koordinator dan Tim Blok
-          const koordinatorForSemester = dosenList.filter((dosen) => {
+          const koordinatorForSemester = Array.isArray(dosenList) ? dosenList.filter((dosen) => {
             return dosen.dosen_peran?.some(
               (peran: any) =>
                 peran.tipe_peran === "koordinator" &&
@@ -3419,9 +3419,9 @@ export default function PBLGenerate() {
                   (mk: any) => mk.kode === peran.mata_kuliah_kode
                 )
             );
-          });
+          }) : [];
 
-          const timBlokForSemester = dosenList.filter((dosen) => {
+          const timBlokForSemester = Array.isArray(dosenList) ? dosenList.filter((dosen) => {
             return dosen.dosen_peran?.some(
               (peran: any) =>
                 peran.tipe_peran === "tim_blok" &&
@@ -3430,12 +3430,12 @@ export default function PBLGenerate() {
                   (mk: any) => mk.kode === peran.mata_kuliah_kode
                 )
             );
-          });
+          }) : [];
 
-          const koordinatorCount = koordinatorForSemester.length;
-          const timBlokCount = timBlokForSemester.length;
+          const koordinatorCount = Array.isArray(koordinatorForSemester) ? koordinatorForSemester.length : 0;
+          const timBlokCount = Array.isArray(timBlokForSemester) ? timBlokForSemester.length : 0;
           const totalDosenYangAda =
-            koordinatorCount + timBlokCount + dosenMengajar.length;
+            koordinatorCount + timBlokCount + (Array.isArray(dosenMengajar) ? dosenMengajar.length : 0);
 
           return (
             <div key={semester} className="mb-8">

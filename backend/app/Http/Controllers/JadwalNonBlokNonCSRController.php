@@ -356,10 +356,10 @@ class JadwalNonBlokNonCSRController extends Controller
                 }
             } else {
                 // Untuk jadwal biasa, cek dosen_id atau dosen_ids
-                if ($jadwal->dosen_id == $request->dosen_id) {
-                    $hasAccess = true;
-                } elseif ($jadwal->dosen_ids && is_array($jadwal->dosen_ids) && !empty($jadwal->dosen_ids)) {
-                    $hasAccess = in_array($request->dosen_id, $jadwal->dosen_ids);
+            if ($jadwal->dosen_id == $request->dosen_id) {
+                $hasAccess = true;
+            } elseif ($jadwal->dosen_ids && is_array($jadwal->dosen_ids) && !empty($jadwal->dosen_ids)) {
+                $hasAccess = in_array($request->dosen_id, $jadwal->dosen_ids);
                 }
             }
 

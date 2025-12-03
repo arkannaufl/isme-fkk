@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { UserIcon, ChevronLeftIcon, GroupIcon } from "../icons";
 import PageBreadcrumb from "../components/common/PageBreadCrumb";
@@ -83,33 +83,52 @@ const Kelompok: React.FC = () => {
     const fetchMahasiswa = async () => {
       try {
         const res = await mahasiswaApi.getAll();
-        setMahasiswaList(res.data as MahasiswaMinimal[]);
+        const mahasiswaData = Array.isArray(res.data) ? res.data : [];
+        // Map ke MahasiswaMinimal dan filter yang punya semester
+        const mahasiswaMinimal: MahasiswaMinimal[] = mahasiswaData
+          .filter((m: any) => m.semester !== undefined && m.semester !== null)
+          .map((m: any) => ({
+            id: m.id,
+            semester: m.semester
+          }));
+        setMahasiswaList(mahasiswaMinimal);
       } catch {
         // Optional: set error jika ingin
+        setMahasiswaList([]);
       }
     };
     fetchMahasiswa();
   }, []);
 
-  // Dapatkan semester unik dari mahasiswa
-  const uniqueSemesters = Array.from(
-    new Set(mahasiswaList.map((m) => m.semester).filter((s) => !!s))
-  ).sort((a, b) => a - b);
-  const ganjilSemesters = uniqueSemesters.filter((s) =>
-    [1, 3, 5, 7].includes(Number(s))
-  );
-  const genapSemesters = uniqueSemesters.filter((s) =>
-    [2, 4, 6, 8].includes(Number(s))
-  );
+  // Dapatkan semester unik dari mahasiswa (memoized)
+  const uniqueSemesters = useMemo(() => {
+    return Array.from(
+      new Set(
+        Array.isArray(mahasiswaList)
+          ? mahasiswaList.map((m) => m.semester).filter((s) => !!s)
+          : []
+      )
+    ).sort((a, b) => a - b);
+  }, [mahasiswaList]);
 
-  // Mapping jumlah mahasiswa per semester
-  const mahasiswaPerSemester: { [semester: number]: number } = {};
-  mahasiswaList.forEach((m) => {
-    if (m.semester) {
-      mahasiswaPerSemester[m.semester] =
-        (mahasiswaPerSemester[m.semester] || 0) + 1;
-    }
-  });
+  const ganjilSemesters = useMemo(() => {
+    return uniqueSemesters.filter((s) => [1, 3, 5, 7].includes(Number(s)));
+  }, [uniqueSemesters]);
+
+  const genapSemesters = useMemo(() => {
+    return uniqueSemesters.filter((s) => [2, 4, 6, 8].includes(Number(s)));
+  }, [uniqueSemesters]);
+
+  // Mapping jumlah mahasiswa per semester (memoized)
+  const mahasiswaPerSemester = useMemo(() => {
+    const result: { [semester: number]: number } = {};
+    mahasiswaList.forEach((m) => {
+      if (m.semester) {
+        result[m.semester] = (result[m.semester] || 0) + 1;
+      }
+    });
+    return result;
+  }, [mahasiswaList]);
 
   const handleBackToSemesterType = () => {
     setSelectedSemesterType("");

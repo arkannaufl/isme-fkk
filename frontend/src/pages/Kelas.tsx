@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { BoxCubeIcon, ChevronLeftIcon, GroupIcon, UserIcon } from "../icons";
 import { tahunAjaranApi, kelasApi, mahasiswaApi } from "../api/generateApi";
@@ -30,6 +30,25 @@ const Kelas: React.FC = () => {
     fetchAvailableSemesters();
   }, []);
 
+  // Dapatkan semester unik dari mahasiswa menggunakan useMemo
+  const uniqueSemesters = useMemo(() => {
+    return Array.from(
+      new Set(
+        Array.isArray(mahasiswaList)
+          ? mahasiswaList.map(m => m.semester).filter(s => !!s)
+          : []
+      )
+    ).sort((a, b) => a - b);
+  }, [mahasiswaList]);
+
+  const ganjilSemesters = useMemo(() => {
+    return uniqueSemesters.filter(s => [1,3,5,7].includes(Number(s)));
+  }, [uniqueSemesters]);
+
+  const genapSemesters = useMemo(() => {
+    return uniqueSemesters.filter(s => [2,4,6,8].includes(Number(s)));
+  }, [uniqueSemesters]);
+
   // Load kelas data for selected semester type
   useEffect(() => {
     const loadKelasData = async () => {
@@ -57,26 +76,22 @@ const Kelas: React.FC = () => {
     if (selectedSemesterType) {
       loadKelasData();
     }
-  }, [selectedSemesterType, availableSemesters]);
+  }, [selectedSemesterType, availableSemesters, ganjilSemesters, genapSemesters]);
 
   // Fetch mahasiswa untuk dapatkan semester unik
   useEffect(() => {
     const fetchMahasiswa = async () => {
       try {
         const res = await mahasiswaApi.getAll();
-        setMahasiswaList(res.data);
+        setMahasiswaList(Array.isArray(res.data) ? res.data : []);
       } catch (error) {
         // Silent fail - mahasiswa data is not critical for this page
         // Could be improved with handleApiError if needed
+        setMahasiswaList([]);
       }
     };
     fetchMahasiswa();
   }, []);
-
-  // Dapatkan semester unik dari mahasiswa
-  const uniqueSemesters = Array.from(new Set(mahasiswaList.map(m => m.semester).filter(s => !!s))).sort((a, b) => a - b);
-  const ganjilSemesters = uniqueSemesters.filter(s => [1,3,5,7].includes(Number(s)));
-  const genapSemesters = uniqueSemesters.filter(s => [2,4,6,8].includes(Number(s)));
 
   const handleBackToSemesterType = () => {
     setSelectedSemesterType("");
