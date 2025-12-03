@@ -418,7 +418,9 @@ export default function DashboardMahasiswa() {
         )
       );
       setNotifications(
-        notifResult.status === "fulfilled" ? notifResult.value.data || [] : []
+        notifResult.status === "fulfilled" 
+          ? (Array.isArray(notifResult.value.data) ? notifResult.value.data : [])
+          : []
       );
 
         // Handle CSR and Non Blok Non CSR based on semester type
@@ -1289,11 +1291,11 @@ export default function DashboardMahasiswa() {
                   Notifikasi Terbaru
                 </h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {notifications.filter((n) => !n.is_read).length} belum dibaca
+                  {Array.isArray(notifications) ? notifications.filter((n) => !n.is_read).length : 0} belum dibaca
                 </p>
               </div>
             </div>
-            {notifications.length === 0 ? (
+            {!Array.isArray(notifications) || notifications.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-gray-500 dark:text-gray-400 text-sm">
                   Belum ada notifikasi

@@ -885,7 +885,9 @@ export default function DashboardDosen() {
           : []
       );
       setNotifications(
-        notifResult.status === "fulfilled" ? notifResult.value.data || [] : []
+        notifResult.status === "fulfilled" 
+          ? (Array.isArray(notifResult.value.data) ? notifResult.value.data : [])
+          : []
       );
       setTodaySchedule(
         todayScheduleResult.status === "fulfilled"
@@ -3101,7 +3103,7 @@ export default function DashboardDosen() {
                     Notifikasi Terbaru
                   </h2>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {notifications.filter((n) => !n.is_read).length +
+                    {(Array.isArray(notifications) ? notifications.filter((n) => !n.is_read).length : 0) +
                       (praktikumKoordinator.filter(
                         (p) => !p.koordinator_signature
                       ).length > 0
@@ -3176,7 +3178,7 @@ export default function DashboardDosen() {
               </div>
             )}
 
-            {notifications.length > 0 ? (
+            {Array.isArray(notifications) && notifications.length > 0 ? (
               <div className="space-y-4">
                 {notifications.slice(0, 5).map((notification) => (
                   <div
