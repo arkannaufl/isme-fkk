@@ -543,6 +543,7 @@ export default function DashboardDosen() {
   >([]);
   const [jadwalCSR, setJadwalCSR] = useState<any[]>([]);
   const [jadwalNonBlokNonCSR, setJadwalNonBlokNonCSR] = useState<any[]>([]);
+  const [jadwalBimbinganAkhir, setJadwalBimbinganAkhir] = useState<any[]>([]);
   const [todaySchedule, setTodaySchedule] = useState<TodayScheduleItem[]>([]);
   const [praktikumKoordinator, setPraktikumKoordinator] = useState<
     Array<{
@@ -906,19 +907,49 @@ export default function DashboardDosen() {
             : []
         );
         const jadwalNonBlokNonCSRResult = otherResults[1];
-        setJadwalNonBlokNonCSR(
-          jadwalNonBlokNonCSRResult?.status === "fulfilled"
-            ? jadwalNonBlokNonCSRResult.value.data.data || []
-            : []
+        // Pastikan semua data non blok non csr termasuk seminar proposal dan sidang skripsi
+        const nonBlokNonCSRData = jadwalNonBlokNonCSRResult?.status === "fulfilled"
+          ? jadwalNonBlokNonCSRResult.value.data.data || []
+          : [];
+        
+        // Filter jadwal bimbingan akhir (seminar proposal dan sidang skripsi)
+        const bimbinganAkhirData = nonBlokNonCSRData.filter(
+          (item: any) =>
+            item.jenis_baris === "seminar_proposal" ||
+            item.jenis_baris === "sidang_skripsi"
         );
+        setJadwalBimbinganAkhir(bimbinganAkhirData);
+        
+        // Filter jadwal non blok non csr lainnya (bukan bimbingan akhir)
+        const nonBimbinganAkhirData = nonBlokNonCSRData.filter(
+          (item: any) =>
+            item.jenis_baris !== "seminar_proposal" &&
+            item.jenis_baris !== "sidang_skripsi"
+        );
+        setJadwalNonBlokNonCSR(nonBimbinganAkhirData);
       } else {
         setJadwalCSR([]);
         const jadwalNonBlokNonCSRResult = otherResults[0];
-        setJadwalNonBlokNonCSR(
-          jadwalNonBlokNonCSRResult?.status === "fulfilled"
-            ? jadwalNonBlokNonCSRResult.value.data.data || []
-            : []
+        // Pastikan semua data non blok non csr termasuk seminar proposal dan sidang skripsi
+        const nonBlokNonCSRData = jadwalNonBlokNonCSRResult?.status === "fulfilled"
+          ? jadwalNonBlokNonCSRResult.value.data.data || []
+          : [];
+        
+        // Filter jadwal bimbingan akhir (seminar proposal dan sidang skripsi)
+        const bimbinganAkhirData = nonBlokNonCSRData.filter(
+          (item: any) =>
+            item.jenis_baris === "seminar_proposal" ||
+            item.jenis_baris === "sidang_skripsi"
         );
+        setJadwalBimbinganAkhir(bimbinganAkhirData);
+        
+        // Filter jadwal non blok non csr lainnya (bukan bimbingan akhir)
+        const nonBimbinganAkhirData = nonBlokNonCSRData.filter(
+          (item: any) =>
+            item.jenis_baris !== "seminar_proposal" &&
+            item.jenis_baris !== "sidang_skripsi"
+        );
+        setJadwalNonBlokNonCSR(nonBimbinganAkhirData);
       }
 
       // Fetch blok assignments separately (less critical)
@@ -1823,7 +1854,9 @@ export default function DashboardDosen() {
         | "persamaan_persepsi"
         | "seminar_pleno"
         | "csr"
-        | "non_blok_non_csr",
+        | "non_blok_non_csr"
+        | "bimbingan_akhir_sempro"
+        | "bimbingan_akhir_sidang",
       emptyMessage: string
     ) => {
       // Tentukan warna berdasarkan jenis jadwal
@@ -1922,7 +1955,9 @@ export default function DashboardDosen() {
                         jadwalType === "persamaan_persepsi" ||
                         jadwalType === "seminar_pleno" ||
                         jadwalType === "csr" ||
-                        jadwalType === "non_blok_non_csr"
+                        jadwalType === "non_blok_non_csr" ||
+                        jadwalType === "bimbingan_akhir_sempro" ||
+                        jadwalType === "bimbingan_akhir_sidang"
                           ? `${item.jam_mulai} - ${item.jam_selesai}`
                           : item.waktu_mulai}
                       </td>
@@ -1956,7 +1991,9 @@ export default function DashboardDosen() {
                         jadwalType === "persamaan_persepsi" ||
                         jadwalType === "seminar_pleno" ||
                         jadwalType === "csr" ||
-                        jadwalType === "non_blok_non_csr"
+                        jadwalType === "non_blok_non_csr" ||
+                        jadwalType === "bimbingan_akhir_sempro" ||
+                        jadwalType === "bimbingan_akhir_sidang"
                             ? `${item.jumlah_sesi || 1} x 50 menit`
                             : `${item.durasi} menit`}
                         </td>
@@ -2138,6 +2175,78 @@ export default function DashboardDosen() {
                             );
                           })()}
                         </td>
+                      ) : jadwalType === "bimbingan_akhir_sempro" ? (
+                        <>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {(() => {
+                              // Cek dari pembimbing object atau pembimbing_id
+                              if (item.pembimbing && item.pembimbing.name) {
+                                return item.pembimbing.name;
+                              }
+                              if (item.pembimbing_id && Array.isArray(allDosenList) && allDosenList.length > 0) {
+                                const pembimbing = allDosenList.find((d: any) => d && d.id === item.pembimbing_id);
+                                return pembimbing?.name || "-";
+                              }
+                              return "-";
+                            })()}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {(() => {
+                              if (item.komentator_list && Array.isArray(item.komentator_list) && item.komentator_list.length > 0) {
+                                return item.komentator_list.map((k: any) => k?.name || k?.nama || "-").filter((name: any) => name && name !== "-").join(", ") || "-";
+                              }
+                              if (item.komentator_ids && Array.isArray(item.komentator_ids) && item.komentator_ids.length > 0) {
+                                if (Array.isArray(allDosenList) && allDosenList.length > 0) {
+                                  const komentatorNames = allDosenList
+                                    .filter((d: any) => d && item.komentator_ids.includes(Number(d.id)))
+                                    .map((d: any) => d?.name)
+                                    .filter((name: any) => name);
+                                  return komentatorNames.length > 0 ? komentatorNames.join(", ") : "-";
+                                }
+                              }
+                              return "-";
+                            })()}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {item.ruangan?.nama || "N/A"}
+                          </td>
+                        </>
+                      ) : jadwalType === "bimbingan_akhir_sidang" ? (
+                        <>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {(() => {
+                              // Cek dari pembimbing object atau pembimbing_id
+                              if (item.pembimbing && item.pembimbing.name) {
+                                return item.pembimbing.name;
+                              }
+                              if (item.pembimbing_id && Array.isArray(allDosenList) && allDosenList.length > 0) {
+                                const pembimbing = allDosenList.find((d: any) => d && d.id === item.pembimbing_id);
+                                return pembimbing?.name || "-";
+                              }
+                              return "-";
+                            })()}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {(() => {
+                              if (item.penguji_list && Array.isArray(item.penguji_list) && item.penguji_list.length > 0) {
+                                return item.penguji_list.map((p: any) => p?.name || p?.nama || "-").filter((name: any) => name && name !== "-").join(", ") || "-";
+                              }
+                              if (item.penguji_ids && Array.isArray(item.penguji_ids) && item.penguji_ids.length > 0) {
+                                if (Array.isArray(allDosenList) && allDosenList.length > 0) {
+                                  const pengujiNames = allDosenList
+                                    .filter((d: any) => d && item.penguji_ids.includes(Number(d.id)))
+                                    .map((d: any) => d?.name)
+                                    .filter((name: any) => name);
+                                  return pengujiNames.length > 0 ? pengujiNames.join(", ") : "-";
+                                }
+                              }
+                              return "-";
+                            })()}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {item.ruangan?.nama || "N/A"}
+                          </td>
+                        </>
                       ) : (
                         <>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
@@ -2160,7 +2269,9 @@ export default function DashboardDosen() {
                         jadwalType !== "csr" &&
                         jadwalType !== "non_blok_non_csr" &&
                         jadwalType !== "kuliah_besar" &&
-                        jadwalType !== "praktikum" && (
+                        jadwalType !== "praktikum" &&
+                        jadwalType !== "bimbingan_akhir_sempro" &&
+                        jadwalType !== "bimbingan_akhir_sidang" && (
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                             {item.topik}
                           </td>
@@ -2168,7 +2279,9 @@ export default function DashboardDosen() {
                       {(jadwalType === "kuliah_besar" ||
                         jadwalType === "jurnal" ||
                         jadwalType === "seminar_pleno" ||
-                        jadwalType === "non_blok_non_csr") && (
+                        jadwalType === "non_blok_non_csr" ||
+                        jadwalType === "bimbingan_akhir_sempro" ||
+                        jadwalType === "bimbingan_akhir_sidang") && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {jadwalType === "kuliah_besar"
                             ? item.kelompok_besar?.semester
@@ -2215,11 +2328,13 @@ export default function DashboardDosen() {
                             jadwalType === "jurnal"
                           ? item.ruangan?.nama || "N/A"
                           : jadwalType === "pbl"
-                          ? item.ruangan || "N/A"
+                          ? (typeof item.ruangan === "string" ? item.ruangan : item.ruangan?.nama) || "N/A"
                           : jadwalType === "csr" ||
-                            jadwalType === "non_blok_non_csr"
+                            jadwalType === "non_blok_non_csr" ||
+                            jadwalType === "bimbingan_akhir_sempro" ||
+                            jadwalType === "bimbingan_akhir_sidang"
                           ? item.ruangan?.nama || "N/A"
-                          : item.lokasi || item.ruangan}
+                          : item.lokasi || (typeof item.ruangan === "string" ? item.ruangan : item.ruangan?.nama) || "N/A"}
                       </td>
                       )}
                       {jadwalType === "jurnal" && (
@@ -2302,7 +2417,7 @@ export default function DashboardDosen() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
                         <div className="flex items-center gap-2">
                           {/* Untuk Seminar Proposal dan Sidang Skripsi, jangan tampilkan getStatusBadge karena sudah ada logika khusus */}
-                          {!(jadwalType === "non_blok_non_csr" && (item.jenis_baris === "seminar_proposal" || item.jenis_baris === "Seminar Proposal" || item.jenis_baris === "sidang_skripsi" || item.jenis_baris === "Sidang Skripsi")) && (
+                          {!(jadwalType === "bimbingan_akhir_sempro" || jadwalType === "bimbingan_akhir_sidang") && (
                             getStatusBadge(
                             item.status_konfirmasi,
                               item.status_reschedule,
@@ -2310,7 +2425,7 @@ export default function DashboardDosen() {
                             )
                           )}
                           {/* Untuk Seminar Proposal dan Sidang Skripsi, tampilkan konfirmasi/reschedule jika belum konfirmasi - HANYA untuk pembimbing */}
-                          {jadwalType === "non_blok_non_csr" && (item.jenis_baris === "seminar_proposal" || item.jenis_baris === "Seminar Proposal" || item.jenis_baris === "sidang_skripsi" || item.jenis_baris === "Sidang Skripsi") && (
+                          {(jadwalType === "bimbingan_akhir_sempro" || jadwalType === "bimbingan_akhir_sidang") && (
                             <>
                               {/* Tampilkan button konfirmasi/reschedule HANYA jika pembimbing dan belum konfirmasi */}
                               {item.is_pembimbing && item.status_konfirmasi === "belum_konfirmasi" && (
@@ -2457,8 +2572,9 @@ export default function DashboardDosen() {
                             </>
                           ) : (
                             <>
-                              {/* Untuk jadwal lain, tampilkan button konfirmasi jika belum konfirmasi */}
-                              {item.is_active_dosen &&
+                              {/* Untuk jadwal lain (bukan bimbingan akhir), tampilkan button konfirmasi jika belum konfirmasi */}
+                              {!(jadwalType === "bimbingan_akhir_sempro" || jadwalType === "bimbingan_akhir_sidang") &&
+                                item.is_active_dosen &&
                                 item.status_konfirmasi ===
                                   "belum_konfirmasi" && (
                                 <button
@@ -2626,12 +2742,15 @@ export default function DashboardDosen() {
                               )}
                               {/* Persamaan Persepsi dan Seminar Pleno tidak ada button reschedule (langsung bisa) */}
                               {/* Praktikum tidak ada button reschedule */}
+                              {/* Bimbingan Akhir (seminar proposal dan sidang skripsi) sudah ditangani di atas, jangan tampilkan lagi di sini */}
                               {(jadwalType === "pbl" ||
                                 jadwalType === "kuliah_besar" ||
                                 jadwalType === "agenda_khusus" ||
                                 jadwalType === "jurnal" ||
                                 jadwalType === "csr" ||
-                                jadwalType === "non_blok_non_csr") &&
+                                (jadwalType === "non_blok_non_csr" && 
+                                 item.jenis_baris !== "seminar_proposal" && 
+                                 item.jenis_baris !== "sidang_skripsi")) &&
                                 item.is_active_dosen &&
                                 item.status_konfirmasi ===
                                   "belum_konfirmasi" && (
@@ -3452,7 +3571,14 @@ export default function DashboardDosen() {
                                 className="w-3.5 h-3.5 text-gray-400"
                               />
                               <span className="truncate">
-                                {schedule.ruangan}
+                                {(() => {
+                                  const ruangan = schedule.ruangan;
+                                  if (typeof ruangan === "string") return ruangan;
+                                  if (ruangan && typeof ruangan === "object" && "nama" in ruangan) {
+                                    return (ruangan as { nama: string }).nama;
+                                  }
+                                  return "N/A";
+                                })()}
                               </span>
                             </div>
                             {schedule.topik && (
@@ -3585,7 +3711,14 @@ export default function DashboardDosen() {
                           </p>
                           <p>
                             <span className="font-medium">Ruangan:</span>{" "}
-                            {praktikum.ruangan}
+                            {(() => {
+                              const ruangan = praktikum.ruangan;
+                              if (typeof ruangan === "string") return ruangan;
+                              if (ruangan && typeof ruangan === "object" && "nama" in ruangan) {
+                                return (ruangan as { nama: string }).nama;
+                              }
+                              return "N/A";
+                            })()}
                           </p>
                           <p>
                             <span className="font-medium">Kelas:</span>{" "}
@@ -4379,6 +4512,87 @@ export default function DashboardDosen() {
                     "csr",
                     "Tidak ada data CSR"
                   )}
+                </motion.div>
+              )}
+
+              {/* Bimbingan Akhir Section - Hanya tampilkan jika ada data */}
+              {Array.isArray(jadwalBimbinganAkhir) && jadwalBimbinganAkhir.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.9 }}
+                  className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700"
+                >
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-purple-500 rounded-2xl flex items-center justify-center">
+                      <FontAwesomeIcon
+                        icon={faGraduationCap}
+                        className="text-white text-lg"
+                      />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                        Bimbingan Akhir
+                      </h2>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Jadwal Seminar Proposal dan Sidang Skripsi
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    {/* Seminar Proposal */}
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                      {renderJadwalTable(
+                        "Seminar Proposal",
+                        faGraduationCap,
+                        Array.isArray(jadwalBimbinganAkhir) 
+                          ? jadwalBimbinganAkhir.filter(
+                              (item: any) => item?.jenis_baris === "seminar_proposal"
+                            )
+                          : [],
+                        [
+                          "NO",
+                          "HARI/TANGGAL",
+                          "PUKUL",
+                          "WAKTU",
+                          "PEMBIMBING",
+                          "KOMENTATOR",
+                          "RUANGAN",
+                          "JENIS SEMESTER",
+                          "AKSI",
+                        ],
+                        "bimbingan_akhir_sempro",
+                        "Tidak ada data Seminar Proposal"
+                      )}
+                    </div>
+
+                    {/* Sidang Skripsi */}
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                      {renderJadwalTable(
+                        "Sidang Skripsi",
+                        faGraduationCap,
+                        Array.isArray(jadwalBimbinganAkhir)
+                          ? jadwalBimbinganAkhir.filter(
+                              (item: any) => item?.jenis_baris === "sidang_skripsi"
+                            )
+                          : [],
+                        [
+                          "NO",
+                          "HARI/TANGGAL",
+                          "PUKUL",
+                          "WAKTU",
+                          "PEMBIMBING",
+                          "PENGUJI",
+                          "RUANGAN",
+                          "JENIS SEMESTER",
+                          "AKSI",
+                        ],
+                        "bimbingan_akhir_sidang",
+                        "Tidak ada data Sidang Skripsi"
+                      )}
+                    </div>
+                  </div>
                 </motion.div>
               )}
 

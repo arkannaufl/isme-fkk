@@ -152,6 +152,9 @@ class JadwalNonBlokNonCSRController extends Controller
                     'jenis_baris',
                     'dosen_id',
                     'dosen_ids',
+                    'pembimbing_id',
+                    'komentator_ids',
+                    'penguji_ids',
                     'ruangan_id',
                     'kelompok_besar_id',
                     'kelompok_besar_antara_id',
@@ -191,6 +194,35 @@ class JadwalNonBlokNonCSRController extends Controller
                     } elseif ($semesterType === 'antara') {
                         $q->whereNotNull('kelompok_besar_antara_id');
                     }
+                })
+                ->orWhere(function ($q) use ($dosenId) {
+                    // Kondisi 3: Untuk seminar_proposal dan sidang_skripsi, cek pembimbing_id, komentator_ids, dan penguji_ids
+                    // TIDAK filter berdasarkan semester_type karena seminar proposal dan sidang skripsi tidak menggunakan semester_type
+                    $q->whereIn('jenis_baris', ['seminar_proposal', 'sidang_skripsi'])
+                        ->where(function ($subQ) use ($dosenId) {
+                            // Cek pembimbing_id
+                            $subQ->where('pembimbing_id', $dosenId)
+                                // Cek komentator_ids (untuk seminar_proposal)
+                                ->orWhere(function ($komentatorQ) use ($dosenId) {
+                                    $komentatorQ->whereNotNull('komentator_ids')
+                                        ->where(function ($kSubQ) use ($dosenId) {
+                                            $kSubQ->whereRaw('JSON_CONTAINS(komentator_ids, ?)', [json_encode($dosenId)])
+                                                ->orWhereRaw('JSON_SEARCH(komentator_ids, "one", ?) IS NOT NULL', [$dosenId])
+                                                ->orWhereRaw('CAST(komentator_ids AS CHAR) LIKE ?', ['%"' . $dosenId . '"%'])
+                                                ->orWhereRaw('CAST(komentator_ids AS CHAR) LIKE ?', ['%' . $dosenId . '%']);
+                                        });
+                                })
+                                // Cek penguji_ids (untuk sidang_skripsi)
+                                ->orWhere(function ($pengujiQ) use ($dosenId) {
+                                    $pengujiQ->whereNotNull('penguji_ids')
+                                        ->where(function ($pSubQ) use ($dosenId) {
+                                            $pSubQ->whereRaw('JSON_CONTAINS(penguji_ids, ?)', [json_encode($dosenId)])
+                                                ->orWhereRaw('JSON_SEARCH(penguji_ids, "one", ?) IS NOT NULL', [$dosenId])
+                                                ->orWhereRaw('CAST(penguji_ids AS CHAR) LIKE ?', ['%"' . $dosenId . '"%'])
+                                                ->orWhereRaw('CAST(penguji_ids AS CHAR) LIKE ?', ['%' . $dosenId . '%']);
+                                        });
+                                });
+                        });
                 });
 
             $jadwalData = $query->orderBy('tanggal', 'asc')
@@ -198,7 +230,7 @@ class JadwalNonBlokNonCSRController extends Controller
                 ->get();
 
 
-            // Filter jadwal yang benar-benar memiliki dosenId (untuk dosen_ids array)
+            // Filter jadwal yang benar-benar memiliki dosenId (untuk dosen_ids array, pembimbing_id, komentator_ids, penguji_ids)
             $jadwalData = $jadwalData->filter(function ($item) use ($dosenId) {
                 // Jika single dosen_id, langsung return true jika match
                 if ($item->dosen_id == $dosenId) {
@@ -209,6 +241,27 @@ class JadwalNonBlokNonCSRController extends Controller
                     $dosenIds = is_array($item->dosen_ids) ? $item->dosen_ids : json_decode($item->dosen_ids, true);
                     if (is_array($dosenIds) && in_array($dosenId, $dosenIds)) {
                         return true;
+                    }
+                }
+                // Untuk seminar_proposal dan sidang_skripsi, cek pembimbing_id, komentator_ids, dan penguji_ids
+                if (in_array($item->jenis_baris, ['seminar_proposal', 'sidang_skripsi'])) {
+                    // Cek pembimbing_id
+                    if ($item->pembimbing_id == $dosenId) {
+                        return true;
+                    }
+                    // Cek komentator_ids (untuk seminar_proposal)
+                    if (!empty($item->komentator_ids)) {
+                        $komentatorIds = is_array($item->komentator_ids) ? $item->komentator_ids : json_decode($item->komentator_ids, true);
+                        if (is_array($komentatorIds) && in_array($dosenId, $komentatorIds)) {
+                            return true;
+                        }
+                    }
+                    // Cek penguji_ids (untuk sidang_skripsi)
+                    if (!empty($item->penguji_ids)) {
+                        $pengujiIds = is_array($item->penguji_ids) ? $item->penguji_ids : json_decode($item->penguji_ids, true);
+                        if (is_array($pengujiIds) && in_array($dosenId, $pengujiIds)) {
+                            return true;
+                        }
                     }
                 }
                 return false;
@@ -278,6 +331,80 @@ class JadwalNonBlokNonCSRController extends Controller
                     $pengampu = $jadwal->dosen->name;
                 }
 
+                // Untuk seminar_proposal dan sidang_skripsi, tambahkan informasi pembimbing, komentator, dan penguji
+                $isPembimbing = false;
+                $komentatorList = [];
+                $pengujiList = [];
+                $komentatorIds = [];
+                $pengujiIds = [];
+                $pembimbing = null;
+
+                if (in_array($jadwal->jenis_baris, ['seminar_proposal', 'sidang_skripsi'])) {
+                    // Cek apakah dosen ini adalah pembimbing
+                    $isPembimbing = ($jadwal->pembimbing_id == $dosenId);
+
+                    // Ambil data pembimbing
+                    if (!empty($jadwal->pembimbing_id)) {
+                        $pembimbingData = User::find($jadwal->pembimbing_id);
+                        if ($pembimbingData) {
+                            $pembimbing = [
+                                'id' => $pembimbingData->id,
+                                'name' => $pembimbingData->name,
+                                'nid' => $pembimbingData->nid,
+                                'nidn' => $pembimbingData->nidn,
+                                'nuptk' => $pembimbingData->nuptk,
+                            ];
+                        }
+                    }
+
+                    // Parse komentator_ids dan penguji_ids
+                    if (!empty($jadwal->komentator_ids)) {
+                        $komentatorIds = is_array($jadwal->komentator_ids) ? $jadwal->komentator_ids : json_decode($jadwal->komentator_ids, true);
+                        if (is_array($komentatorIds)) {
+                            $komentatorList = User::whereIn('id', $komentatorIds)
+                                ->select('id', 'name', 'nid', 'nidn', 'nuptk')
+                                ->get()
+                                ->map(function ($dosen) {
+                                    return [
+                                        'id' => $dosen->id,
+                                        'name' => $dosen->name,
+                                        'nid' => $dosen->nid,
+                                        'nidn' => $dosen->nidn,
+                                        'nuptk' => $dosen->nuptk,
+                                    ];
+                                })
+                                ->toArray();
+                        }
+                    }
+
+                    if (!empty($jadwal->penguji_ids)) {
+                        $pengujiIds = is_array($jadwal->penguji_ids) ? $jadwal->penguji_ids : json_decode($jadwal->penguji_ids, true);
+                        if (is_array($pengujiIds)) {
+                            $pengujiList = User::whereIn('id', $pengujiIds)
+                                ->select('id', 'name', 'nid', 'nidn', 'nuptk')
+                                ->get()
+                                ->map(function ($dosen) {
+                                    return [
+                                        'id' => $dosen->id,
+                                        'name' => $dosen->name,
+                                        'nid' => $dosen->nid,
+                                        'nidn' => $dosen->nidn,
+                                        'nuptk' => $dosen->nuptk,
+                                    ];
+                                })
+                                ->toArray();
+                        }
+                    }
+
+                    // Update is_active_dosen untuk seminar proposal dan sidang skripsi
+                    // Dosen aktif jika dia pembimbing, komentator, atau penguji
+                    if (!$isActiveDosen) {
+                        $isActiveDosen = $isPembimbing ||
+                                        (is_array($komentatorIds) && in_array($dosenId, $komentatorIds)) ||
+                                        (is_array($pengujiIds) && in_array($dosenId, $pengujiIds));
+                    }
+                }
+
                 return [
                     'id' => $jadwal->id,
                     'mata_kuliah_kode' => $jadwal->mata_kuliah_kode,
@@ -295,6 +422,13 @@ class JadwalNonBlokNonCSRController extends Controller
                     'dosen_ids' => $dosenIds,
                     'is_active_dosen' => $isActiveDosen, // Flag: apakah dosen ini adalah dosen aktif
                     'is_in_history' => $isInHistory, // Flag: apakah dosen ini hanya ada di history
+                    'is_pembimbing' => $isPembimbing, // Flag: apakah dosen ini adalah pembimbing (untuk seminar proposal dan sidang skripsi)
+                    'pembimbing_id' => $jadwal->pembimbing_id ?? null,
+                    'pembimbing' => $pembimbing, // Object pembimbing dengan id, name, nid, nidn, nuptk
+                    'komentator_ids' => $komentatorIds,
+                    'komentator_list' => $komentatorList,
+                    'penguji_ids' => $pengujiIds,
+                    'penguji_list' => $pengujiList,
                     'ruangan' => $jadwal->ruangan,
                     'kelompok_besar' => $jadwal->kelompokBesar ? [
                         'id' => $jadwal->kelompokBesar->id,
