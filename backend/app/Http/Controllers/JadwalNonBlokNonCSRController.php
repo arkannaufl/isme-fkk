@@ -156,6 +156,7 @@ class JadwalNonBlokNonCSRController extends Controller
                     'pembimbing_id',
                     'komentator_ids',
                     'penguji_ids',
+                    'mahasiswa_nims',
                     'ruangan_id',
                     'kelompok_besar_id',
                     'kelompok_besar_antara_id',
@@ -418,6 +419,20 @@ class JadwalNonBlokNonCSRController extends Controller
                     }
                 }
 
+                // Ambil mahasiswa_nims dan mahasiswa_list
+                $mahasiswaNims = $jadwal->mahasiswa_nims ?? [];
+                if (!is_array($mahasiswaNims)) {
+                    $mahasiswaNims = json_decode($mahasiswaNims, true) ?? [];
+                }
+                $mahasiswaList = [];
+                if (!empty($mahasiswaNims)) {
+                    $mahasiswaList = User::whereIn('nim', $mahasiswaNims)
+                        ->where('role', 'mahasiswa')
+                        ->select('id', 'nim', 'name')
+                        ->get()
+                        ->toArray();
+                }
+
                 return [
                     'id' => $jadwal->id,
                     'mata_kuliah_kode' => $jadwal->mata_kuliah_kode,
@@ -442,6 +457,8 @@ class JadwalNonBlokNonCSRController extends Controller
                     'komentator_list' => $komentatorList,
                     'penguji_ids' => $pengujiIds,
                     'penguji_list' => $pengujiList,
+                    'mahasiswa_nims' => $mahasiswaNims,
+                    'mahasiswa_list' => $mahasiswaList,
                     'ruangan' => $jadwal->ruangan,
                     'kelompok_besar' => $jadwal->kelompokBesar ? [
                         'id' => $jadwal->kelompokBesar->id,
