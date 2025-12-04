@@ -138,7 +138,7 @@ const Kelas: React.FC = () => {
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {Array.from({length: 4}).map((_,i) => (
-                <div key={i} className="group block rounded-xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03] transition-all duration-200 px-6 py-8 flex flex-col items-center gap-4 animate-pulse">
+                <div key={i} className="group rounded-xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-white/[0.03] transition-all duration-200 px-6 py-8 flex flex-col items-center gap-4 animate-pulse">
                   <div className="w-16 h-16 rounded-full bg-gray-200 dark:bg-gray-700 mb-2" />
                   <div className="h-6 w-24 bg-gray-200 dark:bg-gray-700 rounded mb-2" />
                   <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded" />

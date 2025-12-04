@@ -16,22 +16,56 @@ ISME adalah sistem manajemen akademik terintegrasi yang dirancang khusus untuk F
 ## ✨ Fitur Utama
 
 ### 🎓 Manajemen Akademik
-- **Mata Kuliah**: Manajemen mata kuliah Blok, Non-Blok, CSR, PBL, dan Jurnal Reading
-- **Jadwal**: Sistem jadwal terintegrasi untuk kuliah besar, praktikum, seminar, dan CSR
-- **Tahun Ajaran & Semester**: Manajemen tahun ajaran dan semester aktif
-- **Ruangan**: Manajemen ruangan dengan validasi kapasitas
+- **Mata Kuliah**: 
+  - Manajemen mata kuliah Blok, Non-Blok, CSR, PBL, dan Jurnal Reading
+  - Upload RPS (Rencana Pembelajaran Semester)
+  - Upload Materi Pembelajaran
+  - Mapping keahlian dosen ke mata kuliah
+  - Peran kurikulum dosen (koordinator, tim blok, dosen mengajar)
+- **Jadwal**: 
+  - Sistem jadwal terintegrasi untuk kuliah besar, praktikum, seminar, dan CSR
+  - Jadwal harian (combined view)
+  - Jadwal jurnal reading
+  - Jadwal persamaan persepsi
+  - Jadwal non-blok non-CSR
+  - Jadwal antara (semester antara)
+- **Tahun Ajaran & Semester**: 
+  - Manajemen tahun ajaran dan semester aktif
+  - Semester ganjil/genap
+  - Semester antara
+  - Activation/deactivation semester
+- **Ruangan**: 
+  - Manajemen ruangan dengan validasi kapasitas
+  - Filter ruangan by capacity
+  - Ruangan options untuk assignments
+- **Kelas & Kelompok**: 
+  - Manajemen kelas per semester
+  - Manajemen kelompok besar dan kecil
+  - Kelompok antara (semester antara)
+  - Assignment mahasiswa ke kelas/kelompok
 
 ### 👥 Manajemen User
 - **Multi-Role**: Super Admin, Tim Akademik, Dosen, dan Mahasiswa
 - **Role-Based Access Control**: Akses terbatas berdasarkan peran
 - **User Management**: CRUD lengkap untuk semua jenis user
 - **Import/Export Excel**: Import data user dalam jumlah besar
+- **Digital Signature**: Signature upload untuk dosen
+- **Avatar Upload**: Avatar upload untuk semua user
+- **Email Verification**: Email verification untuk dosen
+- **Mahasiswa Veteran**: Manajemen mahasiswa veteran dengan multi-semester support
+- **User Search**: Advanced search dengan filter
+- **Bulk Operations**: Bulk delete dan bulk operations
 
 ### 📚 Problem Based Learning (PBL)
-- **PBL Generation**: Generate otomatis assignment PBL
+- **PBL Generation**: Generate otomatis assignment PBL dengan algoritma
+- **PBL Assignment**: Assignment dosen, mahasiswa, kelompok, ruangan, jadwal
 - **Kelompok Kecil**: Manajemen kelompok kecil PBL
-- **Penilaian PBL**: Sistem penilaian terintegrasi
+- **Kelompok Besar**: Manajemen kelompok besar PBL
+- **PBL Antara**: PBL untuk semester antara
+- **Penilaian PBL**: Sistem penilaian terintegrasi (regular & antara)
 - **Dashboard PBL**: Monitoring dan tracking PBL
+- **PBL Detail**: Detail PBL dengan semua assignments
+- **Proportional Distribution**: Distribusi proporsional untuk assignments
 
 ### 🏥 Community Service (CSR)
 - **CSR Management**: Manajemen kegiatan CSR
@@ -40,16 +74,27 @@ ISME adalah sistem manajemen akademik terintegrasi yang dirancang khusus untuk F
 - **Reporting CSR**: Laporan kegiatan CSR
 
 ### ✅ Sistem Absensi
-- **QR Code Attendance**: Absensi menggunakan QR Code
+- **QR Code Attendance**: Absensi menggunakan QR Code dengan html5-qrcode
+- **QR Code Generation**: Generate QR code untuk jadwal menggunakan qrcode.react
 - **Real-time Tracking**: Tracking absensi real-time
-- **Multiple Types**: Absensi untuk kuliah besar, praktikum, seminar, CSR
-- **Detail Keabsenan**: Detail lengkap keabsenan mahasiswa
+- **Multiple Types**: 
+  - Absensi kuliah besar (regular & antara)
+  - Absensi praktikum
+  - Absensi seminar pleno
+  - Absensi CSR
+  - Absensi persamaan persepsi
+  - Absensi non-blok non-CSR (regular & antara)
+- **Detail Keabsenan**: Detail lengkap keabsenan mahasiswa dan dosen
+- **Absensi Export**: Export laporan absensi ke PDF/Excel
 
 ### 📊 Penilaian & Evaluasi
-- **Penilaian PBL**: Sistem penilaian PBL
-- **Seminar Proposal**: Penilaian seminar proposal
-- **Sidang Skripsi**: Penilaian sidang skripsi
-- **Jurnal Reading**: Penilaian jurnal reading
+- **Penilaian PBL**: Sistem penilaian PBL (regular & antara)
+- **Seminar Proposal**: Penilaian seminar proposal dengan detail
+- **Sidang Skripsi**: Penilaian sidang skripsi dengan detail
+- **Jurnal Reading**: Penilaian jurnal reading (regular & antara)
+- **Bimbingan Akhir**: Manajemen bimbingan akhir (seminar & sidang)
+- **Hasil Penilaian**: View hasil penilaian untuk mahasiswa
+- **Export Penilaian**: Export laporan penilaian ke PDF/Excel
 
 ### 💬 Forum Diskusi
 - **Kategori Forum**: Forum terorganisir berdasarkan kategori
@@ -64,21 +109,28 @@ ISME adalah sistem manajemen akademik terintegrasi yang dirancang khusus untuk F
 - **Analytics**: Analytics dan metrics support center
 
 ### 📈 Reporting & Analytics
-- **Reporting Dosen**: Laporan aktivitas dosen
-- **Activity Log**: Log aktivitas sistem
-- **Dashboard Analytics**: Dashboard dengan berbagai metrics
-- **Export Excel**: Export data ke Excel
+- **Reporting Dosen**: Laporan aktivitas dosen (CSR & PBL reports)
+- **Activity Log**: Log aktivitas sistem dengan filter dan search
+- **Dashboard Analytics**: Dashboard dengan berbagai metrics per role
+- **Export Excel**: Export data ke Excel dengan formatting
+- **Summary Statistics**: Summary statistics untuk reporting
+- **Filter & Search**: Advanced filtering dan search functionality
 
 ### 📱 Integrasi WhatsApp
 - **WhatsApp Bot**: Integrasi dengan Wablas API
+- **WablasService**: Service untuk send messages, templates, group messaging
 - **Notifikasi**: Notifikasi via WhatsApp
-- **Logs**: Log pesan WhatsApp
-- **Settings**: Konfigurasi WhatsApp
+- **Webhook**: Webhook handling untuk message status
+- **Logs**: Log pesan WhatsApp dengan status tracking
+- **Settings**: Konfigurasi WhatsApp (token, secret key, base URL)
 
 ### 🔔 Notifikasi
-- **Real-time Notifications**: Notifikasi real-time
-- **Role-based Notifications**: Notifikasi berdasarkan peran
-- **Notification Center**: Pusat notifikasi
+- **Real-time Notifications**: Notifikasi real-time dengan polling
+- **Role-based Notifications**: Notifikasi berdasarkan peran (dosen, mahasiswa, admin)
+- **Notification Center**: Pusat notifikasi dengan unread count
+- **Admin Notifications**: Admin notification management (Super Admin, Tim Akademik)
+- **Notification Types**: System, assignment, reminder, status change
+- **Notification Actions**: Mark as read, approve, reject, reschedule
 
 ## 🏗️ Arsitektur
 
@@ -194,6 +246,11 @@ npm run build
 
 **⚠️ PENTING**: Setelah clone repository dan install dependencies di VPS, **WAJIB** menjalankan script `fix-permissions.sh` untuk memastikan semua permission sudah benar.
 
+**Catatan Penting:**
+- Semua command yang melibatkan `chmod` dan `chown` di VPS **WAJIB** menggunakan `sudo`
+- File yang baru di-clone mungkin dimiliki oleh user yang melakukan clone, bukan `www-data`
+- Script `fix-permissions.sh` akan mengubah ownership ke `www-data:www-data` setelah dijalankan
+
 #### Mengapa Perlu Fix Permissions?
 
 Laravel memerlukan permission yang tepat agar:
@@ -210,11 +267,18 @@ Laravel memerlukan permission yang tepat agar:
 cd /var/www/isme-fkk/backend
 
 # 2. Berikan execute permission pada script
-chmod +x fix-permissions.sh
+# ⚠️ PENTING: Gunakan sudo karena file mungkin dimiliki oleh root atau www-data
+sudo chmod +x fix-permissions.sh
 
 # 3. Jalankan script dengan sudo
 sudo ./fix-permissions.sh
 ```
+
+**Mengapa perlu `sudo` untuk `chmod +x`?**
+- Setelah `git clone`, file mungkin dimiliki oleh user yang melakukan clone (bukan `www-data`)
+- Untuk memberikan execute permission, perlu akses ke file tersebut
+- Jika file dimiliki oleh `root` atau `www-data`, perlu `sudo` untuk mengubah permission
+- Lebih aman menggunakan `sudo` untuk memastikan permission bisa diubah
 
 Script akan otomatis:
 - Set ownership semua file ke `www-data:www-data` (web server user)
@@ -260,27 +324,38 @@ Lihat dokumentasi lengkap di [Backend README](./backend/README.md#-deployment--v
 ## 📦 Teknologi yang Digunakan
 
 ### Backend
-- **Laravel 12**: PHP Framework
-- **Laravel Sanctum**: API Authentication
-- **Spatie Permission**: Role & Permission Management
-- **Spatie Activity Log**: Activity Logging
-- **Maatwebsite Excel**: Excel Import/Export
-- **Laravel DomPDF**: PDF Generation
-- **Redis**: Caching & Queue (Production)
-- **MySQL**: Database
+- **Laravel 12**: PHP Framework dengan arsitektur MVC
+- **Laravel Sanctum**: API Token Authentication
+- **Spatie Permission**: Role & Permission Management (RBAC)
+- **Spatie Activity Log**: Activity Logging untuk audit trail
+- **Maatwebsite Excel**: Excel Import/Export (XLSX)
+- **Laravel DomPDF**: PDF Generation untuk laporan
+- **Jenssegers Agent**: User Agent Detection
+- **Redis**: Caching, Session Storage, dan Queue (Production)
+- **MySQL 8.0+**: Relational Database dengan connection pooling
+- **PHP 8.2+**: Modern PHP dengan type hints dan attributes
 
 ### Frontend
-- **React 18**: UI Framework
-- **TypeScript**: Type Safety
-- **Vite**: Build Tool
-- **Material UI**: UI Components
-- **Tailwind CSS**: Styling
-- **React Router**: Routing
-- **Axios**: HTTP Client
-- **ApexCharts**: Charts & Graphs
-- **FullCalendar**: Calendar Component
-- **TinyMCE**: Rich Text Editor
-- **ExcelJS**: Excel Export
+- **React 18**: UI Framework dengan hooks dan concurrent features
+- **TypeScript 5.7**: Type Safety dan IntelliSense
+- **Vite 6**: Build Tool dengan HMR (Hot Module Replacement)
+- **Material UI 7**: UI Component Library
+- **Tailwind CSS 4**: Utility-first CSS framework
+- **React Router 7**: Client-side routing
+- **Axios**: HTTP Client dengan interceptors
+- **ApexCharts & Recharts**: Charts dan data visualization
+- **FullCalendar**: Calendar component untuk jadwal
+- **TinyMCE & Quill**: Rich Text Editors
+- **ExcelJS & XLSX**: Excel import/export
+- **jsPDF & html2canvas**: PDF generation dan screenshot
+- **html5-qrcode & qrcode.react**: QR Code generation dan scanning
+- **react-signature-canvas**: Digital signature
+- **Framer Motion**: Animations dan transitions
+- **Headless UI**: Accessible UI components
+- **React Beautiful DnD**: Drag and drop functionality
+- **Swiper**: Touch slider component
+- **date-fns**: Date manipulation library
+- **Font Awesome**: Icon library
 
 ## 🔐 Security Features
 
@@ -352,5 +427,5 @@ Untuk support dan pertanyaan:
 ---
 
 **Version**: 2.0.2  
-**Last Updated**: December 2025
+**Last Updated**: 4 Desember 2025
 
