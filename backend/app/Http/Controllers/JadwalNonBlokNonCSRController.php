@@ -137,6 +137,7 @@ class JadwalNonBlokNonCSRController extends Controller
             $query = JadwalNonBlokNonCSR::with([
                 'mataKuliah:kode,nama,semester',
                 'dosen:id,name,nid,nidn,nuptk,signature_image',
+                'pembimbing:id,name,nid,nidn,nuptk',
                 'ruangan:id,nama,gedung',
                 'kelompokBesar:id,semester',
                 'kelompokBesarAntara:id,nama_kelompok'
@@ -343,17 +344,29 @@ class JadwalNonBlokNonCSRController extends Controller
                     // Cek apakah dosen ini adalah pembimbing
                     $isPembimbing = ($jadwal->pembimbing_id == $dosenId);
 
-                    // Ambil data pembimbing
+                    // Ambil data pembimbing - gunakan relasi eager-loaded jika ada, jika tidak query manual
                     if (!empty($jadwal->pembimbing_id)) {
-                        $pembimbingData = User::find($jadwal->pembimbing_id);
-                        if ($pembimbingData) {
+                        if ($jadwal->relationLoaded('pembimbing') && $jadwal->pembimbing) {
+                            // Gunakan relasi yang sudah di-load
                             $pembimbing = [
-                                'id' => $pembimbingData->id,
-                                'name' => $pembimbingData->name,
-                                'nid' => $pembimbingData->nid,
-                                'nidn' => $pembimbingData->nidn,
-                                'nuptk' => $pembimbingData->nuptk,
+                                'id' => $jadwal->pembimbing->id,
+                                'name' => $jadwal->pembimbing->name,
+                                'nid' => $jadwal->pembimbing->nid,
+                                'nidn' => $jadwal->pembimbing->nidn,
+                                'nuptk' => $jadwal->pembimbing->nuptk,
                             ];
+                        } else {
+                            // Fallback: query manual jika relasi belum di-load
+                            $pembimbingData = User::find($jadwal->pembimbing_id);
+                            if ($pembimbingData) {
+                                $pembimbing = [
+                                    'id' => $pembimbingData->id,
+                                    'name' => $pembimbingData->name,
+                                    'nid' => $pembimbingData->nid,
+                                    'nidn' => $pembimbingData->nidn,
+                                    'nuptk' => $pembimbingData->nuptk,
+                                ];
+                            }
                         }
                     }
 

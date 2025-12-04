@@ -2054,6 +2054,8 @@ export default function DashboardDosen() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {item.agenda || item.materi || "N/A"}
                         </td>
+                      ) : jadwalType === "bimbingan_akhir_sempro" || jadwalType === "bimbingan_akhir_sidang" ? (
+                        null
                       ) : (
                         jadwalType !== "pbl" && (
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
@@ -2081,6 +2083,7 @@ export default function DashboardDosen() {
                           </td>
                         </>
                       )}
+                      {/* Kolom JENIS BARIS (Materi/Agenda) badge - hanya untuk non_blok_non_csr yang bukan bimbingan akhir */}
                       {jadwalType === "non_blok_non_csr" && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           <span
@@ -2179,13 +2182,22 @@ export default function DashboardDosen() {
                         <>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                             {(() => {
-                              // Cek dari pembimbing object atau pembimbing_id
-                              if (item.pembimbing && item.pembimbing.name) {
-                                return item.pembimbing.name;
+                              // Prioritas 1: Cek dari pembimbing object langsung
+                              if (item.pembimbing) {
+                                if (item.pembimbing.name) return item.pembimbing.name;
+                                if (item.pembimbing.nama) return item.pembimbing.nama;
                               }
-                              if (item.pembimbing_id && Array.isArray(allDosenList) && allDosenList.length > 0) {
-                                const pembimbing = allDosenList.find((d: any) => d && d.id === item.pembimbing_id);
-                                return pembimbing?.name || "-";
+                              // Prioritas 2: Cari dari allDosenList menggunakan pembimbing_id
+                              if (item.pembimbing_id) {
+                                if (Array.isArray(allDosenList) && allDosenList.length > 0) {
+                                  const pembimbing = allDosenList.find((d: any) => {
+                                    if (!d || !d.id) return false;
+                                    return Number(d.id) === Number(item.pembimbing_id) || String(d.id) === String(item.pembimbing_id);
+                                  });
+                                  if (pembimbing) {
+                                    return pembimbing.name || pembimbing.nama || "-";
+                                  }
+                                }
                               }
                               return "-";
                             })()}
@@ -2208,20 +2220,29 @@ export default function DashboardDosen() {
                             })()}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                            {item.ruangan?.nama || "N/A"}
+                            {item.ruangan?.nama || "-"}
                           </td>
                         </>
                       ) : jadwalType === "bimbingan_akhir_sidang" ? (
                         <>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                             {(() => {
-                              // Cek dari pembimbing object atau pembimbing_id
-                              if (item.pembimbing && item.pembimbing.name) {
-                                return item.pembimbing.name;
+                              // Prioritas 1: Cek dari pembimbing object langsung
+                              if (item.pembimbing) {
+                                if (item.pembimbing.name) return item.pembimbing.name;
+                                if (item.pembimbing.nama) return item.pembimbing.nama;
                               }
-                              if (item.pembimbing_id && Array.isArray(allDosenList) && allDosenList.length > 0) {
-                                const pembimbing = allDosenList.find((d: any) => d && d.id === item.pembimbing_id);
-                                return pembimbing?.name || "-";
+                              // Prioritas 2: Cari dari allDosenList menggunakan pembimbing_id
+                              if (item.pembimbing_id) {
+                                if (Array.isArray(allDosenList) && allDosenList.length > 0) {
+                                  const pembimbing = allDosenList.find((d: any) => {
+                                    if (!d || !d.id) return false;
+                                    return Number(d.id) === Number(item.pembimbing_id) || String(d.id) === String(item.pembimbing_id);
+                                  });
+                                  if (pembimbing) {
+                                    return pembimbing.name || pembimbing.nama || "-";
+                                  }
+                                }
                               }
                               return "-";
                             })()}
@@ -2234,7 +2255,7 @@ export default function DashboardDosen() {
                               if (item.penguji_ids && Array.isArray(item.penguji_ids) && item.penguji_ids.length > 0) {
                                 if (Array.isArray(allDosenList) && allDosenList.length > 0) {
                                   const pengujiNames = allDosenList
-                                    .filter((d: any) => d && item.penguji_ids.includes(Number(d.id)))
+                                    .filter((d: any) => d && (item.penguji_ids.includes(Number(d.id)) || item.penguji_ids.includes(d.id)))
                                     .map((d: any) => d?.name)
                                     .filter((name: any) => name);
                                   return pengujiNames.length > 0 ? pengujiNames.join(", ") : "-";
@@ -2244,7 +2265,7 @@ export default function DashboardDosen() {
                             })()}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                            {item.ruangan?.nama || "N/A"}
+                            {item.ruangan?.nama || "-"}
                           </td>
                         </>
                       ) : (
@@ -2279,9 +2300,7 @@ export default function DashboardDosen() {
                       {(jadwalType === "kuliah_besar" ||
                         jadwalType === "jurnal" ||
                         jadwalType === "seminar_pleno" ||
-                        jadwalType === "non_blok_non_csr" ||
-                        jadwalType === "bimbingan_akhir_sempro" ||
-                        jadwalType === "bimbingan_akhir_sidang") && (
+                        jadwalType === "non_blok_non_csr") && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {jadwalType === "kuliah_besar"
                             ? item.kelompok_besar?.semester
@@ -2310,33 +2329,35 @@ export default function DashboardDosen() {
                           {item.kelompok_kecil?.nama || "N/A"}
                         </td>
                       )}
-                      {jadwalType === "praktikum" ? (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
-                          {item.ruangan?.nama || "N/A"}
+                      {/* Kolom RUANGAN - untuk bimbingan akhir sudah ditangani di kondisi khusus di atas, jadi skip di sini */}
+                      {jadwalType !== "bimbingan_akhir_sempro" && jadwalType !== "bimbingan_akhir_sidang" && (
+                        jadwalType === "praktikum" ? (
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
+                            {item.ruangan?.nama || "N/A"}
+                          </td>
+                        ) : (
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
+                          {jadwalType === "persamaan_persepsi"
+                              ? item.use_ruangan && item.ruangan?.nama
+                              ? item.ruangan.nama 
+                              : "Online"
+                            : jadwalType === "seminar_pleno"
+                              ? item.use_ruangan && item.ruangan?.nama
+                              ? item.ruangan.nama
+                              : "Online"
+                            : jadwalType === "kuliah_besar" ||
+                              jadwalType === "jurnal"
+                            ? item.ruangan?.nama || "N/A"
+                            : jadwalType === "pbl"
+                            ? (typeof item.ruangan === "string" ? item.ruangan : item.ruangan?.nama) || "N/A"
+                            : jadwalType === "csr" ||
+                              jadwalType === "non_blok_non_csr"
+                            ? item.ruangan?.nama || "N/A"
+                            : item.lokasi || (typeof item.ruangan === "string" ? item.ruangan : item.ruangan?.nama) || "N/A"}
                         </td>
-                      ) : (
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
-                        {jadwalType === "persamaan_persepsi"
-                            ? item.use_ruangan && item.ruangan?.nama
-                            ? item.ruangan.nama 
-                            : "Online"
-                          : jadwalType === "seminar_pleno"
-                            ? item.use_ruangan && item.ruangan?.nama
-                            ? item.ruangan.nama
-                            : "Online"
-                          : jadwalType === "kuliah_besar" ||
-                            jadwalType === "jurnal"
-                          ? item.ruangan?.nama || "N/A"
-                          : jadwalType === "pbl"
-                          ? (typeof item.ruangan === "string" ? item.ruangan : item.ruangan?.nama) || "N/A"
-                          : jadwalType === "csr" ||
-                            jadwalType === "non_blok_non_csr" ||
-                            jadwalType === "bimbingan_akhir_sempro" ||
-                            jadwalType === "bimbingan_akhir_sidang"
-                          ? item.ruangan?.nama || "N/A"
-                          : item.lokasi || (typeof item.ruangan === "string" ? item.ruangan : item.ruangan?.nama) || "N/A"}
-                      </td>
+                        )
                       )}
+                      {/* Kolom FILE JURNAL - hanya untuk jurnal */}
                       {jadwalType === "jurnal" && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {item.file_jurnal ? (
@@ -2411,9 +2432,13 @@ export default function DashboardDosen() {
                           )}
                         </td>
                       )}
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
-                        {getSemesterTypeBadge(item.semester_type)}
-                      </td>
+                      {/* Kolom JENIS SEMESTER - untuk jadwal type tertentu, skip untuk bimbingan akhir */}
+                      {!(jadwalType === "bimbingan_akhir_sempro" || jadwalType === "bimbingan_akhir_sidang") && (
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
+                          {getSemesterTypeBadge(item.semester_type)}
+                        </td>
+                      )}
+                      {/* Kolom AKSI */}
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
                         <div className="flex items-center gap-2">
                           {/* Untuk Seminar Proposal dan Sidang Skripsi, jangan tampilkan getStatusBadge karena sudah ada logika khusus */}
@@ -4559,7 +4584,6 @@ export default function DashboardDosen() {
                           "PEMBIMBING",
                           "KOMENTATOR",
                           "RUANGAN",
-                          "JENIS SEMESTER",
                           "AKSI",
                         ],
                         "bimbingan_akhir_sempro",
@@ -4585,7 +4609,6 @@ export default function DashboardDosen() {
                           "PEMBIMBING",
                           "PENGUJI",
                           "RUANGAN",
-                          "JENIS SEMESTER",
                           "AKSI",
                         ],
                         "bimbingan_akhir_sidang",
