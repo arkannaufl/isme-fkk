@@ -843,6 +843,7 @@ export default function DashboardMahasiswa() {
                           (item.use_ruangan === false ? "-" : "N/A")
                         : item.ruangan?.nama || "N/A"}
                     </td>
+                    {/* Kolom Lihat Pengampu - hanya untuk praktikum */}
                     {jadwalType === "praktikum" ? (
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         <button
@@ -856,7 +857,7 @@ export default function DashboardMahasiswa() {
                           Lihat Pengampu
                         </button>
                       </td>
-                    ) : (
+                    ) : jadwalType !== "bimbingan_akhir_sempro" && jadwalType !== "bimbingan_akhir_sidang" ? (
                       <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                         {jadwalType === "agenda_besar"
                           ? "-"
@@ -870,7 +871,8 @@ export default function DashboardMahasiswa() {
                           ? item.pengampu || "N/A"
                           : item.pengampu || item.dosen?.name || "N/A"}
                       </td>
-                    )}
+                    ) : null}
+                    {/* Kolom STATUS - untuk semua jadwal type kecuali praktikum */}
                     {jadwalType === "praktikum" ? null : (
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {jadwalType === "agenda_besar"
