@@ -25,6 +25,7 @@ class JadwalNonBlokNonCSRController extends Controller
             $jadwal = JadwalNonBlokNonCSR::with([
                 'mataKuliah:kode,nama,semester,tanggal_mulai,tanggal_akhir',
                 'dosen:id,name,nid,nidn,nuptk,signature_image',
+                'pembimbing:id,name,nid,nidn,nuptk',
                 'ruangan:id,nama,gedung',
                 'kelompokBesar:id,semester',
                 'kelompokBesarAntara:id,nama_kelompok'
@@ -109,9 +110,37 @@ class JadwalNonBlokNonCSRController extends Controller
                 }
             }
 
+            // Get pembimbing data
+            $pembimbing = null;
+            if ($jadwal->pembimbing_id) {
+                if ($jadwal->relationLoaded('pembimbing') && $jadwal->pembimbing) {
+                    // Gunakan relasi yang sudah di-load
+                    $pembimbing = [
+                        'id' => $jadwal->pembimbing->id,
+                        'name' => $jadwal->pembimbing->name,
+                        'nid' => $jadwal->pembimbing->nid,
+                        'nidn' => $jadwal->pembimbing->nidn,
+                        'nuptk' => $jadwal->pembimbing->nuptk,
+                    ];
+                } else {
+                    // Fallback: query manual jika relasi belum di-load
+                    $pembimbingData = User::find($jadwal->pembimbing_id);
+                    if ($pembimbingData) {
+                        $pembimbing = [
+                            'id' => $pembimbingData->id,
+                            'name' => $pembimbingData->name,
+                            'nid' => $pembimbingData->nid,
+                            'nidn' => $pembimbingData->nidn,
+                            'nuptk' => $pembimbingData->nuptk,
+                        ];
+                    }
+                }
+            }
+
             // Build response
             $responseData = $jadwal->toArray();
             $responseData['tanggal'] = $tanggalFormatted;
+            $responseData['pembimbing'] = $pembimbing;
             $responseData['komentator_list'] = $komentatorList;
             $responseData['penguji_list'] = $pengujiList;
             $responseData['mahasiswa_list'] = $mahasiswaList;
