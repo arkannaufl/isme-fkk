@@ -62,7 +62,7 @@ const KelompokBesar: React.FC = () => {
         // Handle pagination response
         const mahasiswaData = Array.isArray(mahasiswaResponse.data) 
           ? mahasiswaResponse.data 
-          : (mahasiswaResponse.data?.data || []);
+          : (Array.isArray((mahasiswaResponse.data as any)?.data) ? (mahasiswaResponse.data as any).data : []);
         setMahasiswaList(mahasiswaData);
         setKelompokBesarData(kelompokResponse.data[String(mapSemesterToNumber(semester))]);
         

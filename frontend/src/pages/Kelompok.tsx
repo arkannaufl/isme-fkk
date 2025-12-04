@@ -86,7 +86,7 @@ const Kelompok: React.FC = () => {
         // Handle pagination response
         const mahasiswaData = Array.isArray(res.data) 
           ? res.data 
-          : (res.data?.data || []);
+          : (Array.isArray((res.data as any)?.data) ? (res.data as any).data : []);
         // Map ke MahasiswaMinimal dan filter yang punya semester
         const mahasiswaMinimal: MahasiswaMinimal[] = mahasiswaData
           .filter((m: any) => m.semester !== undefined && m.semester !== null)
