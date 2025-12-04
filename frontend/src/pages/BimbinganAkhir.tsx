@@ -348,28 +348,58 @@ const BimbinganAkhir = () => {
                       {(() => {
                         const mahasiswaNims = jadwal.mahasiswa_nims || [];
                         if (mahasiswaNims.length === 0) return "-";
-                        return (
-                          <button
-                            onClick={() => {
-                              setSelectedMahasiswaList(jadwal.mahasiswa_list || mahasiswaNims.map((nim: string) => ({ nim, name: nim })));
-                              setMahasiswaSearchQuery("");
-                              setMahasiswaModalPage(1);
-                              setShowMahasiswaModal(true);
-                            }}
-                            className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-700 hover:bg-green-200 dark:hover:bg-green-800 transition cursor-pointer"
-                          >
-                            {mahasiswaNims.length} mahasiswa
-                          </button>
-                        );
+                        return `${mahasiswaNims.length} mahasiswa`;
                       })()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {jadwal.ruangan?.nama || "N/A"}
+                      {jadwal.ruangan?.nama || "-"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border border-purple-200 dark:border-purple-700">
-                        {jadwal.dosen_role || "-"}
-                      </span>
+                      {(() => {
+                        const user = getUser();
+                        if (!user) return "-";
+                        
+                        // Cek apakah dosen adalah pembimbing
+                        const isPembimbing = jadwal.is_pembimbing !== undefined 
+                          ? jadwal.is_pembimbing 
+                          : (jadwal.dosen_role?.includes('Pembimbing') || jadwal.pembimbing_id === user.id);
+                        
+                        if (isPembimbing) {
+                          return (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border border-purple-200 dark:border-purple-700">
+                              Pembimbing
+                            </span>
+                          );
+                        }
+                        
+                        // Cek apakah dosen adalah komentator (untuk seminar proposal)
+                        if (type === "seminar_proposal") {
+                          const isKomentator = (jadwal.komentator_ids && Array.isArray(jadwal.komentator_ids) && jadwal.komentator_ids.includes(Number(user.id))) ||
+                                               (jadwal.komentator_list && Array.isArray(jadwal.komentator_list) && jadwal.komentator_list.some((k: any) => k.id === Number(user.id)));
+                          if (isKomentator) {
+                            return (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-700">
+                                Komentator
+                              </span>
+                            );
+                          }
+                        }
+                        
+                        // Cek apakah dosen adalah penguji (untuk sidang skripsi)
+                        if (type === "sidang_skripsi") {
+                          const isPenguji = (jadwal.penguji_ids && Array.isArray(jadwal.penguji_ids) && jadwal.penguji_ids.includes(Number(user.id))) ||
+                                            (jadwal.penguji_list && Array.isArray(jadwal.penguji_list) && jadwal.penguji_list.some((p: any) => p.id === Number(user.id)));
+                          if (isPenguji) {
+                            return (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200 border border-indigo-200 dark:border-indigo-700">
+                                Penguji
+                              </span>
+                            );
+                          }
+                        }
+                        
+                        return "-";
+                      })()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       {status === "hari_ini" && (
