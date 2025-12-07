@@ -1779,7 +1779,7 @@ export default function DosenRiwayat() {
       const submitted = toBoolean(jadwal.penilaian_submitted);
       const hadir = toBoolean(jadwal.absensi_hadir);
       if (!submitted || !hadir) {
-        return total;
+      return total;
       }
     }
 
@@ -1901,7 +1901,7 @@ export default function DosenRiwayat() {
       const submitted = toBoolean(jadwal.penilaian_submitted);
       const hadir = toBoolean(jadwal.absensi_hadir);
       if (!submitted || !hadir) {
-        return acc;
+      return acc;
       }
     }
 

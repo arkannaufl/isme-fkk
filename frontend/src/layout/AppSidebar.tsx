@@ -145,6 +145,23 @@ const NotificationsIcon = () => (
     />
   </svg>
 );
+
+// Rekap IKD icon component (Chart/Report icon)
+const RekapIKDIcon = () => (
+  <svg
+    className="w-5 h-5"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={1.5}
+      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+    />
+  </svg>
+);
 import { useSidebar } from "../context/SidebarContext";
 
 type NavItem = {
@@ -259,6 +276,12 @@ const getNavItems = (userRole?: string): NavItem[] => {
       roles: ["super_admin", "tim_akademik"],
     },
     {
+      icon: <UserIcon />,
+      name: "User IKD",
+      path: "/rekap-ikd/user-ikd",
+      roles: ["super_admin"],
+    },
+    {
       icon: <BoxCubeIcon />,
       name: "Ruangan",
       path: "/ruangan",
@@ -282,6 +305,69 @@ const getNavItems = (userRole?: string): NavItem[] => {
       name: "Notifikasi",
       path: "/admin-notifications",
       roles: ["super_admin", "tim_akademik"],
+    },
+    {
+      icon: <RekapIKDIcon />,
+      name: "Rekap IKD",
+      subItems: [
+        {
+          name: "Pedoman Poin IKD",
+          path: "/rekap-ikd/pedoman-poin",
+          roles: ["super_admin", "ketua_ikd"],
+        },
+        {
+          name: "Akademik",
+          path: "/rekap-ikd/tim-akademik",
+          roles: ["super_admin", "ketua_ikd", "akademik"],
+        },
+        {
+          name: "Dosen",
+          path: "/rekap-ikd/dosen",
+          roles: ["super_admin", "ketua_ikd", "verifikator", "dosen"],
+        },
+        {
+          name: "AIK",
+          path: "/rekap-ikd/aik",
+          roles: ["super_admin", "ketua_ikd", "aik"],
+        },
+        {
+          name: "MEU",
+          path: "/rekap-ikd/meu",
+          roles: ["super_admin", "ketua_ikd", "meu"],
+        },
+        {
+          name: "Profesi",
+          path: "/rekap-ikd/profesi",
+          roles: ["super_admin", "ketua_ikd", "profesi"],
+        },
+        {
+          name: "Kemahasiswaan",
+          path: "/rekap-ikd/kemahasiswaan",
+          roles: ["super_admin", "ketua_ikd", "kemahasiswaan"],
+        },
+        {
+          name: "SDM",
+          path: "/rekap-ikd/sdm",
+          roles: ["super_admin", "ketua_ikd", "sdm"],
+        },
+        {
+          name: "UPT Jurnal",
+          path: "/rekap-ikd/upt-jurnal",
+          roles: ["super_admin", "ketua_ikd", "upt_jurnal"],
+        },
+        {
+          name: "UPT PPM",
+          path: "/rekap-ikd/upt-ppm",
+          roles: ["super_admin", "ketua_ikd", "upt_ppm"],
+        },
+      ],
+      roles: ["super_admin", "ketua_ikd", "akademik", "dosen", "aik", "meu", "profesi", "kemahasiswaan", "sdm", "upt_jurnal", "upt_ppm", "verifikator"],
+    },
+    {
+      icon: <RekapIKDIcon />,
+      name: "Rekap IKD Detail",
+      path: "/rekap-ikd/detail",
+      roles: ["dosen"], // Menu hanya untuk dosen, tapi route tetap bisa diakses oleh super_admin dan tim_akademik
     },
     {
       icon: <PieChartIcon />,

@@ -562,6 +562,9 @@ export default function DashboardDosen() {
     }>
   >([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  
+  // Ensure notifications is always an array
+  const safeNotifications = Array.isArray(notifications) ? notifications : [];
   const [loading, setLoading] = useState(true);
   const [activeSemester, setActiveSemester] = useState<
     "ganjil" | "genap" | "all"
@@ -886,10 +889,12 @@ export default function DashboardDosen() {
           : []
       );
       setNotifications(
-        notifResult.status === "fulfilled" 
-          ? (Array.isArray(notifResult.value.data) 
-              ? notifResult.value.data 
-              : (notifResult.value.data?.data || []))
+        notifResult.status === "fulfilled"
+          ? Array.isArray(notifResult.value.data)
+            ? notifResult.value.data
+            : Array.isArray(notifResult.value.data?.data)
+            ? notifResult.value.data.data
+            : []
           : []
       );
       setTodaySchedule(
@@ -965,11 +970,16 @@ export default function DashboardDosen() {
 
       // Fetch all dosen list for resolving dosen_ids
       try {
-        const dosenResponse = await api.get("/users?role=dosen&per_page=1000");
+        const dosenResponse = await api.get("/users?role=dosen");
         // Handle pagination response
-        const dosenData = Array.isArray(dosenResponse.data) 
-          ? dosenResponse.data 
-          : (dosenResponse.data?.data || []);
+        let dosenData: any[] = [];
+        if (Array.isArray(dosenResponse.data)) {
+          dosenData = dosenResponse.data;
+        } else if (dosenResponse.data?.data && Array.isArray(dosenResponse.data.data)) {
+          dosenData = dosenResponse.data.data;
+        } else if (dosenResponse.data?.data?.data && Array.isArray(dosenResponse.data.data.data)) {
+          dosenData = dosenResponse.data.data.data;
+        }
         setAllDosenList(dosenData);
       } catch (error) {
         console.warn("Failed to fetch dosen list:", error);
@@ -1572,6 +1582,11 @@ export default function DashboardDosen() {
   // Helper function untuk mendapatkan array nama dosen pengampu (untuk praktikum)
   const getPengampuNamesArray = (item: any): string[] => {
     try {
+      // Pastikan allDosenList adalah array
+      if (!Array.isArray(allDosenList)) {
+        return [];
+      }
+
       // Untuk praktikum, gunakan array dosen langsung seperti di DashboardMahasiswa.tsx
       if (item.dosen && Array.isArray(item.dosen) && item.dosen.length > 0) {
         // Filter out dosen with roles 'super_admin', 'tim_akademik', 'admin'
@@ -1599,6 +1614,11 @@ export default function DashboardDosen() {
     item: any
   ): Array<{ id: number; name: string; status_konfirmasi?: string }> => {
     try {
+      // Pastikan allDosenList adalah array
+      if (!Array.isArray(allDosenList)) {
+        return [];
+      }
+
       if (item.dosen && Array.isArray(item.dosen) && item.dosen.length > 0) {
         // Filter out dosen with roles 'super_admin', 'tim_akademik', 'admin'
         const filteredDosen = item.dosen.filter((d: any) => {
@@ -1628,6 +1648,11 @@ export default function DashboardDosen() {
     try {
       const user = getUser();
       if (!user) return "N/A";
+
+      // Pastikan allDosenList adalah array
+      if (!Array.isArray(allDosenList)) {
+        return "N/A";
+      }
 
       // Jika dosen ini adalah dosen aktif (dosen baru), tampilkan dosen baru itu sendiri
       if (item.is_active_dosen && item.dosen_id) {
@@ -1734,7 +1759,7 @@ export default function DashboardDosen() {
         // Fallback: gunakan array dosen jika ada (prioritas pertama)
         if (item.dosen && Array.isArray(item.dosen) && item.dosen.length > 0) {
           // Jika allDosenList sudah ter-load, filter dosen yang bukan admin/tim akademik
-          if (allDosenList.length > 0) {
+          if (Array.isArray(allDosenList) && allDosenList.length > 0) {
             const validDosen = item.dosen.find((d: any) => {
               const dosen = allDosenList.find((dl) => dl.id === d.id);
               return (
@@ -3249,7 +3274,7 @@ export default function DashboardDosen() {
                     Notifikasi Terbaru
                   </h2>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {(Array.isArray(notifications) ? notifications.filter((n) => !n.is_read).length : 0) +
+                    {safeNotifications.filter((n) => !n.is_read).length +
                       (praktikumKoordinator.filter(
                         (p) => !p.koordinator_signature
                       ).length > 0
@@ -3324,9 +3349,9 @@ export default function DashboardDosen() {
               </div>
             )}
 
-            {Array.isArray(notifications) && notifications.length > 0 ? (
+            {safeNotifications.length > 0 ? (
               <div className="space-y-4">
-                {notifications.slice(0, 5).map((notification) => (
+                {safeNotifications.slice(0, 5).map((notification) => (
                   <div
                     key={notification.id}
                     onClick={() => handleNotificationClick(notification)}

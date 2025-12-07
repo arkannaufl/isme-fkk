@@ -100,22 +100,39 @@ export default function NotificationDropdown() {
     try {
       setLoading(true);
       let response;
+      let notificationsData: Notification[] = [];
 
       if (role === "super_admin" || role === "tim_akademik") {
         // Use AdminNotifications API
         response = await api.get(`/notifications/admin/all?limit=5`);
-        setNotifications(response.data.slice(0, 5)); // Show only first 5
+        // Handle both array and pagination response
+        if (Array.isArray(response.data)) {
+          notificationsData = response.data;
+        } else if (Array.isArray(response.data?.data)) {
+          notificationsData = response.data.data;
+        }
       } else if (role === "dosen") {
         // Use DashboardDosen API
         response = await api.get(`/notifications/dosen/${userId}`);
-        setNotifications(response.data.slice(0, 5)); // Show only first 5
+        // Handle both array and pagination response
+        if (Array.isArray(response.data)) {
+          notificationsData = response.data;
+        } else if (Array.isArray(response.data?.data)) {
+          notificationsData = response.data.data;
+        }
       } else if (role === "mahasiswa") {
         // Use same API as dosen for mahasiswa
         response = await api.get(`/notifications/dosen/${userId}`);
-        setNotifications(response.data.slice(0, 5)); // Show only first 5
-      } else {
-        setNotifications([]);
+        // Handle both array and pagination response
+        if (Array.isArray(response.data)) {
+          notificationsData = response.data;
+        } else if (Array.isArray(response.data?.data)) {
+          notificationsData = response.data.data;
+        }
       }
+
+      // Show only first 5 and ensure it's an array
+      setNotifications(Array.isArray(notificationsData) ? notificationsData.slice(0, 5) : []);
 
       // Note: notifying state will be updated by useEffect that watches notifications
     } catch (error) {

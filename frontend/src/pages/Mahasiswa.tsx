@@ -56,7 +56,10 @@ const formatGenderDisplay = (gender: string): string => {
 
 // Function to get unique gender options for filter
 const getGenderOptions = (data: UserMahasiswa[]): string[] => {
-  if (!Array.isArray(data) || data.length === 0) return [];
+  // Ensure data is an array before calling map
+  if (!Array.isArray(data)) {
+    return [];
+  }
   const uniqueGenders = Array.from(new Set(data.map(d => d.gender).filter(Boolean)));
   return uniqueGenders.map(gender => formatGenderDisplay(gender)).sort();
 };
@@ -129,15 +132,18 @@ export default function Mahasiswa() {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      api.get("/users?role=mahasiswa&per_page=1000"),
+      api.get("/users?role=mahasiswa"),
       api.get("/tahun-ajaran/active")
     ]).then(([mahasiswaRes, semesterRes]) => {
-      // Handle pagination response: res.data bisa berupa array atau pagination object
-      const usersData = Array.isArray(mahasiswaRes.data) 
-        ? mahasiswaRes.data 
-        : (mahasiswaRes.data?.data || []);
+      // Handle pagination response - similar to Dosen.tsx
+      if (Array.isArray(mahasiswaRes.data)) {
+        setData(mahasiswaRes.data);
+      } else if (mahasiswaRes.data?.data && Array.isArray(mahasiswaRes.data.data)) {
+        setData(mahasiswaRes.data.data);
+      } else {
+        setData([]);
+      }
       
-      setData(usersData);
       if (semesterRes.data && semesterRes.data.semesters && semesterRes.data.semesters.length > 0) {
         const activeSem = semesterRes.data.semesters[0];
         setActiveSemester({
@@ -148,6 +154,7 @@ export default function Mahasiswa() {
       setLoading(false);
     }).catch(() => {
       setError("Gagal memuat data");
+      setData([]); // Set empty array on error
       setLoading(false);
     });
   }, []);
@@ -221,12 +228,15 @@ export default function Mahasiswa() {
         await api.post("/users", payload);
         setSuccess("Data mahasiswa berhasil ditambahkan.");
       }
-      const res = await api.get("/users?role=mahasiswa&per_page=1000");
+      const res = await api.get("/users?role=mahasiswa");
       // Handle pagination response
-      const usersData = Array.isArray(res.data) 
-        ? res.data 
-        : (res.data?.data || []);
-      setData(usersData);
+      if (Array.isArray(res.data)) {
+        setData(res.data);
+      } else if (res.data?.data && Array.isArray(res.data.data)) {
+        setData(res.data.data);
+      } else {
+        setData([]);
+      }
       setShowModal(false);
       setEditMode(false);
       setForm({ nim: "", name: "", username: "", telp: "", email: "", gender: "Laki-laki", ipk: 0, status: "aktif", angkatan: "", password: "" });
@@ -263,12 +273,15 @@ export default function Mahasiswa() {
     try {
       if (selectedDeleteNim) {
         await api.delete(`/users/${selectedDeleteNim}`);
-        const res = await api.get("/users?role=mahasiswa&per_page=1000");
+        const res = await api.get("/users?role=mahasiswa");
         // Handle pagination response
-        const usersData = Array.isArray(res.data) 
-          ? res.data 
-          : (res.data?.data || []);
-        setData(usersData);
+        if (Array.isArray(res.data)) {
+          setData(res.data);
+        } else if (res.data?.data && Array.isArray(res.data.data)) {
+          setData(res.data.data);
+        } else {
+          setData([]);
+        }
         setSuccess("Data mahasiswa berhasil dihapus.");
       }
       setShowDeleteModal(false);
@@ -590,12 +603,15 @@ export default function Mahasiswa() {
         }
         
         // Refresh data
-        const mahasiswaRes = await api.get("/users?role=mahasiswa&per_page=1000");
+        const mahasiswaRes = await api.get("/users?role=mahasiswa");
         // Handle pagination response
-        const usersData = Array.isArray(mahasiswaRes.data) 
-          ? mahasiswaRes.data 
-          : (mahasiswaRes.data?.data || []);
-        setData(usersData);
+        if (Array.isArray(mahasiswaRes.data)) {
+          setData(mahasiswaRes.data);
+        } else if (mahasiswaRes.data?.data && Array.isArray(mahasiswaRes.data.data)) {
+          setData(mahasiswaRes.data.data);
+        } else {
+          setData([]);
+        }
       } else if (res.status === 422) {
         setImportedCount(0);
         setError(res.data.message || 'Gagal mengimpor data');
@@ -1563,12 +1579,15 @@ export default function Mahasiswa() {
                       const failedDeletes = results.filter(r => !r.success);
                       
                       // Refresh data
-                      const res = await api.get("/users?role=mahasiswa&per_page=1000");
+                      const res = await api.get("/users?role=mahasiswa");
                       // Handle pagination response
-                      const usersData = Array.isArray(res.data) 
-                        ? res.data 
-                        : (res.data?.data || []);
-                      setData(usersData);
+                      if (Array.isArray(res.data)) {
+                        setData(res.data);
+                      } else if (res.data?.data && Array.isArray(res.data.data)) {
+                        setData(res.data.data);
+                      } else {
+                        setData([]);
+                      }
                       
                       if (failedDeletes.length > 0) {
                         setError(`${failedDeletes.length} data gagal dihapus (mungkin sudah tidak ada). ${successfulDeletes.length} data berhasil dihapus.`);

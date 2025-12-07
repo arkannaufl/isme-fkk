@@ -39,6 +39,7 @@ use App\Http\Controllers\JadwalPersamaanPersepsiController;
 use App\Http\Controllers\JadwalHarianController;
 use App\Http\Controllers\ProportionalDistributionController;
 use App\Http\Controllers\WhatsAppController;
+use App\Http\Controllers\RekapIKDController;
 
 
 // Login dengan rate limiting lebih ketat untuk mencegah brute force
@@ -721,6 +722,31 @@ Route::middleware(['auth:sanctum', 'role:super_admin'])->prefix('admin')->group(
     Route::get('/super-admins', [AdminController::class, 'getSuperAdmins']);
     Route::put('/super-admins/{id}', [AdminController::class, 'updateSuperAdmin']);
     Route::delete('/super-admins/{id}', [AdminController::class, 'deleteSuperAdmin']);
+});
+
+// Rekap IKD Routes - Role Based Access
+// Pedoman Poin IKD - Super Admin & Ketua IKD only
+Route::middleware(['auth:sanctum', 'validate.token', 'role:super_admin,ketua_ikd'])->prefix('rekap-ikd')->group(function () {
+    Route::get('/pedoman-poin', [RekapIKDController::class, 'getPedomanPoin']);
+    Route::post('/pedoman-poin', [RekapIKDController::class, 'storePedomanPoin']);
+    Route::put('/pedoman-poin/{id}', [RekapIKDController::class, 'updatePedomanPoin']);
+    Route::delete('/pedoman-poin/{id}', [RekapIKDController::class, 'destroyPedomanPoin']);
+});
+
+// Rekap IKD by unit - Role based (super_admin, ketua_ikd, and unit-specific roles)
+Route::middleware(['auth:sanctum', 'validate.token'])->prefix('rekap-ikd')->group(function () {
+    Route::get('/unit/{unit}', [RekapIKDController::class, 'getRekapByUnit']);
+    Route::post('/rekap', [RekapIKDController::class, 'storeRekap']);
+    Route::get('/pedoman-poin/unit/{unit}', [RekapIKDController::class, 'getPedomanPoinByUnit']);
+    Route::post('/pedoman-poin/parents', [RekapIKDController::class, 'getParentItems']);
+    Route::post('/bukti-fisik/upload', [RekapIKDController::class, 'uploadBuktiFisik']);
+    Route::get('/bukti-fisik', [RekapIKDController::class, 'getBuktiFisik']);
+    Route::get('/bukti-fisik/{id}/download', [RekapIKDController::class, 'downloadBuktiFisik']);
+    Route::delete('/bukti-fisik/{id}', [RekapIKDController::class, 'deleteBuktiFisik']);
+    Route::post('/bukti-fisik/update-skor', [RekapIKDController::class, 'updateSkor']);
+    Route::post('/bukti-fisik/mark-key-deleted', [RekapIKDController::class, 'markKeyAsDeleted']);
+    Route::get('/bukti-fisik/deleted-keys', [RekapIKDController::class, 'getDeletedKeys']);
+    Route::post('/bukti-fisik/remove-deleted-key', [RekapIKDController::class, 'removeDeletedKey']);
 });
 
 // Mahasiswa Dashboard Routes

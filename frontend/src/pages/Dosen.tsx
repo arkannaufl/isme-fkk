@@ -13,6 +13,7 @@ import {
   faImage,
   faPlus,
   faMinus,
+  faChartBar,
 } from "@fortawesome/free-solid-svg-icons";
 import { AnimatePresence, motion } from "framer-motion";
 import api, { handleApiError } from "../utils/api";
@@ -140,7 +141,7 @@ export default function Dosen() {
     null
   );
   const [selectedDosenName, setSelectedDosenName] = useState<string>("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Initialize as true to show skeleton loader on first render
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -500,9 +501,9 @@ export default function Dosen() {
     setCurrentEditingDosenPeran([]); // Reset current editing dosen peran
   };
 
-  const userToDelete = data?.find(
+  const userToDelete = Array.isArray(data) ? data.find(
     (u) => String(u.id) === String(selectedDeleteNid)
-  );
+  ) : undefined;
 
   const isFormValid =
     form.nid &&
@@ -1065,10 +1066,13 @@ export default function Dosen() {
         params: { _ts: Date.now() },
       });
       // Handle pagination response
-      const usersData = Array.isArray(res.data) 
-        ? res.data 
-        : (res.data?.data || []);
-      setData(usersData);
+      if (Array.isArray(res.data)) {
+        setData(res.data);
+      } else if (res.data?.data && Array.isArray(res.data.data)) {
+        setData(res.data.data);
+      } else {
+        setData([]);
+      }
       setShowModal(false);
       setEditMode(false);
       setForm({
@@ -1246,12 +1250,15 @@ export default function Dosen() {
     try {
       if (selectedDeleteNid) {
         await api.delete(`/users/${selectedDeleteNid}`);
-        const res = await api.get("/users?role=dosen&per_page=1000");
+        const res = await api.get("/users?role=dosen");
         // Handle pagination response
-        const usersData = Array.isArray(res.data) 
-          ? res.data 
-          : (res.data?.data || []);
-        setData(usersData);
+        if (Array.isArray(res.data)) {
+          setData(res.data);
+        } else if (res.data?.data && Array.isArray(res.data.data)) {
+          setData(res.data.data);
+        } else {
+          setData([]);
+        }
         setSuccess("Data dosen berhasil dihapus.");
       }
       setShowDeleteModal(false);
@@ -1988,12 +1995,15 @@ export default function Dosen() {
     setIsDeleting(true);
     try {
       await Promise.all(selectedRows.map((id) => api.delete(`/users/${id}`)));
-      const res = await api.get("/users?role=dosen&per_page=1000");
+      const res = await api.get("/users?role=dosen");
       // Handle pagination response
-      const usersData = Array.isArray(res.data) 
-        ? res.data 
-        : (res.data?.data || []);
-      setData(usersData);
+      if (Array.isArray(res.data)) {
+        setData(res.data);
+      } else if (res.data?.data && Array.isArray(res.data.data)) {
+        setData(res.data.data);
+      } else {
+        setData([]);
+      }
       setSuccess(`${selectedRows.length} data dosen berhasil dihapus.`);
       setSelectedRows([]);
     } catch {
@@ -2967,41 +2977,52 @@ export default function Dosen() {
     return details;
   };
 
-  // Fetch assignment data saat component mount
+  // Fetch semester and matkul saat component mount
   useEffect(() => {
-    fetchAssignmentData();
-
-    // PERBAIKAN: Pastikan pblData dan matkulList ter-fetch
-
     fetchSemesterAndMatkul();
   }, []);
 
   // Fetch data dosen saat component mount
   useEffect(() => {
+    let isMounted = true; // Flag to prevent state updates if component unmounts
+    
     const fetchData = async () => {
       try {
-        setLoading(true);
-        // Request dengan per_page besar untuk mendapatkan semua data
-        const res = await api.get("/users?role=dosen&per_page=1000");
+        // Loading is already true from initial state, so we don't need to set it again
+        const res = await api.get("/users?role=dosen");
         
-        // Handle pagination response: res.data bisa berupa array atau pagination object
-        const usersData = Array.isArray(res.data) 
-          ? res.data 
-          : (res.data?.data || []);
+        // Only update state if component is still mounted
+        if (!isMounted) return;
         
-        setData(usersData);
+        // Handle pagination response
+        if (Array.isArray(res.data)) {
+          setData(res.data);
+        } else if (res.data?.data && Array.isArray(res.data.data)) {
+          setData(res.data.data);
+        } else {
+          setData([]);
+        }
 
         // Fetch assignment data juga saat load pertama
         await fetchAssignmentData();
       } catch (error) {
-        setError("Gagal memuat data dosen");
+        if (isMounted) {
+          setError("Gagal memuat data dosen");
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchData();
-  }, []);
+    
+    // Cleanup function to prevent state updates after unmount
+    return () => {
+      isMounted = false;
+    };
+  }, []); // Empty dependency array - only run once on mount
 
   // Event listener untuk update real-time saat assignment berubah
   useEffect(() => {
@@ -4618,6 +4639,22 @@ export default function Dosen() {
                             className="w-5 h-5"
                           />
                           Detail Riwayat
+                        </button>
+                        <button
+                          onClick={() => {
+                            // Jika superadmin/tim_akademik, bisa lihat rekap IKD detail dosen tertentu
+                            // Untuk sekarang, arahkan ke halaman detail dengan query parameter user_id
+                            // Jika tidak ada user_id, akan menampilkan data user yang login
+                            navigate(`/rekap-ikd/detail${d.id ? `?user_id=${d.id}` : ''}`);
+                          }}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-sm font-medium text-green-500 hover:text-green-700 dark:hover:text-green-300 rounded transition focus:outline-none focus:ring-0"
+                          title="Rekap IKD Detail"
+                        >
+                          <FontAwesomeIcon
+                            icon={faChartBar}
+                            className="w-5 h-5"
+                          />
+                          Rekap IKD Detail
                         </button>
                       </div>
                     </td>

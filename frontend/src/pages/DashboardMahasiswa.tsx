@@ -772,7 +772,7 @@ export default function DashboardMahasiswa() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
                           {item.topik || "N/A"}
-                        </td>
+                      </td>
                       </>
                     ) : (
                       jadwalType !== "pbl" && (
@@ -874,17 +874,17 @@ export default function DashboardMahasiswa() {
                     ) : null}
                     {/* Kolom STATUS - untuk semua jadwal type kecuali praktikum */}
                     {jadwalType === "praktikum" ? null : (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {jadwalType === "agenda_besar"
-                          ? "-"
-                          : jadwalType === "non_blok_non_csr" &&
-                            item.status_konfirmasi === "-"
-                          ? "-"
-                          : getStatusBadge(
-                              item.status_konfirmasi,
-                              item.status_reschedule
-                            )}
-                      </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      {jadwalType === "agenda_besar"
+                        ? "-"
+                        : jadwalType === "non_blok_non_csr" &&
+                          item.status_konfirmasi === "-"
+                        ? "-"
+                        : getStatusBadge(
+                            item.status_konfirmasi,
+                            item.status_reschedule
+                          )}
+                    </td>
                     )}
                     {/* Hanya tampilkan badge semester type jika bukan jadwal bimbingan akhir */}
                     {jadwalType !== "bimbingan_akhir_sempro" && jadwalType !== "bimbingan_akhir_sidang" && (
