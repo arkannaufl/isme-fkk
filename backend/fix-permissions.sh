@@ -1,5 +1,13 @@
 #!/bin/bash
 
+# Script ini digunakan untuk mengatur permission pada project Laravel
+# Script ini dijalankan setelah clone repository baru di VPS
+# Script ini dijalankan setelah deploy update di VPS
+# Script ini dijalankan setelah ada error "Permission denied"
+# Script ini dijalankan setelah mengubah ownership/permission secara manual
+# Script ini dijalankan setelah mengubah permission pada storage, bootstrap cache, log file, .env file, vendor directory, frontend directories, dan public storage link
+# Script ini dijalankan setelah mengubah permission pada storage, bootstrap cache, log file, .env file, vendor directory, frontend directories, dan public storage link
+
 PROJECT_PATH="/var/www/isme-fkk"
 BACKEND_PATH="$PROJECT_PATH/backend"
 FRONTEND_PATH="$PROJECT_PATH/frontend"
