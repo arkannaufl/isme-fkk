@@ -914,7 +914,7 @@ export default function DashboardDosen() {
         const jadwalNonBlokNonCSRResult = otherResults[1];
         // Pastikan semua data non blok non csr termasuk seminar proposal dan sidang skripsi
         const nonBlokNonCSRData = jadwalNonBlokNonCSRResult?.status === "fulfilled"
-          ? jadwalNonBlokNonCSRResult.value.data.data || []
+            ? jadwalNonBlokNonCSRResult.value.data.data || []
           : [];
         
         // Filter jadwal bimbingan akhir (seminar proposal dan sidang skripsi)
@@ -937,7 +937,7 @@ export default function DashboardDosen() {
         const jadwalNonBlokNonCSRResult = otherResults[0];
         // Pastikan semua data non blok non csr termasuk seminar proposal dan sidang skripsi
         const nonBlokNonCSRData = jadwalNonBlokNonCSRResult?.status === "fulfilled"
-          ? jadwalNonBlokNonCSRResult.value.data.data || []
+            ? jadwalNonBlokNonCSRResult.value.data.data || []
           : [];
         
         // Filter jadwal bimbingan akhir (seminar proposal dan sidang skripsi)
@@ -2362,24 +2362,24 @@ export default function DashboardDosen() {
                           </td>
                         ) : (
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
-                          {jadwalType === "persamaan_persepsi"
+                        {jadwalType === "persamaan_persepsi"
                               ? item.use_ruangan && item.ruangan?.nama
-                              ? item.ruangan.nama 
-                              : "Online"
-                            : jadwalType === "seminar_pleno"
+                            ? item.ruangan.nama 
+                            : "Online"
+                          : jadwalType === "seminar_pleno"
                               ? item.use_ruangan && item.ruangan?.nama
-                              ? item.ruangan.nama
-                              : "Online"
-                            : jadwalType === "kuliah_besar" ||
-                              jadwalType === "jurnal"
-                            ? item.ruangan?.nama || "N/A"
-                            : jadwalType === "pbl"
+                            ? item.ruangan.nama
+                            : "Online"
+                          : jadwalType === "kuliah_besar" ||
+                            jadwalType === "jurnal"
+                          ? item.ruangan?.nama || "N/A"
+                          : jadwalType === "pbl"
                             ? (typeof item.ruangan === "string" ? item.ruangan : item.ruangan?.nama) || "N/A"
-                            : jadwalType === "csr" ||
-                              jadwalType === "non_blok_non_csr"
-                            ? item.ruangan?.nama || "N/A"
+                          : jadwalType === "csr" ||
+                            jadwalType === "non_blok_non_csr"
+                          ? item.ruangan?.nama || "N/A"
                             : item.lokasi || (typeof item.ruangan === "string" ? item.ruangan : item.ruangan?.nama) || "N/A"}
-                        </td>
+                      </td>
                         )
                       )}
                       {/* Kolom FILE JURNAL - hanya untuk jurnal */}
@@ -2460,8 +2460,8 @@ export default function DashboardDosen() {
                       {/* Kolom JENIS SEMESTER - untuk jadwal type tertentu, skip untuk bimbingan akhir */}
                       {!(jadwalType === "bimbingan_akhir_sempro" || jadwalType === "bimbingan_akhir_sidang") && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
-                          {getSemesterTypeBadge(item.semester_type)}
-                        </td>
+                        {getSemesterTypeBadge(item.semester_type)}
+                      </td>
                       )}
                       {/* Kolom AKSI */}
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">

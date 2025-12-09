@@ -1178,9 +1178,9 @@ export default function DetailBlok() {
       // Try to fetch with keahlian filter first
       let dosenList: any[] = [];
       try {
-        const res = await api.get(
+      const res = await api.get(
           `/users?role=dosen&keahlian=${encodeURIComponent(materi)}&per_page=1000`
-        );
+      );
         // Handle pagination response
         dosenList = Array.isArray(res.data) 
           ? res.data 
@@ -1328,10 +1328,10 @@ export default function DetailBlok() {
     try {
       // Try to fetch with keahlian filter first
       let dosenList: any[] = [];
-      try {
-        const res = await api.get(
+    try {
+      const res = await api.get(
           `/users?role=dosen&keahlian=${encodeURIComponent(materi)}&per_page=1000`
-        );
+      );
         // Handle pagination response
         dosenList = Array.isArray(res.data) 
           ? res.data 

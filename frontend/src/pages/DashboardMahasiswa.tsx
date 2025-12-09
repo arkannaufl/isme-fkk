@@ -618,7 +618,7 @@ export default function DashboardMahasiswa() {
         );
         const jadwalNonBlokNonCSRResult = otherResults[1];
         const nonBlokNonCSRData = jadwalNonBlokNonCSRResult?.status === "fulfilled"
-          ? jadwalNonBlokNonCSRResult.value.data.data || []
+            ? jadwalNonBlokNonCSRResult.value.data.data || []
           : [];
         
         // Filter jadwal bimbingan akhir (seminar proposal dan sidang skripsi) SEBELUM filterActiveLecturers
@@ -642,7 +642,7 @@ export default function DashboardMahasiswa() {
         setJadwalCSR([]);
         const jadwalNonBlokNonCSRResult = otherResults[0];
         const nonBlokNonCSRData = jadwalNonBlokNonCSRResult?.status === "fulfilled"
-          ? jadwalNonBlokNonCSRResult.value.data.data || []
+            ? jadwalNonBlokNonCSRResult.value.data.data || []
           : [];
         
         // Filter jadwal bimbingan akhir (seminar proposal dan sidang skripsi) SEBELUM filterActiveLecturers
@@ -661,7 +661,7 @@ export default function DashboardMahasiswa() {
         );
         setJadwalNonBlokNonCSR(
           filterActiveLecturers(nonBimbinganAkhirData)
-        );
+          );
         }
       } catch {
         // Error handling - could be logged to monitoring service
@@ -1299,9 +1299,9 @@ export default function DashboardMahasiswa() {
                     )}
                     {/* Hanya tampilkan badge semester type jika bukan jadwal bimbingan akhir */}
                     {jadwalType !== "bimbingan_akhir_sempro" && jadwalType !== "bimbingan_akhir_sidang" && (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {getSemesterTypeBadge(item.semester_type)}
-                      </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      {getSemesterTypeBadge(item.semester_type)}
+                    </td>
                     )}
                   </tr>
                 ))

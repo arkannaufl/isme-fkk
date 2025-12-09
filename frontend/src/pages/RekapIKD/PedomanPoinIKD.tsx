@@ -56,6 +56,9 @@ const PedomanPoinIKD: React.FC = () => {
   const [editingItem, setEditingItem] = useState<IKDPedomanItem | null>(null);
   const [showBidangModal, setShowBidangModal] = useState(false);
   const [newBidang, setNewBidang] = useState({ kode: "", nama: "" });
+  const [editingBidang, setEditingBidang] = useState<IKDBidang | null>(null);
+  const [showDeleteBidangModal, setShowDeleteBidangModal] = useState(false);
+  const [bidangToDelete, setBidangToDelete] = useState<IKDBidang | null>(null);
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -139,10 +142,29 @@ const PedomanPoinIKD: React.FC = () => {
     try {
       setLoading(true);
       const res = await api.get("/rekap-ikd/pedoman-poin");
+      let data: IKDPedomanItem[] = [];
       if (res.data?.success && Array.isArray(res.data.data)) {
-        setPedomanData(res.data.data);
+        data = res.data.data;
       } else if (Array.isArray(res.data)) {
-        setPedomanData(res.data);
+        data = res.data;
+      }
+      setPedomanData(data);
+      
+      // Extract unique bidang from pedomanData and populate bidangList
+      const uniqueBidang = new Map<string, { kode: string; nama: string; is_auto: boolean }>();
+      data.forEach((item) => {
+        if (item.bidang && !uniqueBidang.has(item.bidang)) {
+          uniqueBidang.set(item.bidang, {
+            kode: item.bidang,
+            nama: item.bidang_nama || item.bidang, // Use bidang_nama if available, otherwise use kode
+            is_auto: false,
+          });
+        }
+      });
+      
+      // Update bidangList with unique bidang from database
+      if (uniqueBidang.size > 0) {
+        setBidangList(Array.from(uniqueBidang.values()));
       }
     } catch (error) {
       console.error("Error fetching pedoman data:", error);
@@ -152,12 +174,8 @@ const PedomanPoinIKD: React.FC = () => {
   };
 
   const fetchBidangList = async () => {
-    // Initialize with default Bidang A and D
-    const defaultBidang: IKDBidang[] = [
-      { kode: "A", nama: "Pengajaran", is_auto: true },
-      { kode: "D", nama: "Penunjang", is_auto: true },
-    ];
-    setBidangList(defaultBidang);
+    // Initialize with empty bidang list (no default fields)
+    setBidangList([]);
   };
 
   const handleOpenModal = (bidang?: string) => {
@@ -914,6 +932,8 @@ const PedomanPoinIKD: React.FC = () => {
         // Save main item
         // Format angka saja (1.1, 2.2) is optional, so keep user input
         const isItemNumberOnly = item.useSubItem && isSubItemNumberOnlyInList(item.kegiatan);
+        // Get bidang nama from bidangList
+        const bidangInfo = bidangList.find(b => b.kode === selectedBidang);
         const mainPayload = {
           no: item.no,
           kegiatan: item.kegiatan || "",
@@ -922,29 +942,30 @@ const PedomanPoinIKD: React.FC = () => {
           bukti_fisik: item.bukti_fisik || "",
           prosedur: item.prosedur || "",
           bidang: selectedBidang,
+          bidang_nama: bidangInfo?.nama || null,
         };
 
         try {
           let mainItemId: number;
           
-          // Cek apakah item sudah ada di database (berdasarkan id atau kombinasi no + bidang + kegiatan)
+          // Cek apakah item sudah ada di database (berdasarkan id atau kombinasi no + bidang)
           if (item.id) {
-            // Item sudah ada, update saja
+            // Item sudah ada, update saja (termasuk jika kegiatan berubah menjadi kosong/judul)
             await api.put(`/rekap-ikd/pedoman-poin/${item.id}`, mainPayload);
             mainItemId = item.id;
           } else {
-            // Cek apakah ada item dengan no + bidang + kegiatan yang sama
+            // Cek apakah ada item dengan no + bidang yang sama (level 0, tanpa parent_id)
+            // Tidak perlu cek kegiatan karena kegiatan bisa berubah (misalnya dari data lengkap jadi judul kosong)
             const existingItem = pedomanData.find(
               (existing) =>
                 existing.no === item.no &&
                 existing.bidang === selectedBidang &&
-                existing.kegiatan === item.kegiatan &&
                 (existing.level === 0 || existing.level === undefined) &&
                 (!existing.parent_id || existing.parent_id === null)
             );
             
             if (existingItem?.id) {
-              // Item sudah ada, update saja
+              // Item sudah ada, update saja (termasuk jika kegiatan berubah)
               await api.put(`/rekap-ikd/pedoman-poin/${existingItem.id}`, mainPayload);
               mainItemId = existingItem.id;
             } else {
@@ -963,6 +984,8 @@ const PedomanPoinIKD: React.FC = () => {
             for (const subItem of item.subItems) {
               if (subItem.kegiatan.trim()) {
                 // All fields are optional, so keep user input regardless of format
+                // Get bidang nama from bidangList
+                const bidangInfo = bidangList.find(b => b.kode === selectedBidang);
                 const subPayload = {
                   no: mainNo, // Same NO as parent
                   kegiatan: subItem.kegiatan,
@@ -971,6 +994,7 @@ const PedomanPoinIKD: React.FC = () => {
                   bukti_fisik: subItem.bukti_fisik || "",
                   prosedur: subItem.prosedur || "",
                   bidang: selectedBidang,
+                  bidang_nama: bidangInfo?.nama || null,
                 };
                 
                 try {
@@ -1033,10 +1057,13 @@ const PedomanPoinIKD: React.FC = () => {
         // Save main item
         let mainItemId: number | undefined;
         
+        // Get bidang nama from bidangList
+        const bidangInfo = bidangList.find(b => b.kode === selectedBidang);
         // Save form data - all fields are optional for format angka saja (1.1, 2.2)
         const mainPayload = {
           ...form,
           bidang: selectedBidang,
+          bidang_nama: bidangInfo?.nama || null,
           // Keep user input (all fields optional)
           indeks_poin: form.indeks_poin || 0,
           unit_kerja: form.unit_kerja || "",
@@ -1050,17 +1077,18 @@ const PedomanPoinIKD: React.FC = () => {
           mainItemId = editingItem.id;
         } else {
           // Cek apakah form utama sudah ada di database
+          // Cek apakah ada item dengan no + bidang yang sama (level 0, tanpa parent_id)
+          // Tidak perlu cek kegiatan karena kegiatan bisa berubah (misalnya dari data lengkap jadi judul kosong)
           const existingFormItem = pedomanData.find(
             (existing) =>
               existing.no === form.no &&
               existing.bidang === selectedBidang &&
-              existing.kegiatan === form.kegiatan &&
               (existing.level === 0 || existing.level === undefined) &&
               (!existing.parent_id || existing.parent_id === null)
           );
           
           if (existingFormItem?.id) {
-            // Form utama sudah ada, update saja
+            // Form utama sudah ada, update saja (termasuk jika kegiatan berubah menjadi kosong/judul)
             await api.put(`/rekap-ikd/pedoman-poin/${existingFormItem.id}`, mainPayload);
             mainItemId = existingFormItem.id;
           } else {
@@ -1095,6 +1123,8 @@ const PedomanPoinIKD: React.FC = () => {
           }
           
           // Save new sub items
+          // Get bidang nama from bidangList
+          const bidangInfo = bidangList.find(b => b.kode === selectedBidang);
           for (const subItem of subItems) {
             if (subItem.kegiatan.trim()) {
               // All fields are optional, so keep user input regardless of format
@@ -1106,6 +1136,7 @@ const PedomanPoinIKD: React.FC = () => {
                 bukti_fisik: subItem.bukti_fisik || "",
                 prosedur: subItem.prosedur || "",
                 bidang: selectedBidang,
+                bidang_nama: bidangInfo?.nama || null,
               };
               
               try {
@@ -1177,6 +1208,57 @@ const PedomanPoinIKD: React.FC = () => {
       return;
     }
 
+    // Jika sedang edit, cek apakah kode berubah
+    if (editingBidang) {
+      // Jika kode berubah, cek apakah kode baru sudah ada
+      if (editingBidang.kode.toUpperCase() !== newBidang.kode.toUpperCase().trim()) {
+        const bidangExists = bidangList.find(
+          (b) => b.kode.toUpperCase() === newBidang.kode.toUpperCase().trim()
+        );
+        if (bidangExists) {
+          setBidangModalError(`Kode Bidang "${newBidang.kode.toUpperCase().trim()}" sudah ada. Gunakan kode yang berbeda.`);
+          return;
+        }
+      }
+      
+      // Update bidang yang sedang di-edit
+      const updatedBidangList = bidangList.map((b) =>
+        b.kode === editingBidang.kode
+          ? {
+              ...b,
+              kode: newBidang.kode.toUpperCase().trim(),
+              nama: newBidang.nama.trim(),
+            }
+          : b
+      );
+      setBidangList(updatedBidangList);
+      
+      // Update bidang dan bidang_nama di semua pedoman dengan bidang ini
+      const pedomanWithBidang = pedomanData.filter((item) => item.bidang === editingBidang.kode);
+      for (const item of pedomanWithBidang) {
+        if (item.id) {
+          try {
+            await api.put(`/rekap-ikd/pedoman-poin/${item.id}`, {
+              ...item,
+              bidang: newBidang.kode.toUpperCase().trim(),
+              bidang_nama: newBidang.nama.trim(),
+            });
+          } catch (err) {
+            console.error("Error updating pedoman bidang:", err);
+          }
+        }
+      }
+      
+      setNewBidang({ kode: "", nama: "" });
+      setEditingBidang(null);
+      setBidangModalError(null);
+      setSuccess(`Bidang berhasil diupdate menjadi ${newBidang.kode.toUpperCase().trim()} - ${newBidang.nama.trim()}`);
+      await fetchPedomanData();
+      setShowBidangModal(false);
+      return;
+    }
+
+    // Tambah bidang baru
     const bidangExists = bidangList.find(
       (b) => b.kode.toUpperCase() === newBidang.kode.toUpperCase().trim()
     );
@@ -1196,6 +1278,40 @@ const PedomanPoinIKD: React.FC = () => {
     setBidangModalError(null);
     setSuccess(`Bidang ${newBidangItem.kode} - ${newBidangItem.nama} berhasil ditambahkan`);
     setShowBidangModal(false);
+  };
+
+  const handleEditBidang = (bidang: IKDBidang) => {
+    setEditingBidang(bidang);
+    setNewBidang({ kode: bidang.kode, nama: bidang.nama });
+    setBidangModalError(null);
+  };
+
+  const handleDeleteBidang = async () => {
+    if (!bidangToDelete) return;
+    
+    try {
+      // Hapus semua pedoman dengan bidang ini
+      const pedomanWithBidang = pedomanData.filter((item) => item.bidang === bidangToDelete.kode);
+      for (const item of pedomanWithBidang) {
+        if (item.id) {
+          try {
+            await api.delete(`/rekap-ikd/pedoman-poin/${item.id}`);
+          } catch (err) {
+            console.error("Error deleting pedoman:", err);
+          }
+        }
+      }
+      
+      // Hapus dari bidangList
+      setBidangList(bidangList.filter((b) => b.kode !== bidangToDelete.kode));
+      setSuccess(`Bidang ${bidangToDelete.kode} - ${bidangToDelete.nama} dan semua item-nya berhasil dihapus`);
+      setShowDeleteBidangModal(false);
+      setBidangToDelete(null);
+      await fetchPedomanData();
+    } catch (error: any) {
+      console.error("Error deleting bidang:", error);
+      setError("Gagal menghapus bidang. Silakan coba lagi.");
+    }
   };
 
   // Group data by bidang
@@ -1309,6 +1425,7 @@ const PedomanPoinIKD: React.FC = () => {
                       setShowBidangModal(false);
                       setBidangModalError(null);
                       setNewBidang({ kode: "", nama: "" });
+                      setEditingBidang(null);
                     }}
                     className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                   >
@@ -1321,37 +1438,68 @@ const PedomanPoinIKD: React.FC = () => {
                   {bidangList.map((bidang) => {
                     const bidangItems = pedomanData.filter((item) => item.bidang === bidang.kode);
                     return (
-                      <button
+                      <div
                         key={bidang.kode}
-                        onClick={() => {
-                          setSelectedBidang(bidang.kode);
-                          setShowBidangModal(false);
-                          handleOpenModal(bidang.kode);
-                        }}
-                        className="w-full text-left px-4 py-3 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                        className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                       >
                         <div className="flex justify-between items-center">
-                          <div>
-                            <div className="font-medium text-gray-900 dark:text-white">
-                              Bidang {bidang.kode} - {bidang.nama}
-                            </div>
-                            {hasData && (
-                              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                {bidangItems.length} item
+                          <button
+                            onClick={() => {
+                              setSelectedBidang(bidang.kode);
+                              setShowBidangModal(false);
+                              handleOpenModal(bidang.kode);
+                            }}
+                            className="flex-1 text-left"
+                          >
+                            <div>
+                              <div className="font-medium text-gray-900 dark:text-white">
+                                Bidang {bidang.kode} - {bidang.nama}
                               </div>
-                            )}
+                              {hasData && (
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                  {bidangItems.length} item
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                          <div className="flex items-center gap-2 ml-4">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditBidang(bidang);
+                              }}
+                              className="p-2 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                              title="Edit Bidang"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setBidangToDelete(bidang);
+                                setShowDeleteBidangModal(true);
+                              }}
+                              className="p-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                              title="Hapus Bidang"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
                           </div>
-                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
                         </div>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
                 <div className="border-t pt-4">
                   <h4 className="text-sm font-medium mb-3 text-gray-900 dark:text-white">
-                    Tambah Bidang Baru
+                    {editingBidang ? "Edit Bidang" : "Tambah Bidang Baru"}
                   </h4>
                   
                   {/* Error Message */}
@@ -1409,12 +1557,100 @@ const PedomanPoinIKD: React.FC = () => {
                       onClick={handleAddBidang}
                       className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium shadow-md hover:shadow-lg"
                     >
-                      Tambah Bidang
+                      {editingBidang ? "Update Bidang" : "Tambah Bidang"}
                     </button>
+                    {editingBidang && (
+                      <button
+                        onClick={() => {
+                          setEditingBidang(null);
+                          setNewBidang({ kode: "", nama: "" });
+                          setBidangModalError(null);
+                        }}
+                        className="w-full px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors mt-2"
+                      >
+                        Batal Edit
+                      </button>
+                    )}
                   </div>
                 </div>
               </motion.div>
             </div>
+          )}
+        </AnimatePresence>
+
+        {/* Modal Konfirmasi Hapus Bidang */}
+        <AnimatePresence>
+          {showDeleteBidangModal && bidangToDelete && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[100000] bg-black/40 dark:bg-black/60 backdrop-blur-sm"
+                onClick={() => {
+                  setShowDeleteBidangModal(false);
+                  setBidangToDelete(null);
+                }}
+              />
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="fixed inset-0 z-[100001] flex items-center justify-center pointer-events-none"
+              >
+                <div
+                  className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 px-6 py-6 shadow-xl z-[100001] pointer-events-auto"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Close Button */}
+                  <button
+                    onClick={() => {
+                      setShowDeleteBidangModal(false);
+                      setBidangToDelete(null);
+                    }}
+                    className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-4 top-4 h-9 w-9"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+
+                  <div className="pr-8">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+                      Konfirmasi Hapus Bidang
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                      Apakah Anda yakin ingin menghapus bidang ini?
+                    </p>
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 mb-4">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        Bidang {bidangToDelete.kode} - {bidangToDelete.nama}
+                      </p>
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-2">
+                        ⚠️ Peringatan: Semua item pedoman poin dengan bidang ini akan ikut terhapus, termasuk file dan skor yang terkait.
+                      </p>
+                    </div>
+                    <div className="flex gap-3 justify-end">
+                      <button
+                        onClick={() => {
+                          setShowDeleteBidangModal(false);
+                          setBidangToDelete(null);
+                        }}
+                        className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        onClick={handleDeleteBidang}
+                        className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            </>
           )}
         </AnimatePresence>
 

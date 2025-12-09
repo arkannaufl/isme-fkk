@@ -607,15 +607,23 @@ const Kemahasiswaan: React.FC = () => {
 
   // Get indicator untuk modal (dengan logic untuk mengambil parent PALING DEKAT)
   const getIndicator = (pedoman: IKDPedoman): string => {
-    // Jika item adalah nomor utama (misal "5") dan punya isi, return "-"
+    // Ambil nomor dari kegiatan (parse angka di awal, bisa dengan titik atau huruf)
     const match = pedoman.kegiatan.match(/^(\d+(?:\.\d+)*(?:\.\w+)?|\d+\.\w+)/);
-    if (match) {
-      const currentNumber = match[1];
-      // Jika hanya angka saja (tidak ada titik atau huruf), berarti nomor utama
-      if (!currentNumber.includes(".") && !/[a-z]/i.test(currentNumber)) {
-        if (hasContent(pedoman)) {
-          return "-";
-        }
+    if (!match) return "-";
+    
+    const currentNumber = match[1]; // Misal: "1.1.a" atau "2.1" atau "2.a" atau "1"
+    
+    // Cek apakah item punya isi
+    const itemHasContent = hasContent(pedoman);
+    
+    // Jika item PUNYA isi → cek apakah ini nomor utama
+    if (itemHasContent) {
+      // Cek dulu: jika item ini adalah nomor utama (tidak ada titik, tidak ada huruf)
+      // Misal: "5", "4", "1" (bukan "1.1", "1.1.a", "2.a")
+      const isMainNumber = !currentNumber.includes(".") && !/[a-z]$/i.test(currentNumber);
+      if (isMainNumber) {
+        // Jika item utama punya isi, indicators = "-"
+        return "-";
       }
     }
 

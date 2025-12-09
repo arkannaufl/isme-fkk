@@ -200,7 +200,7 @@ class JadwalNonBlokNonCSRController extends Controller
                 ->where(function ($q) use ($dosenId, $semesterType) {
                     // Kondisi 1: Dosen aktif (dosen_id = $dosenId)
                     $q->where('dosen_id', $dosenId);
-
+                    
                     // Filter semester_type untuk kondisi 1
                     if ($semesterType === 'reguler') {
                         $q->whereNull('kelompok_besar_antara_id');
@@ -218,7 +218,7 @@ class JadwalNonBlokNonCSRController extends Controller
                                 ->orWhereRaw('CAST(dosen_ids AS CHAR) LIKE ?', ['%"' . $dosenId . '"%'])
                                 ->orWhereRaw('CAST(dosen_ids AS CHAR) LIKE ?', ['%' . $dosenId . '%']);
                         });
-
+                    
                     // Filter semester_type untuk kondisi 2
                     if ($semesterType === 'reguler') {
                         $q->whereNull('kelompok_besar_antara_id');
@@ -682,7 +682,7 @@ class JadwalNonBlokNonCSRController extends Controller
                     $jumlahKomentator = count($request->komentator_ids ?? []);
                     $jumlahMahasiswa = count($request->mahasiswa_nims ?? []);
                     $totalPeserta = $jumlahPembimbing + $jumlahKomentator + $jumlahMahasiswa;
-
+                    
                     if ($totalPeserta > 0) {
                         // Optimized: Use cache for ruangan lookup
                         $cacheKey = 'ruangan_' . $request->ruangan_id;
@@ -695,7 +695,7 @@ class JadwalNonBlokNonCSRController extends Controller
                             if ($jumlahKomentator > 0) $detailPeserta[] = "{$jumlahKomentator} komentator";
                             if ($jumlahMahasiswa > 0) $detailPeserta[] = "{$jumlahMahasiswa} mahasiswa";
                             $detailPesertaStr = implode(" + ", $detailPeserta);
-
+                            
                             return response()->json([
                                 'message' => "Kapasitas ruangan {$ruangan->nama} ({$ruangan->kapasitas}) tidak cukup untuk {$totalPeserta} orang ({$detailPesertaStr})."
                             ], 422);
@@ -707,7 +707,7 @@ class JadwalNonBlokNonCSRController extends Controller
                     $jumlahPenguji = count($request->penguji_ids ?? []);
                     $jumlahMahasiswa = count($request->mahasiswa_nims ?? []);
                     $totalPeserta = $jumlahPembimbing + $jumlahPenguji + $jumlahMahasiswa;
-
+                    
                     if ($totalPeserta > 0) {
                         // Optimized: Use cache for ruangan lookup
                         $cacheKey = 'ruangan_' . $request->ruangan_id;
@@ -720,7 +720,7 @@ class JadwalNonBlokNonCSRController extends Controller
                             if ($jumlahPenguji > 0) $detailPeserta[] = "{$jumlahPenguji} penguji";
                             if ($jumlahMahasiswa > 0) $detailPeserta[] = "{$jumlahMahasiswa} mahasiswa";
                             $detailPesertaStr = implode(" + ", $detailPeserta);
-
+                            
                             return response()->json([
                                 'message' => "Kapasitas ruangan {$ruangan->nama} ({$ruangan->kapasitas}) tidak cukup untuk {$totalPeserta} orang ({$detailPesertaStr})."
                             ], 422);
@@ -816,7 +816,7 @@ class JadwalNonBlokNonCSRController extends Controller
                     'error' => $errorMessage
                 ], 422);
             }
-
+            
             return response()->json([
                 'message' => 'Gagal menambahkan jadwal Non Blok Non CSR',
                 'error' => $errorMessage
@@ -1049,7 +1049,7 @@ class JadwalNonBlokNonCSRController extends Controller
                     $jumlahPenguji = count($request->penguji_ids ?? []);
                     $jumlahMahasiswa = count($request->mahasiswa_nims ?? []);
                     $totalPeserta = $jumlahPembimbing + ($request->jenis_baris === 'seminar_proposal' ? $jumlahKomentator : $jumlahPenguji) + $jumlahMahasiswa;
-
+                    
                     if ($totalPeserta > 0) {
                         // Optimized: Use cache for ruangan lookup
                         $cacheKey = 'ruangan_' . $request->ruangan_id;
@@ -1066,7 +1066,7 @@ class JadwalNonBlokNonCSRController extends Controller
                             }
                             if ($jumlahMahasiswa > 0) $detailPeserta[] = "{$jumlahMahasiswa} mahasiswa";
                             $detailPesertaStr = implode(" + ", $detailPeserta);
-
+                            
                             return response()->json([
                                 'message' => "Kapasitas ruangan {$ruangan->nama} ({$ruangan->kapasitas}) tidak cukup untuk {$totalPeserta} orang ({$detailPesertaStr})."
                             ], 422);
@@ -1150,7 +1150,7 @@ class JadwalNonBlokNonCSRController extends Controller
                     'error' => $errorMessage
                 ], 422);
             }
-
+            
             return response()->json([
                 'message' => 'Gagal memperbarui jadwal Non Blok Non CSR',
                 'error' => $errorMessage
@@ -1466,7 +1466,7 @@ class JadwalNonBlokNonCSRController extends Controller
                             $jumlahPenguji = count($row['penguji_ids'] ?? []);
                             $jumlahMahasiswa = count($row['mahasiswa_nims'] ?? []);
                             $totalPeserta = $jumlahPembimbing + ($row['jenis_baris'] === 'seminar_proposal' ? $jumlahKomentator : $jumlahPenguji) + $jumlahMahasiswa;
-
+                            
                             if ($totalPeserta > 0) {
                                 // Optimized: Use pre-loaded ruanganList instead of individual query
                                 $ruangan = $ruanganList->get($row['ruangan_id']);
@@ -1480,7 +1480,7 @@ class JadwalNonBlokNonCSRController extends Controller
                                     }
                                     if ($jumlahMahasiswa > 0) $detailPeserta[] = "{$jumlahMahasiswa} mahasiswa";
                                     $detailPesertaStr = implode(" + ", $detailPeserta);
-
+                                    
                                     $errors[] = "Baris " . ($index + 1) . ": Kapasitas ruangan {$ruangan->nama} ({$ruangan->kapasitas}) tidak cukup untuk {$totalPeserta} orang ({$detailPesertaStr}).";
                                     continue;
                                 }
@@ -1488,11 +1488,11 @@ class JadwalNonBlokNonCSRController extends Controller
                         } elseif ($row['jenis_baris'] !== 'seminar_proposal' && $row['jenis_baris'] !== 'sidang_skripsi' && isset($row['kelompok_besar_id']) && $row['kelompok_besar_id']) {
                         // kelompok_besar_id yang dikirim dari frontend adalah semester
                         $semesterKelompokBesar = $row['kelompok_besar_id'];
-
+                        
                             // Untuk materi: hitung mahasiswa + 1 dosen
                             // Untuk agenda: hitung mahasiswa saja (tidak ada dosen)
                             $includeDosen = ($row['jenis_baris'] ?? 'materi') === 'materi';
-
+                            
                             // Validasi kapasitas ruangan (method validateRuanganCapacity mengharapkan semester, bukan ID)
                             $capacityError = $this->validateRuanganCapacity($row['ruangan_id'], $semesterKelompokBesar, $includeDosen);
                             if ($capacityError) {
@@ -1510,15 +1510,15 @@ class JadwalNonBlokNonCSRController extends Controller
                             // Tentukan jenis bentrok dan detail
                             $bentrokTypes = [];
                             $conflictDetails = [];
-
+                            
                             if ($bentrokInfo['dosen']) {
                                 $bentrokTypes[] = 'dosen';
-                                $dosenName = $row['dosen_id'] && $dosenList->has($row['dosen_id'])
-                                    ? $dosenList->get($row['dosen_id'])->name
+                                $dosenName = $row['dosen_id'] && $dosenList->has($row['dosen_id']) 
+                                    ? $dosenList->get($row['dosen_id'])->name 
                                     : 'N/A';
                                 $conflictDetails[] = 'Dosen: ' . $dosenName;
                             }
-
+                            
                             if ($bentrokInfo['pembimbing_komentator']) {
                                 $bentrokTypes[] = 'pembimbing/komentator';
                                 $pembimbingKomentatorNames = [];
@@ -1536,7 +1536,7 @@ class JadwalNonBlokNonCSRController extends Controller
                                     $conflictDetails[] = 'Pembimbing/Komentator: ' . implode(', ', $pembimbingKomentatorNames);
                                 }
                             }
-
+                            
                             if ($bentrokInfo['pembimbing_penguji']) {
                                 $bentrokTypes[] = 'pembimbing/penguji';
                                 $pembimbingPengujiNames = [];
@@ -1554,7 +1554,7 @@ class JadwalNonBlokNonCSRController extends Controller
                                     $conflictDetails[] = 'Pembimbing/Penguji: ' . implode(', ', $pembimbingPengujiNames);
                                 }
                             }
-
+                            
                             if ($bentrokInfo['mahasiswa']) {
                                 $bentrokTypes[] = 'mahasiswa';
                                 // Ambil nama mahasiswa yang bentrok (bukan NIM)
@@ -1565,11 +1565,11 @@ class JadwalNonBlokNonCSRController extends Controller
                                         ->whereIn('nim', $row['mahasiswa_nims'])
                                         ->pluck('name', 'nim')
                                         ->toArray();
-
+                                    
                                     // Ambil nama mahasiswa yang bentrok (dari intersection dengan previousData)
                                     $previousMahasiswaNims = isset($previousData['mahasiswa_nims']) && is_array($previousData['mahasiswa_nims']) ? $previousData['mahasiswa_nims'] : [];
                                     $intersectionNims = array_intersect($row['mahasiswa_nims'], $previousMahasiswaNims);
-
+                                    
                                     foreach ($intersectionNims as $nim) {
                                         if (isset($mahasiswaList[$nim])) {
                                             $mahasiswaNames[] = $mahasiswaList[$nim];
@@ -1577,29 +1577,29 @@ class JadwalNonBlokNonCSRController extends Controller
                                             $mahasiswaNames[] = $nim; // Fallback jika nama tidak ditemukan
                                         }
                                     }
-
+                                    
                                     // Tampilkan semua nama mahasiswa tanpa truncate
                                 }
                                 if (!empty($mahasiswaNames)) {
                                     $conflictDetails[] = 'Mahasiswa: ' . implode(', ', $mahasiswaNames);
                                 }
                             }
-
+                            
                             if ($bentrokInfo['ruangan']) {
                                 $bentrokTypes[] = 'ruangan';
-                                $ruanganName = $row['ruangan_id'] && $ruanganList->has($row['ruangan_id'])
-                                    ? $ruanganList->get($row['ruangan_id'])->nama
+                                $ruanganName = $row['ruangan_id'] && $ruanganList->has($row['ruangan_id']) 
+                                    ? $ruanganList->get($row['ruangan_id'])->nama 
                                     : 'N/A';
                                 $conflictDetails[] = 'Ruangan: ' . $ruanganName;
                             }
-
+                            
                             if ($bentrokInfo['kelompok_besar']) {
                                 $bentrokTypes[] = 'kelompok besar';
                             }
-
+                            
                             $bentrokTypeStr = implode(', ', $bentrokTypes);
                             $conflictDetailsStr = !empty($conflictDetails) ? ' (' . implode(', ', $conflictDetails) . ')' : '';
-
+                            
                             $errors[] = "Baris " . ($index + 1) . ": Jadwal bentrok dengan data pada baris " . ($j + 1) . ". Konflik pada: {$bentrokTypeStr}{$conflictDetailsStr}";
                             break;
                         }
@@ -1703,7 +1703,7 @@ class JadwalNonBlokNonCSRController extends Controller
         // Cek bentrok dengan jadwal Non Blok Non CSR (dengan filter semester)
         // Validasi realistis: bentrok jika tanggal sama, jam overlap, DAN minimal salah satu dari:
         // - dosen sama, ATAU
-        // - ruangan sama, ATAU
+        // - ruangan sama, ATAU  
         // - kelompok besar sama
         $nonBlokNonCSRBentrok = JadwalNonBlokNonCSR::with(['mataKuliah', 'dosen', 'ruangan'])
             ->where('tanggal', $data['tanggal'])
@@ -1721,13 +1721,13 @@ class JadwalNonBlokNonCSRController extends Controller
                 // Gunakan nested where untuk OR logic
                 $q->where(function ($subQ) use ($data) {
                     $hasAnyCondition = false;
-
+                    
                     // Cek dosen sama (jika dosen_id ada)
                     if (isset($data['dosen_id']) && $data['dosen_id']) {
                         $subQ->where('dosen_id', $data['dosen_id']);
                         $hasAnyCondition = true;
                     }
-
+                    
                     // Cek pembimbing sama dengan dosen di jadwal lain (untuk Seminar Proposal)
                     // Jika pembimbing_id ada, cek apakah ada jadwal lain yang memiliki dosen_id yang sama
                     if (isset($data['pembimbing_id']) && $data['pembimbing_id']) {
@@ -1742,7 +1742,7 @@ class JadwalNonBlokNonCSRController extends Controller
                             $hasAnyCondition = true;
                         }
                     }
-
+                    
                     // Cek komentator sama dengan dosen di jadwal lain (untuk Seminar Proposal)
                     // Jika komentator_ids ada, cek apakah ada jadwal lain yang memiliki dosen_id yang sama dengan salah satu komentator
                     if (isset($data['komentator_ids']) && !empty($data['komentator_ids'])) {
@@ -1761,7 +1761,7 @@ class JadwalNonBlokNonCSRController extends Controller
                             }
                         }
                     }
-
+                    
                     // Cek penguji sama dengan dosen di jadwal lain (untuk Sidang Skripsi)
                     // Jika penguji_ids ada, cek apakah ada jadwal lain yang memiliki dosen_id yang sama dengan salah satu penguji
                     if (isset($data['penguji_ids']) && !empty($data['penguji_ids'])) {
@@ -1782,7 +1782,7 @@ class JadwalNonBlokNonCSRController extends Controller
                             }
                         }
                     }
-
+                    
                     // Cek ruangan sama (jika ruangan_id ada)
                     if (isset($data['ruangan_id']) && $data['ruangan_id']) {
                         if ($hasAnyCondition) {
@@ -1792,7 +1792,7 @@ class JadwalNonBlokNonCSRController extends Controller
                             $hasAnyCondition = true;
                         }
                     }
-
+                    
                     // Cek kelompok besar sama (jika kelompok_besar_id ada)
                     if (isset($data['kelompok_besar_id']) && $data['kelompok_besar_id']) {
                         if ($hasAnyCondition) {
@@ -1802,7 +1802,7 @@ class JadwalNonBlokNonCSRController extends Controller
                             $hasAnyCondition = true;
                         }
                     }
-
+                    
                     // Cek mahasiswa sama (untuk Seminar Proposal dan Sidang Skripsi)
                     // Cek overlap NIM dengan menggunakan whereJsonContains untuk setiap NIM
                     if (isset($data['mahasiswa_nims']) && !empty($data['mahasiswa_nims']) && isset($data['jenis_baris']) && ($data['jenis_baris'] === 'seminar_proposal' || $data['jenis_baris'] === 'sidang_skripsi')) {
@@ -1815,30 +1815,30 @@ class JadwalNonBlokNonCSRController extends Controller
                             }
                         }
                     }
-
+                    
                     // Jika tidak ada kondisi sama sekali, tidak ada yang bisa bentrok
                     if (!$hasAnyCondition) {
                         $subQ->whereRaw('1 = 0'); // Always false
                     }
                 });
             });
-
+        
         if ($ignoreId) {
             $nonBlokNonCSRBentrok->where('id', '!=', $ignoreId);
         }
-
+        
         // Ambil semua jadwal yang bentrok untuk mendapatkan yang paling relevan
         $conflicts = $nonBlokNonCSRBentrok->get();
-
+        
         // Pastikan semua relasi ter-load
         if ($conflicts->count() > 0) {
             $conflicts->load(['mataKuliah', 'dosen', 'ruangan', 'pembimbing']);
         }
-
+        
         // Cari jadwal yang benar-benar bentrok (prioritaskan yang memiliki lebih banyak kondisi yang sama)
         $conflict = null;
         $maxMatches = 0;
-
+        
         foreach ($conflicts as $c) {
             $matches = 0;
             // Cek dosen sama
@@ -1854,8 +1854,8 @@ class JadwalNonBlokNonCSRController extends Controller
             // Cek komentator sama dengan dosen di jadwal lain (untuk Seminar Proposal)
             if (isset($data['komentator_ids']) && !empty($data['komentator_ids'])) {
                 foreach ($data['komentator_ids'] as $komentatorId) {
-                    if ($c->dosen_id == $komentatorId ||
-                        $c->pembimbing_id == $komentatorId ||
+                    if ($c->dosen_id == $komentatorId || 
+                        $c->pembimbing_id == $komentatorId || 
                         ($c->komentator_ids && in_array($komentatorId, $c->komentator_ids)) ||
                         ($c->penguji_ids && in_array($komentatorId, $c->penguji_ids))) {
                         $matches++;
@@ -1866,8 +1866,8 @@ class JadwalNonBlokNonCSRController extends Controller
             // Cek penguji sama dengan dosen di jadwal lain (untuk Sidang Skripsi)
             if (isset($data['penguji_ids']) && !empty($data['penguji_ids'])) {
                 foreach ($data['penguji_ids'] as $pengujiId) {
-                    if ($c->dosen_id == $pengujiId ||
-                        $c->pembimbing_id == $pengujiId ||
+                    if ($c->dosen_id == $pengujiId || 
+                        $c->pembimbing_id == $pengujiId || 
                         ($c->komentator_ids && in_array($pengujiId, $c->komentator_ids)) ||
                         ($c->penguji_ids && in_array($pengujiId, $c->penguji_ids))) {
                         $matches++;
@@ -1888,18 +1888,18 @@ class JadwalNonBlokNonCSRController extends Controller
                     $matches++;
                 }
             }
-
+            
             if ($matches > $maxMatches) {
                 $maxMatches = $matches;
                 $conflict = $c;
             }
         }
-
+        
         // Jika tidak ada yang match lebih dari 0, ambil yang pertama (fallback)
         if (!$conflict && $conflicts->count() > 0) {
             $conflict = $conflicts->first();
         }
-
+        
         if ($conflict) {
             // Pastikan relasi ter-load
             if (!$conflict->relationLoaded('mataKuliah')) {
@@ -1914,7 +1914,7 @@ class JadwalNonBlokNonCSRController extends Controller
             if (!$conflict->relationLoaded('pembimbing')) {
                 $conflict->load('pembimbing');
             }
-
+            
             // Pastikan data JSON ter-decode dengan benar
             if ($conflict->komentator_ids && is_string($conflict->komentator_ids)) {
                 $conflict->komentator_ids = json_decode($conflict->komentator_ids, true);
@@ -1925,7 +1925,7 @@ class JadwalNonBlokNonCSRController extends Controller
             if ($conflict->mahasiswa_nims && is_string($conflict->mahasiswa_nims)) {
                 $conflict->mahasiswa_nims = json_decode($conflict->mahasiswa_nims, true);
             }
-
+            
             // Pastikan mataKuliah tidak null
             if (!$conflict->mataKuliah) {
                 // Jika relasi tidak ter-load, ambil langsung dari database
@@ -1938,22 +1938,22 @@ class JadwalNonBlokNonCSRController extends Controller
             } else {
                 $mataKuliahBentrok = $conflict->mataKuliah->nama;
             }
-
+            
             // Tentukan jenis jadwal yang bentrok
             $jenisJadwalBentrok = $conflict->jenis_baris === 'materi' ? 'Materi Kuliah' : ($conflict->jenis_baris === 'agenda' ? 'Agenda Khusus' : ($conflict->jenis_baris === 'seminar_proposal' ? 'Seminar Proposal' : 'Sidang Skripsi'));
             $tanggalBentrok = $conflict->tanggal ? \Carbon\Carbon::parse($conflict->tanggal)->format('d/m/Y') : 'N/A';
             $jamBentrok = $conflict->jam_mulai && $conflict->jam_selesai ? "{$conflict->jam_mulai} - {$conflict->jam_selesai}" : 'N/A';
-
+            
             // Tentukan jenis bentrok berdasarkan kondisi yang sebenarnya menyebabkan bentrok
             $bentrokTypes = [];
             $conflictDetails = [];
-
+            
             // Cek apakah bentrok karena dosen sama
             if (isset($data['dosen_id']) && $data['dosen_id'] && $conflict->dosen_id == $data['dosen_id']) {
                 $bentrokTypes[] = 'dosen';
                 $conflictDetails[] = 'Dosen: ' . ($conflict->dosen ? $conflict->dosen->name : 'N/A');
             }
-
+            
             // Cek apakah bentrok karena pembimbing sama dengan dosen/pembimbing/komentator/penguji di jadwal lain (untuk Seminar Proposal dan Sidang Skripsi)
             if (isset($data['pembimbing_id']) && $data['pembimbing_id']) {
                 if ($conflict->dosen_id == $data['pembimbing_id']) {
@@ -1974,7 +1974,7 @@ class JadwalNonBlokNonCSRController extends Controller
                     $conflictDetails[] = 'Pembimbing: ' . ($pembimbing ? $pembimbing->name : 'N/A') . ' (bentrok dengan penguji di jadwal lain)';
                 }
             }
-
+            
             // Cek apakah bentrok karena komentator sama dengan dosen/pembimbing/komentator di jadwal lain (untuk Seminar Proposal)
             if (isset($data['komentator_ids']) && !empty($data['komentator_ids'])) {
                 $overlapKomentator = [];
@@ -1995,7 +1995,7 @@ class JadwalNonBlokNonCSRController extends Controller
                     $conflictDetails[] = 'Komentator: ' . implode(', ', $komentatorNames);
                 }
             }
-
+            
             // Cek apakah bentrok karena penguji sama dengan dosen/pembimbing/komentator/penguji di jadwal lain (untuk Sidang Skripsi)
             if (isset($data['penguji_ids']) && !empty($data['penguji_ids'])) {
                 $overlapPenguji = [];
@@ -2016,20 +2016,20 @@ class JadwalNonBlokNonCSRController extends Controller
                     $conflictDetails[] = 'Penguji: ' . implode(', ', $pengujiNames);
                 }
             }
-
+            
             // Cek apakah bentrok karena ruangan sama
             if (isset($data['ruangan_id']) && $data['ruangan_id'] && $conflict->ruangan_id == $data['ruangan_id']) {
                 $bentrokTypes[] = 'ruangan';
                 $conflictDetails[] = 'Ruangan: ' . ($conflict->ruangan ? $conflict->ruangan->nama : 'N/A');
             }
-
+            
             // Cek apakah bentrok karena kelompok besar sama
             if (isset($data['kelompok_besar_id']) && $data['kelompok_besar_id'] && $conflict->kelompok_besar_id == $data['kelompok_besar_id']) {
                 $bentrokTypes[] = 'kelompok besar';
                 // Untuk kelompok besar, tambahkan detail semester
                 $conflictDetails[] = 'Kelompok Besar: Semester ' . $conflict->kelompok_besar_id;
             }
-
+            
             // Cek apakah bentrok karena mahasiswa sama (untuk Seminar Proposal dan Sidang Skripsi)
             if (isset($data['mahasiswa_nims']) && !empty($data['mahasiswa_nims']) && isset($data['jenis_baris']) && ($data['jenis_baris'] === 'seminar_proposal' || $data['jenis_baris'] === 'sidang_skripsi') && $conflict->mahasiswa_nims) {
                 $overlapNims = array_intersect($data['mahasiswa_nims'], $conflict->mahasiswa_nims);
@@ -2040,7 +2040,7 @@ class JadwalNonBlokNonCSRController extends Controller
                         ->whereIn('nim', $overlapNims)
                         ->pluck('name', 'nim')
                         ->toArray();
-
+                    
                     // Buat array nama mahasiswa (jika nama tidak ditemukan, gunakan NIM sebagai fallback)
                     $mahasiswaNamesList = [];
                     foreach ($overlapNims as $nim) {
@@ -2050,14 +2050,14 @@ class JadwalNonBlokNonCSRController extends Controller
                             $mahasiswaNamesList[] = $nim; // Fallback jika nama tidak ditemukan
                         }
                     }
-
+                    
                     $conflictDetails[] = 'Mahasiswa: ' . implode(', ', $mahasiswaNamesList);
                 }
             }
-
+            
             $bentrokTypeStr = implode(', ', $bentrokTypes);
             $conflictDetailsStr = !empty($conflictDetails) ? ' (' . implode(', ', $conflictDetails) . ')' : '';
-
+            
             // Buat pesan error yang lebih informatif
             // Untuk Agenda Khusus, prioritaskan menampilkan agenda daripada nama mata kuliah
             // Untuk Materi Kuliah, prioritaskan menampilkan materi daripada nama mata kuliah
@@ -2274,7 +2274,7 @@ class JadwalNonBlokNonCSRController extends Controller
             $jamFormatted = $pblBentrok->jam_mulai && $pblBentrok->jam_selesai ? "{$pblBentrok->jam_mulai} - {$pblBentrok->jam_selesai}" : 'N/A';
             return "Jadwal bentrok dengan jadwal PBL \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted} (Ruangan: {$ruanganName})";
         }
-
+        
         if ($kuliahBesarBentrok) {
             $mataKuliahName = $kuliahBesarBentrok->mataKuliah ? $kuliahBesarBentrok->mataKuliah->nama : 'N/A';
             $ruanganName = $kuliahBesarBentrok->ruangan ? $kuliahBesarBentrok->ruangan->nama : 'N/A';
@@ -2282,7 +2282,7 @@ class JadwalNonBlokNonCSRController extends Controller
             $jamFormatted = $kuliahBesarBentrok->jam_mulai && $kuliahBesarBentrok->jam_selesai ? "{$kuliahBesarBentrok->jam_mulai} - {$kuliahBesarBentrok->jam_selesai}" : 'N/A';
             return "Jadwal bentrok dengan jadwal Kuliah Besar \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted} (Ruangan: {$ruanganName})";
         }
-
+        
         if ($agendaKhususBentrok) {
             $mataKuliahName = $agendaKhususBentrok->mataKuliah ? $agendaKhususBentrok->mataKuliah->nama : 'N/A';
             $ruanganName = $agendaKhususBentrok->ruangan ? $agendaKhususBentrok->ruangan->nama : 'N/A';
@@ -2290,7 +2290,7 @@ class JadwalNonBlokNonCSRController extends Controller
             $jamFormatted = $agendaKhususBentrok->jam_mulai && $agendaKhususBentrok->jam_selesai ? "{$agendaKhususBentrok->jam_mulai} - {$agendaKhususBentrok->jam_selesai}" : 'N/A';
             return "Jadwal bentrok dengan jadwal Agenda Khusus \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted} (Ruangan: {$ruanganName})";
         }
-
+        
         if ($praktikumBentrok) {
             $mataKuliahName = $praktikumBentrok->mataKuliah ? $praktikumBentrok->mataKuliah->nama : 'N/A';
             $ruanganName = $praktikumBentrok->ruangan ? $praktikumBentrok->ruangan->nama : 'N/A';
@@ -2298,7 +2298,7 @@ class JadwalNonBlokNonCSRController extends Controller
             $jamFormatted = $praktikumBentrok->jam_mulai && $praktikumBentrok->jam_selesai ? "{$praktikumBentrok->jam_mulai} - {$praktikumBentrok->jam_selesai}" : 'N/A';
             return "Jadwal bentrok dengan jadwal Praktikum \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted} (Ruangan: {$ruanganName})";
         }
-
+        
         if ($jurnalBentrok) {
             $mataKuliahName = $jurnalBentrok->mataKuliah ? $jurnalBentrok->mataKuliah->nama : 'N/A';
             $ruanganName = $jurnalBentrok->ruangan ? $jurnalBentrok->ruangan->nama : 'N/A';
@@ -2306,7 +2306,7 @@ class JadwalNonBlokNonCSRController extends Controller
             $jamFormatted = $jurnalBentrok->jam_mulai && $jurnalBentrok->jam_selesai ? "{$jurnalBentrok->jam_mulai} - {$jurnalBentrok->jam_selesai}" : 'N/A';
             return "Jadwal bentrok dengan jadwal Jurnal Reading \"{$mataKuliahName}\" pada {$tanggalFormatted} jam {$jamFormatted} (Ruangan: {$ruanganName})";
         }
-
+        
         if ($csrBentrok) {
             $mataKuliahName = $csrBentrok->mataKuliah ? $csrBentrok->mataKuliah->nama : 'N/A';
             $ruanganName = $csrBentrok->ruangan ? $csrBentrok->ruangan->nama : 'N/A';
@@ -2369,7 +2369,7 @@ class JadwalNonBlokNonCSRController extends Controller
             if (!$agendaKhususBentrok->relationLoaded('mataKuliah')) {
                 $agendaKhususBentrok->load('mataKuliah');
             }
-
+            
             // Pastikan mataKuliah tidak null
             if (!$agendaKhususBentrok->mataKuliah) {
                 // Jika relasi tidak ter-load, ambil langsung dari database
@@ -2382,11 +2382,11 @@ class JadwalNonBlokNonCSRController extends Controller
             } else {
                 $mataKuliahName = $agendaKhususBentrok->mataKuliah->nama;
             }
-
+            
             $tanggalFormatted = $agendaKhususBentrok->tanggal ? \Carbon\Carbon::parse($agendaKhususBentrok->tanggal)->format('d/m/Y') : 'N/A';
             $jamFormatted = $agendaKhususBentrok->jam_mulai && $agendaKhususBentrok->jam_selesai ? "{$agendaKhususBentrok->jam_mulai} - {$agendaKhususBentrok->jam_selesai}" : 'N/A';
             $agendaInfo = $agendaKhususBentrok->agenda ? " - {$agendaKhususBentrok->agenda}" : '';
-
+            
             return "Jadwal bentrok dengan jadwal Agenda Khusus \"{$mataKuliahName}\"{$agendaInfo} pada {$tanggalFormatted} jam {$jamFormatted}. Konflik pada: kelompok besar (Kelompok Besar: Semester {$data['kelompok_besar_id']})";
         }
 
@@ -2542,8 +2542,8 @@ class JadwalNonBlokNonCSRController extends Controller
         if ($praktikumBentrok) {
             $mataKuliahName = $praktikumBentrok->mataKuliah ? $praktikumBentrok->mataKuliah->nama : 'N/A';
             // Karena relasi dosen adalah many-to-many, ambil dosen pertama yang terlibat
-            $dosenName = $praktikumBentrok->dosen && $praktikumBentrok->dosen->isNotEmpty()
-                ? $praktikumBentrok->dosen->first()->name
+            $dosenName = $praktikumBentrok->dosen && $praktikumBentrok->dosen->isNotEmpty() 
+                ? $praktikumBentrok->dosen->first()->name 
                 : 'N/A';
             $tanggalFormatted = $praktikumBentrok->tanggal ? \Carbon\Carbon::parse($praktikumBentrok->tanggal)->format('d/m/Y') : 'N/A';
             $jamFormatted = $praktikumBentrok->jam_mulai && $praktikumBentrok->jam_selesai ? "{$praktikumBentrok->jam_mulai} - {$praktikumBentrok->jam_selesai}" : 'N/A';
@@ -2674,7 +2674,7 @@ class JadwalNonBlokNonCSRController extends Controller
         $ruangan = Cache::remember($cacheKey, 3600, function () use ($ruanganId) {
             return \App\Models\Ruangan::find($ruanganId, ['id', 'nama', 'kapasitas']);
         });
-
+        
         if (!$ruangan) {
             return "Data ruangan tidak ditemukan";
         }
@@ -2685,7 +2685,7 @@ class JadwalNonBlokNonCSRController extends Controller
         $jumlahMahasiswa = Cache::remember($cacheKeyMahasiswa, 1800, function () use ($kelompokBesarId) {
             return KelompokBesar::where('semester', $kelompokBesarId)->count();
         });
-
+        
         // Total peserta = jumlah mahasiswa + (1 dosen jika includeDosen = true)
         $totalPeserta = $jumlahMahasiswa + ($includeDosen ? 1 : 0);
 
@@ -2707,7 +2707,7 @@ class JadwalNonBlokNonCSRController extends Controller
      * - dosen sama, ATAU
      * - ruangan sama, ATAU
      * - kelompok besar sama
-     *
+     * 
      * @return array|null Array dengan informasi bentrok [dosen, ruangan, kelompok_besar] atau null jika tidak bentrok
      */
     private function isDataBentrok($data1, $data2): ?array
@@ -2744,7 +2744,7 @@ class JadwalNonBlokNonCSRController extends Controller
 
         // Cek bentrok pembimbing dan komentator (untuk Seminar Proposal)
         $pembimbingKomentatorBentrok = false;
-
+        
         // Cek pembimbing data1 dengan pembimbing/komentator/dosen data2
         if (isset($data1['pembimbing_id']) && $data1['pembimbing_id']) {
             if (isset($data2['pembimbing_id']) && $data2['pembimbing_id'] && $data1['pembimbing_id'] == $data2['pembimbing_id']) {
@@ -2760,7 +2760,7 @@ class JadwalNonBlokNonCSRController extends Controller
                 $pembimbingKomentatorBentrok = true;
             }
         }
-
+        
         // Cek komentator data1 dengan pembimbing/komentator/dosen data2
         if (isset($data1['komentator_ids']) && is_array($data1['komentator_ids']) && !empty($data1['komentator_ids'])) {
             foreach ($data1['komentator_ids'] as $komentatorId1) {
@@ -2782,10 +2782,10 @@ class JadwalNonBlokNonCSRController extends Controller
                 }
             }
         }
-
+        
         // Cek bentrok pembimbing dan penguji (untuk Sidang Skripsi)
         $pembimbingPengujiBentrok = false;
-
+        
         // Cek pembimbing data1 dengan pembimbing/penguji/dosen data2
         if (isset($data1['pembimbing_id']) && $data1['pembimbing_id']) {
             if (isset($data2['pembimbing_id']) && $data2['pembimbing_id'] && $data1['pembimbing_id'] == $data2['pembimbing_id']) {
@@ -2801,7 +2801,7 @@ class JadwalNonBlokNonCSRController extends Controller
                 $pembimbingPengujiBentrok = true;
             }
         }
-
+        
         // Cek penguji data1 dengan pembimbing/penguji/dosen data2
         if (isset($data1['penguji_ids']) && is_array($data1['penguji_ids']) && !empty($data1['penguji_ids'])) {
             foreach ($data1['penguji_ids'] as $pengujiId1) {
@@ -2823,7 +2823,7 @@ class JadwalNonBlokNonCSRController extends Controller
                 }
             }
         }
-
+        
         // Cek pembimbing data2 dengan komentator/dosen data1 (untuk kasus sebaliknya)
         if (isset($data2['pembimbing_id']) && $data2['pembimbing_id']) {
             if (isset($data1['komentator_ids']) && is_array($data1['komentator_ids']) && in_array($data2['pembimbing_id'], $data1['komentator_ids'])) {
@@ -2836,7 +2836,7 @@ class JadwalNonBlokNonCSRController extends Controller
 
         // Cek bentrok mahasiswa (untuk Seminar Proposal dan Sidang Skripsi)
         $mahasiswaBentrok = false;
-        if (isset($data1['mahasiswa_nims']) && isset($data2['mahasiswa_nims']) &&
+        if (isset($data1['mahasiswa_nims']) && isset($data2['mahasiswa_nims']) && 
             is_array($data1['mahasiswa_nims']) && is_array($data2['mahasiswa_nims']) &&
             !empty($data1['mahasiswa_nims']) && !empty($data2['mahasiswa_nims'])) {
             // Cek apakah ada mahasiswa yang sama di kedua data
@@ -3479,7 +3479,7 @@ class JadwalNonBlokNonCSRController extends Controller
         }
 
         $mahasiswaNims = $data['mahasiswa_nims'];
-
+        
         // Ambil mahasiswa_id dari NIM
         $mahasiswaIds = User::whereIn('nim', $mahasiswaNims)
             ->where('role', 'mahasiswa')
@@ -3525,7 +3525,7 @@ class JadwalNonBlokNonCSRController extends Controller
                             return $kb->mahasiswa ? $kb->mahasiswa->name : 'N/A';
                         })
                         ->toArray();
-
+                    
                     $mataKuliahName = $jadwalKuliahBesar->mataKuliah ? $jadwalKuliahBesar->mataKuliah->nama : 'N/A';
                     $tanggalFormatted = $jadwalKuliahBesar->tanggal ? \Carbon\Carbon::parse($jadwalKuliahBesar->tanggal)->format('d/m/Y') : 'N/A';
                     $jamFormatted = $jadwalKuliahBesar->jam_mulai && $jadwalKuliahBesar->jam_selesai ? "{$jadwalKuliahBesar->jam_mulai} - {$jadwalKuliahBesar->jam_selesai}" : 'N/A';
@@ -3558,7 +3558,7 @@ class JadwalNonBlokNonCSRController extends Controller
                             return $kb->mahasiswa ? $kb->mahasiswa->name : 'N/A';
                         })
                         ->toArray();
-
+                    
                     $mataKuliahName = $jadwalAgendaKhusus->mataKuliah ? $jadwalAgendaKhusus->mataKuliah->nama : 'N/A';
                     $agendaName = $jadwalAgendaKhusus->agenda ? $jadwalAgendaKhusus->agenda : 'N/A';
                     $tanggalFormatted = $jadwalAgendaKhusus->tanggal ? \Carbon\Carbon::parse($jadwalAgendaKhusus->tanggal)->format('d/m/Y') : 'N/A';
@@ -3593,7 +3593,7 @@ class JadwalNonBlokNonCSRController extends Controller
                             return $kb->mahasiswa ? $kb->mahasiswa->name : 'N/A';
                         })
                         ->toArray();
-
+                    
                     $mataKuliahName = $jadwalNonBlokNonCSR->mataKuliah ? $jadwalNonBlokNonCSR->mataKuliah->nama : 'N/A';
                     $jenisJadwal = $jadwalNonBlokNonCSR->jenis_baris === 'materi' ? 'Materi Kuliah' : 'Agenda Khusus';
                     $materiOrAgenda = $jadwalNonBlokNonCSR->jenis_baris === 'materi' ? ($jadwalNonBlokNonCSR->materi ?: 'N/A') : ($jadwalNonBlokNonCSR->agenda ?: 'N/A');
@@ -3637,7 +3637,7 @@ class JadwalNonBlokNonCSRController extends Controller
                     })
                     ->unique()
                     ->toArray();
-
+                
                 $mataKuliahName = $jadwalPBL->mataKuliah ? $jadwalPBL->mataKuliah->nama : 'N/A';
                 $tanggalFormatted = $jadwalPBL->tanggal ? \Carbon\Carbon::parse($jadwalPBL->tanggal)->format('d/m/Y') : 'N/A';
                 $jamFormatted = $jadwalPBL->jam_mulai && $jadwalPBL->jam_selesai ? "{$jadwalPBL->jam_mulai} - {$jadwalPBL->jam_selesai}" : 'N/A';
@@ -3671,7 +3671,7 @@ class JadwalNonBlokNonCSRController extends Controller
                     })
                     ->unique()
                     ->toArray();
-
+                
                 $mataKuliahName = $jadwalJurnal->mataKuliah ? $jadwalJurnal->mataKuliah->nama : 'N/A';
                 $tanggalFormatted = $jadwalJurnal->tanggal ? \Carbon\Carbon::parse($jadwalJurnal->tanggal)->format('d/m/Y') : 'N/A';
                 $jamFormatted = $jadwalJurnal->jam_mulai && $jadwalJurnal->jam_selesai ? "{$jadwalJurnal->jam_mulai} - {$jadwalJurnal->jam_selesai}" : 'N/A';
@@ -3713,7 +3713,7 @@ class JadwalNonBlokNonCSRController extends Controller
                     }
                 }
             }
-
+            
             $mataKuliahName = $jadwalCSR->mataKuliah ? $jadwalCSR->mataKuliah->nama : 'N/A';
             $tanggalFormatted = $jadwalCSR->tanggal ? \Carbon\Carbon::parse($jadwalCSR->tanggal)->format('d/m/Y') : 'N/A';
             $jamFormatted = $jadwalCSR->jam_mulai && $jadwalCSR->jam_selesai ? "{$jadwalCSR->jam_mulai} - {$jadwalCSR->jam_selesai}" : 'N/A';

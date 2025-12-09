@@ -131,6 +131,9 @@ const DosenIKD: React.FC = () => {
   // const deletedFileIdsRef = useRef<Set<number>>(new Set()); // Not used anymore, using deletedKeysRef instead
   const deletedKeysRef = useRef<Set<string>>(new Set()); // Key: `${user_id}_${ikd_pedoman_id}`
 
+  // Ref untuk track initial load
+  const isInitialLoadRef = useRef(true);
+
   // Load deleted keys dari backend saat mount
   const loadDeletedKeys = useCallback(async () => {
     try {
@@ -352,15 +355,42 @@ const DosenIKD: React.FC = () => {
   useEffect(() => {
     const fetchDosen = async () => {
       try {
-        setLoading(true);
+        // Cek apakah ada cached data di sessionStorage
+        const cacheKey = `dosen_ikd_${user?.id || "all"}_${
+          isDosen ? "dosen" : isVerifikator ? "verifikator" : "admin"
+        }`;
+        const cachedData = sessionStorage.getItem(cacheKey);
+
+        // Jika ada cached data, gunakan itu terlebih dahulu untuk menghindari flash of loading
+        if (cachedData && !isInitialLoadRef.current) {
+          try {
+            const parsed = JSON.parse(cachedData);
+            if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+              setDosenList(parsed);
+              setFilteredDosen(parsed);
+              setLoading(false);
+              // Fetch di background untuk update data
+            }
+          } catch {
+            // Ignore parse error
+          }
+        }
+
+        // Hanya set loading ke true jika ini initial load atau data belum ada
+        if (isInitialLoadRef.current || dosenList.length === 0) {
+          setLoading(true);
+        }
 
         // Jika dosen, hanya tampilkan dirinya sendiri
         // Jika verifikator atau super_admin, tampilkan semua dosen
         if (isDosen && user?.id) {
           const res = await api.get(`/users/${user.id}`);
           if (res.data) {
-            setDosenList([res.data]);
-            setFilteredDosen([res.data]);
+            const data = [res.data];
+            setDosenList(data);
+            setFilteredDosen(data);
+            // Cache data ke sessionStorage
+            sessionStorage.setItem(cacheKey, JSON.stringify(data));
           }
         } else if (isVerifikator || isSuperAdmin) {
           const res = await api.get("/users?role=dosen");
@@ -373,6 +403,8 @@ const DosenIKD: React.FC = () => {
           }
           setDosenList(data);
           setFilteredDosen(data);
+          // Cache data ke sessionStorage
+          sessionStorage.setItem(cacheKey, JSON.stringify(data));
         } else {
           // Fallback: jika bukan dosen atau verifikator, tidak ada data
           setDosenList([]);
@@ -389,12 +421,14 @@ const DosenIKD: React.FC = () => {
         setFilteredDosen([]);
       } finally {
         setLoading(false);
+        isInitialLoadRef.current = false;
       }
     };
 
     fetchDosen();
     fetchPedomanPoin();
     loadDeletedKeys();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     fetchPedomanPoin,
     loadDeletedKeys,
@@ -675,15 +709,24 @@ const DosenIKD: React.FC = () => {
 
   // Get indicator untuk modal (dengan logic untuk mengambil parent PALING DEKAT)
   const getIndicator = (pedoman: IKDPedoman): string => {
-    // Jika item adalah nomor utama (misal "5") dan punya isi, return "-"
+    // Ambil nomor dari kegiatan (parse angka di awal, bisa dengan titik atau huruf)
     const match = pedoman.kegiatan.match(/^(\d+(?:\.\d+)*(?:\.\w+)?|\d+\.\w+)/);
-    if (match) {
-      const currentNumber = match[1];
-      // Jika hanya angka saja (tidak ada titik atau huruf), berarti nomor utama
-      if (!currentNumber.includes(".") && !/[a-z]/i.test(currentNumber)) {
-        if (hasContent(pedoman)) {
-          return "-";
-        }
+    if (!match) return "-";
+
+    const currentNumber = match[1]; // Misal: "1.1.a" atau "2.1" atau "2.a" atau "1"
+
+    // Cek apakah item punya isi
+    const itemHasContent = hasContent(pedoman);
+
+    // Jika item PUNYA isi → cek apakah ini nomor utama
+    if (itemHasContent) {
+      // Cek dulu: jika item ini adalah nomor utama (tidak ada titik, tidak ada huruf)
+      // Misal: "5", "4", "1" (bukan "1.1", "1.1.a", "2.a")
+      const isMainNumber =
+        !currentNumber.includes(".") && !/[a-z]$/i.test(currentNumber);
+      if (isMainNumber) {
+        // Jika item utama punya isi, indicators = "-"
+        return "-";
       }
     }
 

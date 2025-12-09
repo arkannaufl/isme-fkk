@@ -2692,11 +2692,11 @@ class NotificationController extends Controller
                 $dosen = $dosenList->get($dosenId);
                 if (!$dosen) continue;
                 
-                // Check if dosen has valid email
-                $hasValidEmail = !empty($dosen->email) && filter_var($dosen->email, FILTER_VALIDATE_EMAIL);
+                    // Check if dosen has valid email
+                    $hasValidEmail = !empty($dosen->email) && filter_var($dosen->email, FILTER_VALIDATE_EMAIL);
 
-                // Check if dosen has valid WhatsApp phone (verification)
-                $hasValidWhatsApp = !empty($dosen->whatsapp_phone) && preg_match('/^62\d+$/', $dosen->whatsapp_phone);
+                    // Check if dosen has valid WhatsApp phone (verification)
+                    $hasValidWhatsApp = !empty($dosen->whatsapp_phone) && preg_match('/^62\d+$/', $dosen->whatsapp_phone);
 
                 // Tentukan jenis jadwal untuk pesan
                 $jenisJadwalLabel = 'Non Blok Non CSR';
@@ -2718,58 +2718,58 @@ class NotificationController extends Controller
                     $ruanganInfo = "di ruangan {$ruanganNama}";
                 }
 
-                // Create reminder notification based on type
-                if ($reminderType === 'unconfirmed') {
+                    // Create reminder notification based on type
+                    if ($reminderType === 'unconfirmed') {
                     $title = "Pengingat: Konfirmasi Ketersediaan {$jenisJadwalLabel}";
                     $message = "Pengingat: Silakan konfirmasi ketersediaan Anda untuk jadwal {$jenisJadwalLabel} {$jadwal->mataKuliah->nama} pada tanggal " .
-                        date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
-                        str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                            date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                            str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
                         " {$ruanganInfo}.";
-                } else { // upcoming
+                    } else { // upcoming
                     $title = "Pengingat: Persiapan {$jenisJadwalLabel}";
                     $message = "Pengingat: Anda memiliki jadwal {$jenisJadwalLabel} {$jadwal->mataKuliah->nama} pada tanggal " .
-                        date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
-                        str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
+                            date('d/m/Y', strtotime($jadwal->tanggal)) . " jam " .
+                            str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai) .
                         " {$ruanganInfo}. Silakan persiapkan diri.";
-                }
+                    }
 
-                Notification::create([
-                    'user_id' => $dosen->id,
-                    'title' => $title,
-                    'message' => $message,
-                    'type' => 'warning',
-                    'is_read' => false,
-                    'data' => [
-                        'jadwal_id' => $jadwal->id,
-                        'jadwal_type' => 'non_blok_non_csr',
-                        'mata_kuliah' => $jadwal->mataKuliah->nama,
-                        'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
-                        'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
+                    Notification::create([
+                        'user_id' => $dosen->id,
+                        'title' => $title,
+                        'message' => $message,
+                        'type' => 'warning',
+                        'is_read' => false,
+                        'data' => [
+                            'jadwal_id' => $jadwal->id,
+                            'jadwal_type' => 'non_blok_non_csr',
+                            'mata_kuliah' => $jadwal->mataKuliah->nama,
+                            'tanggal' => date('d/m/Y', strtotime($jadwal->tanggal)),
+                            'waktu' => str_replace(':', '.', $jadwal->jam_mulai) . "-" . str_replace(':', '.', $jadwal->jam_selesai),
                         'ruangan' => $ruanganNama,
                         'ruangan_info' => $ruanganInfo,
-                        'reminder' => true,
-                        'reminder_type' => $reminderType
-                    ]
-                ]);
+                            'reminder' => true,
+                            'reminder_type' => $reminderType
+                        ]
+                    ]);
 
-                // Send email reminder if dosen has valid email
-                if ($hasValidEmail) {
+                    // Send email reminder if dosen has valid email
+                    if ($hasValidEmail) {
                     $this->sendEmailReminderConsistent($dosen, $jenisJadwalLabel, $jadwal, $reminderType);
-                }
+                    }
 
-                // Prepare WhatsApp message if dosen has valid WhatsApp phone
-                if ($hasValidWhatsApp) {
-                    // Send text message (both unconfirmed and upcoming use same approach)
+                    // Prepare WhatsApp message if dosen has valid WhatsApp phone
+                    if ($hasValidWhatsApp) {
+                        // Send text message (both unconfirmed and upcoming use same approach)
                     $whatsappMessage = $this->buildWhatsAppMessageContent($dosen, $jenisJadwalLabel, $jadwal, $reminderType);
-                    $whatsappMessages[] = [
-                        'phone' => $dosen->whatsapp_phone,
-                        'message' => $whatsappMessage,
-                        'isGroup' => 'false',
-                        'ref_id' => "reminder_non_blok_non_csr_{$jadwal->id}_{$dosen->id}_{$reminderType}"
-                    ];
-                }
+                        $whatsappMessages[] = [
+                            'phone' => $dosen->whatsapp_phone,
+                            'message' => $whatsappMessage,
+                            'isGroup' => 'false',
+                            'ref_id' => "reminder_non_blok_non_csr_{$jadwal->id}_{$dosen->id}_{$reminderType}"
+                        ];
+                    }
 
-                $reminderCount++;
+                    $reminderCount++;
             }
         }
 
