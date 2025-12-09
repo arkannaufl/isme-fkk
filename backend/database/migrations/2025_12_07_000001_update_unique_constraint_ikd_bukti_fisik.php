@@ -11,12 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('ikd_bukti_fisik', function (Blueprint $table) {
-            // Drop old unique constraint
-            $table->dropUnique(['user_id', 'ikd_pedoman_id']);
-            // Add new unique constraint with unit
-            $table->unique(['user_id', 'ikd_pedoman_id', 'unit'], 'ikd_bukti_fisik_user_pedoman_unit_unique');
-        });
+        // Pastikan kolom unit sudah ada (dari migration sebelumnya)
+        if (Schema::hasColumn('ikd_bukti_fisik', 'unit')) {
+            Schema::table('ikd_bukti_fisik', function (Blueprint $table) {
+                // Drop old unique constraint
+                // Laravel akan generate nama constraint: ikd_bukti_fisik_user_id_ikd_pedoman_id_unique
+                $table->dropUnique(['user_id', 'ikd_pedoman_id']);
+                // Add new unique constraint with unit
+                $table->unique(['user_id', 'ikd_pedoman_id', 'unit'], 'ikd_bukti_fisik_user_pedoman_unit_unique');
+            });
+        }
     }
 
     /**

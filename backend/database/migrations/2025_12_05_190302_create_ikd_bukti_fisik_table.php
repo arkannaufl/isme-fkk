@@ -23,8 +23,8 @@ return new class extends Migration
 
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             $table->foreign('ikd_pedoman_id')->references('id')->on('ikd_pedoman')->onDelete('cascade');
-            $table->unique(['user_id', 'ikd_pedoman_id', 'unit']); // One file per user per kegiatan per unit
-            $table->index(['user_id', 'ikd_pedoman_id', 'unit']);
+            // Unique constraint dengan unit akan ditambahkan di migration berikutnya setelah kolom unit ditambahkan
+            $table->unique(['user_id', 'ikd_pedoman_id']); // Temporary unique constraint, akan diupdate di migration berikutnya
         });
     }
 
