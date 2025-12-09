@@ -38,8 +38,20 @@ class UserController extends Controller
             $query->where('semester', $request->semester);
         }
         if ($request->has('keahlian')) {
-            $keahlian = $request->keahlian;
-            $query->whereJsonContains('keahlian', $keahlian);
+            $keahlian = trim($request->keahlian);
+            $keahlianLower = strtolower($keahlian);
+            
+            // Case-insensitive search for keahlian
+            // Use multiple approaches to handle different data formats and case variations
+            $query->where(function ($q) use ($keahlian, $keahlianLower) {
+                // 1. Exact match (case-sensitive) - for exact matches
+                $q->whereJsonContains('keahlian', $keahlian)
+                    // 2. Case-insensitive JSON search - check if any array element matches (case-insensitive)
+                    ->orWhereRaw('LOWER(JSON_EXTRACT(keahlian, "$")) LIKE ?', ['%"' . $keahlianLower . '"%'])
+                    // 3. Fallback: LIKE search on JSON string representation (handles edge cases)
+                    ->orWhereRaw('LOWER(CAST(keahlian AS CHAR)) LIKE ?', ['%"' . $keahlianLower . '"%'])
+                    ->orWhereRaw('LOWER(CAST(keahlian AS CHAR)) LIKE ?', ['%' . $keahlianLower . '%']);
+            });
         }
         
         // Optimize: Gunakan pagination untuk menghindari load semua data sekaligus
@@ -252,15 +264,15 @@ class UserController extends Controller
             foreach ($request->dosen_peran as $peran) {
                 // Pastikan hanya koordinator dan tim_blok yang disimpan
                 if (in_array($peran['tipe_peran'] ?? '', ['koordinator', 'tim_blok'])) {
-                    DosenPeran::create([
-                        'user_id' => $user->id,
-                        'mata_kuliah_kode' => $peran['mata_kuliah_kode'],
-                        'peran_kurikulum' => $peran['peran_kurikulum'],
-                        'blok' => $peran['blok'] ?? null,
-                        'semester' => $peran['semester'] ?? null,
-                        'tipe_peran' => $peran['tipe_peran'],
-                    ]);
-                }
+                DosenPeran::create([
+                    'user_id' => $user->id,
+                    'mata_kuliah_kode' => $peran['mata_kuliah_kode'],
+                    'peran_kurikulum' => $peran['peran_kurikulum'],
+                    'blok' => $peran['blok'] ?? null,
+                    'semester' => $peran['semester'] ?? null,
+                    'tipe_peran' => $peran['tipe_peran'],
+                ]);
+            }
             }
         } else {
             // Jika dosen_peran tidak ada di request (selectedPeranType === "none"),

@@ -879,7 +879,7 @@ export default function DosenAbsensiPraktikumPage() {
             "Kelas praktikum tidak ditemukan. Pastikan kelas praktikum sudah dibuat dan sesuai dengan jadwal praktikum."
           );
         } else {
-          setError(`Gagal memuat data mahasiswa: ${errorMessage}`);
+        setError(`Gagal memuat data mahasiswa: ${errorMessage}`);
         }
         setMahasiswaList([]);
       }

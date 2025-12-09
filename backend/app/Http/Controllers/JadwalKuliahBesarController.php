@@ -2531,20 +2531,45 @@ class JadwalKuliahBesarController extends Controller
                 if (!$isSemesterAntara) {
                     $semester = null;
 
-                    // Ambil semester dari kelompok_besar_id (menyimpan semester langsung)
+                    // Ambil semester dari kelompok_besar_id
+                    // kelompok_besar_id bisa menyimpan:
+                    // 1. Semester langsung (1, 2, 3, dst.) - format lama
+                    // 2. ID database dari tabel kelompok_besar - format baru
                     if ($jadwal->kelompok_besar_id) {
-                        $semester = $jadwal->kelompok_besar_id;
+                        // Cek apakah ini ID database atau semester
+                        // Coba cari di database dulu
+                        $kelompokBesarModel = KelompokBesar::find($jadwal->kelompok_besar_id);
+                        if ($kelompokBesarModel) {
+                            // Ini adalah ID database, ambil semester dari kelompok besar
+                            $semester = $kelompokBesarModel->semester;
+                            Log::info("Kuliah Besar getMahasiswa - Found kelompok besar by ID: {$jadwal->kelompok_besar_id}, semester: {$semester}");
+                        } else {
+                            // Tidak ditemukan di database, berarti ini adalah semester langsung
+                            $semester = $jadwal->kelompok_besar_id;
+                            Log::info("Kuliah Besar getMahasiswa - Using kelompok_besar_id as semester directly: {$semester}");
+                        }
                     } elseif ($jadwal->mataKuliah && $jadwal->mataKuliah->semester) {
                         // Fallback: ambil dari mata kuliah
                         $semester = $jadwal->mataKuliah->semester;
+                        Log::info("Kuliah Besar getMahasiswa - Using mata kuliah semester as fallback: {$semester}");
                     }
 
                     if ($semester && $semester !== 'Antara') {
+                        // Normalize semester to integer for comparison
+                        $semesterInt = is_numeric($semester) ? (int)$semester : $semester;
+                        
                         // Get mahasiswa dari kelompok besar berdasarkan semester
-                        $kelompokBesar = KelompokBesar::where('semester', $semester)->get();
+                        // Handle both string and integer semester
+                        $kelompokBesar = KelompokBesar::where(function($q) use ($semesterInt, $semester) {
+                            $q->where('semester', $semesterInt)
+                              ->orWhere('semester', $semester);
+                        })->get();
+                        
+                        Log::info("Kuliah Besar getMahasiswa - Found {$kelompokBesar->count()} kelompok besar records for semester: {$semester} (normalized: {$semesterInt})");
 
                         if ($kelompokBesar->isNotEmpty()) {
                             $mahasiswaIds = $kelompokBesar->pluck('mahasiswa_id')->toArray();
+                            Log::info("Kuliah Besar getMahasiswa - Found " . count($mahasiswaIds) . " mahasiswa IDs");
 
                             $mahasiswaList = User::where('role', 'mahasiswa')
                                 ->whereIn('id', $mahasiswaIds)
@@ -2556,7 +2581,13 @@ class JadwalKuliahBesarController extends Controller
                                         'nama' => $user->name
                                     ];
                                 });
+                            
+                            Log::info("Kuliah Besar getMahasiswa - Returning " . count($mahasiswaList) . " mahasiswa");
+                        } else {
+                            Log::warning("Kuliah Besar getMahasiswa - No kelompok besar found for semester: {$semester} (normalized: {$semesterInt})");
                         }
+                    } else {
+                        Log::warning("Kuliah Besar getMahasiswa - Invalid semester: " . ($semester ?? 'null') . ", jadwal_id: {$jadwal->id}, kelompok_besar_id: " . ($jadwal->kelompok_besar_id ?? 'null'));
                     }
                 }
             }

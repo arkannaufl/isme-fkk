@@ -273,6 +273,32 @@ export default function DashboardMahasiswa() {
   const [showPraktikumPengampuModal, setShowPraktikumPengampuModal] = useState(false);
   const [selectedPraktikumPengampu, setSelectedPraktikumPengampu] = useState<any>(null);
 
+  // Email verification states
+  const [emailStatus, setEmailStatus] = useState<{
+    isEmailValid: boolean;
+    needsEmailUpdate: boolean;
+    email: string;
+  } | null>(null);
+  const [showEmailWarning, setShowEmailWarning] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [updatingEmail, setUpdatingEmail] = useState(false);
+
+  // WhatsApp contact states
+  const [showWhatsAppWarning, setShowWhatsAppWarning] = useState(false);
+  const [whatsAppData, setWhatsAppData] = useState({
+    name: "",
+    whatsapp_phone: "",
+    whatsapp_email: "",
+    whatsapp_address: "",
+    whatsapp_birth_day: "",
+  });
+  const [updatingWhatsApp, setUpdatingWhatsApp] = useState(false);
+
+  // Success/Error modal states
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
   // Guard role mahasiswa
   useEffect(() => {
     const user = getUser();
@@ -288,6 +314,161 @@ export default function DashboardMahasiswa() {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Check email status on component mount
+  useEffect(() => {
+    const checkEmailStatus = async () => {
+      try {
+        const userData = getUser();
+        if (!userData) return;
+
+        const response = await api.get(`/users/${userData.id}/email-status`);
+        if (response.data.success) {
+          const { is_email_valid, needs_email_update, email, email_verified } =
+            response.data.data;
+          const newEmailStatus = {
+            isEmailValid: is_email_valid,
+            needsEmailUpdate: needs_email_update || !email_verified,
+            email: email || "",
+          };
+          setEmailStatus(newEmailStatus);
+          setShowEmailWarning(needs_email_update || !email_verified);
+          setNewEmail(email || "");
+
+          // Check WhatsApp contact status
+          const checkWhatsAppStatus = () => {
+            const userData = getUser();
+            if (!userData) return;
+
+            // Hanya phone dan name yang required (sesuai API Wablas)
+            const needsWhatsApp =
+              !userData.whatsapp_phone ||
+              !userData.whatsapp_phone.match(/^62\d+$/);
+
+            setShowWhatsAppWarning(needsWhatsApp);
+            // Update WhatsApp data dengan email dari emailStatus jika ada, dan pre-fill nomor dari telp jika ada
+            const prefillPhone =
+              userData.whatsapp_phone ||
+              (userData.telp
+                ? userData.telp.startsWith("62")
+                  ? userData.telp
+                  : userData.telp.replace(/^0/, "62")
+                : "");
+
+            // Pastikan email untuk Wablas selalu ambil dari email verification yang sudah ada (jika sudah verified)
+            const wablasEmail =
+              newEmailStatus.email || // Prioritas 1: Email verification yang sudah verified
+              userData.whatsapp_email || // Prioritas 2: WhatsApp email yang sudah ada
+              userData.email || // Prioritas 3: Email user
+              "";
+
+            setWhatsAppData({
+              name: userData.name || "",
+              whatsapp_phone: prefillPhone,
+              whatsapp_email: wablasEmail,
+              whatsapp_address: userData.whatsapp_address || "",
+              whatsapp_birth_day: userData.whatsapp_birth_day || "",
+            });
+          };
+
+          checkWhatsAppStatus();
+        }
+      } catch (error) {
+        console.error("Error checking email status:", error);
+        // Jika error, tetap check WhatsApp status
+        const userData = getUser();
+        if (userData) {
+          const needsWhatsApp =
+            !userData.whatsapp_phone ||
+            !userData.whatsapp_phone.match(/^62\d+$/);
+          setShowWhatsAppWarning(needsWhatsApp);
+          const prefillPhone =
+            userData.whatsapp_phone ||
+            (userData.telp
+              ? userData.telp.startsWith("62")
+                ? userData.telp
+                : userData.telp.replace(/^0/, "62")
+              : "");
+          setWhatsAppData({
+            name: userData.name || "",
+            whatsapp_phone: prefillPhone,
+            whatsapp_email: userData.whatsapp_email || userData.email || "",
+            whatsapp_address: userData.whatsapp_address || "",
+            whatsapp_birth_day: userData.whatsapp_birth_day || "",
+          });
+        }
+      }
+    };
+
+    checkEmailStatus();
+  }, []);
+
+  // Listen for user-updated event to refresh email status
+  useEffect(() => {
+    const handleUserUpdated = () => {
+      const checkEmailStatus = async () => {
+        try {
+          const userData = getUser();
+          if (!userData) return;
+
+          const response = await api.get(`/users/${userData.id}/email-status`);
+          if (response.data.success) {
+            const {
+              is_email_valid,
+              needs_email_update,
+              email,
+              email_verified,
+            } = response.data.data;
+            setEmailStatus({
+              isEmailValid: is_email_valid,
+              needsEmailUpdate: needs_email_update || !email_verified,
+              email: email || "",
+            });
+            setShowEmailWarning(needs_email_update || !email_verified);
+            setNewEmail(email || "");
+          }
+        } catch (error) {
+          console.error("Error checking email status:", error);
+        }
+      };
+
+      checkEmailStatus();
+
+      // Refresh WhatsApp status
+      const userData = getUser();
+      if (userData) {
+        const needsWhatsApp =
+          !userData.whatsapp_phone || !userData.whatsapp_phone.match(/^62\d+$/);
+        setShowWhatsAppWarning(needsWhatsApp);
+        const prefillPhone =
+          userData.whatsapp_phone ||
+          (userData.telp
+            ? userData.telp.startsWith("62")
+              ? userData.telp
+              : userData.telp.replace(/^0/, "62")
+            : "");
+
+        const wablasEmail =
+          emailStatus?.email ||
+          userData.whatsapp_email ||
+          userData.email ||
+          "";
+
+        setWhatsAppData({
+          name: userData.name || "",
+          whatsapp_phone: prefillPhone,
+          whatsapp_email: wablasEmail,
+          whatsapp_address: userData.whatsapp_address || "",
+          whatsapp_birth_day: userData.whatsapp_birth_day || "",
+        });
+      }
+    };
+
+    window.addEventListener("user-updated", handleUserUpdated);
+    return () => {
+      window.removeEventListener("user-updated", handleUserUpdated);
+    };
+  }, [emailStatus]);
 
   const semesterParams = useMemo(
     () =>
@@ -538,6 +719,236 @@ export default function DashboardMahasiswa() {
     }
     return [];
   }, []);
+
+  const handleVerifyEmail = async () => {
+    if (!newEmail.trim() || !emailStatus) return;
+
+    try {
+      setUpdatingEmail(true);
+      const userData = getUser();
+      if (!userData) return;
+
+      const response = await api.put(`/users/${userData.id}/verify-email`, {
+        email: newEmail.trim(),
+      });
+
+      if (response.data.success) {
+        setEmailStatus((prev) =>
+          prev
+            ? {
+                ...prev,
+                isEmailValid: true,
+                needsEmailUpdate: false,
+                email: newEmail.trim(),
+              }
+            : null
+        );
+        setShowEmailWarning(false);
+        localStorage.setItem("last_success_action", "email_verify");
+        setShowSuccessModal(true);
+
+        // Update localStorage dengan data user terbaru
+        const updatedUserData = {
+          ...userData,
+          email: newEmail.trim(),
+          email_verified: true,
+        };
+        localStorage.setItem("user", JSON.stringify(updatedUserData));
+
+        // Dispatch event untuk update Profile.tsx
+        window.dispatchEvent(new Event("user-updated"));
+      }
+    } catch (error: any) {
+      console.error("Error verifying email:", error);
+      setErrorMessage(
+        error.response?.data?.message || error.message || "Terjadi kesalahan"
+      );
+      setShowErrorModal(true);
+    } finally {
+      setUpdatingEmail(false);
+    }
+  };
+
+  // Handle gabungan: Email Verification + WhatsApp Contact (ADD contact pertama kali)
+  const handleSaveEmailAndWhatsApp = async () => {
+    const userData = getUser();
+    if (!userData) return;
+
+    // Validasi email jika diperlukan
+    if (showEmailWarning && !newEmail.trim()) {
+      setErrorMessage("Email verification wajib diisi.");
+      setShowErrorModal(true);
+      return;
+    }
+
+    // Validasi Name (required)
+    if (!whatsAppData.name || !whatsAppData.name.trim()) {
+      setErrorMessage("Nama wajib diisi.");
+      setShowErrorModal(true);
+      return;
+    }
+
+    // Validasi WhatsApp phone (required)
+    if (
+      !whatsAppData.whatsapp_phone ||
+      !whatsAppData.whatsapp_phone.match(/^62\d+$/)
+    ) {
+      setErrorMessage(
+        "Nomor WhatsApp wajib diisi dan harus dimulai dengan 62 (contoh: 6281234567890)."
+      );
+      setShowErrorModal(true);
+      return;
+    }
+
+    // Validasi Alamat (required)
+    if (
+      !whatsAppData.whatsapp_address ||
+      !whatsAppData.whatsapp_address.trim()
+    ) {
+      setErrorMessage("Alamat wajib diisi.");
+      setShowErrorModal(true);
+      return;
+    }
+
+    // Validasi Tanggal Lahir (required)
+    if (
+      !whatsAppData.whatsapp_birth_day ||
+      !whatsAppData.whatsapp_birth_day.trim()
+    ) {
+      setErrorMessage("Tanggal Lahir wajib diisi.");
+      setShowErrorModal(true);
+      return;
+    }
+
+    try {
+      setUpdatingEmail(true);
+      setUpdatingWhatsApp(true);
+
+      // Step 1: Update email verification jika diperlukan
+      let finalEmail = emailStatus?.email || userData.email;
+      if (showEmailWarning && newEmail.trim()) {
+        const emailResponse = await api.put(
+          `/users/${userData.id}/verify-email`,
+          {
+            email: newEmail.trim(),
+          }
+        );
+
+        if (emailResponse.data.success) {
+          finalEmail = newEmail.trim();
+          setEmailStatus((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  isEmailValid: true,
+                  needsEmailUpdate: false,
+                  email: finalEmail,
+                }
+              : null
+          );
+          setShowEmailWarning(false);
+        }
+      }
+
+      // Step 2: Update profile dengan WhatsApp data (akan trigger addContact di backend)
+      const wablasEmail = showEmailWarning
+        ? finalEmail
+        : emailStatus?.email || finalEmail;
+
+      const response = await api.put("/profile", {
+        name: whatsAppData.name || userData.name,
+        username: userData.username,
+        email: finalEmail,
+        whatsapp_phone: whatsAppData.whatsapp_phone,
+        whatsapp_email: wablasEmail,
+        whatsapp_address: whatsAppData.whatsapp_address,
+        whatsapp_birth_day: whatsAppData.whatsapp_birth_day,
+      });
+
+      if (response.data) {
+        const updatedUser = response.data.user;
+        localStorage.setItem("user", JSON.stringify(updatedUser));
+
+        // Update state
+        setShowEmailWarning(false);
+        setShowWhatsAppWarning(false);
+
+        // Show success modal
+        if (response.data.wablas_synced) {
+          localStorage.setItem("last_success_action", "whatsapp_sync");
+          setShowSuccessModal(true);
+        } else {
+          setErrorMessage(
+            response.data.message ||
+              "Gagal menyinkronkan data ke Wablas. Data tidak tersimpan. Silakan coba lagi."
+          );
+          setShowErrorModal(true);
+        }
+
+        // Dispatch event untuk refresh data
+        window.dispatchEvent(new Event("user-updated"));
+      }
+    } catch (error: any) {
+      console.error("Error saving email and WhatsApp:", error);
+
+      let errorMsg = "Terjadi kesalahan saat menyimpan data.";
+
+      if (error.response?.data?.errors) {
+        const errors = error.response.data.errors;
+        const errorMessages: string[] = [];
+
+        if (errors.whatsapp_phone) {
+          const phoneError = Array.isArray(errors.whatsapp_phone)
+            ? errors.whatsapp_phone[0]
+            : errors.whatsapp_phone;
+          if (phoneError.includes("already") || phoneError.includes("sudah")) {
+            errorMessages.push(
+              "Nomor WhatsApp ini sudah digunakan oleh user lain."
+            );
+          } else {
+            errorMessages.push(`Nomor WhatsApp: ${phoneError}`);
+          }
+        }
+        if (errors.email) {
+          errorMessages.push(
+            `Email: ${
+              Array.isArray(errors.email) ? errors.email[0] : errors.email
+            }`
+          );
+        }
+        if (errors.whatsapp_address) {
+          errorMessages.push(
+            `Alamat: ${
+              Array.isArray(errors.whatsapp_address)
+                ? errors.whatsapp_address[0]
+                : errors.whatsapp_address
+            }`
+          );
+        }
+        if (errors.whatsapp_birth_day) {
+          errorMessages.push(
+            `Tanggal Lahir: ${
+              Array.isArray(errors.whatsapp_birth_day)
+                ? errors.whatsapp_birth_day[0]
+                : errors.whatsapp_birth_day
+            }`
+          );
+        }
+
+        if (errorMessages.length > 0) {
+          errorMsg = errorMessages.join("\n");
+        }
+      } else if (error.response?.data?.message) {
+        errorMsg = error.response.data.message;
+      }
+
+      setErrorMessage(errorMsg);
+      setShowErrorModal(true);
+    } finally {
+      setUpdatingEmail(false);
+      setUpdatingWhatsApp(false);
+    }
+  };
 
   const getStatusBadge = useCallback(
     (
@@ -1841,6 +2252,343 @@ export default function DashboardMahasiswa() {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Email & WhatsApp Warning Modal */}
+      <AnimatePresence>
+        {(showEmailWarning || showWhatsAppWarning) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100000] flex items-center justify-center"
+          >
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => {
+                // Don't allow closing by clicking overlay
+              }}
+            />
+
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-2xl mx-4 bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => {
+                  // Don't allow closing
+                }}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11 opacity-50 cursor-not-allowed"
+                disabled
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+
+              <div>
+                {/* Header */}
+                <div className="flex items-center justify-between pb-4 sm:pb-6">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900/30 rounded-2xl flex items-center justify-center shadow-lg">
+                      <FontAwesomeIcon
+                        icon={faBell}
+                        className="w-6 h-6 text-yellow-600 dark:text-yellow-400"
+                      />
+                    </div>
+                    <div>
+                      <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
+                        Verifikasi Email & WhatsApp
+                      </h2>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Lengkapi data untuk menerima notifikasi reminder
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Name (Required) */}
+                  <div>
+                    <label className="block text-xs font-medium text-blue-800 dark:text-blue-200 mb-1">
+                      Nama <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={whatsAppData.name}
+                      onChange={(e) =>
+                        setWhatsAppData({
+                          ...whatsAppData,
+                          name: e.target.value,
+                        })
+                      }
+                      placeholder="Masukkan nama lengkap"
+                      className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    />
+                  </div>
+
+                  {/* WhatsApp Phone (Required) */}
+                  <div>
+                    <label className="block text-xs font-medium text-blue-800 dark:text-blue-200 mb-1">
+                      Nomor WhatsApp <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={whatsAppData.whatsapp_phone}
+                      onChange={(e) =>
+                        setWhatsAppData({
+                          ...whatsAppData,
+                          whatsapp_phone: e.target.value,
+                        })
+                      }
+                      placeholder="6281234567890"
+                      className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    />
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                      Format: 6281234567890 (tanpa +, mulai dengan 62)
+                    </p>
+                  </div>
+
+                  {/* Email Verification - Hanya tampil jika email belum verified */}
+                  {showEmailWarning && (
+                    <div>
+                      <label className="block text-xs font-medium text-blue-800 dark:text-blue-200 mb-1">
+                        Email (Verification){" "}
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        value={newEmail || emailStatus?.email || ""}
+                        onChange={(e) => {
+                          const emailValue = e.target.value;
+                          setNewEmail(emailValue);
+                          setWhatsAppData({
+                            ...whatsAppData,
+                            whatsapp_email: emailValue,
+                          });
+                        }}
+                        placeholder="Masukkan email yang valid"
+                        className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      />
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        Email ini akan digunakan untuk verifikasi dan notifikasi.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Email untuk Wablas (Read-only) */}
+                  <div>
+                    <label className="block text-xs font-medium text-blue-800 dark:text-blue-200 mb-1">
+                      Email untuk Wablas
+                    </label>
+                    <input
+                      type="email"
+                      value={
+                        showEmailWarning
+                          ? newEmail || emailStatus?.email || ""
+                          : emailStatus?.email || ""
+                      }
+                      readOnly={true}
+                      placeholder="Otomatis sama dengan Email Verification"
+                      className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 cursor-not-allowed placeholder-gray-500 dark:placeholder-gray-400"
+                    />
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                      {showEmailWarning
+                        ? "Otomatis sync dengan Email Verification di atas"
+                        : "Menggunakan email verification yang sudah terverifikasi"}
+                    </p>
+                  </div>
+
+                  {/* Address */}
+                  <div>
+                    <label className="block text-xs font-medium text-blue-800 dark:text-blue-200 mb-1">
+                      Alamat <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      value={whatsAppData.whatsapp_address}
+                      onChange={(e) =>
+                        setWhatsAppData({
+                          ...whatsAppData,
+                          whatsapp_address: e.target.value,
+                        })
+                      }
+                      rows={2}
+                      placeholder="Masukkan alamat lengkap"
+                      className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                      required
+                    />
+                  </div>
+
+                  {/* Birth Day */}
+                  <div>
+                    <label className="block text-xs font-medium text-blue-800 dark:text-blue-200 mb-1">
+                      Tanggal Lahir <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={whatsAppData.whatsapp_birth_day}
+                      onChange={(e) =>
+                        setWhatsAppData({
+                          ...whatsAppData,
+                          whatsapp_birth_day: e.target.value,
+                        })
+                      }
+                      max={new Date().toISOString().split("T")[0]}
+                      className="w-full px-3 py-2 text-sm border border-blue-300 dark:border-blue-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
+                    />
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                      Format: dd-mm-yyyy (contoh: 15-01-1990)
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={handleSaveEmailAndWhatsApp}
+                      disabled={
+                        updatingEmail ||
+                        updatingWhatsApp ||
+                        (showEmailWarning && !newEmail.trim()) ||
+                        !whatsAppData.name ||
+                        !whatsAppData.whatsapp_phone ||
+                        !whatsAppData.whatsapp_phone.match(/^62\d+$/) ||
+                        !whatsAppData.whatsapp_address ||
+                        !whatsAppData.whatsapp_address.trim() ||
+                        !whatsAppData.whatsapp_birth_day ||
+                        !whatsAppData.whatsapp_birth_day.trim() ||
+                        (!showEmailWarning && !emailStatus?.email)
+                      }
+                      className="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
+                    >
+                      {updatingEmail || updatingWhatsApp
+                        ? "Menyimpan..."
+                        : "Simpan & Sync ke Wablas"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Success Modal */}
+      <AnimatePresence>
+        {showSuccessModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100002] flex items-center justify-center"
+          >
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowSuccessModal(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg z-[100003] max-w-md w-full mx-4"
+            >
+              <div className="text-center">
+                <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FontAwesomeIcon
+                    icon={faCheckCircle}
+                    className="w-8 h-8 text-green-600 dark:text-green-400"
+                  />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Berhasil!
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  {localStorage.getItem("last_success_action") === "email_verify"
+                    ? "Email berhasil diverifikasi."
+                    : "Data berhasil disimpan dan disinkronkan ke Wablas."}
+                </p>
+                <button
+                  onClick={() => setShowSuccessModal(false)}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  Tutup
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Error Modal */}
+      <AnimatePresence>
+        {showErrorModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100002] flex items-center justify-center"
+          >
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => setShowErrorModal(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg z-[100003] max-w-md w-full mx-4"
+            >
+              <div className="text-center">
+                <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FontAwesomeIcon
+                    icon={faTimesCircle}
+                    className="w-8 h-8 text-red-600 dark:text-red-400"
+                  />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Terjadi Kesalahan
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 whitespace-pre-line">
+                  {errorMessage}
+                </p>
+                <button
+                  onClick={() => setShowErrorModal(false)}
+                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                >
+                  Tutup
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

@@ -21,6 +21,8 @@ import {
   faTrash,
   faSearch,
   faTimes,
+  faEye,
+  faUsers,
 } from "@fortawesome/free-solid-svg-icons";
 import api from "../utils/api";
 
@@ -205,6 +207,20 @@ const AdminNotifications: React.FC = () => {
     "all"
   );
   const [isResetting, setIsResetting] = useState(false);
+
+  // Mahasiswa list modal state
+  const [showMahasiswaModal, setShowMahasiswaModal] = useState(false);
+  const [mahasiswaList, setMahasiswaList] = useState<any[]>([]);
+  const [loadingMahasiswa, setLoadingMahasiswa] = useState(false);
+  const [selectedJadwalForMahasiswa, setSelectedJadwalForMahasiswa] = useState<{
+    jadwal_id: number;
+    jadwal_type: string;
+    mata_kuliah_kode: string;
+    mata_kuliah: string;
+    dosen_name: string;
+    tanggal: string;
+    waktu: string;
+  } | null>(null);
 
   // Change confirmation status modal state
   const [showChangeStatusModal, setShowChangeStatusModal] = useState(false);
@@ -866,6 +882,131 @@ const AdminNotifications: React.FC = () => {
   };
 
   // Handle send reminder notifications
+  // Fetch mahasiswa list for a specific jadwal
+  const fetchMahasiswa = async (
+    jadwalType: string,
+    jadwalId: number,
+    mataKuliahKode: string
+  ) => {
+    setLoadingMahasiswa(true);
+    try {
+      let endpoint = "";
+      const normalizedType = jadwalType.toLowerCase().replace(/\s+/g, "_");
+
+      // Map jadwal type to API endpoint
+      // Format: /{type}/{kode}/jadwal/{jadwalId}/mahasiswa
+      switch (normalizedType) {
+        case "kuliah_besar":
+          endpoint = `/kuliah-besar/${mataKuliahKode}/jadwal/${jadwalId}/mahasiswa`;
+          break;
+        case "praktikum":
+          endpoint = `/jadwal-praktikum/${mataKuliahKode}/jadwal/${jadwalId}/mahasiswa`;
+          break;
+        case "seminar_pleno":
+          endpoint = `/jadwal-seminar-pleno/${mataKuliahKode}/jadwal/${jadwalId}/mahasiswa`;
+          break;
+        // Untuk jadwal lain, coba endpoint alternatif atau return empty
+        case "pbl":
+        case "jurnal_reading":
+        case "csr":
+        case "persamaan_persepsi":
+        case "non_blok_non_csr":
+        case "agenda_besar":
+          // Untuk jadwal yang belum punya endpoint khusus, return empty array
+          // Atau bisa ditambahkan endpoint-nya nanti
+          setMahasiswaList([]);
+          setLoadingMahasiswa(false);
+          return;
+        default:
+          setMahasiswaList([]);
+          setLoadingMahasiswa(false);
+          return;
+      }
+
+      const response = await api.get(endpoint);
+      const mahasiswaData = response.data.mahasiswa || response.data.data || [];
+      
+      // Fetch full user data including email and whatsapp for each mahasiswa
+      const mahasiswaWithDetails = await Promise.all(
+        mahasiswaData.map(async (m: any) => {
+          try {
+            // Get full user data
+            const userResponse = await api.get(`/users/${m.id || m.mahasiswa_id}`);
+            const user = userResponse.data.user || userResponse.data.data || userResponse.data;
+            
+            return {
+              id: m.id || m.mahasiswa_id || user.id,
+              nim: m.nim || user.nim || "-",
+              name: m.nama || m.name || user.name || "-",
+              email: user.email || "-",
+              email_verified: user.email_verified || false,
+              whatsapp_phone: user.whatsapp_phone || "-",
+              whatsapp_email: user.whatsapp_email || "-",
+            };
+          } catch (error) {
+            console.error(`Error fetching user ${m.id || m.mahasiswa_id}:`, error);
+            return {
+              id: m.id || m.mahasiswa_id || 0,
+              nim: m.nim || "-",
+              name: m.nama || m.name || "-",
+              email: "-",
+              email_verified: false,
+              whatsapp_phone: "-",
+              whatsapp_email: "-",
+            };
+          }
+        })
+      );
+
+      setMahasiswaList(mahasiswaWithDetails);
+    } catch (error: any) {
+      console.error("Error fetching mahasiswa:", error);
+      setMahasiswaList([]);
+      // Show error but don't block the modal
+    } finally {
+      setLoadingMahasiswa(false);
+    }
+  };
+
+  // Handle open mahasiswa modal
+  const handleOpenMahasiswaModal = async (dosen: any) => {
+    const cleanJadwalId =
+      typeof dosen.jadwal_id === "string" && dosen.jadwal_id.includes(":")
+        ? dosen.jadwal_id.split(":")[0]
+        : Number(dosen.jadwal_id || 0);
+    
+    const mataKuliahKode = dosen.mata_kuliah_kode || dosen.mata_kuliah_kode_id || "";
+    
+    if (!mataKuliahKode || !cleanJadwalId) {
+      console.error("Missing mata_kuliah_kode or jadwal_id", {
+        dosen,
+        mata_kuliah_kode: dosen.mata_kuliah_kode,
+        mata_kuliah_kode_id: dosen.mata_kuliah_kode_id,
+        jadwal_id: dosen.jadwal_id,
+        cleanJadwalId
+      });
+      alert(`Tidak dapat membuka daftar mahasiswa: Data jadwal tidak lengkap.\n\nJadwal ID: ${cleanJadwalId || 'Tidak ada'}\nMata Kuliah Kode: ${mataKuliahKode || 'Tidak ada'}\nJadwal Type: ${dosen.jadwal_type || 'Tidak ada'}`);
+      return;
+    }
+
+    setSelectedJadwalForMahasiswa({
+      jadwal_id: cleanJadwalId,
+      jadwal_type: dosen.jadwal_type || "",
+      mata_kuliah_kode: mataKuliahKode,
+      mata_kuliah: dosen.mata_kuliah || "",
+      dosen_name: dosen.name || "",
+      tanggal: dosen.tanggal || "",
+      waktu: dosen.waktu || "",
+    });
+
+    setShowMahasiswaModal(true);
+    await fetchMahasiswa(
+      dosen.jadwal_type || "",
+      cleanJadwalId,
+      mataKuliahKode
+    );
+  };
+
   const handleSendReminder = async () => {
     try {
       setIsSendingReminder(true);
@@ -4770,7 +4911,18 @@ const AdminNotifications: React.FC = () => {
                                   </div>
                                 </div>
                               </div>
-                              <div className="text-right">
+                              <div className="text-right flex flex-col items-end gap-2">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenMahasiswaModal(dosen);
+                                  }}
+                                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                  title="Lihat daftar mahasiswa"
+                                >
+                                  <FontAwesomeIcon icon={faEye} className="w-3 h-3" />
+                                  <span>Lihat Mahasiswa</span>
+                                </button>
                                 <span
                                   className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                                     // Sinkronkan dengan badge reminder_type di kiri
@@ -5927,6 +6079,227 @@ const AdminNotifications: React.FC = () => {
                     )}
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mahasiswa List Modal */}
+      <AnimatePresence>
+        {showMahasiswaModal && selectedJadwalForMahasiswa && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100000] flex items-center justify-center"
+          >
+            {/* Overlay */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={() => {
+                setShowMahasiswaModal(false);
+                setSelectedJadwalForMahasiswa(null);
+                setMahasiswaList([]);
+              }}
+            />
+
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-4xl mx-4 bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] flex flex-col"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => {
+                  setShowMahasiswaModal(false);
+                  setSelectedJadwalForMahasiswa(null);
+                  setMahasiswaList([]);
+                }}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+
+              {/* Header */}
+              <div className="flex items-center justify-between pb-4 sm:pb-6 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center space-x-4">
+                  <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center shadow-lg">
+                    <FontAwesomeIcon
+                      icon={faUsers}
+                      className="w-6 h-6 text-blue-600 dark:text-blue-400"
+                    />
+                  </div>
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
+                      Daftar Mahasiswa
+                    </h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {selectedJadwalForMahasiswa.jadwal_type} - {selectedJadwalForMahasiswa.mata_kuliah}
+                    </p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      Dosen: {selectedJadwalForMahasiswa.dosen_name} | {selectedJadwalForMahasiswa.tanggal} {selectedJadwalForMahasiswa.waktu}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mahasiswa List - Scrollable */}
+              <div className="flex-1 overflow-y-auto mt-4 hide-scroll">
+                {loadingMahasiswa ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Memuat data mahasiswa...
+                      </p>
+                    </div>
+                  </div>
+                ) : mahasiswaList.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <FontAwesomeIcon
+                        icon={faUsers}
+                        className="w-8 h-8 text-gray-400"
+                      />
+                    </div>
+                    <p className="text-gray-500 dark:text-gray-400 text-sm">
+                      Tidak ada data mahasiswa untuk jadwal ini
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {mahasiswaList.map((mahasiswa, index) => {
+                      const isEmailValid =
+                        mahasiswa.email &&
+                        mahasiswa.email !== "-" &&
+                        mahasiswa.email.includes("@");
+                      const isEmailVerified = mahasiswa.email_verified === true;
+                      const isWhatsAppValid =
+                        mahasiswa.whatsapp_phone &&
+                        mahasiswa.whatsapp_phone !== "-" &&
+                        /^62\d+$/.test(mahasiswa.whatsapp_phone);
+
+                      return (
+                        <div
+                          key={mahasiswa.id || index}
+                          className="flex items-start justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                        >
+                          <div className="flex items-start space-x-4 flex-1">
+                            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center flex-shrink-0">
+                              <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                                {mahasiswa.name?.charAt(0) || "M"}
+                              </span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-2">
+                                <p className="text-base font-semibold text-gray-900 dark:text-white">
+                                  {mahasiswa.name || "-"}
+                                </p>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  ({mahasiswa.nim || "-"})
+                                </span>
+                              </div>
+                              <div className="space-y-2">
+                                {/* Email */}
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400 w-16">
+                                    Email:
+                                  </span>
+                                  <span
+                                    className={`text-xs flex-1 ${
+                                      isEmailValid && isEmailVerified
+                                        ? "text-gray-700 dark:text-gray-300"
+                                        : "text-red-600 dark:text-red-400"
+                                    }`}
+                                  >
+                                    {mahasiswa.email || "-"}
+                                  </span>
+                                  {isEmailValid && isEmailVerified && (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">
+                                      ✓ Aktif
+                                    </span>
+                                  )}
+                                  {isEmailValid && !isEmailVerified && (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">
+                                      ⚠ Belum Aktif
+                                    </span>
+                                  )}
+                                  {!isEmailValid && (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300">
+                                      ✗ Invalid
+                                    </span>
+                                  )}
+                                </div>
+                                {/* WhatsApp */}
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400 w-16">
+                                    WhatsApp:
+                                  </span>
+                                  <span
+                                    className={`text-xs flex-1 ${
+                                      isWhatsAppValid
+                                        ? "text-gray-700 dark:text-gray-300"
+                                        : "text-red-600 dark:text-red-400"
+                                    }`}
+                                  >
+                                    {mahasiswa.whatsapp_phone || "-"}
+                                  </span>
+                                  {isWhatsAppValid && (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">
+                                      ✓ Aktif
+                                    </span>
+                                  )}
+                                  {!isWhatsAppValid && (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300">
+                                      ✗ Invalid
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-between items-center pt-6 mt-6 border-t border-gray-200 dark:border-gray-700">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Total: {mahasiswaList.length} mahasiswa
+                </p>
+                <button
+                  onClick={() => {
+                    setShowMahasiswaModal(false);
+                    setSelectedJadwalForMahasiswa(null);
+                    setMahasiswaList([]);
+                  }}
+                  className="px-4 py-2 rounded-lg bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 transition-colors"
+                >
+                  Kembali
+                </button>
               </div>
             </motion.div>
           </motion.div>

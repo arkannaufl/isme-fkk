@@ -1175,22 +1175,52 @@ export default function DetailBlok() {
     if (!data || !materi) return;
 
     try {
-      // Ambil semua dosen yang memiliki keahlian yang dipilih
+      // Try to fetch with keahlian filter first
+      let dosenList: any[] = [];
+      try {
+        const res = await api.get(
+          `/users?role=dosen&keahlian=${encodeURIComponent(materi)}&per_page=1000`
+        );
+        // Handle pagination response
+        dosenList = Array.isArray(res.data) 
+          ? res.data 
+          : (res.data?.data || []);
+      } catch (error) {
+        // If query with keahlian fails, fetch all dosen and filter in frontend
+        console.warn('Failed to fetch with keahlian filter, fetching all dosen:', error);
+      }
 
-      const res = await api.get(
-        `/users?role=dosen&keahlian=${encodeURIComponent(materi)}`
-      );
+      // If no results from filtered query, fetch all dosen and filter manually
+      if (dosenList.length === 0) {
+        const allRes = await api.get(`/users?role=dosen&per_page=1000`);
+        const allDosenData = Array.isArray(allRes.data) 
+          ? allRes.data 
+          : (allRes.data?.data || []);
+        dosenList = allDosenData;
+      }
 
-      const dosenList = res.data || [];
-
-      // Filter dosen yang memiliki keahlian yang dipilih
-
+      // Filter dosen yang memiliki keahlian yang dipilih (case-insensitive)
+      const materiLower = materi.toLowerCase().trim();
       const filteredDosen = dosenList.filter((dosen: any) => {
-        const keahlian = Array.isArray(dosen.keahlian)
-          ? dosen.keahlian
-          : (dosen.keahlian || "").split(",").map((k: string) => k.trim());
+        // Normalize keahlian to array
+        let keahlian: string[] = [];
+        if (Array.isArray(dosen.keahlian)) {
+          keahlian = dosen.keahlian;
+        } else if (typeof dosen.keahlian === 'string') {
+          // Try to parse as JSON first
+          try {
+            const parsed = JSON.parse(dosen.keahlian);
+            keahlian = Array.isArray(parsed) ? parsed : [dosen.keahlian];
+          } catch {
+            // If not JSON, split by comma
+            keahlian = dosen.keahlian.split(",").map((k: string) => k.trim());
+          }
+        }
 
-        return keahlian.includes(materi);
+        // Case-insensitive comparison
+        return keahlian.some((k: string) => 
+          k.toLowerCase().trim() === materiLower
+        );
       });
 
       // Ambil dosen standby (case insensitive)
@@ -1296,18 +1326,52 @@ export default function DetailBlok() {
     if (!data || !materi) return;
 
     try {
-      const res = await api.get(
-        `/users?role=dosen&keahlian=${encodeURIComponent(materi)}`
-      );
+      // Try to fetch with keahlian filter first
+      let dosenList: any[] = [];
+      try {
+        const res = await api.get(
+          `/users?role=dosen&keahlian=${encodeURIComponent(materi)}&per_page=1000`
+        );
+        // Handle pagination response
+        dosenList = Array.isArray(res.data) 
+          ? res.data 
+          : (res.data?.data || []);
+      } catch (error) {
+        // If query with keahlian fails, fetch all dosen and filter in frontend
+        console.warn('Failed to fetch with keahlian filter, fetching all dosen:', error);
+      }
 
-      const dosenList = res.data || [];
+      // If no results from filtered query, fetch all dosen and filter manually
+      if (dosenList.length === 0) {
+        const allRes = await api.get(`/users?role=dosen&per_page=1000`);
+        const allDosenData = Array.isArray(allRes.data) 
+          ? allRes.data 
+          : (allRes.data?.data || []);
+        dosenList = allDosenData;
+      }
 
+      // Filter dosen yang memiliki keahlian yang dipilih (case-insensitive)
+      const materiLower = materi.toLowerCase().trim();
       const filteredDosen = dosenList.filter((dosen: any) => {
-        const keahlian = Array.isArray(dosen.keahlian)
-          ? dosen.keahlian
-          : (dosen.keahlian || "").split(",").map((k: string) => k.trim());
+        // Normalize keahlian to array
+        let keahlian: string[] = [];
+        if (Array.isArray(dosen.keahlian)) {
+          keahlian = dosen.keahlian;
+        } else if (typeof dosen.keahlian === 'string') {
+          // Try to parse as JSON first
+          try {
+            const parsed = JSON.parse(dosen.keahlian);
+            keahlian = Array.isArray(parsed) ? parsed : [dosen.keahlian];
+          } catch {
+            // If not JSON, split by comma
+            keahlian = dosen.keahlian.split(",").map((k: string) => k.trim());
+          }
+        }
 
-        return keahlian.includes(materi);
+        // Case-insensitive comparison
+        return keahlian.some((k: string) => 
+          k.toLowerCase().trim() === materiLower
+        );
       });
 
       // Ambil dosen standby (case insensitive)
