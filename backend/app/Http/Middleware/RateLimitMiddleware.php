@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class RateLimitMiddleware
 {
@@ -30,6 +32,13 @@ class RateLimitMiddleware
 
         $response = $next($request);
 
+        // StreamedResponse dan BinaryFileResponse tidak support method header() chaining
+        // Skip menambahkan header untuk response jenis ini
+        if ($response instanceof StreamedResponse || $response instanceof BinaryFileResponse) {
+            return $response;
+        }
+
+        // Untuk response biasa (JsonResponse, Response, dll), bisa chain header()
         return $response->header('X-RateLimit-Limit', $maxAttempts)
                        ->header('X-RateLimit-Remaining', RateLimiter::remaining($key, $maxAttempts));
     }

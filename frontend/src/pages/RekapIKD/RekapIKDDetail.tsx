@@ -121,9 +121,10 @@ const RekapIKDDetail: React.FC = () => {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const fetchingUserInfoRef = React.useRef(false);
 
-  // Get current user
-  const currentUser = getUser();
+  // Get current user - memoize to prevent unnecessary re-renders
+  const currentUser = React.useMemo(() => getUser(), []);
   const currentUserRole = currentUser?.role || "";
   
   // Check if user is superadmin or tim_akademik
@@ -250,9 +251,15 @@ const RekapIKDDetail: React.FC = () => {
             totalHasil,
             kegiatanCount,
           };
-        } catch (error) {
+        } catch (error: any) {
           console.error(`Error fetching data for unit ${unit}:`, error);
-          // Set empty data for this unit
+          // Jika error 401 (Unauthorized), jangan set empty data karena akan trigger logout
+          // Biarkan error propagate ke interceptor untuk handling yang tepat
+          if (error.response?.status === 401) {
+            // Error 401 akan di-handle oleh interceptor, tidak perlu set empty data
+            throw error;
+          }
+          // Untuk error lain (403, 404, dll), set empty data untuk unit ini
           newUnitDataMap[unit] = {
             unit,
             pedomanList: [],
@@ -264,9 +271,17 @@ const RekapIKDDetail: React.FC = () => {
       }
 
       setUnitDataMap(newUnitDataMap);
-    } catch (error) {
+      setLoading(false);
+    } catch (error: any) {
       console.error("Error fetching all units data:", error);
-    } finally {
+      // Jika error 401 (Unauthorized), biarkan interceptor handle logout
+      // Jangan set loading false karena akan redirect ke login
+      if (error.response?.status === 401) {
+        // Error 401 akan di-handle oleh interceptor, tidak perlu set loading false
+        // Interceptor akan clear token dan redirect ke login
+        return;
+      }
+      // Untuk error lain, set loading false
       setLoading(false);
     }
   }, [userId]);
@@ -277,10 +292,17 @@ const RekapIKDDetail: React.FC = () => {
     fetchAllUnitsDataRef.current = fetchAllUnitsData;
   }, [fetchAllUnitsData]);
 
-  // Fetch user info
+  // Fetch user info - only when userId changes, with guard to prevent multiple calls
   useEffect(() => {
     const fetchUserInfo = async () => {
       if (!userId) return;
+      
+      // Prevent multiple simultaneous calls
+      if (fetchingUserInfoRef.current) {
+        return;
+      }
+      
+      fetchingUserInfoRef.current = true;
       
       try {
         const res = await api.get(`/users/${userId}`);
@@ -296,9 +318,16 @@ const RekapIKDDetail: React.FC = () => {
             role: res.data.role,
           });
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error fetching user info:", error);
-        // Fallback to currentUser from localStorage if viewing own data
+        // Jika error 401 (Unauthorized), jangan fallback karena akan trigger logout
+        // Biarkan error propagate ke interceptor untuk handling yang tepat
+        if (error.response?.status === 401) {
+          // Error 401 akan di-handle oleh interceptor
+          fetchingUserInfoRef.current = false;
+          return;
+        }
+        // Fallback to currentUser from localStorage if viewing own data (hanya untuk error selain 401)
         if (currentUser && userId === currentUser.id) {
           setUserInfo({
             id: currentUser.id,
@@ -311,11 +340,13 @@ const RekapIKDDetail: React.FC = () => {
             role: currentUser.role,
           });
         }
+      } finally {
+        fetchingUserInfoRef.current = false;
       }
     };
 
     fetchUserInfo();
-  }, [userId, currentUser]);
+  }, [userId]); // Removed currentUser from dependencies to prevent infinite loop
 
   // Initial fetch
   useEffect(() => {

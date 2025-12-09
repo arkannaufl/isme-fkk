@@ -95,15 +95,15 @@ class RekapIKDController extends Controller
 
             $data = $validator->validated();
             // Convert empty strings to null for nullable fields
-            if (isset($data['unit_kerja']) && $data['unit_kerja'] === '') {
-                $data['unit_kerja'] = null;
-            }
+            // unit_kerja should be preserved as string (don't convert to null) for proper filtering
             if (isset($data['bukti_fisik']) && $data['bukti_fisik'] === '') {
                 $data['bukti_fisik'] = null;
             }
             if (isset($data['prosedur']) && $data['prosedur'] === '') {
                 $data['prosedur'] = null;
             }
+            // Don't convert unit_kerja to null - keep as string for filtering
+            // If unit_kerja is provided (even if empty string), keep it as is
 
             $pedoman = IKDPedoman::create($data);
 
@@ -162,15 +162,15 @@ class RekapIKDController extends Controller
 
             $data = $validator->validated();
             // Convert empty strings to null for nullable fields
-            if (isset($data['unit_kerja']) && $data['unit_kerja'] === '') {
-                $data['unit_kerja'] = null;
-            }
+            // unit_kerja should be preserved as string (don't convert to null) for proper filtering
             if (isset($data['bukti_fisik']) && $data['bukti_fisik'] === '') {
                 $data['bukti_fisik'] = null;
             }
             if (isset($data['prosedur']) && $data['prosedur'] === '') {
                 $data['prosedur'] = null;
             }
+            // Don't convert unit_kerja to null - keep as string for filtering
+            // If unit_kerja is provided (even if empty string), keep it as is
 
             $pedoman->update($data);
 
@@ -432,7 +432,7 @@ class RekapIKDController extends Controller
 
             // Fetch pedoman poin IKD where unit_kerja contains the requested unit
             // Unit kerja bisa multiple (dipisah koma), jadi kita perlu check dengan lebih ketat
-            // Mengambil level 1 dan level 2 (sub-items dan sub-sub-items) yang punya unit_kerja
+            // Mengambil level 0 (main items), level 1 (sub-items), level 2 (sub-sub-items), dan null (untuk kompatibilitas)
             $unitLower = strtolower(trim($unit));
             $query = IKDPedoman::where('is_active', true)
                 ->where(function($q) use ($unit, $unitLower) {
@@ -447,7 +447,11 @@ class RekapIKDController extends Controller
                       ->orWhereRaw('LOWER(TRIM(unit_kerja)) LIKE ?', ['%, ' . $unitLower])
                       ->orWhereRaw('LOWER(TRIM(unit_kerja)) LIKE ?', ['%,' . $unitLower]);
                 })
-                ->whereIn('level', [1, 2]) // Sub-items (level 1) dan sub-sub-items (level 2)
+                ->where(function($q) {
+                    // Include level 0 (main items), 1 (sub-items), 2 (sub-sub-items), atau null (untuk kompatibilitas dengan data lama)
+                    $q->whereIn('level', [0, 1, 2])
+                      ->orWhereNull('level');
+                })
                 ->whereNotNull('kegiatan')
                 ->where('kegiatan', '!=', '');
 
@@ -537,29 +541,68 @@ class RekapIKDController extends Controller
             }
 
             // Check authorization: 
-            // - Dosen hanya bisa upload untuk dirinya sendiri
-            // - Verifikator dan super_admin TIDAK bisa upload (hanya bisa menilai)
+            // Validasi upload berdasarkan unit:
+            // - Untuk unit "Dosen": hanya dosen yang bisa upload untuk dirinya sendiri
+            // - Untuk unit lain: verifikator dan super_admin bisa upload untuk user di unit tersebut
             $requestedUserId = $request->input('user_id');
-            
-            // Verifikator dan super_admin tidak boleh upload file
-            if (in_array($user->role, ['verifikator', 'super_admin', 'ketua_ikd'])) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Unauthorized: Verifikator dan Super Admin tidak dapat mengupload file. Hanya dosen yang dapat mengupload file untuk dirinya sendiri.'
-                ], 403);
-            }
-            
-            // Dosen hanya bisa upload untuk dirinya sendiri
-            if ($user->role === 'dosen' && $user->id != $requestedUserId) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Unauthorized: Anda hanya dapat mengupload file untuk diri sendiri'
-                ], 403);
-            }
-
             $file = $request->file('file');
             $ikdPedomanId = $request->input('ikd_pedoman_id');
             $unit = trim($request->input('unit'));
+            
+            // Validasi khusus untuk unit "Dosen"
+            if ($unit === 'Dosen') {
+                // Verifikator dan super_admin tidak boleh upload file untuk unit Dosen
+                if (in_array($user->role, ['verifikator', 'super_admin', 'ketua_ikd'])) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Unauthorized: Verifikator dan Super Admin tidak dapat mengupload file. Hanya dosen yang dapat mengupload file untuk dirinya sendiri.'
+                    ], 403);
+                }
+                
+                // Dosen hanya bisa upload untuk dirinya sendiri
+                if ($user->role === 'dosen' && $user->id != $requestedUserId) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Unauthorized: Anda hanya dapat mengupload file untuk diri sendiri'
+                    ], 403);
+                }
+            } else {
+                // Untuk unit lain (Akademik, AIK, MEU, dll):
+                // - Super admin, ketua_ikd, dan verifikator bisa upload untuk siapa saja
+                // - User dengan role sesuai unit bisa upload untuk dirinya sendiri
+                
+                // Mapping role to unit (hanya role yang bisa upload)
+                $roleToUnitMapping = [
+                    'akademik' => 'Akademik', // hanya role "akademik", bukan "tim_akademik"
+                    'aik' => 'AIK',
+                    'meu' => 'MEU',
+                    'profesi' => 'Profesi',
+                    'kemahasiswaan' => 'Kemahasiswaan',
+                    'sdm' => 'SDM',
+                    'upt_jurnal' => 'UPT Jurnal',
+                    'upt_ppm' => 'UPT PPM',
+                ];
+                
+                // Super admin, ketua_ikd, dan verifikator bisa upload untuk semua unit (kecuali Dosen)
+                if (!in_array($user->role, ['super_admin', 'ketua_ikd', 'verifikator'])) {
+                    // User biasa hanya bisa upload untuk dirinya sendiri di unit yang sesuai
+                    $userUnit = $roleToUnitMapping[$user->role] ?? null;
+                    if ($userUnit !== $unit) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Unauthorized: Anda tidak memiliki akses untuk mengupload file di unit ini'
+                        ], 403);
+                    }
+                    
+                    // User hanya bisa upload untuk dirinya sendiri
+                    if ($user->id != $requestedUserId) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Unauthorized: Anda hanya dapat mengupload file untuk diri sendiri'
+                        ], 403);
+                    }
+                }
+            }
             
             // Generate unique filename
             $originalName = $file->getClientOriginalName();
@@ -964,34 +1007,190 @@ class RekapIKDController extends Controller
             $buktiFisik = IKDBuktiFisik::find($id);
             
             if (!$buktiFisik) {
+                \Log::error('Download bukti fisik - Not found', ['id' => $id]);
                 return response()->json([
                     'success' => false,
                     'message' => 'Bukti fisik tidak ditemukan'
                 ], 404);
             }
 
-            // Check authorization: user can only download their own, unless super_admin/ketua_ikd/verifikator
-            if (!in_array($user->role, ['super_admin', 'ketua_ikd', 'verifikator']) && $user->id != $buktiFisik->user_id) {
+            // Check authorization: user can only download their own, unless super_admin/ketua_ikd/verifikator/tim_akademik
+            if (!in_array($user->role, ['super_admin', 'ketua_ikd', 'verifikator', 'tim_akademik']) && $user->id != $buktiFisik->user_id) {
+                \Log::warning('Download bukti fisik - Unauthorized', [
+                    'user_id' => $user->id,
+                    'user_role' => $user->role,
+                    'bukti_fisik_user_id' => $buktiFisik->user_id
+                ]);
                 return response()->json([
                     'success' => false,
                     'message' => 'Unauthorized: Anda hanya dapat mengunduh file Anda sendiri'
                 ], 403);
             }
 
-            // Check if file exists
-            if (!Storage::disk('public')->exists($buktiFisik->file_path)) {
+            // Get file path from database (path relatif dari storage/app/public)
+            $filePath = trim($buktiFisik->file_path);
+            
+            // Ensure file_path is not empty
+            if (empty($filePath)) {
+                \Log::error('Download bukti fisik - Empty file path', ['id' => $id]);
                 return response()->json([
                     'success' => false,
-                    'message' => 'File tidak ditemukan di storage'
+                    'message' => 'File path tidak ditemukan di database'
+                ], 404);
+            }
+            
+            // Normalize path: remove leading slashes and ensure correct format
+            $filePath = ltrim($filePath, '/\\');
+            
+            // Get absolute paths for verification (with error handling)
+            $storagePath = storage_path('app/public/' . $filePath);
+            $diskPath = null;
+            $fileExists = false;
+            $existsStorage = false;
+            $existsFilesystem = false;
+            
+            try {
+                $diskPath = Storage::disk('public')->path($filePath);
+                $existsStorage = Storage::disk('public')->exists($filePath);
+                $existsFilesystem = file_exists($diskPath);
+                $fileExists = $existsStorage || $existsFilesystem;
+            } catch (\Exception $pathException) {
+                \Log::error('Download bukti fisik - Error getting path', [
+                    'id' => $id,
+                    'file_path' => $filePath,
+                    'error' => $pathException->getMessage()
+                ]);
+                // Fallback: construct path manually
+                $diskPath = $storagePath;
+                $existsFilesystem = file_exists($diskPath);
+                $fileExists = $existsFilesystem;
+            }
+            
+            // Log for debugging
+            \Log::info('Download bukti fisik - Attempting', [
+                'id' => $id,
+                'file_path_db' => $buktiFisik->file_path,
+                'file_path_normalized' => $filePath,
+                'file_name' => $buktiFisik->file_name,
+                'storage_path' => $storagePath,
+                'disk_path' => $diskPath,
+                'exists_storage' => $existsStorage,
+                'exists_filesystem' => $existsFilesystem
+            ]);
+            
+            if (!$fileExists) {
+                // Try to find file by pattern (in case filename in DB is truncated)
+                $checkPath = $diskPath ?? $storagePath;
+                $directory = dirname($checkPath);
+                $baseName = basename($checkPath);
+                
+                // Safely get files in directory
+                $filesInDir = 'N/A';
+                try {
+                    if (is_dir($directory) && is_readable($directory)) {
+                        $files = scandir($directory);
+                        if ($files !== false) {
+                            $filesInDir = implode(', ', array_slice($files, 0, 10));
+                        }
+                    }
+                } catch (\Exception $scanException) {
+                    $filesInDir = 'Error reading directory: ' . $scanException->getMessage();
+                }
+                
+                \Log::error('Download bukti fisik - File not found in storage', [
+                    'id' => $id,
+                    'file_path' => $filePath,
+                    'storage_path' => $storagePath,
+                    'disk_path' => $diskPath,
+                    'check_path' => $checkPath,
+                    'directory' => $directory,
+                    'base_name' => $baseName,
+                    'directory_exists' => is_dir($directory),
+                    'directory_readable' => is_dir($directory) ? is_readable($directory) : false,
+                    'files_in_dir' => $filesInDir
+                ]);
+                
+                $errorPath = $diskPath ?? $storagePath;
+                return response()->json([
+                    'success' => false,
+                    'message' => 'File tidak ditemukan di storage. Path: ' . $filePath . ' | Full path: ' . $errorPath
                 ], 404);
             }
 
-            // Return file download with proper headers
-            return Storage::disk('public')->download(
-                $buktiFisik->file_path,
-                $buktiFisik->file_name
-            );
+            // Sanitize filename for download
+            $safeFileName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $buktiFisik->file_name);
+
+            // Try Storage::download() first (menggunakan path dari database yang sudah dinormalisasi)
+            try {
+                \Log::info('Download bukti fisik - Using Storage::download()', [
+                    'id' => $id,
+                    'file_path' => $filePath,
+                    'file_name' => $safeFileName,
+                    'disk_path' => $diskPath
+                ]);
+                
+                // Gunakan path yang sudah dinormalisasi dari database
+                return Storage::disk('public')->download($filePath, $safeFileName);
+            } catch (\Exception $storageException) {
+                \Log::warning('Download bukti fisik - Storage::download() failed, trying fallback', [
+                    'id' => $id,
+                    'file_path' => $filePath,
+                    'error' => $storageException->getMessage()
+                ]);
+                
+                // Fallback: use response()->download() with absolute path (menggunakan $diskPath yang sudah ada)
+                try {
+                    // Ensure $diskPath is set (fallback to $storagePath if null)
+                    $downloadPath = $diskPath ?? $storagePath;
+                    
+                    // Gunakan $downloadPath yang sudah dihitung sebelumnya
+                    if (!file_exists($downloadPath)) {
+                        \Log::error('Download bukti fisik - File not found in fallback', [
+                            'id' => $id,
+                            'file_path' => $filePath,
+                            'disk_path' => $diskPath,
+                            'storage_path' => $storagePath,
+                            'download_path' => $downloadPath
+                        ]);
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'File tidak ditemukan: ' . $downloadPath
+                        ], 404);
+                    }
+                    
+                    // Try to get mime type
+                    $mimeType = 'application/octet-stream';
+                    if (function_exists('mime_content_type')) {
+                        $mimeType = mime_content_type($downloadPath) ?: $mimeType;
+                    }
+                    
+                    \Log::info('Download bukti fisik - Using fallback response()->download()', [
+                        'id' => $id,
+                        'file_path' => $filePath,
+                        'disk_path' => $diskPath,
+                        'download_path' => $downloadPath,
+                        'file_name' => $safeFileName
+                    ]);
+                    
+                    return response()->download($downloadPath, $safeFileName, [
+                        'Content-Type' => $mimeType,
+                    ]);
+                } catch (\Exception $fallbackException) {
+                    \Log::error('Download bukti fisik - Both methods failed', [
+                        'id' => $id,
+                        'storage_error' => $storageException->getMessage(),
+                        'fallback_error' => $fallbackException->getMessage(),
+                        'trace' => $fallbackException->getTraceAsString()
+                    ]);
+                    throw $fallbackException; // Re-throw to be caught by outer catch
+                }
+            }
         } catch (\Exception $e) {
+            \Log::error('Download bukti fisik - Exception', [
+                'id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return response()->json([
                 'success' => false,
                 'message' => 'Error downloading file: ' . $e->getMessage()
