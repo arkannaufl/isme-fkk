@@ -220,6 +220,7 @@ export default function UserIKD() {
         "UPT Jurnal": "upt_jurnal",
         "UPT PPM": "upt_ppm",
         Verifikator: "verifikator",
+        "Ketua IKD": "ketua_ikd",
       };
 
       const role =

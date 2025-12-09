@@ -151,7 +151,18 @@ export const handleApiError = (error: any, context: string = 'API Call') => {
       case 404:
         return 'Data tidak ditemukan';
       case 422:
-        return 'Data yang dimasukkan tidak valid';
+        // Tampilkan error detail dari validasi Laravel
+        const errors = error.response.data?.errors;
+        if (errors && typeof errors === 'object') {
+          // Ambil error pertama dari setiap field
+          const errorMessages = Object.entries(errors).map(([field, messages]: [string, any]) => {
+            const fieldName = field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            const message = Array.isArray(messages) ? messages[0] : messages;
+            return `${fieldName}: ${message}`;
+          });
+          return errorMessages.join('. ') || 'Data yang dimasukkan tidak valid';
+        }
+        return error.response.data?.message || 'Data yang dimasukkan tidak valid';
       case 500:
         return 'Server sedang mengalami masalah. Silakan coba lagi nanti';
       default:

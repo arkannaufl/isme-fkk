@@ -10,6 +10,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\MahasiswaImport;
 use App\Imports\TimAkademikImport;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use App\Models\DosenPeran;
 use App\Services\SemesterService;
 use Illuminate\Support\Facades\Auth;
@@ -114,7 +115,14 @@ class UserController extends Controller
     // POST /users
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        // Log request data for debugging
+        \Log::info('UserController::store - Request data', [
+            'all' => $request->all(),
+            'role' => $request->input('role'),
+        ]);
+        
+        try {
+            $validated = $request->validate([
             'name' => 'required|string',
             'username' => [
                 'required',
@@ -141,7 +149,7 @@ class UserController extends Controller
             'ipk' => 'nullable|numeric',
             'status' => 'nullable',
             'angkatan' => 'nullable',
-            'role' => 'required|in:super_admin,tim_akademik,dosen,mahasiswa',
+            'role' => 'required|in:super_admin,tim_akademik,dosen,mahasiswa,ketua_ikd,akademik,aik,meu,profesi,kemahasiswaan,sdm,upt_jurnal,upt_ppm,verifikator',
             'password' => 'required|string|min:6',
             'kompetensi' => 'nullable',
             'keahlian' => 'nullable',
@@ -196,6 +204,22 @@ class UserController extends Controller
         }
 
         return response()->json($user, 201);
+        } catch (ValidationException $e) {
+            \Log::error('UserController::store - Validation failed', [
+                'errors' => $e->errors(),
+                'request_data' => $request->all(),
+            ]);
+            throw $e; // Re-throw to let Laravel handle the response
+        } catch (\Exception $e) {
+            \Log::error('UserController::store - Exception', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->all(),
+            ]);
+            return response()->json([
+                'message' => 'Error creating user: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     // PUT /users/{id}
@@ -231,7 +255,7 @@ class UserController extends Controller
             'ipk' => 'nullable|numeric',
             'status' => 'nullable',
             'angkatan' => 'nullable',
-            'role' => 'sometimes|required|in:super_admin,tim_akademik,dosen,mahasiswa',
+            'role' => 'sometimes|required|in:super_admin,tim_akademik,dosen,mahasiswa,ketua_ikd,akademik,aik,meu,profesi,kemahasiswaan,sdm,upt_jurnal,upt_ppm,verifikator',
             'password' => 'nullable|string|min:6',
             'kompetensi' => 'nullable',
             'keahlian' => 'nullable',
