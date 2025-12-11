@@ -70,54 +70,59 @@ class AuthController extends Controller
             ], 401);
         }
 
-        // Tambahkan pengecekan single-device login
-        if ($user->is_logged_in) {
-            return response()->json([
-                'message' => 'Akun ini sudah login di perangkat lain.',
-            ], 403);
-        }
+        // Gunakan database transaction dengan lock untuk mencegah race condition
+        // saat banyak user login bersamaan dengan username yang sama
+        return DB::transaction(function () use ($user, $request) {
+            // Lock row user untuk memastikan hanya satu request yang bisa update pada saat yang sama
+            $lockedUser = User::where('id', $user->id)
+                ->lockForUpdate() // Pessimistic locking untuk mencegah race condition
+                ->first();
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+            // Tambahkan pengecekan single-device login setelah lock
+            if ($lockedUser->is_logged_in) {
+                return response()->json([
+                    'message' => 'Akun ini sudah login di perangkat lain.',
+                ], 403);
+            }
 
-        // Update status login dan token - gunakan update langsung untuk performa lebih baik
-        DB::table('users')
-            ->where('id', $user->id)
-            ->update([
+            $token = $lockedUser->createToken('auth_token')->plainTextToken;
+
+            // Update status login dan token
+            // Lock sudah di-handle di atas, jadi update ini aman dari race condition
+            $lockedUser->update([
                 'is_logged_in' => 1,
                 'current_token' => $token,
-                'updated_at' => now(),
             ]);
 
-        // Clear cache untuk user login status (akan di-refresh di middleware)
-        Cache::forget('user_login_status_' . $user->id);
+            // Clear cache untuk user login status (akan di-refresh di middleware)
+            Cache::forget('user_login_status_' . $lockedUser->id);
 
-        // Refresh user model untuk mendapatkan data terbaru
-        $user->refresh();
+            // Refresh user model untuk mendapatkan data terbaru
+            $lockedUser->refresh();
 
-        // Log successful login - gunakan try-catch untuk tidak membebani response time
-        try {
-            if (config('activitylog.enabled', true)) {
-                activity()
-                    ->causedBy($user)
-                    ->event('login')
-                    ->withProperties([
-                        'ip' => $request->ip(),
-                        'user_agent' => $request->userAgent()
-                    ])
-                    ->log("User {$user->name} berhasil login");
+            // Log successful login - gunakan try-catch untuk tidak membebani response time
+            try {
+                if (config('activitylog.enabled', true)) {
+                    activity()
+                        ->causedBy($lockedUser)
+                        ->event('login')
+                        ->withProperties([
+                            'ip' => $request->ip(),
+                            'user_agent' => $request->userAgent()
+                        ])
+                        ->log("User {$lockedUser->name} berhasil login");
+                }
+            } catch (\Exception $e) {
+                // Silent fail untuk tidak membebani response time
+                Log::debug('Activity log failed', ['error' => $e->getMessage()]);
             }
-        } catch (\Exception $e) {
-            // Silent fail untuk tidak membebani response time
-            Log::debug('Activity log failed', ['error' => $e->getMessage()]);
-        }
 
-        // Login notification handled by frontend only
-
-        return response()->json([
-            'access_token' => $token,
-            'token_type'   => 'Bearer',
-            'user'         => $user->only(['id', 'name', 'username', 'email', 'role']),
-        ]);
+            return response()->json([
+                'access_token' => $token,
+                'token_type'   => 'Bearer',
+                'user'         => $lockedUser->only(['id', 'name', 'username', 'email', 'role']),
+            ]);
+        });
     }
 
     public function logout(Request $request)

@@ -67,7 +67,7 @@ export default function DosenAbsensiPraktikumPage() {
   const { kode, jadwalId } = useParams<{ kode: string; jadwalId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mahasiswaList, setMahasiswaList] = useState<Mahasiswa[]>([]);
@@ -175,7 +175,7 @@ export default function DosenAbsensiPraktikumPage() {
       setToastMessage(null);
     }, 5000);
   };
-  
+
   useEffect(() => {
     fetchData();
 
@@ -219,7 +219,7 @@ export default function DosenAbsensiPraktikumPage() {
   const fetchAbsensiOnly = useCallback(async () => {
     if (!kode || !jadwalId) return;
     if (isSyncing || confirmOpen) return; // hindari overwrite saat sedang sync atau konfirmasi
-    
+
     // Skip auto-refresh jika baru saja ada manual save (dalam 3 detik terakhir)
     const now = Date.now();
     if (now - lastManualSave < 3000) {
@@ -231,7 +231,7 @@ export default function DosenAbsensiPraktikumPage() {
         `/praktikum/${kode}/jadwal/${jadwalId}/absensi`
       );
       const existingAbsensi: AbsensiData = {};
-      
+
       if (absensiResponse.data?.absensi) {
         Object.keys(absensiResponse.data.absensi).forEach((nim) => {
           const absen = absensiResponse.data.absensi[nim];
@@ -240,12 +240,12 @@ export default function DosenAbsensiPraktikumPage() {
           };
         });
       }
-      
+
       // Update state absensi - perbandingan yang lebih akurat
       setAbsensi((prev) => {
         const prevKeys = Object.keys(prev || {});
         const newKeys = Object.keys(existingAbsensi);
-        
+
         // Check if there are any differences
         const hasNewKeys = newKeys.some((key) => !prevKeys.includes(key));
         const hasChangedValues = newKeys.some(
@@ -527,24 +527,24 @@ export default function DosenAbsensiPraktikumPage() {
   // Fungsi untuk fetch QR token
   const fetchQrToken = useCallback(async () => {
     if (!kode || !jadwalId || !qrEnabled) return;
-    
+
     // Prevent multiple simultaneous calls
     if (isFetchingToken) {
       return;
     }
-    
+
     setIsFetchingToken(true);
-    
+
     try {
       const response = await api.get(
         `/praktikum/${kode}/jadwal/${jadwalId}/qr-token`
       );
       const token = response.data.token;
-      
+
       // Gunakan expires_at_timestamp jika ada (lebih reliable, tidak terpengaruh timezone)
       // Jika tidak ada, fallback ke parsing expires_at string
       let expiresAt: number;
-      
+
       if (response.data.expires_at_timestamp) {
         // Gunakan timestamp langsung (dalam milliseconds)
         expiresAt = response.data.expires_at_timestamp;
@@ -553,38 +553,38 @@ export default function DosenAbsensiPraktikumPage() {
         const expiresAtStr = response.data.expires_at;
         expiresAt = new Date(expiresAtStr).getTime();
       }
-      
+
       // Validate expires_at
       if (isNaN(expiresAt) || expiresAt <= 0) {
         throw new Error("Invalid expires_at format");
       }
-      
+
       const now = Date.now();
       const expiresInSeconds = Math.floor((expiresAt - now) / 1000);
-      
+
       setQrToken(token);
       setQrTokenExpiresAt(expiresAt);
-      
+
       // Reset flag saat token baru di-fetch
       tokenRefreshCalledRef.current = false;
-      
+
       // Calculate initial time remaining
       const remaining = Math.max(0, expiresInSeconds);
       setTimeRemaining(remaining);
-      
+
       // Generate QR code URL dengan token
       const qrData = `${window.location.origin}/mahasiswa/absensi-praktikum/${kode}/${jadwalId}?from_qr=true&token=${token}`;
       setQrCodeData(qrData);
-      
+
       // Update key untuk trigger animasi QR code
       setQrCodeKey((prev) => prev + 1);
-      
+
       // Trigger efek butiran
       setShowParticles(true);
       setTimeout(() => {
         setShowParticles(false);
       }, 1500);
-      
+
       // Tampilkan badge "QR Code Baru" selama 3 detik
       setShowNewBadge(true);
       if (newBadgeTimeoutRef.current) {
@@ -624,7 +624,7 @@ export default function DosenAbsensiPraktikumPage() {
         Math.floor((qrTokenExpiresAt - now) / 1000)
       );
       setTimeRemaining(remaining);
-      
+
       // Jika waktu habis, fetch token baru (hanya sekali)
       if (
         remaining === 0 &&
@@ -641,7 +641,7 @@ export default function DosenAbsensiPraktikumPage() {
 
     // Update setiap detik
     const intervalId = setInterval(updateTimer, 1000);
-    
+
     // Update sekali langsung
     updateTimer();
 
@@ -669,7 +669,7 @@ export default function DosenAbsensiPraktikumPage() {
     // Selanjutnya countdown timer akan handle refresh
     fetchQrToken();
   }, [qrEnabled, kode, jadwalId]); // Remove fetchQrToken dari dependency
-  
+
   // Cleanup timeout saat component unmount
   useEffect(() => {
     return () => {
@@ -683,7 +683,7 @@ export default function DosenAbsensiPraktikumPage() {
   const disableQRCode = useCallback(async () => {
     if (!kode || !jadwalId || !qrEnabled || isDisablingOnUnmountRef.current)
       return;
-    
+
     isDisablingOnUnmountRef.current = true;
     try {
       await api.put(`/praktikum/${kode}/jadwal/${jadwalId}/toggle-qr`);
@@ -708,7 +708,7 @@ export default function DosenAbsensiPraktikumPage() {
 
     const currentPath = location.pathname;
     const expectedPath = `/absensi-praktikum/${kode}/${jadwalId}`;
-    
+
     // Jika location berubah dan bukan lagi di halaman absensi, disable QR
     // Check: sebelumnya di halaman absensi, sekarang tidak, dan QR masih enabled
     const wasOnAbsensiPage =
@@ -717,11 +717,11 @@ export default function DosenAbsensiPraktikumPage() {
     const isStillOnAbsensiPage =
       currentPath === expectedPath ||
       currentPath.startsWith("/absensi-praktikum/");
-    
+
     if (wasOnAbsensiPage && !isStillOnAbsensiPage && qrEnabled) {
       disableQRCode();
     }
-    
+
     // Update previous location
     previousLocationRef.current = currentPath;
   }, [location.pathname, kode, jadwalId, qrEnabled, disableQRCode]);
@@ -750,14 +750,14 @@ export default function DosenAbsensiPraktikumPage() {
     const handleBeforeUnload = () => {
       if (qrEnabled && kode && jadwalId && !isDisablingOnUnmountRef.current) {
         isDisablingOnUnmountRef.current = true;
-        
+
         // Gunakan fetch dengan keepalive untuk lebih reliable saat page unload
         // keepalive: true memastikan request tetap dikirim meskipun page sudah mulai unload
         // Ini penting untuk handle browser close dan page reload
         const token = localStorage.getItem("token");
         const baseURL = import.meta.env.VITE_API_URL || "http://localhost:8000";
         const url = `${baseURL}/api/praktikum/${kode}/jadwal/${jadwalId}/toggle-qr`;
-        
+
         // Fetch dengan keepalive: true - ini adalah cara terbaik untuk send request saat page unload
         // Browser akan memastikan request ini dikirim bahkan setelah page mulai unload
         fetch(url, {
@@ -781,7 +781,7 @@ export default function DosenAbsensiPraktikumPage() {
     // 2. User reload page (F5, Ctrl+R, atau klik refresh button)
     // 3. User navigate away dari page (meskipun sudah ada handler untuk location change)
     window.addEventListener("beforeunload", handleBeforeUnload);
-    
+
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
@@ -790,10 +790,10 @@ export default function DosenAbsensiPraktikumPage() {
   // Auto-refresh data absensi setiap 2 detik (untuk real-time update dari mahasiswa)
   useEffect(() => {
     if (!kode || !jadwalId || loading) return;
-    
+
     // Fetch sekali dulu untuk memastikan data terbaru
     fetchAbsensiOnly();
-    
+
     const intervalId = setInterval(() => {
       fetchAbsensiOnly();
     }, 2000); // Refresh setiap 2 detik
@@ -841,21 +841,21 @@ export default function DosenAbsensiPraktikumPage() {
   const fetchData = async () => {
     if (!kode || !jadwalId) return;
     setLoading(true);
-    
+
     try {
       const jadwalResponse = await api.get(`/praktikum/jadwal/${kode}`);
       const allJadwal = jadwalResponse.data;
       const foundJadwal = allJadwal.find(
         (j: any) => j.id === parseInt(jadwalId)
       );
-      
+
       if (!foundJadwal) {
         setError("Jadwal tidak ditemukan");
         return;
       }
       setJadwalDetail(foundJadwal);
       setQrEnabled(foundJadwal.qr_enabled || false);
-      
+
       // Fetch mahasiswa dari kelas praktikum
       try {
         const mahasiswaResponse = await api.get(
@@ -863,7 +863,7 @@ export default function DosenAbsensiPraktikumPage() {
         );
         const mahasiswa = mahasiswaResponse.data?.mahasiswa || [];
         setMahasiswaList(mahasiswa);
-        
+
         if (mahasiswa.length === 0) {
           setError(
             "Tidak ada mahasiswa yang terdaftar di kelas praktikum ini."
@@ -879,7 +879,7 @@ export default function DosenAbsensiPraktikumPage() {
             "Kelas praktikum tidak ditemukan. Pastikan kelas praktikum sudah dibuat dan sesuai dengan jadwal praktikum."
           );
         } else {
-        setError(`Gagal memuat data mahasiswa: ${errorMessage}`);
+          setError(`Gagal memuat data mahasiswa: ${errorMessage}`);
         }
         setMahasiswaList([]);
       }
@@ -890,7 +890,7 @@ export default function DosenAbsensiPraktikumPage() {
           `/praktikum/${kode}/jadwal/${jadwalId}/absensi`
         );
         const existingAbsensi: AbsensiData = {};
-        
+
         if (absensiResponse.data.absensi) {
           Object.keys(absensiResponse.data.absensi).forEach((nim) => {
             const absen = absensiResponse.data.absensi[nim];
@@ -1187,7 +1187,7 @@ export default function DosenAbsensiPraktikumPage() {
     try {
       const payload = { absensi: [{ mahasiswa_nim: nim, hadir, catatan: "" }] };
       await api.post(`/praktikum/${kode}/jadwal/${jadwalId}/absensi`, payload);
-      
+
       // Tunggu sebentar agar backend selesai memproses, lalu refresh
       // Tapi pastikan state lokal sudah benar terlebih dahulu
       setTimeout(async () => {
@@ -1213,7 +1213,7 @@ export default function DosenAbsensiPraktikumPage() {
     } catch (err: any) {
       // jika gagal, rollback state lokal agar tidak menyesatkan
       setAbsensi((prev) => ({ ...prev, [nim]: { hadir: !hadir } }));
-      
+
       // Tampilkan error message yang lebih informatif
       const errorMessage =
         err?.response?.data?.message ||
@@ -1787,7 +1787,7 @@ export default function DosenAbsensiPraktikumPage() {
         "-";
       const semester = jadwalDetail?.mata_kuliah?.semester || "-";
       const kelasPraktikum = jadwalDetail?.kelas_praktikum || "-";
-      const tanggal = jadwalDetail.tanggal 
+      const tanggal = jadwalDetail.tanggal
         ? new Date(jadwalDetail.tanggal).toLocaleDateString("id-ID", {
             weekday: "long",
             year: "numeric",
@@ -1797,12 +1797,12 @@ export default function DosenAbsensiPraktikumPage() {
         : "-";
       const waktu =
         jadwalDetail.jam_mulai && jadwalDetail.jam_selesai
-        ? `${jadwalDetail.jam_mulai} - ${jadwalDetail.jam_selesai}`
+          ? `${jadwalDetail.jam_mulai} - ${jadwalDetail.jam_selesai}`
           : "-";
       const ruangan = jadwalDetail?.ruangan?.nama || "-";
       const materi = jadwalDetail?.materi || "-";
       const topik = jadwalDetail?.topik || "-";
-      
+
       // Ambil data dosen lengkap untuk Excel (praktikum bisa multiple dosen)
       const dosenListExcel = jadwalDetail?.dosen || [];
 
@@ -2052,14 +2052,14 @@ export default function DosenAbsensiPraktikumPage() {
 
       // Bagian Tanda Tangan Koordinator Blok
       const signatureRow = worksheet.rowCount + 1;
-      
+
       // Tanggal di kanan (kolom D)
       const tanggalSignature = `Jakarta, ${new Date().toLocaleDateString(
         "id-ID",
         {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
+          day: "numeric",
+          month: "long",
+          year: "numeric",
         }
       )}`;
       const tanggalCell = worksheet.getCell(`D${signatureRow}`);
@@ -2091,13 +2091,13 @@ export default function DosenAbsensiPraktikumPage() {
         try {
           // Tinggikan baris untuk menampung gambar
           worksheet.getRow(koordinatorLineRow).height = 50;
-          
+
           // Tambahkan gambar tanda tangan koordinator blok ke workbook
           const imageId = workbook.addImage({
             buffer: base64ToBuffer(koordinatorBlokSignature) as any,
             extension: "png",
           });
-          
+
           // Tambahkan gambar di kolom D, align kanan
           // Kolom D adalah kolom ke-4 (A=1, B=2, C=3, D=4)
           // Untuk align kanan, kita perlu menempatkan gambar di kolom D dengan width kolom yang sesuai
@@ -2154,7 +2154,7 @@ export default function DosenAbsensiPraktikumPage() {
       worksheet.mergeCells(`A${worksheet.rowCount}:D${worksheet.rowCount}`);
 
       // Generate filename
-      const tanggalFile = jadwalDetail.tanggal 
+      const tanggalFile = jadwalDetail.tanggal
         ? new Date(jadwalDetail.tanggal).toISOString().split("T")[0]
         : new Date().toISOString().split("T")[0];
       const filename = `Absensi_Praktikum_${jadwalDetail.mata_kuliah_kode}_${tanggalFile}`;
@@ -2324,7 +2324,7 @@ export default function DosenAbsensiPraktikumPage() {
         "-";
       const semester = jadwalDetail?.mata_kuliah?.semester || "-";
       const kelasPraktikum = jadwalDetail?.kelas_praktikum || "-";
-      const tanggal = jadwalDetail.tanggal 
+      const tanggal = jadwalDetail.tanggal
         ? new Date(jadwalDetail.tanggal).toLocaleDateString("id-ID", {
             weekday: "long",
             year: "numeric",
@@ -2334,7 +2334,7 @@ export default function DosenAbsensiPraktikumPage() {
         : "-";
       const waktu =
         jadwalDetail.jam_mulai && jadwalDetail.jam_selesai
-        ? `${jadwalDetail.jam_mulai} - ${jadwalDetail.jam_selesai}`
+          ? `${jadwalDetail.jam_mulai} - ${jadwalDetail.jam_selesai}`
           : "-";
       const ruangan = jadwalDetail?.ruangan?.nama || "-";
       const materi = jadwalDetail?.materi || "-";
@@ -2344,7 +2344,7 @@ export default function DosenAbsensiPraktikumPage() {
       doc.setFont("times", "normal");
       // Koordinat x untuk titik dua agar sejajar (dalam mm)
       const colonXKelas = margin + 40; // Jarak dari margin untuk titik dua
-      
+
       doc.text("Mata Kuliah", margin, yPos);
       doc.text(`: ${mataKuliahNama}`, colonXKelas, yPos);
       yPos += 6;
@@ -2513,8 +2513,8 @@ export default function DosenAbsensiPraktikumPage() {
           : yPos + 50;
       } catch (tableError) {
         // Fallback: tampilkan informasi dosen dalam format teks jika tabel error
-      doc.setFontSize(11);
-      doc.setFont("times", "normal");
+        doc.setFontSize(11);
+        doc.setFont("times", "normal");
         dosenList.forEach((dosen: Dosen, index: number) => {
           if (index > 0) yPos += 6;
           doc.text(
@@ -2524,7 +2524,7 @@ export default function DosenAbsensiPraktikumPage() {
             margin,
             yPos
           );
-      yPos += 6;
+          yPos += 6;
         });
         yPos += 10;
       }
@@ -2599,12 +2599,12 @@ export default function DosenAbsensiPraktikumPage() {
       const tidakHadirTableData =
         mahasiswaTidakHadir.length === 0
           ? [["-", "-", "Semua mahasiswa hadir", "-"]]
-        : mahasiswaTidakHadir.map((m, index) => [
-            index + 1,
-            m.nim,
-            m.nama,
+          : mahasiswaTidakHadir.map((m, index) => [
+              index + 1,
+              m.nim,
+              m.nama,
               "Tidak Hadir",
-          ]);
+            ]);
 
       autoTable(doc, {
         head: [["No", "NIM", "Nama Mahasiswa", "Status"]],
@@ -2717,7 +2717,7 @@ export default function DosenAbsensiPraktikumPage() {
           // Posisi X sedikit lebih ke kanan (tambah 10mm untuk geser ke kanan)
           const imgX = doc.internal.pageSize.width - margin - imgWidth + 10; // Posisi X (lebih ke kanan)
           const imgY = signYStart + 12; // Posisi Y (di bawah title)
-          
+
           doc.addImage(
             koordinatorBlokSignature,
             "PNG",
@@ -2783,10 +2783,10 @@ export default function DosenAbsensiPraktikumPage() {
         const canvas = document.createElement("canvas");
         let ctx = canvas.getContext("2d");
         if (!ctx) return "";
-        
+
         // Scale factor untuk resolusi tinggi (2x atau 3x untuk kualitas lebih baik)
         const scale = 3; // Meningkatkan resolusi 3x untuk hasil yang lebih halus
-        
+
         // Set style untuk watermark terlebih dahulu untuk mengukur teks
         const baseFontSize = 60;
         ctx.font = `bold ${baseFontSize}px Times New Roman`;
@@ -2794,7 +2794,7 @@ export default function DosenAbsensiPraktikumPage() {
         const textMetrics = ctx.measureText(text);
         const textWidth = textMetrics.width;
         const textHeight = baseFontSize;
-        
+
         // Hitung ukuran canvas yang cukup besar untuk rotasi 45 derajat
         // Diagonal dari kotak yang dirotasi = sqrt(width^2 + height^2)
         const padding = 40; // Padding tambahan untuk menghindari terpotong
@@ -2802,34 +2802,34 @@ export default function DosenAbsensiPraktikumPage() {
           textWidth * textWidth + textHeight * textHeight
         );
         const baseCanvasSize = Math.ceil(diagonal) + padding * 2;
-        
+
         // Set ukuran canvas dengan scale tinggi untuk resolusi lebih baik
         canvas.width = baseCanvasSize * scale;
         canvas.height = baseCanvasSize * scale;
-        
+
         // Reset context setelah resize canvas
         ctx = canvas.getContext("2d");
         if (!ctx) return "";
-        
+
         // Scale context untuk menjaga proporsi
         ctx.scale(scale, scale);
-        
+
         // Set style untuk watermark dengan font size yang sesuai
         ctx.fillStyle = "rgba(200, 200, 200, 0.3)"; // Abu-abu terang dengan opacity rendah
         ctx.font = `bold ${baseFontSize}px Times New Roman`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        
+
         // Rotasi 45 derajat
         ctx.save();
         ctx.translate(baseCanvasSize / 2, baseCanvasSize / 2);
         ctx.rotate((-45 * Math.PI) / 180);
-        
+
         // Tambahkan teks watermark
         ctx.fillText(text, 0, 0);
-        
+
         ctx.restore();
-        
+
         return canvas.toDataURL("image/png");
       };
 
@@ -2839,14 +2839,14 @@ export default function DosenAbsensiPraktikumPage() {
       const totalPages = (doc as any).internal.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
-        
+
         // Tambahkan watermark di setiap halaman
         if (watermarkDataUrl) {
           const pageWidth = doc.internal.pageSize.width;
           const pageHeight = doc.internal.pageSize.height;
           const centerX = pageWidth / 2;
           const centerY = pageHeight / 2;
-          
+
           // Tambahkan watermark sebagai gambar di tengah halaman
           // Ukuran watermark disesuaikan agar cukup besar dan tidak terpotong
           try {
@@ -2866,7 +2866,7 @@ export default function DosenAbsensiPraktikumPage() {
             // Error adding watermark
           }
         }
-        
+
         // Footer
         doc.setFontSize(8);
         doc.setFont("times", "normal");
@@ -2888,7 +2888,7 @@ export default function DosenAbsensiPraktikumPage() {
       }
 
       // Generate filename
-      const tanggalFile = jadwalDetail.tanggal 
+      const tanggalFile = jadwalDetail.tanggal
         ? new Date(jadwalDetail.tanggal).toISOString().split("T")[0]
         : new Date().toISOString().split("T")[0];
       const filename = `Absensi_Praktikum_${jadwalDetail.mata_kuliah_kode}_${tanggalFile}`;
@@ -3270,30 +3270,30 @@ export default function DosenAbsensiPraktikumPage() {
 
       {/* Section Absensi - Card Gabungan */}
       <div className="mb-6 bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl shadow-sm overflow-hidden">
-      {/* Tabs */}
+        {/* Tabs */}
         <div className="border-b border-gray-200 dark:border-gray-700">
           <div className="flex">
-          <button
+            <button
               onClick={() => setActiveTab("manual")}
-            className={`px-6 py-3 font-semibold transition-colors ${
+              className={`px-6 py-3 font-semibold transition-colors ${
                 activeTab === "manual"
                   ? "text-green-600 border-b-2 border-green-600 dark:text-green-400"
                   : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-            }`}
-          >
-            Manual
-          </button>
-          <button
+              }`}
+            >
+              Manual
+            </button>
+            <button
               onClick={() => setActiveTab("qr")}
-            className={`px-6 py-3 font-semibold transition-colors flex items-center gap-2 ${
+              className={`px-6 py-3 font-semibold transition-colors flex items-center gap-2 ${
                 activeTab === "qr"
                   ? "text-green-600 border-b-2 border-green-600 dark:text-green-400"
                   : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-            }`}
-          >
-            <FontAwesomeIcon icon={faDesktop} />
-            Presentasi QR
-          </button>
+              }`}
+            >
+              <FontAwesomeIcon icon={faDesktop} />
+              Presentasi QR
+            </button>
             {dosenList.length > 0 && (
               <button
                 data-tab="dosen"
@@ -3307,19 +3307,19 @@ export default function DosenAbsensiPraktikumPage() {
                 Absen Dosen
               </button>
             )}
+          </div>
         </div>
-      </div>
 
-      {/* Content */}
+        {/* Content */}
         {activeTab === "manual" ? (
-        <div className="bg-white dark:bg-white/[0.03] rounded-b-xl shadow-md border border-t-0 border-gray-200 dark:border-gray-800">
-          <div className="p-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-3 gap-3">
+          <div className="bg-white dark:bg-white/[0.03] rounded-b-xl shadow-md border border-t-0 border-gray-200 dark:border-gray-800">
+            <div className="p-6">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-3 gap-3">
                 <div className="font-semibold text-lg text-brand-700 dark:text-white/80 mb-2 md:mb-0">
                   &nbsp;
                 </div>
-              <div className="relative w-full max-w-xs ml-auto">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                <div className="relative w-full max-w-xs ml-auto">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
                     <svg
                       className="w-5 h-5"
                       fill="none"
@@ -3330,25 +3330,25 @@ export default function DosenAbsensiPraktikumPage() {
                       <circle cx="11" cy="11" r="8" />
                       <line x1="21" y1="21" x2="16.65" y2="16.65" />
                     </svg>
-                </span>
-                <input
-                  type="text"
-                  className="pl-10 pr-4 py-2 w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-brand-400 focus:border-brand-500 text-gray-700 dark:text-white text-sm placeholder:text-gray-400 dark:placeholder:text-gray-300 outline-none"
-                  placeholder="Cari nama atau NIM ..."
-                  value={searchQuery}
+                  </span>
+                  <input
+                    type="text"
+                    className="pl-10 pr-4 py-2 w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-brand-400 focus:border-brand-500 text-gray-700 dark:text-white text-sm placeholder:text-gray-400 dark:placeholder:text-gray-300 outline-none"
+                    placeholder="Cari nama atau NIM ..."
+                    value={searchQuery}
                     onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setPage(1); // Reset to first page when search changes
-                  }}
-                />
+                      setSearchQuery(e.target.value);
+                      setPage(1); // Reset to first page when search changes
+                    }}
+                  />
+                </div>
               </div>
-            </div>
-            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-              <div
-                className="max-w-full overflow-x-auto hide-scroll"
-                style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-              >
-                <style>{`
+              <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                <div
+                  className="max-w-full overflow-x-auto hide-scroll"
+                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                >
+                  <style>{`
                   .max-w-full::-webkit-scrollbar { display: none; }
                   .hide-scroll { 
                     -ms-overflow-style: none; /* IE and Edge */
@@ -3358,9 +3358,9 @@ export default function DosenAbsensiPraktikumPage() {
                     display: none;
                   }
                 `}</style>
-                <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-                  <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
-                    <tr>
+                  <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                    <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                      <tr>
                         <th className="px-6 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                           #
                         </th>
@@ -3373,37 +3373,37 @@ export default function DosenAbsensiPraktikumPage() {
                         <th className="px-6 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                           Hadir
                         </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(() => {
-                      // Filter data berdasarkan search query
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        // Filter data berdasarkan search query
                         const filteredData = mahasiswaList.filter((m) => {
-                        const q = searchQuery.trim().toLowerCase();
+                          const q = searchQuery.trim().toLowerCase();
                           return (
                             q === "" ||
                             m.nama.toLowerCase().includes(q) ||
                             m.nim.toLowerCase().includes(q)
                           );
-                      });
+                        });
 
-                      // Pagination
+                        // Pagination
                         const totalPages = Math.ceil(
                           filteredData.length / pageSize
                         );
-                      const paginatedData = filteredData.slice(
-                        (page - 1) * pageSize,
-                        page * pageSize
-                      );
+                        const paginatedData = filteredData.slice(
+                          (page - 1) * pageSize,
+                          page * pageSize
+                        );
 
-                      if (filteredData.length === 0) {
-                        return (
-                          <tr>
+                        if (filteredData.length === 0) {
+                          return (
+                            <tr>
                               <td
                                 colSpan={4}
                                 className="px-6 py-16 text-center"
                               >
-                              <div className="flex flex-col items-center gap-3 text-gray-400 dark:text-gray-500">
+                                <div className="flex flex-col items-center gap-3 text-gray-400 dark:text-gray-500">
                                   <svg
                                     className="w-10 h-10"
                                     fill="none"
@@ -3423,22 +3423,22 @@ export default function DosenAbsensiPraktikumPage() {
                                       stroke="currentColor"
                                       strokeWidth="2"
                                     />
-                                </svg>
+                                  </svg>
                                   <span className="bg-gray-100 dark:bg-gray-800/60 rounded-full px-5 py-2 mt-1 font-medium">
                                     Tidak ada data mahasiswa...
                                   </span>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      }
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        }
 
-                      return paginatedData.map((m, i) => {
-                        const hadir = absensi[m.nim]?.hadir || false;
-                        const globalIndex = (page - 1) * pageSize + i + 1;
-                        return (
-                          <tr
-                            key={m.id}
+                        return paginatedData.map((m, i) => {
+                          const hadir = absensi[m.nim]?.hadir || false;
+                          const globalIndex = (page - 1) * pageSize + i + 1;
+                          return (
+                            <tr
+                              key={m.id}
                               className={
                                 i % 2 === 1
                                   ? "bg-gray-50 dark:bg-white/[0.02]"
@@ -3454,30 +3454,30 @@ export default function DosenAbsensiPraktikumPage() {
                               <td className="px-6 py-4 text-gray-900 dark:text-white font-medium">
                                 {m.nama}
                               </td>
-                            <td className="px-6 py-4 text-center">
+                              <td className="px-6 py-4 text-center">
                                 <div
                                   className="relative flex items-center justify-center select-none mx-auto"
                                   style={{ width: 24, height: 24 }}
                                 >
-                                <input
-                                  type="checkbox"
-                                  checked={hadir}
+                                  <input
+                                    type="checkbox"
+                                    checked={hadir}
                                     onChange={(e) =>
                                       handleAbsensiToggle(
                                         m.nim,
                                         e.target.checked
                                       )
                                     }
-                                  disabled={isSyncing || loading}
-                                  className={`w-6 h-6 appearance-none rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 relative
+                                    disabled={isSyncing || loading}
+                                    className={`w-6 h-6 appearance-none rounded-md border-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-brand-500 relative
                                     ${
                                       hadir
                                         ? "border-brand-500 bg-brand-500"
                                         : "border-gray-300 bg-white dark:bg-gray-900 dark:border-gray-700"
                                     } disabled:opacity-50 disabled:cursor-not-allowed`}
                                     style={{ outline: "none" }}
-                                />
-                                {hadir && (
+                                  />
+                                  {hadir && (
                                     <span
                                       style={{
                                         position: "absolute",
@@ -3506,81 +3506,81 @@ export default function DosenAbsensiPraktikumPage() {
                                           stroke="white"
                                           strokeWidth="2.5"
                                         />
-                                    </svg>
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      });
-                    })()}
-                  </tbody>
-                </table>
+                                      </svg>
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
 
-            {/* Pagination */}
-            {(() => {
+              {/* Pagination */}
+              {(() => {
                 const filteredData = mahasiswaList.filter((m) => {
-                const q = searchQuery.trim().toLowerCase();
+                  const q = searchQuery.trim().toLowerCase();
                   return (
                     q === "" ||
                     m.nama.toLowerCase().includes(q) ||
                     m.nim.toLowerCase().includes(q)
                   );
-              });
-              const totalPages = Math.ceil(filteredData.length / pageSize);
-              const paginatedData = filteredData.slice(
-                (page - 1) * pageSize,
-                page * pageSize
-              );
+                });
+                const totalPages = Math.ceil(filteredData.length / pageSize);
+                const paginatedData = filteredData.slice(
+                  (page - 1) * pageSize,
+                  page * pageSize
+                );
 
-              if (filteredData.length === 0) return null;
+                if (filteredData.length === 0) return null;
 
-              return (
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 sm:px-6 py-4 mt-4">
-                  <div className="flex items-center gap-4">
-                    <select
-                      id="perPage"
-                      value={pageSize}
-                      onChange={(e) => {
-                        setPageSize(Number(e.target.value));
-                        setPage(1);
-                      }}
-                      className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
-                    >
-                      {PAGE_SIZE_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                return (
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 sm:px-6 py-4 mt-4">
+                    <div className="flex items-center gap-4">
+                      <select
+                        id="perPage"
+                        value={pageSize}
+                        onChange={(e) => {
+                          setPageSize(Number(e.target.value));
+                          setPage(1);
+                        }}
+                        className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
+                      >
+                        {PAGE_SIZE_OPTIONS.map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
                         Menampilkan {paginatedData.length} dari{" "}
                         {filteredData.length} data
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 justify-center sm:justify-end">
-                    <button
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      disabled={page === 1}
-                      className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
-                    >
-                      Prev
-                    </button>
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 justify-center sm:justify-end">
+                      <button
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        disabled={page === 1}
+                        className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                      >
+                        Prev
+                      </button>
 
-                    {/* Smart Pagination with Scroll */}
-                    <div
-                      className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll"
-                      style={{
-                        scrollbarWidth: "thin",
-                        scrollbarColor: "#cbd5e1 #f1f5f9",
-                      }}
-                    >
-                      <style
-                        dangerouslySetInnerHTML={{
-                          __html: `
+                      {/* Smart Pagination with Scroll */}
+                      <div
+                        className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll"
+                        style={{
+                          scrollbarWidth: "thin",
+                          scrollbarColor: "#cbd5e1 #f1f5f9",
+                        }}
+                      >
+                        <style
+                          dangerouslySetInnerHTML={{
+                            __html: `
                           .pagination-scroll::-webkit-scrollbar {
                             height: 6px;
                           }
@@ -3605,92 +3605,92 @@ export default function DosenAbsensiPraktikumPage() {
                             background: #64748b;
                           }
                         `,
-                        }}
-                      />
+                          }}
+                        />
 
-                      {/* Always show first page */}
-                      <button
-                        onClick={() => setPage(1)}
-                        className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                          page === 1
-                            ? "bg-brand-500 text-white"
-                            : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                        }`}
-                      >
-                        1
-                      </button>
-
-                      {/* Show ellipsis if current page is far from start */}
-                      {page > 4 && (
-                        <span className="px-2 text-gray-500 dark:text-gray-400">
-                          ...
-                        </span>
-                      )}
-
-                      {/* Show pages around current page */}
-                      {Array.from({ length: totalPages }, (_, i) => {
-                        const pageNum = i + 1;
-                        // Show pages around current page (2 pages before and after)
-                        const shouldShow =
-                          pageNum > 1 &&
-                          pageNum < totalPages &&
-                          pageNum >= page - 2 &&
-                          pageNum <= page + 2;
-
-                        if (!shouldShow) return null;
-
-                        return (
-                          <button
-                            key={i}
-                            onClick={() => setPage(pageNum)}
-                            className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                              page === pageNum
-                                ? "bg-brand-500 text-white"
-                                : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                            }`}
-                          >
-                            {pageNum}
-                          </button>
-                        );
-                      })}
-
-                      {/* Show ellipsis if current page is far from end */}
-                      {page < totalPages - 3 && (
-                        <span className="px-2 text-gray-500 dark:text-gray-400">
-                          ...
-                        </span>
-                      )}
-
-                      {/* Always show last page if more than 1 page */}
-                      {totalPages > 1 && (
+                        {/* Always show first page */}
                         <button
-                          onClick={() => setPage(totalPages)}
+                          onClick={() => setPage(1)}
                           className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                            page === totalPages
+                            page === 1
                               ? "bg-brand-500 text-white"
                               : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
                           }`}
                         >
-                          {totalPages}
+                          1
                         </button>
-                      )}
-                    </div>
 
-                    <button
+                        {/* Show ellipsis if current page is far from start */}
+                        {page > 4 && (
+                          <span className="px-2 text-gray-500 dark:text-gray-400">
+                            ...
+                          </span>
+                        )}
+
+                        {/* Show pages around current page */}
+                        {Array.from({ length: totalPages }, (_, i) => {
+                          const pageNum = i + 1;
+                          // Show pages around current page (2 pages before and after)
+                          const shouldShow =
+                            pageNum > 1 &&
+                            pageNum < totalPages &&
+                            pageNum >= page - 2 &&
+                            pageNum <= page + 2;
+
+                          if (!shouldShow) return null;
+
+                          return (
+                            <button
+                              key={i}
+                              onClick={() => setPage(pageNum)}
+                              className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                                page === pageNum
+                                  ? "bg-brand-500 text-white"
+                                  : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+
+                        {/* Show ellipsis if current page is far from end */}
+                        {page < totalPages - 3 && (
+                          <span className="px-2 text-gray-500 dark:text-gray-400">
+                            ...
+                          </span>
+                        )}
+
+                        {/* Always show last page if more than 1 page */}
+                        {totalPages > 1 && (
+                          <button
+                            onClick={() => setPage(totalPages)}
+                            className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                              page === totalPages
+                                ? "bg-brand-500 text-white"
+                                : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            }`}
+                          >
+                            {totalPages}
+                          </button>
+                        )}
+                      </div>
+
+                      <button
                         onClick={() =>
                           setPage((p) => Math.min(totalPages, p + 1))
                         }
-                      disabled={page === totalPages}
-                      className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
-                    >
-                      Next
-                    </button>
+                        disabled={page === totalPages}
+                        className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                      >
+                        Next
+                      </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })()}
+                );
+              })()}
+            </div>
           </div>
-        </div>
         ) : activeTab === "qr" ? (
           <div className="bg-white dark:bg-gray-800 rounded-b-2xl shadow-sm border border-t-0 border-gray-200 dark:border-gray-700 p-4 sm:p-6">
             <div className="max-w-3xl mx-auto">
@@ -3710,11 +3710,11 @@ export default function DosenAbsensiPraktikumPage() {
                   scan dengan HP mereka
                 </p>
               </div>
-              
+
               {/* Status & Control Card */}
               <div
                 className={`rounded-xl border p-3 sm:p-4 mb-4 sm:mb-6 transition-colors ${
-                qrEnabled
+                  qrEnabled
                     ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
                     : "bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-700"
                 }`}
@@ -3729,7 +3729,7 @@ export default function DosenAbsensiPraktikumPage() {
                     <div className="flex-1 min-w-0">
                       <p
                         className={`text-xs sm:text-sm font-semibold ${
-                        qrEnabled 
+                          qrEnabled
                             ? "text-green-700 dark:text-green-400"
                             : "text-gray-700 dark:text-gray-300"
                         }`}
@@ -3851,18 +3851,18 @@ export default function DosenAbsensiPraktikumPage() {
                       <div className="mb-4 sm:mb-6 w-full flex justify-center">
                         <div
                           className={`flex items-center justify-center gap-2 sm:gap-3 px-4 py-2.5 sm:px-6 sm:py-4 rounded-xl border transition-colors w-full sm:w-auto ${
-                          timeRemaining <= 10
+                            timeRemaining <= 10
                               ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
-                            : timeRemaining <= 30
+                              : timeRemaining <= 30
                               ? "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800"
                               : "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
                           }`}
                         >
                           <div
                             className={`flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex-shrink-0 ${
-                            timeRemaining <= 10
+                              timeRemaining <= 10
                                 ? "bg-red-500 dark:bg-red-600"
-                              : timeRemaining <= 30
+                                : timeRemaining <= 30
                                 ? "bg-orange-500 dark:bg-orange-600"
                                 : "bg-blue-500 dark:bg-blue-600"
                             }`}
@@ -3889,9 +3889,9 @@ export default function DosenAbsensiPraktikumPage() {
                             </p>
                             <p
                               className={`text-xl sm:text-2xl font-bold ${
-                              timeRemaining <= 10
+                                timeRemaining <= 10
                                   ? "text-red-600 dark:text-red-400"
-                                : timeRemaining <= 30
+                                  : timeRemaining <= 30
                                   ? "text-orange-600 dark:text-orange-400"
                                   : "text-blue-600 dark:text-blue-400"
                               }`}
@@ -3903,7 +3903,7 @@ export default function DosenAbsensiPraktikumPage() {
                         </div>
                       </div>
                     )}
-                    
+
                     {/* QR Code Container */}
                     <div className="bg-white dark:bg-gray-900 p-3 sm:p-6 rounded-xl border-2 border-gray-200 dark:border-gray-600 mb-4 sm:mb-6 relative overflow-hidden flex items-center justify-center">
                       {/* Loading overlay saat fetch token baru */}
@@ -3925,7 +3925,7 @@ export default function DosenAbsensiPraktikumPage() {
                           </div>
                         </motion.div>
                       )}
-                      
+
                       {/* QR Code dengan animasi */}
                       <motion.div
                         key={qrCodeKey}
@@ -3955,17 +3955,17 @@ export default function DosenAbsensiPraktikumPage() {
                               const isBlack = Math.random() > 0.5;
                               const angle = Math.random() * Math.PI * 2;
                               const distance = 40 + Math.random() * 80;
-                              
+
                               return (
                                 <motion.div
                                   key={`particle-${qrCodeKey}-${i}`}
-                                  initial={{ 
+                                  initial={{
                                     opacity: 1,
                                     scale: 1,
                                     x: x,
                                     y: y,
                                   }}
-                                  animate={{ 
+                                  animate={{
                                     opacity: [1, 1, 0.8, 0],
                                     scale: [1, 1.2, 0.3, 0],
                                     x: x + Math.cos(angle) * distance,
@@ -3983,7 +3983,7 @@ export default function DosenAbsensiPraktikumPage() {
                                     backgroundColor: isBlack
                                       ? "#000000"
                                       : "#ffffff",
-                                    boxShadow: isBlack 
+                                    boxShadow: isBlack
                                       ? "0 0 4px rgba(0,0,0,0.8), 0 0 8px rgba(0,0,0,0.4)"
                                       : "0 0 4px rgba(255,255,255,0.8), 0 0 8px rgba(255,255,255,0.4)",
                                     left: `${x}px`,
@@ -3994,9 +3994,9 @@ export default function DosenAbsensiPraktikumPage() {
                             })}
                           </div>
                         )}
-                        
-                        <QRCode 
-                          value={qrCodeData} 
+
+                        <QRCode
+                          value={qrCodeData}
                           size={280}
                           level="H"
                           includeMargin={true}
@@ -4004,7 +4004,7 @@ export default function DosenAbsensiPraktikumPage() {
                           style={{ maxWidth: "280px", maxHeight: "280px" }}
                         />
                       </motion.div>
-                      
+
                       {/* Indicator bahwa QR code baru */}
                       {showNewBadge && !isFetchingToken && (
                         <AnimatePresence>
@@ -4036,7 +4036,7 @@ export default function DosenAbsensiPraktikumPage() {
                         </AnimatePresence>
                       )}
                     </div>
-                    
+
                     {/* Instruksi */}
                     <div className="w-full max-w-lg mx-auto">
                       <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3 sm:p-4 border border-blue-200 dark:border-blue-800">
@@ -5268,7 +5268,7 @@ export default function DosenAbsensiPraktikumPage() {
                       d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
-    </div>
+                </div>
                 <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
                   Konfirmasi Submit Absensi Dosen
                 </h2>

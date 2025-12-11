@@ -1202,6 +1202,153 @@ chmod -R 775 storage bootstrap/cache
 chown -R www-data:www-data storage bootstrap/cache
 ```
 
+## ⚡ Performance Optimization untuk 1000+ Users
+
+### Optimasi Konfigurasi Server
+
+Sistem ini dioptimalkan untuk menangani **1000+ concurrent users** dengan optimasi pada:
+- **PHP-FPM**: `max_children = 150` (dari default 5)
+- **Apache**: `MaxRequestWorkers = 300` (dari default 150)
+- **MySQL**: `max_connections = 500` (dari default 151)
+- **Race Condition Fix**: Database lock untuk mencegah race condition saat banyak user login bersamaan
+
+### Script Optimasi Otomatis
+
+**`fix-all.sh`** - Script terpusat untuk optimasi semua konfigurasi:
+
+```bash
+cd /var/www/isme-fkk/backend
+sudo chmod +x fix-all.sh
+sudo ./fix-all.sh
+```
+
+**Apa yang dilakukan script:**
+1. ✅ **Auto Backup** - Backup otomatis semua config sebelum diubah
+2. ✅ **Fix PHP-FPM** - Update `pm.max_children` dari 5 → 150
+3. ✅ **Fix MySQL** - Update `max_connections` dari 151 → 500
+4. ✅ **Fix Apache** - Update `MaxRequestWorkers` dari 150 → 300
+5. ✅ **Test Config** - Validasi config sebelum restart
+6. ✅ **Auto Restore** - Restore backup jika ada error
+7. ✅ **Clear Cache** - Clear Laravel cache
+8. ✅ **Verify** - Verifikasi semua perubahan
+
+**Backup Locations:**
+- PHP-FPM: `/etc/php/8.4/fpm/pool.d/www.conf.backup.TIMESTAMP`
+- MySQL: `/etc/mysql/mysql.conf.d/mysqld.cnf.backup.TIMESTAMP`
+- Apache: `/etc/apache2/backup_TIMESTAMP/`
+
+**Catatan Penting:**
+- Script cukup dijalankan **1x saja** saat pertama kali setup VPS
+- Konfigurasi sistem tidak akan terpengaruh saat delete/clone project
+- Hanya perlu dijalankan lagi jika server di-reinstall atau config di-reset
+
+### Checking Konfigurasi
+
+**`check-config.sh`** - Script untuk mengecek konfigurasi:
+
+```bash
+cd /var/www/isme-fkk/backend
+sudo chmod +x check-config.sh
+./check-config.sh
+```
+
+Script ini akan menampilkan:
+- PHP-FPM configuration (max_children, start_servers, dll)
+- Session & Cache configuration
+- Redis status dan info
+- MySQL max_connections
+- Apache/Nginx worker configuration
+- Current resource usage
+- Potensi race condition di code
+
+### Monitoring Real-time
+
+**`monitor-login.sh`** - Script untuk monitoring real-time:
+
+```bash
+cd /var/www/isme-fkk/backend
+sudo chmod +x monitor-login.sh
+
+# Run di background
+nohup ./monitor-login.sh > /dev/null 2>&1 &
+
+# Atau run di terminal terpisah untuk lihat real-time
+./monitor-login.sh
+```
+
+**Monitoring akan capture:**
+- Redis connections dan memory usage
+- PHP-FPM processes count
+- System memory usage
+- System load average
+- Laravel errors count
+- Login-related errors
+- Database connections
+
+**Log file:** `storage/logs/monitor_YYYYMMDD.log`
+
+### Workflow Testing Setelah Optimasi
+
+1. **Run fix script** (1x saja):
+   ```bash
+   sudo ./fix-all.sh
+   ```
+
+2. **Start monitoring**:
+   ```bash
+   ./monitor-login.sh
+   ```
+
+3. **Test dengan user** (gradual):
+   - Test 10 user dulu → Monitor 5-10 menit
+   - Jika OK, test 50 user → Monitor lagi
+   - Jika OK, test 100 user → Monitor lagi
+   - Jika OK, test 150 user (limit max_children)
+
+4. **Check results**:
+   ```bash
+   # Check monitoring log
+   tail -f storage/logs/monitor_$(date +%Y%m%d).log
+   
+   # Check error log
+   tail -f storage/logs/laravel.log | grep -i "error\|exception"
+   
+   # Check resource
+   free -h; ps aux | grep php-fpm | wc -l
+   ```
+
+### Perhitungan Optimasi
+
+**Asumsi untuk 1000 users:**
+- Concurrent users: ~10% = 100 user bersamaan
+- Buffer: 1.5x untuk safety = 150 concurrent requests
+
+**Konfigurasi yang dioptimalkan:**
+- PHP-FPM `max_children`: 150 (handle 150 request bersamaan)
+- Apache `MaxRequestWorkers`: 300 (handle 300 connection bersamaan)
+- MySQL `max_connections`: 500 (handle 500 connection bersamaan)
+
+**Resource Usage (Estimasi):**
+- PHP-FPM: ~150 processes × ~50MB = ~7.5GB
+- Apache: ~300 processes × ~10MB = ~3GB
+- Total: ~10-11GB (dengan swap 4GB, masih aman untuk server 7.8GB RAM)
+
+### Race Condition Fix
+
+**AuthController** sudah diperbaiki dengan database lock untuk mencegah race condition saat banyak user login bersamaan:
+
+```php
+// Menggunakan DB::transaction dengan lockForUpdate()
+return DB::transaction(function () use ($user, $request) {
+    $lockedUser = User::where('id', $user->id)
+        ->lockForUpdate() // Pessimistic locking
+        ->first();
+    // ... rest of login logic
+});
+```
+
+Ini memastikan hanya satu request yang bisa update user pada saat yang sama, mencegah race condition.
+
 ## 🚀 Deployment & VPS Setup
 
 ### Setup Permissions untuk VPS
@@ -1315,5 +1462,5 @@ sudo chown -R www-data:www-data /var/www/isme-fkk/backend/bootstrap/cache
 **Version**: 2.0.2  
 **Laravel Version**: 12.28.1  
 **PHP Version**: >= 8.2  
-**Last Updated**: 4 Desember 2025
+**Last Updated**: 11 Desember 2025
 

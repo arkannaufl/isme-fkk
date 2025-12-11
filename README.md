@@ -370,12 +370,39 @@ Lihat dokumentasi lengkap di [Backend README](./backend/README.md#-deployment--v
 
 ## 📊 Performance Optimization
 
+### Optimasi untuk 1000+ Users
+
+Sistem ini dioptimalkan untuk menangani **1000+ concurrent users** dengan optimasi konfigurasi server:
+
+**Konfigurasi yang Dioptimalkan:**
+- **PHP-FPM**: `max_children = 150` (dari default 5) - Handle 150 request bersamaan
+- **Apache**: `MaxRequestWorkers = 300` (dari default 150) - Handle 300 connection bersamaan
+- **MySQL**: `max_connections = 500` (dari default 151) - Handle 500 connection bersamaan
+- **Race Condition Fix**: Database lock untuk mencegah race condition saat banyak user login bersamaan
+
+**Script Optimasi:**
+- `fix-all.sh` - Script terpusat untuk optimasi semua konfigurasi (1x run, auto backup)
+- `check-config.sh` - Script untuk checking konfigurasi
+- `monitor-login.sh` - Script untuk monitoring real-time
+
+**Cara Menggunakan:**
+```bash
+cd backend
+sudo ./fix-all.sh  # Run 1x saja, auto backup & fix semua config
+./monitor-login.sh # Monitoring real-time
+```
+
+Lihat dokumentasi lengkap di [Backend README](./backend/README.md#-performance-optimization-untuk-1000-users)
+
+### Optimasi Aplikasi
+
 - **Redis Caching**: Cache untuk session, cache, dan queue (Production)
 - **Database Indexing**: Index pada kolom yang sering di-query
-- **Pagination**: Pagination untuk data besar
+- **Pagination**: Pagination untuk data besar (default 50 items/page)
 - **Eager Loading**: Optimasi query dengan eager loading
 - **Connection Pooling**: MySQL connection pooling
-- **Rate Limiting**: Mencegah abuse dan overload
+- **Rate Limiting**: Mencegah abuse dan overload (120 req/min untuk API, 10 req/min untuk login)
+- **Query Optimization**: Direct DB updates, batch operations, select specific columns
 
 ## 🧪 Testing
 
@@ -427,5 +454,5 @@ Untuk support dan pertanyaan:
 ---
 
 **Version**: 2.0.2  
-**Last Updated**: 4 Desember 2025
+**Last Updated**: 11 Desember 2025
 
