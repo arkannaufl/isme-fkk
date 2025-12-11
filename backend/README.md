@@ -1218,9 +1218,25 @@ Sistem ini dioptimalkan untuk menangani **1000+ concurrent users** dengan optima
 
 ```bash
 cd /var/www/isme-fkk/backend
+
+# 1. Berikan execute permission pada script
+# ⚠️ PENTING: Gunakan sudo karena file mungkin dimiliki oleh root atau www-data
 sudo chmod +x fix-all.sh
+
+# 2. Jalankan script dengan sudo
 sudo ./fix-all.sh
 ```
+
+**Mengapa perlu `sudo` untuk `chmod +x`?**
+- Setelah `git clone`, file mungkin dimiliki oleh user yang melakukan clone (bukan `www-data`)
+- Untuk memberikan execute permission, perlu akses ke file tersebut
+- Jika file dimiliki oleh `root` atau `www-data`, perlu `sudo` untuk mengubah permission
+- Lebih aman menggunakan `sudo` untuk memastikan permission bisa diubah
+
+**Mengapa perlu `sudo` untuk menjalankan script?**
+- Script akan mengubah konfigurasi sistem di `/etc/php/`, `/etc/mysql/`, dan `/etc/apache2/`
+- Perubahan konfigurasi sistem memerlukan akses root
+- Script akan restart service PHP-FPM, MySQL, dan Apache yang memerlukan akses root
 
 **Apa yang dilakukan script:**
 1. ✅ **Auto Backup** - Backup otomatis semua config sebelum diubah
