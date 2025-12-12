@@ -13,6 +13,11 @@ git pull origin main
 
 # 3. Masuk ke direktori backend
 cd backend
+
+# 4. Pastikan semua script baru sudah ada
+ls -la *.sh
+# Harus ada: check-config.sh, monitor-login.sh, test-login-load.sh, 
+#            setup-test-users.sh, create-test-users.sh, fix-all.sh, dll
 ```
 
 ## 📦 Step 2: Update Dependencies (jika ada)
@@ -73,9 +78,21 @@ sudo chmod +x check-config.sh
 sudo chmod +x monitor-login.sh
 sudo chmod +x test-login-load.sh
 sudo chmod +x setup-test-users.sh
+sudo chmod +x create-test-users.sh
 
 # Verify script bisa dijalankan
 ./check-config.sh
+```
+
+**⚠️ PENTING**: Pastikan semua file sudah di-pull dari git:
+```bash
+# Jika file belum ada, pull dulu
+cd /var/www/isme-fkk
+git pull origin main
+
+# Lalu berikan permission
+cd backend
+sudo chmod +x *.sh
 ```
 
 ## 👥 Step 6.5: Setup Test Users (Opsional)
@@ -84,12 +101,36 @@ sudo chmod +x setup-test-users.sh
 
 ### Option 1: Create Test Users Khusus (⭐ RECOMMENDED)
 
+**✅ TIDAK PERLU TAHU PASSWORD ASLI DARI DATABASE REAL!**
+
 ```bash
-# Create 50 test users dengan password yang diketahui
+# Pastikan file sudah di-pull dan punya permission
+sudo chmod +x create-test-users.sh
+
+# Create 50 test users dengan password yang diketahui (bisa di-set sendiri)
 ./create-test-users.sh -r mahasiswa -p test123 -c 50
 
+# Jika ada permission denied saat generate file, jalankan dengan sudo:
+sudo ./create-test-users.sh -r mahasiswa -p test123 -c 50
+
 # File users_mahasiswa_test.txt akan otomatis di-generate
+# Jika file dibuat di /tmp, gunakan path lengkap:
+# ./test-login-load.sh -f /tmp/users_mahasiswa_test.txt -c 50 -t 100
 ```
+
+**Troubleshooting Permission:**
+```bash
+# Jika masih permission denied, fix ownership direktori:
+sudo chown -R $USER:$USER /var/www/isme-fkk/backend
+
+# Atau jalankan script dengan sudo:
+sudo ./create-test-users.sh -r mahasiswa -p test123 -c 50
+```
+
+**Keuntungan:**
+- ✅ **TIDAK PERLU TAHU PASSWORD ASLI** - Buat test users baru dengan password yang bisa di-set sendiri
+- ✅ Tidak mengganggu data real - Test users terpisah dari user real
+- ✅ Bisa dihapus setelah testing - Tidak meninggalkan sampah di database
 
 **Keuntungan:**
 - ✅ Password diketahui (bisa di-set sendiri)

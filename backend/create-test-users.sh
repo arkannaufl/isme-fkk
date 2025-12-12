@@ -185,6 +185,14 @@ echo ""
 OUTPUT_FILE="users_${ROLE}_test.txt"
 echo -e "${YELLOW}Generating ${OUTPUT_FILE}...${NC}"
 
+# Check if we can write to current directory, if not use /tmp
+OUTPUT_DIR="."
+if [ ! -w "." ]; then
+    OUTPUT_DIR="/tmp"
+    OUTPUT_FILE="${OUTPUT_DIR}/$(basename ${OUTPUT_FILE})"
+    echo -e "${YELLOW}⚠ Tidak bisa write ke direktori saat ini, menggunakan ${OUTPUT_DIR}${NC}"
+fi
+
 php artisan tinker --execute="
 \$users = \App\Models\User::where('username', 'like', '${PREFIX}%')
     ->where('role', '${ROLE}')
@@ -196,8 +204,9 @@ foreach (\$users as \$user) {
 }
 " > /tmp/test_users_list.txt 2>/dev/null
 
-# Write users.txt
-cat > "$OUTPUT_FILE" << EOF
+# Write users.txt to temp file first, then move
+TEMP_OUTPUT=$(mktemp)
+cat > "$TEMP_OUTPUT" << EOF
 # Test Users untuk Load Testing
 # Generated: $(date)
 # Role: ${ROLE}
@@ -212,19 +221,55 @@ EOF
 
 while IFS= read -r username; do
     if [ -n "$username" ]; then
-        echo "${username}:${TEST_PASSWORD}" >> "$OUTPUT_FILE"
+        echo "${username}:${TEST_PASSWORD}" >> "$TEMP_OUTPUT"
     fi
 done < /tmp/test_users_list.txt
 
 rm -f /tmp/test_users_list.txt
 
+# Try to move/copy file to final location
+if cp "$TEMP_OUTPUT" "$OUTPUT_FILE" 2>/dev/null; then
+    chmod 644 "$OUTPUT_FILE" 2>/dev/null || true
+    rm -f "$TEMP_OUTPUT"
+elif sudo cp "$TEMP_OUTPUT" "$OUTPUT_FILE" 2>/dev/null; then
+    sudo chmod 644 "$OUTPUT_FILE" 2>/dev/null || true
+    rm -f "$TEMP_OUTPUT"
+    echo -e "${YELLOW}⚠ File dibuat dengan sudo, mungkin perlu sudo untuk read${NC}"
+else
+    # If still fails, use temp file location
+    OUTPUT_FILE="$TEMP_OUTPUT"
+    echo -e "${YELLOW}⚠ Tidak bisa write ke direktori, file disimpan di: ${OUTPUT_FILE}${NC}"
+fi
+
+# Check if file was created successfully
+if [ ! -f "$OUTPUT_FILE" ]; then
+    echo -e "${RED}Error: File ${OUTPUT_FILE} tidak berhasil dibuat${NC}"
+    echo -e "${YELLOW}Solusi:${NC}"
+    echo -e "  1. Jalankan dengan sudo: ${BLUE}sudo ./create-test-users.sh${NC}"
+    echo -e "  2. Atau fix permission: ${BLUE}sudo chown -R \$USER:\$USER /var/www/isme-fkk/backend${NC}"
+    exit 1
+fi
+
+# Fix permission if needed
+if [ -w "$OUTPUT_FILE" ]; then
+    chmod 644 "$OUTPUT_FILE" 2>/dev/null || true
+else
+    sudo chmod 644 "$OUTPUT_FILE" 2>/dev/null || true
+fi
+
 echo -e "${GREEN}✓ File ${OUTPUT_FILE} berhasil dibuat${NC}"
+echo -e "  Lokasi: ${BLUE}${OUTPUT_FILE}${NC}"
 echo ""
 
 # Show first 5 users as preview
-echo -e "${YELLOW}Preview (5 pertama):${NC}"
-head -n 10 "$OUTPUT_FILE" | grep -v '^#' | head -n 5
-echo ""
+if [ -r "$OUTPUT_FILE" ]; then
+    echo -e "${YELLOW}Preview (5 pertama):${NC}"
+    head -n 10 "$OUTPUT_FILE" | grep -v '^#' | head -n 5
+    echo ""
+else
+    echo -e "${YELLOW}⚠ Tidak bisa read file untuk preview (permission issue)${NC}"
+    echo ""
+fi
 
 # Instructions
 echo -e "${BLUE}========================================${NC}"
