@@ -2545,7 +2545,7 @@ class JadwalKuliahBesarController extends Controller
                             Log::info("Kuliah Besar getMahasiswa - Found kelompok besar by ID: {$jadwal->kelompok_besar_id}, semester: {$semester}");
                         } else {
                             // Tidak ditemukan di database, berarti ini adalah semester langsung
-                            $semester = $jadwal->kelompok_besar_id;
+                        $semester = $jadwal->kelompok_besar_id;
                             Log::info("Kuliah Besar getMahasiswa - Using kelompok_besar_id as semester directly: {$semester}");
                         }
                     } elseif ($jadwal->mataKuliah && $jadwal->mataKuliah->semester) {

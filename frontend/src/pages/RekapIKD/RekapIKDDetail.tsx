@@ -11,7 +11,12 @@ import {
   faChevronDown,
   faChevronUp,
   faArrowLeft,
+  faFileExcel,
+  faFilePdf,
 } from "@fortawesome/free-solid-svg-icons";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface IKDPedoman {
   id: number;
@@ -42,12 +47,20 @@ interface IKDBuktiFisik {
   pedoman?: IKDPedoman;
 }
 
+interface BidangData {
+  bidang: string;
+  bidangNama: string;
+  totalHasil: number;
+  kegiatanCount: number;
+}
+
 interface UnitData {
   unit: string;
   pedomanList: IKDPedoman[];
   buktiFisikMap: { [key: number]: IKDBuktiFisik }; // Key: `ikd_pedoman_id` (number)
   totalHasil: number;
   kegiatanCount: number; // Jumlah kegiatan yang sudah ada file atau skor > 0
+  bidangDataMap: { [key: string]: BidangData }; // Key: bidang code (A, B, D, etc.)
 }
 
 const UNIT_LIST = [
@@ -66,23 +79,26 @@ const UNIT_LIST = [
 const isPedomanInUnit = (pedoman: IKDPedoman, unit: string): boolean => {
   const pedomanUnitKerja = (pedoman.unit_kerja || "").toLowerCase().trim();
   const currentUnitLower = unit.toLowerCase().trim();
-  
+
   // Split unit_kerja by comma and check if current unit is in the list
   const unitKerjaList = pedomanUnitKerja
     .split(",")
     .map((u: string) => u.trim().toLowerCase())
     .filter((u: string) => u.length > 0);
-  
+
   return unitKerjaList.includes(currentUnitLower);
 };
 
 // Helper function to download file using API endpoint
 const handleDownloadFile = async (fileId: number, fileName: string) => {
   try {
-    const response = await api.get(`/rekap-ikd/bukti-fisik/${fileId}/download`, {
-      responseType: 'blob',
-    });
-    
+    const response = await api.get(
+      `/rekap-ikd/bukti-fisik/${fileId}/download`,
+      {
+        responseType: "blob",
+      }
+    );
+
     // Create blob from response
     const blob = new Blob([response.data]);
     const url = window.URL.createObjectURL(blob);
@@ -116,7 +132,6 @@ const RekapIKDDetail: React.FC = () => {
   }>({});
   const [loading, setLoading] = useState(true);
   const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set());
-  const [selectedUnit, setSelectedUnit] = useState<string | null>(null);
   const isInitialLoadRef = React.useRef(true);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [searchParams] = useSearchParams();
@@ -126,17 +141,20 @@ const RekapIKDDetail: React.FC = () => {
   // Get current user - memoize to prevent unnecessary re-renders
   const currentUser = React.useMemo(() => getUser(), []);
   const currentUserRole = currentUser?.role || "";
-  
+
   // Check if user is superadmin or tim_akademik
-  const isSuperAdminOrTimAkademik = currentUserRole === 'super_admin' || currentUserRole === 'tim_akademik';
-  
+  const isSuperAdminOrTimAkademik =
+    currentUserRole === "super_admin" || currentUserRole === "tim_akademik";
+
   // Jika ada query parameter user_id dan user adalah super_admin atau tim_akademik, gunakan user_id tersebut
   // Jika tidak, gunakan user yang login
-  const targetUserIdParam = searchParams.get('user_id');
-  const targetUserId = (currentUserRole === 'super_admin' || currentUserRole === 'tim_akademik') && targetUserIdParam
-    ? parseInt(targetUserIdParam, 10)
-    : currentUser?.id;
-  
+  const targetUserIdParam = searchParams.get("user_id");
+  const targetUserId =
+    (currentUserRole === "super_admin" || currentUserRole === "tim_akademik") &&
+    targetUserIdParam
+      ? parseInt(targetUserIdParam, 10)
+      : currentUser?.id;
+
   const userId = targetUserId;
 
   // Fetch data for all units
@@ -168,7 +186,9 @@ const RekapIKDDetail: React.FC = () => {
 
           // Fetch bukti fisik for current user in this unit
           const buktiFisikRes = await api.get(
-            `/rekap-ikd/bukti-fisik?user_id=${userId}&unit=${encodeURIComponent(unit)}`
+            `/rekap-ikd/bukti-fisik?user_id=${userId}&unit=${encodeURIComponent(
+              unit
+            )}`
           );
           const buktiFisikArray: IKDBuktiFisik[] =
             buktiFisikRes.data?.success && buktiFisikRes.data?.data
@@ -190,7 +210,7 @@ const RekapIKDDetail: React.FC = () => {
             } else {
               // Data lama (unit NULL): verifikasi berdasarkan pedoman unit_kerja
               let pedomanToCheck: IKDPedoman | null = null;
-              
+
               if (bf.pedoman) {
                 // Buat temporary pedoman object untuk menggunakan helper function
                 pedomanToCheck = {
@@ -205,13 +225,17 @@ const RekapIKDDetail: React.FC = () => {
                   bidang_nama: bf.pedoman.bidang_nama,
                   parent_id: bf.pedoman.parent_id,
                   level: bf.pedoman.level || 1,
-                  is_active: bf.pedoman.is_active !== undefined ? bf.pedoman.is_active : true,
+                  is_active:
+                    bf.pedoman.is_active !== undefined
+                      ? bf.pedoman.is_active
+                      : true,
                 };
               } else {
                 // Jika pedoman tidak di-load, gunakan pedoman dari pedomanList untuk verifikasi
-                pedomanToCheck = pedomanList.find((p) => p.id === bf.ikd_pedoman_id) || null;
+                pedomanToCheck =
+                  pedomanList.find((p) => p.id === bf.ikd_pedoman_id) || null;
               }
-              
+
               // Hanya map jika pedoman ditemukan dan unit saat ini ada di unit_kerja pedoman
               if (pedomanToCheck) {
                 const isInUnit = isPedomanInUnit(pedomanToCheck, unit);
@@ -226,6 +250,8 @@ const RekapIKDDetail: React.FC = () => {
           // Hanya hitung untuk pedoman yang benar-benar termasuk dalam unit ini
           let totalHasil = 0;
           let kegiatanCount = 0;
+          const bidangDataMap: { [key: string]: BidangData } = {};
+
           pedomanList.forEach((pedoman) => {
             // Hanya proses jika unit saat ini ada di unit_kerja pedoman
             if (isPedomanInUnit(pedoman, unit)) {
@@ -237,7 +263,25 @@ const RekapIKDDetail: React.FC = () => {
                   kegiatanCount++;
                   if (pedoman.indeks_poin) {
                     const indeksPoin = Number(pedoman.indeks_poin) || 0;
-                    totalHasil += indeksPoin * skor;
+                    const hasil = indeksPoin * skor;
+                    totalHasil += hasil;
+
+                    // Hitung per bidang
+                    const bidangCode = (pedoman.bidang || "")
+                      .trim()
+                      .toUpperCase();
+                    if (bidangCode) {
+                      if (!bidangDataMap[bidangCode]) {
+                        bidangDataMap[bidangCode] = {
+                          bidang: bidangCode,
+                          bidangNama: pedoman.bidang_nama || bidangCode,
+                          totalHasil: 0,
+                          kegiatanCount: 0,
+                        };
+                      }
+                      bidangDataMap[bidangCode].totalHasil += hasil;
+                      bidangDataMap[bidangCode].kegiatanCount += 1;
+                    }
                   }
                 }
               }
@@ -250,14 +294,18 @@ const RekapIKDDetail: React.FC = () => {
             buktiFisikMap,
             totalHasil,
             kegiatanCount,
+            bidangDataMap,
           };
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error(`Error fetching data for unit ${unit}:`, error);
           // Jika error 401 (Unauthorized), jangan set empty data karena akan trigger logout
           // Biarkan error propagate ke interceptor untuk handling yang tepat
-          if (error.response?.status === 401) {
-            // Error 401 akan di-handle oleh interceptor, tidak perlu set empty data
-            throw error;
+          if (error && typeof error === "object" && "response" in error) {
+            const axiosError = error as { response?: { status?: number } };
+            if (axiosError.response?.status === 401) {
+              // Error 401 akan di-handle oleh interceptor, tidak perlu set empty data
+              throw error;
+            }
           }
           // Untuk error lain (403, 404, dll), set empty data untuk unit ini
           newUnitDataMap[unit] = {
@@ -266,20 +314,24 @@ const RekapIKDDetail: React.FC = () => {
             buktiFisikMap: {},
             totalHasil: 0,
             kegiatanCount: 0,
+            bidangDataMap: {},
           };
         }
       }
 
       setUnitDataMap(newUnitDataMap);
       setLoading(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error fetching all units data:", error);
       // Jika error 401 (Unauthorized), biarkan interceptor handle logout
       // Jangan set loading false karena akan redirect ke login
-      if (error.response?.status === 401) {
-        // Error 401 akan di-handle oleh interceptor, tidak perlu set loading false
-        // Interceptor akan clear token dan redirect ke login
-        return;
+      if (error && typeof error === "object" && "response" in error) {
+        const axiosError = error as { response?: { status?: number } };
+        if (axiosError.response?.status === 401) {
+          // Error 401 akan di-handle oleh interceptor, tidak perlu set loading false
+          // Interceptor akan clear token dan redirect ke login
+          return;
+        }
       }
       // Untuk error lain, set loading false
       setLoading(false);
@@ -296,14 +348,14 @@ const RekapIKDDetail: React.FC = () => {
   useEffect(() => {
     const fetchUserInfo = async () => {
       if (!userId) return;
-      
+
       // Prevent multiple simultaneous calls
       if (fetchingUserInfoRef.current) {
         return;
       }
-      
+
       fetchingUserInfoRef.current = true;
-      
+
       try {
         const res = await api.get(`/users/${userId}`);
         if (res.data) {
@@ -318,14 +370,17 @@ const RekapIKDDetail: React.FC = () => {
             role: res.data.role,
           });
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("Error fetching user info:", error);
         // Jika error 401 (Unauthorized), jangan fallback karena akan trigger logout
         // Biarkan error propagate ke interceptor untuk handling yang tepat
-        if (error.response?.status === 401) {
-          // Error 401 akan di-handle oleh interceptor
-          fetchingUserInfoRef.current = false;
-          return;
+        if (error && typeof error === "object" && "response" in error) {
+          const axiosError = error as { response?: { status?: number } };
+          if (axiosError.response?.status === 401) {
+            // Error 401 akan di-handle oleh interceptor
+            fetchingUserInfoRef.current = false;
+            return;
+          }
         }
         // Fallback to currentUser from localStorage if viewing own data (hanya untuk error selain 401)
         if (currentUser && userId === currentUser.id) {
@@ -346,6 +401,7 @@ const RekapIKDDetail: React.FC = () => {
     };
 
     fetchUserInfo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]); // Removed currentUser from dependencies to prevent infinite loop
 
   // Initial fetch
@@ -354,7 +410,7 @@ const RekapIKDDetail: React.FC = () => {
       setLoading(false);
       return;
     }
-    
+
     fetchAllUnitsDataRef.current();
   }, [userId]);
 
@@ -374,6 +430,30 @@ const RekapIKDDetail: React.FC = () => {
   const grandTotal = Object.values(unitDataMap).reduce(
     (sum, unitData) => sum + unitData.totalHasil,
     0
+  );
+
+  // Calculate total per bidang (global - dari semua unit)
+  const globalBidangDataMap: { [key: string]: BidangData } = {};
+  Object.values(unitDataMap).forEach((unitData) => {
+    Object.values(unitData.bidangDataMap).forEach((bidangData) => {
+      if (!globalBidangDataMap[bidangData.bidang]) {
+        globalBidangDataMap[bidangData.bidang] = {
+          bidang: bidangData.bidang,
+          bidangNama: bidangData.bidangNama,
+          totalHasil: 0,
+          kegiatanCount: 0,
+        };
+      }
+      globalBidangDataMap[bidangData.bidang].totalHasil +=
+        bidangData.totalHasil;
+      globalBidangDataMap[bidangData.bidang].kegiatanCount +=
+        bidangData.kegiatanCount;
+    });
+  });
+
+  // Sort bidang by code (A, B, C, D, etc.)
+  const sortedGlobalBidangList = Object.values(globalBidangDataMap).sort(
+    (a, b) => a.bidang.localeCompare(b.bidang)
   );
 
   // Toggle unit expansion
@@ -403,6 +483,444 @@ const RekapIKDDetail: React.FC = () => {
       "UPT PPM": "bg-cyan-500",
     };
     return colors[unit] || "bg-gray-500";
+  };
+
+  // Export to Excel
+  const exportToExcel = async () => {
+    try {
+      const wb = XLSX.utils.book_new();
+
+      // 1. Summary Sheet - Total per Bidang dan Grand Total
+      const summaryData: (string | number)[][] = [
+        ["REKAP IKD DETAIL - RINGKASAN"],
+        [""],
+        ["Informasi Dosen"],
+        ["Nama", userInfo?.name || "-"],
+        ["NID", userInfo?.nid || "-"],
+        ["NIDN", userInfo?.nidn || "-"],
+        ["Email", userInfo?.email || "-"],
+        ["No. Telepon", userInfo?.telp || "-"],
+        [""],
+        ["GRAND TOTAL KESELURUHAN", grandTotal.toFixed(2)],
+        [""],
+        ["Total per Bidang (Semua Unit)"],
+        ["Bidang", "Nama Bidang", "Total Hasil", "Jumlah Kegiatan"],
+      ];
+
+      sortedGlobalBidangList.forEach((bidangData) => {
+        summaryData.push([
+          bidangData.bidang,
+          bidangData.bidangNama,
+          bidangData.totalHasil.toFixed(2),
+          bidangData.kegiatanCount,
+        ]);
+      });
+
+      summaryData.push([""]);
+      summaryData.push(["Total per Unit"]);
+      summaryData.push(["Unit", "Total Hasil", "Jumlah Kegiatan"]);
+
+      UNIT_LIST.forEach((unit) => {
+        const unitData = unitDataMap[unit];
+        if (unitData) {
+          summaryData.push([
+            unit,
+            unitData.totalHasil.toFixed(2),
+            unitData.kegiatanCount,
+          ]);
+        }
+      });
+
+      summaryData.push([""]);
+      summaryData.push(["Tanggal Export", new Date().toLocaleString("id-ID")]);
+
+      const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
+      summaryWs["!cols"] = [{ wch: 30 }, { wch: 30 }, { wch: 15 }, { wch: 15 }];
+
+      // Style summary header
+      if (summaryWs["A1"]) {
+        summaryWs["A1"].s = {
+          font: { bold: true, size: 16, color: { rgb: "FFFFFF" } },
+          fill: { fgColor: { rgb: "2F5597" } },
+          alignment: { horizontal: "center", vertical: "center" },
+        };
+      }
+
+      XLSX.utils.book_append_sheet(wb, summaryWs, "Ringkasan");
+
+      // 2. Detail per Unit - Create one sheet per unit
+      UNIT_LIST.forEach((unit) => {
+        const unitData = unitDataMap[unit];
+        if (!unitData || unitData.kegiatanCount === 0) return;
+
+        const unitDetailData: (string | number)[][] = [
+          [`REKAP IKD DETAIL - ${unit.toUpperCase()}`],
+          [""],
+          ["Informasi Dosen"],
+          ["Nama", userInfo?.name || "-"],
+          ["NID", userInfo?.nid || "-"],
+          ["NIDN", userInfo?.nidn || "-"],
+          [""],
+          ["Total Unit " + unit, unitData.totalHasil.toFixed(2)],
+          ["Jumlah Kegiatan", unitData.kegiatanCount],
+          [""],
+          ["Total per Bidang (Unit " + unit + ")"],
+          ["Bidang", "Nama Bidang", "Total Hasil", "Jumlah Kegiatan"],
+        ];
+
+        // Add bidang breakdown for this unit
+        Object.values(unitData.bidangDataMap)
+          .sort((a, b) => a.bidang.localeCompare(b.bidang))
+          .forEach((bidangData) => {
+            unitDetailData.push([
+              bidangData.bidang,
+              bidangData.bidangNama,
+              bidangData.totalHasil.toFixed(2),
+              bidangData.kegiatanCount,
+            ]);
+          });
+
+        unitDetailData.push([""]);
+        unitDetailData.push([
+          "No",
+          "Bidang",
+          "Kegiatan",
+          "Indeks Poin",
+          "Skor",
+          "Hasil",
+          "File Name",
+        ]);
+
+        // Add detail rows
+        unitData.pedomanList.forEach((pedoman) => {
+          if (!isPedomanInUnit(pedoman, unit)) return;
+
+          const buktiFisik = unitData.buktiFisikMap[pedoman.id];
+          const skor = Number(buktiFisik?.skor) || 0;
+          if (skor === 0) return;
+
+          const indeksPoin = Number(pedoman.indeks_poin) || 0;
+          const hasil = indeksPoin * skor;
+
+          unitDetailData.push([
+            pedoman.no,
+            pedoman.bidang || "",
+            pedoman.kegiatan,
+            indeksPoin.toFixed(2),
+            skor,
+            hasil.toFixed(2),
+            buktiFisik?.file_name || "-",
+          ]);
+        });
+
+        unitDetailData.push([""]);
+        unitDetailData.push([
+          "Total " + unit,
+          "",
+          "",
+          "",
+          "",
+          unitData.totalHasil.toFixed(2),
+          "",
+        ]);
+
+        const unitWs = XLSX.utils.aoa_to_sheet(unitDetailData);
+        unitWs["!cols"] = [
+          { wch: 10 },
+          { wch: 8 },
+          { wch: 60 },
+          { wch: 12 },
+          { wch: 8 },
+          { wch: 12 },
+          { wch: 40 },
+        ];
+
+        // Style unit header
+        if (unitWs["A1"]) {
+          unitWs["A1"].s = {
+            font: { bold: true, size: 14, color: { rgb: "FFFFFF" } },
+            fill: { fgColor: { rgb: "4472C4" } },
+            alignment: { horizontal: "center", vertical: "center" },
+          };
+        }
+
+        // Style column headers
+        const headerRow = unitDetailData.findIndex((row) => row[0] === "No");
+        if (headerRow !== -1) {
+          const headerRowNum = headerRow + 1; // +1 karena array 0-based, Excel 1-based
+          ["A", "B", "C", "D", "E", "F", "G"].forEach((col) => {
+            const cellAddress = `${col}${headerRowNum}`;
+            if (unitWs[cellAddress]) {
+              unitWs[cellAddress].s = {
+                font: { bold: true, color: { rgb: "FFFFFF" } },
+                fill: { fgColor: { rgb: "4472C4" } },
+                alignment: { horizontal: "center", vertical: "center" },
+                border: {
+                  top: { style: "thin", color: { rgb: "000000" } },
+                  bottom: { style: "thin", color: { rgb: "000000" } },
+                  left: { style: "thin", color: { rgb: "000000" } },
+                  right: { style: "thin", color: { rgb: "000000" } },
+                },
+              };
+            }
+          });
+        }
+
+        XLSX.utils.book_append_sheet(wb, unitWs, unit.substring(0, 31)); // Excel sheet name max 31 chars
+      });
+
+      // Generate filename
+      const now = new Date();
+      const timestamp = now.toISOString().slice(0, 19).replace(/:/g, "-");
+      const fileName = `Rekap_IKD_Detail_${
+        userInfo?.name || "User"
+      }_${timestamp}.xlsx`;
+
+      // Download file
+      XLSX.writeFile(wb, fileName);
+    } catch (error) {
+      console.error("Error exporting to Excel:", error);
+      alert("Gagal mengekspor data ke Excel. Silakan coba lagi.");
+    }
+  };
+
+  // Export to PDF
+  const exportToPDF = async () => {
+    try {
+      const doc = new jsPDF("l", "mm", "a4"); // Landscape orientation
+
+      let yPos = 10;
+
+      // Header
+      doc.setFontSize(18);
+      doc.setFont("helvetica", "bold");
+      doc.text("REKAP IKD DETAIL", 14, yPos);
+      yPos += 8;
+
+      // Informasi Dosen
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("Informasi Dosen", 14, yPos);
+      yPos += 6;
+
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Nama: ${userInfo?.name || "-"}`, 14, yPos);
+      yPos += 5;
+      if (userInfo?.nid) {
+        doc.text(`NID: ${userInfo.nid}`, 14, yPos);
+        yPos += 5;
+      }
+      if (userInfo?.nidn) {
+        doc.text(`NIDN: ${userInfo.nidn}`, 14, yPos);
+        yPos += 5;
+      }
+      yPos += 3;
+
+      // Grand Total
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text(`GRAND TOTAL KESELURUHAN: ${grandTotal.toFixed(2)}`, 14, yPos);
+      yPos += 8;
+
+      // Total per Bidang
+      if (sortedGlobalBidangList.length > 0) {
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("Total per Bidang (Semua Unit)", 14, yPos);
+        yPos += 6;
+
+        const bidangTableData = sortedGlobalBidangList.map((bidangData) => [
+          bidangData.bidang,
+          bidangData.bidangNama,
+          bidangData.totalHasil.toFixed(2),
+          bidangData.kegiatanCount.toString(),
+        ]);
+
+        autoTable(doc, {
+          startY: yPos,
+          head: [["Bidang", "Nama Bidang", "Total Hasil", "Jumlah Kegiatan"]],
+          body: bidangTableData,
+          theme: "striped",
+          headStyles: { fillColor: [47, 85, 151] },
+          styles: { fontSize: 9 },
+        });
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        yPos = (doc as any).lastAutoTable.finalY + 10;
+      }
+
+      // Total per Unit
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("Total per Unit", 14, yPos);
+      yPos += 6;
+
+      const unitTableData = UNIT_LIST.map((unit) => {
+        const unitData = unitDataMap[unit];
+        return [
+          unit,
+          unitData ? unitData.totalHasil.toFixed(2) : "0.00",
+          unitData ? unitData.kegiatanCount.toString() : "0",
+        ];
+      });
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [["Unit", "Total Hasil", "Jumlah Kegiatan"]],
+        body: unitTableData,
+        theme: "striped",
+        headStyles: { fillColor: [47, 85, 151] },
+        styles: { fontSize: 9 },
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      yPos = (doc as any).lastAutoTable.finalY + 10;
+
+      // Detail per Unit
+      UNIT_LIST.forEach((unit) => {
+        const unitData = unitDataMap[unit];
+        if (!unitData || unitData.kegiatanCount === 0) return;
+
+        // Check if we need a new page
+        if (yPos > 180) {
+          doc.addPage();
+          yPos = 10;
+        }
+
+        // Unit Header
+        doc.setFontSize(14);
+        doc.setFont("helvetica", "bold");
+        doc.text(`Unit: ${unit}`, 14, yPos);
+        yPos += 6;
+
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.text(
+          `Total: ${unitData.totalHasil.toFixed(2)} | Kegiatan: ${
+            unitData.kegiatanCount
+          }`,
+          14,
+          yPos
+        );
+        yPos += 6;
+
+        // Bidang breakdown for this unit
+        if (Object.keys(unitData.bidangDataMap).length > 0) {
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "bold");
+          doc.text("Total per Bidang:", 14, yPos);
+          yPos += 5;
+
+          const unitBidangData = Object.values(unitData.bidangDataMap)
+            .sort((a, b) => a.bidang.localeCompare(b.bidang))
+            .map((bidangData) => [
+              bidangData.bidang,
+              bidangData.bidangNama,
+              bidangData.totalHasil.toFixed(2),
+              bidangData.kegiatanCount.toString(),
+            ]);
+
+          autoTable(doc, {
+            startY: yPos,
+            head: [["Bidang", "Nama Bidang", "Total Hasil", "Jumlah Kegiatan"]],
+            body: unitBidangData,
+            theme: "striped",
+            headStyles: { fillColor: [68, 114, 196] },
+            styles: { fontSize: 8 },
+            margin: { left: 14 },
+          });
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          yPos = (doc as any).lastAutoTable.finalY + 8;
+        }
+
+        // Detail table
+        const detailData: (string | number)[][] = [];
+        unitData.pedomanList.forEach((pedoman) => {
+          if (!isPedomanInUnit(pedoman, unit)) return;
+
+          const buktiFisik = unitData.buktiFisikMap[pedoman.id];
+          const skor = Number(buktiFisik?.skor) || 0;
+          if (skor === 0) return;
+
+          const indeksPoin = Number(pedoman.indeks_poin) || 0;
+          const hasil = indeksPoin * skor;
+
+          detailData.push([
+            pedoman.no,
+            pedoman.bidang || "",
+            pedoman.kegiatan.substring(0, 60), // Truncate if too long
+            indeksPoin.toFixed(2),
+            skor.toString(),
+            hasil.toFixed(2),
+            buktiFisik?.file_name?.substring(0, 30) || "-",
+          ]);
+        });
+
+        if (detailData.length > 0) {
+          // Check if we need a new page for detail table
+          if (yPos > 150) {
+            doc.addPage();
+            yPos = 10;
+          }
+
+          autoTable(doc, {
+            startY: yPos,
+            head: [
+              [
+                "No",
+                "Bidang",
+                "Kegiatan",
+                "Indeks Poin",
+                "Skor",
+                "Hasil",
+                "File Name",
+              ],
+            ],
+            body: detailData,
+            theme: "striped",
+            headStyles: { fillColor: [68, 114, 196] },
+            styles: { fontSize: 7 },
+            margin: { left: 14 },
+            columnStyles: {
+              2: { cellWidth: 60 }, // Kegiatan column wider
+              6: { cellWidth: 30 }, // File name column
+            },
+          });
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          yPos = (doc as any).lastAutoTable.finalY + 10;
+        }
+      });
+
+      // Footer
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "italic");
+        doc.text(
+          `Halaman ${i} dari ${pageCount} | Dicetak pada: ${new Date().toLocaleString(
+            "id-ID"
+          )}`,
+          14,
+          doc.internal.pageSize.height - 10
+        );
+      }
+
+      // Generate filename and download
+      const now = new Date();
+      const timestamp = now.toISOString().slice(0, 19).replace(/:/g, "-");
+      const fileName = `Rekap_IKD_Detail_${
+        userInfo?.name || "User"
+      }_${timestamp}.pdf`;
+
+      doc.save(fileName);
+    } catch (error) {
+      console.error("Error exporting to PDF:", error);
+      alert("Gagal mengekspor data ke PDF. Pastikan library jsPDF terinstall.");
+    }
   };
 
   if (loading) {
@@ -454,7 +972,10 @@ const RekapIKDDetail: React.FC = () => {
           {/* Unit Cards Skeleton */}
           <div className="space-y-4">
             {Array.from({ length: 9 }).map((_, idx) => (
-              <div key={idx} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden animate-pulse">
+              <div
+                key={idx}
+                className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden animate-pulse"
+              >
                 {/* Unit Header Skeleton */}
                 <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                   <div className="flex items-center justify-between">
@@ -556,14 +1077,14 @@ const RekapIKDDetail: React.FC = () => {
           <motion.button
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            onClick={() => navigate('/dosen')}
+            onClick={() => navigate("/dosen")}
             className="flex items-center gap-2 text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 mb-6 transition-colors font-medium"
           >
             <FontAwesomeIcon icon={faArrowLeft} className="w-5 h-5" />
             <span>Kembali</span>
           </motion.button>
         )}
-        
+
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -675,8 +1196,8 @@ const RekapIKDDetail: React.FC = () => {
           className="mb-6"
         >
           <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl shadow-lg border border-blue-600 dark:border-blue-500 p-6">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex-1">
                 <p className="text-blue-100 text-sm font-medium mb-1">
                   Total Keseluruhan
                 </p>
@@ -687,13 +1208,70 @@ const RekapIKDDetail: React.FC = () => {
                   Hasil dari semua unit (Indeks Poin × Skor)
                 </p>
               </div>
-              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
-                <FontAwesomeIcon
-                  icon={faChartBar}
-                  className="w-8 h-8 text-white"
-                />
+              <div className="flex items-center gap-3">
+                {/* Export Buttons */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={exportToExcel}
+                    className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors flex items-center gap-2 shadow-md"
+                    title="Export ke Excel"
+                  >
+                    <FontAwesomeIcon icon={faFileExcel} className="w-4 h-4" />
+                    <span className="text-sm font-medium">Excel</span>
+                  </button>
+                  <button
+                    onClick={exportToPDF}
+                    className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors flex items-center gap-2 shadow-md"
+                    title="Export ke PDF"
+                  >
+                    <FontAwesomeIcon icon={faFilePdf} className="w-4 h-4" />
+                    <span className="text-sm font-medium">PDF</span>
+                  </button>
+                </div>
+                <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
+                  <FontAwesomeIcon
+                    icon={faChartBar}
+                    className="w-8 h-8 text-white"
+                  />
+                </div>
               </div>
             </div>
+
+            {/* Breakdown per Bidang (Global) */}
+            {sortedGlobalBidangList.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-blue-400/30">
+                <p className="text-blue-100 text-xs font-medium mb-3">
+                  Total per Bidang (Semua Unit):
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {sortedGlobalBidangList.map((bidangData) => (
+                    <div
+                      key={bidangData.bidang}
+                      className="bg-white/10 rounded-lg p-3 backdrop-blur-sm"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-white text-sm font-semibold">
+                            Bidang {bidangData.bidang}
+                          </p>
+                          <p className="text-blue-100 text-xs mt-0.5">
+                            {bidangData.bidangNama}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-white text-lg font-bold">
+                            {bidangData.totalHasil.toFixed(2)}
+                          </p>
+                          <p className="text-blue-100 text-xs">
+                            {bidangData.kegiatanCount} kegiatan
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </motion.div>
 
@@ -734,15 +1312,43 @@ const RekapIKDDetail: React.FC = () => {
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
                           {unit}
                         </h3>
-                        <div className="flex items-baseline gap-3">
+                        <div className="flex items-baseline gap-3 mb-2">
                           <span className="text-sm text-gray-500 dark:text-gray-400">
                             {unitData.kegiatanCount} kegiatan
                           </span>
-                          <span className="text-gray-300 dark:text-gray-600">•</span>
+                          <span className="text-gray-300 dark:text-gray-600">
+                            •
+                          </span>
                           <span className="text-sm text-gray-500 dark:text-gray-400">
-                            Total: <span className="font-semibold text-blue-600 dark:text-blue-400">{unitData.totalHasil.toFixed(2)}</span>
+                            Total:{" "}
+                            <span className="font-semibold text-blue-600 dark:text-blue-400">
+                              {unitData.totalHasil.toFixed(2)}
+                            </span>
                           </span>
                         </div>
+                        {/* Breakdown per Bidang untuk Unit ini */}
+                        {Object.keys(unitData.bidangDataMap).length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {Object.values(unitData.bidangDataMap)
+                              .sort((a, b) => a.bidang.localeCompare(b.bidang))
+                              .map((bidangData) => (
+                                <div
+                                  key={bidangData.bidang}
+                                  className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-100 dark:bg-gray-700/50 rounded-md"
+                                >
+                                  <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                                    Bidang {bidangData.bidang}:
+                                  </span>
+                                  <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                                    {bidangData.totalHasil.toFixed(2)}
+                                  </span>
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                                    ({bidangData.kegiatanCount})
+                                  </span>
+                                </div>
+                              ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
@@ -802,11 +1408,12 @@ const RekapIKDDetail: React.FC = () => {
                               if (!isPedomanInUnit(pedoman, unit)) {
                                 return null;
                               }
-                              
+
                               const buktiFisik =
                                 unitData.buktiFisikMap[pedoman.id];
                               const skor = Number(buktiFisik?.skor) || 0;
-                              const indeksPoin = Number(pedoman.indeks_poin) || 0;
+                              const indeksPoin =
+                                Number(pedoman.indeks_poin) || 0;
                               const hasil = indeksPoin * skor;
 
                               // Only show rows that have skor > 0
@@ -818,7 +1425,14 @@ const RekapIKDDetail: React.FC = () => {
                                   className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
                                 >
                                   <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                                    {pedoman.no}
+                                    <div className="flex items-center gap-2">
+                                      <span>{pedoman.no}</span>
+                                      {pedoman.bidang && (
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700">
+                                          {pedoman.bidang}
+                                        </span>
+                                      )}
+                                    </div>
                                   </td>
                                   <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
                                     {pedoman.kegiatan}
@@ -827,7 +1441,12 @@ const RekapIKDDetail: React.FC = () => {
                                     {buktiFisik?.file_url ? (
                                       <div className="flex flex-col items-center gap-1">
                                         <button
-                                          onClick={() => handleDownloadFile(buktiFisik.id, buktiFisik.file_name)}
+                                          onClick={() =>
+                                            handleDownloadFile(
+                                              buktiFisik.id,
+                                              buktiFisik.file_name
+                                            )
+                                          }
                                           className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
                                           title={buktiFisik.file_name}
                                         >
@@ -839,7 +1458,10 @@ const RekapIKDDetail: React.FC = () => {
                                             Download File
                                           </span>
                                         </button>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 max-w-[200px] truncate" title={buktiFisik.file_name}>
+                                        <p
+                                          className="text-xs text-gray-500 dark:text-gray-400 max-w-[200px] truncate"
+                                          title={buktiFisik.file_name}
+                                        >
                                           {buktiFisik.file_name}
                                         </p>
                                       </div>
@@ -913,9 +1535,10 @@ const RekapIKDDetail: React.FC = () => {
               </h4>
               <p className="text-sm text-blue-800 dark:text-blue-300">
                 Halaman ini menampilkan rekap IKD Anda dari semua unit. Hasil
-                dihitung dengan rumus: <strong>Indeks Poin × Skor = Hasil</strong>
-                . Data diperbarui secara realtime setiap 5 detik. Halaman ini
-                bersifat read-only dan tidak dapat diubah.
+                dihitung dengan rumus:{" "}
+                <strong>Indeks Poin × Skor = Hasil</strong>. Data diperbarui
+                secara realtime setiap 5 detik. Halaman ini bersifat read-only
+                dan tidak dapat diubah.
               </p>
             </div>
           </div>

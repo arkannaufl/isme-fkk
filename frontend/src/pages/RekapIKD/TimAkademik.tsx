@@ -514,21 +514,21 @@ const TimAkademik: React.FC = () => {
         }
 
         // Cari dari pedomanList juga (fallback)
+        // Pastikan parent yang ditemukan adalah yang paling tepat (terdekat dengan nomor sub-item)
         const parentFromList = pedomanList.find((item) => {
           const itemMatch = item.kegiatan.match(
             /^(\d+(?:\.\d+)*(?:\.\w+)?|\d+\.\w+)/
           );
           if (!itemMatch) return false;
           const itemNumber = itemMatch[1];
-          if (searchParentNumber.includes(".")) {
-            return (
-              itemNumber === searchParentNumber && !itemNumber.match(/\.\w+$/)
-            );
-          } else {
-            return (
-              itemNumber === searchParentNumber && !itemNumber.includes(".")
-            );
-          }
+          // Pastikan nomor cocok DAN juga cocok dengan bidang
+          const numberMatch = searchParentNumber.includes(".")
+            ? itemNumber === searchParentNumber && !itemNumber.match(/\.\w+$/)
+            : itemNumber === searchParentNumber && !itemNumber.includes(".");
+          return numberMatch && 
+                 item.bidang === kegiatan.bidang &&
+                 (item.level === 0 || item.level === undefined) &&
+                 (!item.parent_id || item.parent_id === null);
         });
 
         if (parentFromList && !hasContent(parentFromList)) {
@@ -568,14 +568,20 @@ const TimAkademik: React.FC = () => {
           }
 
           // Fallback ke pedomanList
+          // Pastikan parent yang ditemukan adalah yang paling tepat (terdekat dengan nomor sub-item)
           const mainParentFromList = pedomanList.find((item) => {
             const itemMatch = item.kegiatan.match(
               /^(\d+(?:\.\d+)*(?:\.\w+)?|\d+\.\w+)/
             );
             if (!itemMatch) return false;
             const itemNumber = itemMatch[1];
+            // Pastikan nomor cocok DAN juga cocok dengan bidang
             return (
-              itemNumber === searchParentNumber && !itemNumber.includes(".")
+              itemNumber === searchParentNumber && 
+              !itemNumber.includes(".") &&
+              item.bidang === kegiatan.bidang &&
+              (item.level === 0 || item.level === undefined) &&
+              (!item.parent_id || item.parent_id === null)
             );
           });
 
@@ -1048,13 +1054,18 @@ const TimAkademik: React.FC = () => {
                               index > 0 ? "pl-8" : ""
                             } pr-2 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors relative group`}
                             onClick={() => handleKegiatanHeaderClick(pedoman)}
-                            title="Klik untuk melihat detail"
+                            title={pedoman.kegiatan}
                           >
-                            <div className="flex items-center gap-2">
-                              <span>{pedoman.kegiatan}</span>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span 
+                                className="truncate block max-w-[200px]" 
+                                title={pedoman.kegiatan}
+                              >
+                                {pedoman.kegiatan}
+                              </span>
                               <FontAwesomeIcon
                                 icon={faInfoCircle}
-                                className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                                className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
                               />
                             </div>
                           </th>

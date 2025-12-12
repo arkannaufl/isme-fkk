@@ -680,11 +680,16 @@ const UPTPPM: React.FC = () => {
           }
           
           // Cari di pedomanList dengan nomor yang sesuai
+          // Pastikan parent yang ditemukan adalah yang paling tepat (terdekat dengan nomor sub-item)
           const parent = pedomanList.find((item) => {
             const itemMatch = item.kegiatan.match(/^(\d+(?:\.\d+)*(?:\.\w+)?|\d+\.\w+)/);
             if (!itemMatch) return false;
             const itemNumber = itemMatch[1];
-            return itemNumber === currentNumber;
+            // Pastikan nomor cocok DAN juga cocok dengan bidang
+            return itemNumber === currentNumber && 
+                   item.bidang === currentPedoman.bidang &&
+                   (item.level === 0 || item.level === undefined) &&
+                   (!item.parent_id || item.parent_id === null);
           });
           
           if (parent && !hasContent(parent)) {
@@ -754,11 +759,16 @@ const UPTPPM: React.FC = () => {
           }
           
           // Cari di pedomanList dengan nomor yang sesuai
+          // Pastikan parent yang ditemukan adalah yang paling tepat (terdekat dengan nomor sub-item)
           const parent = pedomanList.find((item) => {
             const itemMatch = item.kegiatan.match(/^(\d+(?:\.\d+)*(?:\.\w+)?|\d+\.\w+)/);
             if (!itemMatch) return false;
             const itemNumber = itemMatch[1];
-            return itemNumber === currentNumber;
+            // Pastikan nomor cocok DAN juga cocok dengan bidang
+            return itemNumber === currentNumber && 
+                   item.bidang === currentPedoman.bidang &&
+                   (item.level === 0 || item.level === undefined) &&
+                   (!item.parent_id || item.parent_id === null);
           });
           
           if (parent && hasContent(parent)) {
@@ -945,13 +955,18 @@ const UPTPPM: React.FC = () => {
                               index > 0 ? "pl-8" : ""
                             } pr-2 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors relative group`}
                             onClick={() => handleKegiatanHeaderClick(pedoman)}
-                            title="Klik untuk melihat detail"
+                            title={pedoman.kegiatan}
                           >
-                            <div className="flex items-center gap-2">
-                              <span>{pedoman.kegiatan}</span>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span 
+                                className="truncate block max-w-[200px]" 
+                                title={pedoman.kegiatan}
+                              >
+                                {pedoman.kegiatan}
+                              </span>
                               <FontAwesomeIcon
                                 icon={faInfoCircle}
-                                className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                                className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
                               />
                             </div>
                           </th>

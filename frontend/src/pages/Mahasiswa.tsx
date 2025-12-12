@@ -137,7 +137,7 @@ export default function Mahasiswa() {
     ]).then(([mahasiswaRes, semesterRes]) => {
       // Handle pagination response - similar to Dosen.tsx
       if (Array.isArray(mahasiswaRes.data)) {
-        setData(mahasiswaRes.data);
+      setData(mahasiswaRes.data);
       } else if (mahasiswaRes.data?.data && Array.isArray(mahasiswaRes.data.data)) {
         setData(mahasiswaRes.data.data);
       } else {
@@ -231,7 +231,7 @@ export default function Mahasiswa() {
       const res = await api.get("/users?role=mahasiswa");
       // Handle pagination response
       if (Array.isArray(res.data)) {
-        setData(res.data);
+      setData(res.data);
       } else if (res.data?.data && Array.isArray(res.data.data)) {
         setData(res.data.data);
       } else {
@@ -276,7 +276,7 @@ export default function Mahasiswa() {
         const res = await api.get("/users?role=mahasiswa");
         // Handle pagination response
         if (Array.isArray(res.data)) {
-          setData(res.data);
+        setData(res.data);
         } else if (res.data?.data && Array.isArray(res.data.data)) {
           setData(res.data.data);
         } else {
@@ -606,7 +606,7 @@ export default function Mahasiswa() {
         const mahasiswaRes = await api.get("/users?role=mahasiswa");
         // Handle pagination response
         if (Array.isArray(mahasiswaRes.data)) {
-          setData(mahasiswaRes.data);
+        setData(mahasiswaRes.data);
         } else if (mahasiswaRes.data?.data && Array.isArray(mahasiswaRes.data.data)) {
           setData(mahasiswaRes.data.data);
         } else {
@@ -1582,7 +1582,7 @@ export default function Mahasiswa() {
                       const res = await api.get("/users?role=mahasiswa");
                       // Handle pagination response
                       if (Array.isArray(res.data)) {
-                        setData(res.data);
+                      setData(res.data);
                       } else if (res.data?.data && Array.isArray(res.data.data)) {
                         setData(res.data.data);
                       } else {

@@ -1067,7 +1067,7 @@ export default function Dosen() {
       });
       // Handle pagination response
       if (Array.isArray(res.data)) {
-        setData(res.data);
+      setData(res.data);
       } else if (res.data?.data && Array.isArray(res.data.data)) {
         setData(res.data.data);
       } else {
@@ -1253,7 +1253,7 @@ export default function Dosen() {
         const res = await api.get("/users?role=dosen");
         // Handle pagination response
         if (Array.isArray(res.data)) {
-          setData(res.data);
+        setData(res.data);
         } else if (res.data?.data && Array.isArray(res.data.data)) {
           setData(res.data.data);
         } else {
@@ -1998,7 +1998,7 @@ export default function Dosen() {
       const res = await api.get("/users?role=dosen");
       // Handle pagination response
       if (Array.isArray(res.data)) {
-        setData(res.data);
+      setData(res.data);
       } else if (res.data?.data && Array.isArray(res.data.data)) {
         setData(res.data.data);
       } else {
@@ -2996,7 +2996,7 @@ export default function Dosen() {
         
         // Handle pagination response
         if (Array.isArray(res.data)) {
-          setData(res.data);
+        setData(res.data);
         } else if (res.data?.data && Array.isArray(res.data.data)) {
           setData(res.data.data);
         } else {
@@ -3007,11 +3007,11 @@ export default function Dosen() {
         await fetchAssignmentData();
       } catch (error) {
         if (isMounted) {
-          setError("Gagal memuat data dosen");
+        setError("Gagal memuat data dosen");
         }
       } finally {
         if (isMounted) {
-          setLoading(false);
+        setLoading(false);
         }
       }
     };

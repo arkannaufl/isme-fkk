@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, ChangeEvent } from "react";
 import RekapIKDBase from "./RekapIKDBase";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../../utils/api";
+import * as XLSX from "xlsx";
 
 interface IKDPedomanItem {
   id?: number;
@@ -81,6 +82,16 @@ const PedomanPoinIKD: React.FC = () => {
   const [deleteType, setDeleteType] = useState<'item' | 'subItem' | 'mainFormSubItem' | 'mainForm' | null>(null);
   const [deleteItemIndex, setDeleteItemIndex] = useState<number | null>(null);
   const [deleteSubItemIndex, setDeleteSubItemIndex] = useState<number | null>(null);
+
+  // State untuk import/export Excel
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importedFile, setImportedFile] = useState<File | null>(null);
+  const [previewData, setPreviewData] = useState<any[]>([]);
+  const [validationErrors, setValidationErrors] = useState<Array<{ row: number; field: string; message: string }>>([]);
+  const [cellErrors, setCellErrors] = useState<{ [key: string]: string }>({});
+  const [isSaving, setIsSaving] = useState(false);
+  const [importedCount, setImportedCount] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch data
   useEffect(() => {
@@ -854,6 +865,56 @@ const PedomanPoinIKD: React.FC = () => {
     return subItems.length > 0;
   };
 
+  // Helper function untuk validasi format kegiatan (harus ada spasi setelah nomor)
+  const validateKegiatanFormat = (kegiatan: string): { isValid: boolean; errorMessage?: string } => {
+    if (!kegiatan || String(kegiatan).trim() === "") {
+      return { isValid: true }; // Kosong tidak perlu divalidasi di sini
+    }
+
+    const kegiatanTrimmed = String(kegiatan).trim();
+    
+    // Cek jika kegiatan dimulai dengan nomor (tanpa menangkap titik di akhir)
+    const numberPattern = /^(\d+(?:\.\d+)*(?:\.[a-zA-Z])?)/;
+    const numberMatch = kegiatanTrimmed.match(numberPattern);
+    
+    if (numberMatch) {
+      const numberPart = numberMatch[1]; // e.g., "1.4", "1.1.a", "1.4.a" (tanpa titik di akhir)
+      const afterNumber = kegiatanTrimmed.substring(numberPart.length);
+      
+      // Jika ada bagian setelah nomor
+      if (afterNumber.length > 0) {
+        const firstChar = afterNumber[0];
+        
+        // Jika karakter pertama adalah huruf (tanpa spasi), error
+        // Contoh error: "1.4contoh", "1.1Memberi", "1.1.aCSL"
+        if (/[a-zA-Z]/.test(firstChar)) {
+          return {
+            isValid: false,
+            errorMessage: "Kegiatan yang dimulai dengan nomor harus memiliki spasi setelah nomor (contoh: '1.4 contoh', bukan '1.4contoh')"
+          };
+        }
+        // Jika karakter pertama adalah titik, cek karakter kedua
+        // Contoh valid: "1.1.a. CSL" (titik lalu spasi)
+        // Contoh error: "1.4.acontoh" (titik lalu langsung huruf)
+        else if (firstChar === ".") {
+          if (afterNumber.length > 1) {
+            const secondChar = afterNumber[1];
+            // Jika setelah titik langsung huruf tanpa spasi, error
+            if (/[a-zA-Z]/.test(secondChar)) {
+              return {
+                isValid: false,
+                errorMessage: "Kegiatan yang dimulai dengan nomor harus memiliki spasi setelah nomor (contoh: '1.4.a contoh', bukan '1.4.acontoh')"
+              };
+            }
+          }
+        }
+        // Jika karakter pertama adalah spasi, valid (tidak perlu cek lebih lanjut)
+      }
+    }
+    
+    return { isValid: true };
+  };
+
   const handleSave = async () => {
     try {
       if (!selectedBidang) {
@@ -921,6 +982,15 @@ const PedomanPoinIKD: React.FC = () => {
           continue; // Skip if no NO
         }
 
+        // Validate kegiatan format (harus ada spasi setelah nomor)
+        if (item.kegiatan) {
+          const kegiatanValidation = validateKegiatanFormat(item.kegiatan);
+          if (!kegiatanValidation.isValid) {
+            setError(`Item ${item.no}: ${kegiatanValidation.errorMessage}`);
+            return;
+          }
+        }
+
         // Validate unit kerja: only required if kegiatan has numbered format WITH letter (1.1.a, 2.a, etc.)
         // Format angka saja (1.1, 2.2) is optional
         const hasFormatWithLetter = hasNumberedFormatWithLetter(item.kegiatan);
@@ -983,6 +1053,13 @@ const PedomanPoinIKD: React.FC = () => {
             
             for (const subItem of item.subItems) {
               if (subItem.kegiatan.trim()) {
+                // Validate kegiatan format (harus ada spasi setelah nomor)
+                const kegiatanValidation = validateKegiatanFormat(subItem.kegiatan);
+                if (!kegiatanValidation.isValid) {
+                  setError(`Sub Item untuk Item ${item.no}: ${kegiatanValidation.errorMessage}`);
+                  return;
+                }
+
                 // All fields are optional, so keep user input regardless of format
                 // Get bidang nama from bidangList
                 const bidangInfo = bidangList.find(b => b.kode === selectedBidang);
@@ -1046,6 +1123,13 @@ const PedomanPoinIKD: React.FC = () => {
       // Save form utama (if there's data in form)
       // Form utama tidak wajib jika sudah ada items yang disimpan
       if (form.no && form.kegiatan) {
+        // Validate kegiatan format (harus ada spasi setelah nomor)
+        const kegiatanValidation = validateKegiatanFormat(form.kegiatan);
+        if (!kegiatanValidation.isValid) {
+          setError(`Form Utama: ${kegiatanValidation.errorMessage}`);
+          return;
+        }
+
         // Unit Kerja hanya wajib jika kegiatan memiliki format angka DENGAN huruf (1.1.a, 2.a, etc.)
         // Format angka saja (1.1, 2.2) is optional
         const hasFormatWithLetter = hasNumberedFormatWithLetter(form.kegiatan);
@@ -1127,6 +1211,13 @@ const PedomanPoinIKD: React.FC = () => {
           const bidangInfo = bidangList.find(b => b.kode === selectedBidang);
           for (const subItem of subItems) {
             if (subItem.kegiatan.trim()) {
+              // Validate kegiatan format (harus ada spasi setelah nomor)
+              const kegiatanValidation = validateKegiatanFormat(subItem.kegiatan);
+              if (!kegiatanValidation.isValid) {
+                setError(`Sub Item: ${kegiatanValidation.errorMessage}`);
+                return;
+              }
+
               // All fields are optional, so keep user input regardless of format
               const subPayload = {
                 no: mainNo, // Same NO as parent
@@ -1290,27 +1381,720 @@ const PedomanPoinIKD: React.FC = () => {
     if (!bidangToDelete) return;
     
     try {
+      setLoading(true);
+      
       // Hapus semua pedoman dengan bidang ini
       const pedomanWithBidang = pedomanData.filter((item) => item.bidang === bidangToDelete.kode);
       for (const item of pedomanWithBidang) {
         if (item.id) {
           try {
             await api.delete(`/rekap-ikd/pedoman-poin/${item.id}`);
-          } catch (err) {
-            console.error("Error deleting pedoman:", err);
+          } catch (err: any) {
+            // Jika error 404, berarti item sudah tidak ada di database (mungkin sudah dihapus)
+            // Ini tidak perlu di-log sebagai error karena tidak masalah
+            if (err?.response?.status !== 404) {
+              console.error("Error deleting pedoman:", err);
+            }
+            // Untuk error 404, kita skip saja karena item sudah tidak ada
           }
         }
       }
       
-      // Hapus dari bidangList
-      setBidangList(bidangList.filter((b) => b.kode !== bidangToDelete.kode));
-      setSuccess(`Bidang ${bidangToDelete.kode} - ${bidangToDelete.nama} dan semua item-nya berhasil dihapus`);
+      // Simpan info bidang yang dihapus sebelum set null
+      const deletedBidangKode = bidangToDelete.kode;
+      const deletedBidangNama = bidangToDelete.nama;
+      
+      // Tutup modal penghapusan terlebih dahulu
       setShowDeleteBidangModal(false);
       setBidangToDelete(null);
+      
+      // Reload data setelah penghapusan - ini akan update pedomanData dan bidangList
       await fetchPedomanData();
+      
+      // Pastikan bidangList juga di-update (hapus bidang yang sudah dihapus)
+      setBidangList((prevList) => prevList.filter((b) => b.kode !== deletedBidangKode));
+      
+      // Set success message
+      setSuccess(`Bidang ${deletedBidangKode} - ${deletedBidangNama} dan semua item-nya berhasil dihapus`);
+      
+      // Auto-dismiss success message setelah 3 detik
+      setTimeout(() => {
+        setSuccess(null);
+      }, 3000);
     } catch (error: any) {
       console.error("Error deleting bidang:", error);
       setError("Gagal menghapus bidang. Silakan coba lagi.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Download template Excel untuk import
+  const downloadTemplate = async () => {
+    // Data contoh untuk template
+    const templateData = [
+      {
+        bidang: "A",
+        no: "1",
+        kegiatan: "Memberi kuliah jenjang D3/S1",
+        indeks_poin: 2.0,
+        unit_kerja: "Akademik, Dosen",
+        bukti_fisik: "Surat Tugas, Absensi Dosen dan Mahasiswa serta Daftar Nilai Mahasiswa",
+        prosedur: "Mengisi absen dan penilaian formatif (bila ada)",
+        is_sub_item: "N",
+        parent_no: "",
+      },
+      {
+        bidang: "A",
+        no: "1",
+        kegiatan: "1.1 Memberi kuliah jenjang D3/S1",
+        indeks_poin: 2.0,
+        unit_kerja: "Akademik",
+        bukti_fisik: "Surat Tugas, Absensi",
+        prosedur: "Mengisi absen",
+        is_sub_item: "Y",
+        parent_no: "1",
+      },
+      {
+        bidang: "A",
+        no: "1",
+        kegiatan: "1.2 Memberi kuliah jenjang S2",
+        indeks_poin: 2.5,
+        unit_kerja: "Akademik",
+        bukti_fisik: "Surat Tugas, Absensi",
+        prosedur: "Mengisi absen",
+        is_sub_item: "Y",
+        parent_no: "1",
+      },
+      {
+        bidang: "D",
+        no: "2",
+        kegiatan: "Menjadi Instruktur laboratorium/praktikum",
+        indeks_poin: 1.5,
+        unit_kerja: "Akademik, Profesi",
+        bukti_fisik: "Surat Tugas, Absensi",
+        prosedur: "Mengisi absen saat kegiatan",
+        is_sub_item: "N",
+        parent_no: "",
+      },
+    ];
+
+    // Buat worksheet
+    const ws = XLSX.utils.json_to_sheet(templateData);
+
+    // Set lebar kolom
+    const colWidths = [
+      { wch: 10 }, // bidang
+      { wch: 8 },  // no
+      { wch: 50 }, // kegiatan
+      { wch: 12 }, // indeks_poin
+      { wch: 30 }, // unit_kerja
+      { wch: 50 }, // bukti_fisik
+      { wch: 50 }, // prosedur
+      { wch: 12 }, // is_sub_item
+      { wch: 12 }, // parent_no
+    ];
+    ws["!cols"] = colWidths;
+
+    // Buat workbook
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Pedoman IKD");
+
+    // Generate file dan download
+    XLSX.writeFile(wb, "Template_Import_Pedoman_IKD.xlsx");
+  };
+
+  // Export data ke Excel
+  const exportToExcel = async () => {
+    try {
+      // Flatten data: main items dan sub-items menjadi satu array
+      const dataToExport: any[] = [];
+
+      // Group by bidang untuk export
+      const exportGroupedData = pedomanData.reduce((acc, item) => {
+        if (!acc[item.bidang]) {
+          acc[item.bidang] = [];
+        }
+        acc[item.bidang].push(item);
+        return acc;
+      }, {} as Record<string, IKDPedomanItem[]>);
+
+      Object.keys(exportGroupedData).forEach((bidang) => {
+        exportGroupedData[bidang].forEach((item) => {
+          const isSubItem = item.level === 1 || (item.parent_id !== null && item.parent_id !== undefined);
+          
+          dataToExport.push({
+            bidang: item.bidang || "",
+            no: item.no || "",
+            kegiatan: item.kegiatan || "",
+            indeks_poin: item.indeks_poin || 0,
+            unit_kerja: item.unit_kerja || "",
+            bukti_fisik: item.bukti_fisik || "",
+            prosedur: item.prosedur || "",
+            is_sub_item: isSubItem ? "Y" : "N",
+            parent_no: isSubItem ? item.no : "",
+          });
+        });
+      });
+
+      // Buat workbook baru
+      const wb = XLSX.utils.book_new();
+
+      // Buat worksheet untuk data utama
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+
+      // Set lebar kolom
+      const colWidths = [
+        { wch: 10 }, // bidang
+        { wch: 8 },  // no
+        { wch: 50 }, // kegiatan
+        { wch: 12 }, // indeks_poin
+        { wch: 30 }, // unit_kerja
+        { wch: 50 }, // bukti_fisik
+        { wch: 50 }, // prosedur
+        { wch: 12 }, // is_sub_item
+        { wch: 12 }, // parent_no
+      ];
+      ws["!cols"] = colWidths;
+
+      // Tambahkan header dengan styling
+      const headerRange = XLSX.utils.decode_range(ws["!ref"] || "A1");
+      for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+        if (!ws[cellAddress]) continue;
+
+        // Set header styling
+        ws[cellAddress].s = {
+          font: { bold: true, color: { rgb: "FFFFFF" } },
+          fill: { fgColor: { rgb: "4472C4" } },
+          alignment: { horizontal: "center", vertical: "center" },
+          border: {
+            top: { style: "thin", color: { rgb: "000000" } },
+            bottom: { style: "thin", color: { rgb: "000000" } },
+            left: { style: "thin", color: { rgb: "000000" } },
+            right: { style: "thin", color: { rgb: "000000" } },
+          },
+        };
+      }
+
+      // Tambahkan border untuk semua data
+      const dataRange = XLSX.utils.decode_range(ws["!ref"] || "A1");
+      for (let row = dataRange.s.r; row <= dataRange.e.r; row++) {
+        for (let col = dataRange.s.c; col <= dataRange.e.c; col++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+          if (!ws[cellAddress]) continue;
+
+          if (!ws[cellAddress].s) ws[cellAddress].s = {};
+          ws[cellAddress].s.border = {
+            top: { style: "thin", color: { rgb: "CCCCCC" } },
+            bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+            left: { style: "thin", color: { rgb: "CCCCCC" } },
+            right: { style: "thin", color: { rgb: "CCCCCC" } },
+          };
+
+          // Alternating row colors
+          if (row > 0) {
+            ws[cellAddress].s.fill = {
+              fgColor: { rgb: row % 2 === 0 ? "F8F9FA" : "FFFFFF" },
+            };
+          }
+        }
+      }
+
+      // Buat worksheet untuk ringkasan
+      const summaryData = [
+        ["RINGKASAN DATA PEDOMAN IKD"],
+        [""],
+        ["Total Data", dataToExport.length],
+        ["Main Items", dataToExport.filter((d) => d.is_sub_item === "N").length],
+        ["Sub Items", dataToExport.filter((d) => d.is_sub_item === "Y").length],
+        [""],
+        ["Data per Bidang:"],
+        ...Object.keys(exportGroupedData).map((bidang) => [
+          `Bidang ${bidang}`,
+          exportGroupedData[bidang].length,
+        ]),
+        [""],
+        ["Tanggal Export", new Date().toLocaleString("id-ID")],
+        ["Dibuat oleh", "Sistem ISME FKK"],
+      ];
+
+      const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
+      summaryWs["!cols"] = [{ wch: 25 }, { wch: 30 }];
+
+      // Styling untuk summary
+      summaryWs["A1"].s = {
+        font: { bold: true, size: 16, color: { rgb: "FFFFFF" } },
+        fill: { fgColor: { rgb: "2F5597" } },
+        alignment: { horizontal: "center", vertical: "center" },
+      };
+
+      // Tambahkan border untuk summary
+      const summaryRange = XLSX.utils.decode_range(summaryWs["!ref"] || "A1");
+      for (let row = summaryRange.s.r; row <= summaryRange.e.r; row++) {
+        for (let col = summaryRange.s.c; col <= summaryRange.e.c; col++) {
+          const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+          if (!summaryWs[cellAddress]) continue;
+
+          if (!summaryWs[cellAddress].s) summaryWs[cellAddress].s = {};
+          summaryWs[cellAddress].s.border = {
+            top: { style: "thin", color: { rgb: "CCCCCC" } },
+            bottom: { style: "thin", color: { rgb: "CCCCCC" } },
+            left: { style: "thin", color: { rgb: "CCCCCC" } },
+            right: { style: "thin", color: { rgb: "CCCCCC" } },
+          };
+        }
+      }
+
+      // Tambahkan worksheet ke workbook
+      XLSX.utils.book_append_sheet(wb, ws, "Data Pedoman IKD");
+      XLSX.utils.book_append_sheet(wb, summaryWs, "Ringkasan");
+
+      // Generate filename dengan timestamp
+      const now = new Date();
+      const timestamp = now.toISOString().slice(0, 19).replace(/:/g, "-");
+      const filename = `Data_Pedoman_IKD_${timestamp}.xlsx`;
+
+      // Download file
+      XLSX.writeFile(wb, filename);
+    } catch (error) {
+      console.error("Error exporting to Excel:", error);
+      setError("Gagal mengekspor data ke Excel. Silakan coba lagi.");
+    }
+  };
+
+  // Read Excel file
+  const readExcelFile = (file: File): Promise<any[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        try {
+          const data = e.target?.result;
+          const workbook = XLSX.read(data, { type: "array" });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+
+          // Get data as array of arrays
+          const aoa = XLSX.utils.sheet_to_json(worksheet, {
+            header: 1,
+          }) as any[][];
+
+          if (aoa.length === 0) {
+            resolve([]);
+            return;
+          }
+
+          const rawHeaders = aoa[0];
+          // Normalize headers: lowercase, trim spaces, replace spaces with underscores
+          const normalizedHeaders = rawHeaders.map((h: string) =>
+            String(h).toLowerCase().trim().replace(/\s+/g, "_")
+          );
+
+          const jsonData: any[] = [];
+          for (let i = 1; i < aoa.length; i++) {
+            const rowData: any = {};
+            const currentRow = aoa[i];
+            normalizedHeaders.forEach((header, index) => {
+              rowData[header] = currentRow[index];
+            });
+            jsonData.push(rowData);
+          }
+
+          resolve(jsonData);
+        } catch (error) {
+          reject(error);
+        }
+      };
+
+      reader.onerror = (error) => reject(error);
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  // Validate Excel data
+  const validateExcelData = (excelData: any[], existingData: IKDPedomanItem[]): {
+    errors: Array<{ row: number; field: string; message: string }>;
+    cellErrors: { [key: string]: string };
+  } => {
+    const errors: Array<{ row: number; field: string; message: string }> = [];
+    const cellErrors: { [key: string]: string } = {};
+
+    excelData.forEach((row, index) => {
+      const rowNum = index + 2; // +2 karena row 1 adalah header, dan index dimulai dari 0
+
+      // Validasi bidang
+      if (!row.bidang || String(row.bidang).trim() === "") {
+        errors.push({ row: rowNum, field: "bidang", message: "Bidang harus diisi" });
+        cellErrors[`${rowNum}-bidang`] = "Bidang harus diisi";
+      }
+
+      // Validasi no
+      if (!row.no || String(row.no).trim() === "") {
+        errors.push({ row: rowNum, field: "no", message: "NO harus diisi" });
+        cellErrors[`${rowNum}-no`] = "NO harus diisi";
+      }
+
+      // Validasi kegiatan
+      if (!row.kegiatan || String(row.kegiatan).trim() === "") {
+        errors.push({ row: rowNum, field: "kegiatan", message: "Kegiatan harus diisi" });
+        cellErrors[`${rowNum}-kegiatan`] = "Kegiatan harus diisi";
+      } else {
+        const kegiatan = String(row.kegiatan).trim();
+        // Validasi format menggunakan helper function
+        const kegiatanValidation = validateKegiatanFormat(kegiatan);
+        if (!kegiatanValidation.isValid) {
+          errors.push({ 
+            row: rowNum, 
+            field: "kegiatan", 
+            message: kegiatanValidation.errorMessage || "Format kegiatan tidak valid" 
+          });
+          cellErrors[`${rowNum}-kegiatan`] = "Harus ada spasi setelah nomor";
+        }
+      }
+
+      // Validasi indeks_poin (harus angka)
+      const indeksPoin = row.indeks_poin;
+      if (indeksPoin !== undefined && indeksPoin !== null && indeksPoin !== "") {
+        const numPoin = Number(indeksPoin);
+        if (isNaN(numPoin) || numPoin < 0) {
+          errors.push({ row: rowNum, field: "indeks_poin", message: "Indeks Poin harus berupa angka >= 0" });
+          cellErrors[`${rowNum}-indeks_poin`] = "Indeks Poin harus berupa angka >= 0";
+        }
+      }
+
+      // Validasi is_sub_item
+      const isSubItem = typeof row.is_sub_item === "boolean" 
+        ? (row.is_sub_item ? "Y" : "N")
+        : String(row.is_sub_item || "").toUpperCase().trim();
+      if (isSubItem && isSubItem !== "Y" && isSubItem !== "N" && isSubItem !== "YES" && isSubItem !== "NO" && isSubItem !== "TRUE" && isSubItem !== "FALSE" && isSubItem !== "1" && isSubItem !== "0") {
+        errors.push({ row: rowNum, field: "is_sub_item", message: "Is Sub Item harus Y/N, Yes/No, True/False, atau 1/0" });
+        cellErrors[`${rowNum}-is_sub_item`] = "Is Sub Item harus Y/N";
+      }
+
+      // Validasi parent_no jika is_sub_item = Y
+      const isSubItemBool = isSubItem === "Y" || isSubItem === "YES" || isSubItem === "TRUE" || isSubItem === "1" || row.is_sub_item === true;
+      if (isSubItemBool && (!row.parent_no || String(row.parent_no).trim() === "")) {
+        errors.push({ row: rowNum, field: "parent_no", message: "Parent NO harus diisi jika Is Sub Item = Y" });
+        cellErrors[`${rowNum}-parent_no`] = "Parent NO harus diisi";
+      }
+
+      // Validasi duplikasi/konflik dalam data yang di-import
+      const duplicateRows = excelData.filter((otherRow, otherIdx) => {
+        if (otherIdx === index) return false;
+        const otherIsSubItem = typeof otherRow.is_sub_item === "boolean" 
+          ? otherRow.is_sub_item
+          : String(otherRow.is_sub_item || "").toUpperCase().trim() === "Y" || 
+            String(otherRow.is_sub_item || "").toUpperCase().trim() === "YES" ||
+            String(otherRow.is_sub_item || "").toUpperCase().trim() === "TRUE" ||
+            String(otherRow.is_sub_item || "").toUpperCase().trim() === "1";
+        return (
+          String(otherRow.bidang || "").trim() === String(row.bidang || "").trim() &&
+          String(otherRow.no || "").trim() === String(row.no || "").trim() &&
+          String(otherRow.kegiatan || "").trim() === String(row.kegiatan || "").trim() &&
+          otherIsSubItem === isSubItemBool
+        );
+      });
+
+      if (duplicateRows.length > 0) {
+        errors.push({ row: rowNum, field: "kegiatan", message: "Data duplikat ditemukan dalam file import" });
+        if (!cellErrors[`${rowNum}-kegiatan`]) {
+          cellErrors[`${rowNum}-kegiatan`] = "Data duplikat";
+        }
+        // Also mark bidang and no as duplicate
+        if (!cellErrors[`${rowNum}-bidang`]) {
+          cellErrors[`${rowNum}-bidang`] = "Data duplikat";
+        }
+        if (!cellErrors[`${rowNum}-no`]) {
+          cellErrors[`${rowNum}-no`] = "Data duplikat";
+        }
+      }
+
+      // Tidak perlu validasi konflik dengan data existing
+      // Karena NO dan Bidang yang sama diperbolehkan (bisa ada beberapa item dengan NO dan Bidang yang sama)
+      // Sistem akan update data yang sudah ada atau membuat baru jika berbeda
+    });
+
+    return { errors, cellErrors };
+  };
+
+  // Handle import file
+  const handleImport = async (e: ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    setImportedFile(file);
+    try {
+      const excelParsedData = await readExcelFile(file);
+
+      // Transform data - handle various header formats
+      const transformedData = excelParsedData.map((row) => {
+        // Handle different header formats (bidang, bidang_, etc.)
+        const bidang = String(row.bidang || row.bidang_ || "").trim();
+        const no = String(row.no || row.no_ || "").trim();
+        const kegiatan = String(row.kegiatan || row.kegiatan_ || "").trim();
+        const indeksPoin = row.indeks_poin || row.indeks_poin_ || row["indeks poin"] || row["indeks poin_"] || 0;
+        const unitKerja = String(row.unit_kerja || row.unit_kerja_ || row["unit kerja"] || row["unit kerja_"] || "").trim();
+        const buktiFisik = String(row.bukti_fisik || row.bukti_fisik_ || row["bukti fisik"] || row["bukti fisik_"] || "").trim();
+        const prosedur = String(row.prosedur || row.prosedur_ || "").trim();
+        const isSubItemRaw = String(row.is_sub_item || row.is_sub_item_ || row["is sub item"] || row["is sub item_"] || "").toUpperCase().trim();
+        const isSubItemBool = isSubItemRaw === "Y" || isSubItemRaw === "YES" || isSubItemRaw === "TRUE" || isSubItemRaw === "1";
+        const parentNo = String(row.parent_no || row.parent_no_ || row["parent no"] || row["parent no_"] || "").trim();
+
+        return {
+          bidang,
+          no,
+          kegiatan,
+          indeks_poin: indeksPoin ? Number(indeksPoin) : 0,
+          unit_kerja: unitKerja,
+          bukti_fisik: buktiFisik,
+          prosedur,
+          is_sub_item: isSubItemBool,
+          parent_no: parentNo,
+        };
+      });
+
+      const validationResult = validateExcelData(transformedData, pedomanData);
+      setPreviewData(transformedData);
+      setValidationErrors(validationResult.errors);
+      setCellErrors(validationResult.cellErrors);
+      setError("");
+    } catch (err: any) {
+      setError(err.message || "Gagal membaca file Excel");
+      setPreviewData([]);
+      setValidationErrors([]);
+      setCellErrors([]);
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // Handle cell edit in preview
+  const handleCellEdit = (rowIdx: number, key: string, value: string | number | boolean) => {
+    setPreviewData((prev) => {
+      const newData = [...prev];
+      if (newData[rowIdx]) {
+        // Handle special cases
+        if (key === "indeks_poin") {
+          newData[rowIdx][key] = value === "" ? 0 : Number(value) || 0;
+        } else if (key === "is_sub_item") {
+          // Convert string to boolean
+          const strValue = String(value).toUpperCase().trim();
+          newData[rowIdx][key] = strValue === "Y" || strValue === "YES" || strValue === "TRUE" || strValue === "1";
+        } else {
+          newData[rowIdx][key] = value;
+        }
+
+        // Re-validate after edit
+        const validationResult = validateExcelData(newData, pedomanData);
+        setValidationErrors(validationResult.errors);
+        setCellErrors(validationResult.cellErrors);
+      }
+      return newData;
+    });
+  };
+
+  // Handle submit import
+  const handleSubmitImport = async () => {
+    if (!previewData || previewData.length === 0) return;
+    setIsSaving(true);
+    setError("");
+    setLoading(true);
+    setImportedCount(0);
+    setCellErrors([]);
+
+    const validationResult = validateExcelData(previewData, pedomanData);
+    if (validationResult.errors.length > 0) {
+      setValidationErrors(validationResult.errors);
+      setCellErrors(validationResult.cellErrors);
+      setIsSaving(false);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Group data by bidang
+      const dataByBidang: { [key: string]: any[] } = {};
+      previewData.forEach((row) => {
+        if (!dataByBidang[row.bidang]) {
+          dataByBidang[row.bidang] = [];
+        }
+        dataByBidang[row.bidang].push(row);
+      });
+
+      let totalImported = 0;
+      let totalErrors = 0;
+
+      // Process each bidang
+      for (const [bidang, items] of Object.entries(dataByBidang)) {
+        // Separate main items and sub-items
+        const mainItems = items.filter((item) => !item.is_sub_item);
+        const subItems = items.filter((item) => item.is_sub_item);
+
+        // Process main items first
+        for (const item of mainItems) {
+          try {
+            // Get bidang nama from bidangList or use bidang as nama
+            const bidangInfo = bidangList.find((b) => b.kode === bidang);
+            const payload = {
+              no: item.no,
+              kegiatan: item.kegiatan,
+              indeks_poin: item.indeks_poin || 0,
+              unit_kerja: item.unit_kerja || "",
+              bukti_fisik: item.bukti_fisik || "",
+              prosedur: item.prosedur || "",
+              bidang: bidang,
+              bidang_nama: bidangInfo?.nama || bidang,
+            };
+
+            // Check if item already exists
+            const existingItem = pedomanData.find(
+              (existing) =>
+                existing.no === item.no &&
+                existing.bidang === bidang &&
+                (existing.level === 0 || existing.level === undefined) &&
+                (!existing.parent_id || existing.parent_id === null)
+            );
+
+            if (existingItem?.id) {
+              // Update existing item
+              await api.put(`/rekap-ikd/pedoman-poin/${existingItem.id}`, payload);
+            } else {
+              // Create new item
+              await api.post("/rekap-ikd/pedoman-poin", payload);
+            }
+            totalImported++;
+          } catch (err: any) {
+            console.error("Error importing item:", err);
+            totalErrors++;
+          }
+        }
+
+        // Process sub-items after main items
+        // Create a map of main items by their ID for quick lookup
+        const mainItemsMap: { [key: string]: any } = {};
+        mainItems.forEach((item) => {
+          const key = `${item.bidang}-${item.no}-${item.kegiatan}`;
+          mainItemsMap[key] = item;
+        });
+
+        for (const subItem of subItems) {
+          try {
+            let parentItem: any = null;
+            let parentId: number | null = null;
+
+            // Find parent by parent_no and bidang only (simple lookup)
+            // First try in main items we just created
+            parentItem = mainItems.find(
+              (m) => m.no === subItem.parent_no && m.bidang === bidang
+            );
+            
+            // If not found, try in existing data
+            if (!parentItem) {
+              parentItem = pedomanData.find(
+                (p) =>
+                  p.no === subItem.parent_no &&
+                  p.bidang === bidang &&
+                  (p.level === 0 || p.level === undefined) &&
+                  (!p.parent_id || p.parent_id === null)
+              );
+            }
+            
+            if (parentItem?.id) {
+              parentId = parentItem.id;
+            }
+
+            // If parent was just created in this import session, we need to fetch its ID
+            if (parentItem && !parentId) {
+              // Fetch all pedoman to get the ID of the newly created parent
+              try {
+                const pedomanRes = await api.get(`/rekap-ikd/pedoman-poin`);
+                const allPedoman = pedomanRes.data?.success && pedomanRes.data?.data
+                  ? pedomanRes.data.data
+                  : Array.isArray(pedomanRes.data) ? pedomanRes.data : [];
+                
+                // Find the parent we just created by no and bidang
+                const foundParent = allPedoman.find(
+                  (p: any) =>
+                    String(p.no || "").trim() === String(parentItem.no || "").trim() &&
+                    String(p.bidang || "").trim() === String(parentItem.bidang || "").trim() &&
+                    (p.level === 0 || p.level === undefined) &&
+                    (!p.parent_id || p.parent_id === null)
+                );
+                
+                if (foundParent?.id) {
+                  parentId = foundParent.id;
+                }
+              } catch (err) {
+                console.error("Error fetching parent ID:", err);
+              }
+            }
+
+            if (!parentItem || !parentId) {
+              console.error(`Parent not found for sub-item: ${subItem.kegiatan}, parent_no: ${subItem.parent_no}`);
+              totalErrors++;
+              continue;
+            }
+
+            // Get bidang nama from bidangList
+            const bidangInfo = bidangList.find((b) => b.kode === bidang);
+            const payload = {
+              no: subItem.no,
+              kegiatan: subItem.kegiatan,
+              indeks_poin: subItem.indeks_poin || 0,
+              unit_kerja: subItem.unit_kerja || "",
+              bukti_fisik: subItem.bukti_fisik || "",
+              prosedur: subItem.prosedur || "",
+              bidang: bidang,
+              bidang_nama: bidangInfo?.nama || bidang,
+              parent_id: parentId,
+              level: 1,
+            };
+
+            // Check if sub-item already exists
+            const existingSubItem = pedomanData.find(
+              (existing) =>
+                existing.no === subItem.no &&
+                existing.bidang === bidang &&
+                existing.kegiatan === subItem.kegiatan &&
+                (existing.parent_id === parentId || existing.level === 1)
+            );
+
+            if (existingSubItem?.id) {
+              // Update existing sub-item
+              await api.put(`/rekap-ikd/pedoman-poin/${existingSubItem.id}`, payload);
+            } else {
+              // Create new sub-item
+              await api.post("/rekap-ikd/pedoman-poin", payload);
+            }
+            totalImported++;
+          } catch (err: any) {
+            console.error("Error importing sub-item:", err);
+            totalErrors++;
+          }
+        }
+      }
+
+      // Reload data after import
+      await fetchPedomanData();
+
+      setImportedCount(totalImported);
+      if (totalErrors > 0) {
+        setError(`${totalImported} data berhasil diimpor, ${totalErrors} data gagal diimpor.`);
+      } else {
+        setSuccess(`${totalImported} data berhasil diimpor.`);
+      }
+      setImportedFile(null);
+      setPreviewData([]);
+      setValidationErrors([]);
+      setCellErrors([]);
+      setShowImportModal(false);
+    } catch (err: any) {
+      setImportedCount(0);
+      setError(err.message || "Gagal mengimpor data");
+      setCellErrors([]);
+    } finally {
+      setIsSaving(false);
+      setLoading(false);
     }
   };
 
@@ -1326,14 +2110,141 @@ const PedomanPoinIKD: React.FC = () => {
   // Sort items within each bidang and ensure sub items are correctly identified
   Object.keys(groupedData).forEach((bidang) => {
     groupedData[bidang].sort((a, b) => {
-      // Sort by no (handle "1", "1.1", "1.2", "2", etc.)
-      const aParts = a.no.split(".").map(Number);
-      const bParts = b.no.split(".").map(Number);
-      for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
-        const aVal = aParts[i] || 0;
-        const bVal = bParts[i] || 0;
-        if (aVal !== bVal) return aVal - bVal;
+      // Helper function to check if item has content (indeks_poin, unit_kerja, bukti_fisik, or prosedur)
+      const hasContent = (item: any): boolean => {
+        const hasIndeksPoin = item.indeks_poin !== undefined && item.indeks_poin !== null && item.indeks_poin > 0;
+        const hasUnitKerja = item.unit_kerja && typeof item.unit_kerja === "string" && item.unit_kerja.trim().length > 0;
+        const hasBuktiFisik = item.bukti_fisik && typeof item.bukti_fisik === "string" && item.bukti_fisik.trim().length > 0;
+        const hasProsedur = item.prosedur && typeof item.prosedur === "string" && item.prosedur.trim().length > 0;
+        return hasIndeksPoin || hasUnitKerja || hasBuktiFisik || hasProsedur;
+      };
+      
+      // Main item is the one WITHOUT content (no indeks_poin, unit_kerja, bukti_fisik, or prosedur)
+      // Sub-item is the one WITH content OR has parent_id OR level === 1
+      const aHasContent = hasContent(a);
+      const bHasContent = hasContent(b);
+      const aIsSubItem = a.level === 1 || (a.parent_id !== null && a.parent_id !== undefined) || aHasContent;
+      const bIsSubItem = b.level === 1 || (b.parent_id !== null && b.parent_id !== undefined) || bHasContent;
+      const aIsMainItem = !aHasContent && (a.level === 0 || (a.level === undefined && !a.parent_id));
+      const bIsMainItem = !bHasContent && (b.level === 0 || (b.level === undefined && !b.parent_id));
+      
+      // Helper function to extract parent NO from kegiatan
+      // Examples: "2.a. Jumlah Mahasiswa" -> "2", "3.1. Seminar" -> "3", "1.4.a. CSL" -> "1"
+      const getParentNoFromKegiatan = (kegiatan: string): string | null => {
+        if (!kegiatan) return null;
+        const trimmed = kegiatan.trim();
+        // Match: digit at the start (this is the parent NO)
+        const match = trimmed.match(/^(\d+)/);
+        return match ? match[1] : null;
+      };
+      
+      // Helper function to extract full pattern from kegiatan for comparison
+      // Examples: "2.a. Jumlah" -> "2.a", "3.1. Seminar" -> "3.1", "1.4.a. CSL" -> "1.4.a"
+      const getKegiatanPattern = (kegiatan: string): string | null => {
+        if (!kegiatan) return null;
+        const trimmed = kegiatan.trim();
+        // Match: digit(s).digit(s) or digit(s).letter(s) (capture the full pattern before space or end)
+        const match = trimmed.match(/^(\d+(?:\.\d+)*(?:\.[a-zA-Z])?)/);
+        return match ? match[1] : null;
+      };
+      
+      // Helper function to compare NO values numerically
+      const compareNo = (noA: string, noB: string): number => {
+        const aNum = parseInt(noA) || 0;
+        const bNum = parseInt(noB) || 0;
+        return aNum - bNum;
+      };
+      
+      // Get NO values for comparison
+      const aNo = a.no || "";
+      const bNo = b.no || "";
+      
+      // First, compare by NO (main sorting key)
+      const noCompare = compareNo(aNo, bNo);
+      if (noCompare !== 0) {
+        // Different NO values - but we need to check if one is a sub-item of the other
+        // If a is main item with NO "2" and b is sub-item with kegiatan starting with "2.", 
+        // they should be grouped together
+        if (aIsMainItem && bIsSubItem) {
+          const bParentNo = getParentNoFromKegiatan(b.kegiatan || "");
+          if (bParentNo === aNo) {
+            // b is sub-item of a, so a comes first
+            return -1;
+          }
+        }
+        if (aIsSubItem && bIsMainItem) {
+          const aParentNo = getParentNoFromKegiatan(a.kegiatan || "");
+          if (aParentNo === bNo) {
+            // a is sub-item of b, so b comes first
+            return 1;
+          }
+        }
+        // Different NO values and not parent-child relationship, sort by NO
+        return noCompare;
       }
+      
+      // Same NO - now determine order based on main item vs sub-item
+      if (aIsMainItem && bIsSubItem) {
+        // Main item comes before its sub-items
+        return -1;
+      }
+      if (aIsSubItem && bIsMainItem) {
+        // Main item comes before its sub-items
+        return 1;
+      }
+      
+      // Both are main items with same NO (shouldn't happen, but sort by kegiatan)
+      if (aIsMainItem && bIsMainItem) {
+        return (a.kegiatan || "").localeCompare(b.kegiatan || "");
+      }
+      
+      // Both are sub-items with same NO - sort by kegiatan pattern
+      if (aIsSubItem && bIsSubItem) {
+        const aPattern = getKegiatanPattern(a.kegiatan || "");
+        const bPattern = getKegiatanPattern(b.kegiatan || "");
+        
+        // If both have patterns, compare them
+        if (aPattern && bPattern) {
+          // Extract parts for comparison
+          const aParts = aPattern.split(".").map(p => {
+            const num = parseInt(p);
+            return isNaN(num) ? p : num;
+          });
+          const bParts = bPattern.split(".").map(p => {
+            const num = parseInt(p);
+            return isNaN(num) ? p : num;
+          });
+          
+          for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+            const aVal = aParts[i];
+            const bVal = bParts[i];
+            
+            if (aVal === undefined) return -1;
+            if (bVal === undefined) return 1;
+            
+            // If both are numbers, compare numerically
+            if (typeof aVal === 'number' && typeof bVal === 'number') {
+              if (aVal !== bVal) return aVal - bVal;
+            } 
+            // If both are strings (letters), compare alphabetically
+            else if (typeof aVal === 'string' && typeof bVal === 'string') {
+              const comp = aVal.localeCompare(bVal);
+              if (comp !== 0) return comp;
+            }
+            // Mixed: number comes before letter
+            else if (typeof aVal === 'number' && typeof bVal === 'string') {
+              return -1;
+            }
+            else if (typeof aVal === 'string' && typeof bVal === 'number') {
+              return 1;
+            }
+          }
+        }
+        
+        // Fallback: sort alphabetically by kegiatan
+        return (a.kegiatan || "").localeCompare(b.kegiatan || "");
+      }
+      
       return 0;
     });
     
@@ -1389,6 +2300,35 @@ const PedomanPoinIKD: React.FC = () => {
             Tabel Pedoman Poin IKD
           </h2>
           <div className="flex gap-2">
+            <button
+              onClick={downloadTemplate}
+              className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Download Template
+            </button>
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              Import Excel
+            </button>
+            {hasData && (
+              <button
+                onClick={exportToExcel}
+                className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Export Excel
+              </button>
+            )}
             <button
               onClick={handleEditTableClick}
               className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
@@ -2969,6 +3909,359 @@ const PedomanPoinIKD: React.FC = () => {
                         Hapus
                       </button>
                     </div>
+                  </div>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+
+        {/* Modal Import Excel */}
+        <AnimatePresence>
+          {showImportModal && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[100000] bg-black/40 dark:bg-black/60 backdrop-blur-sm"
+                onClick={() => {
+                  if (!isSaving) {
+                    setShowImportModal(false);
+                    setPreviewData([]);
+                    setValidationErrors([]);
+                    setCellErrors([]);
+                    setImportedFile(null);
+                  }
+                }}
+              />
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="fixed inset-0 z-[100001] flex items-center justify-center p-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+                  {/* Header */}
+                  <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                      Import Data dari Excel
+                    </h3>
+                    <button
+                      onClick={() => {
+                        if (!isSaving) {
+                          setShowImportModal(false);
+                          setPreviewData([]);
+                          setValidationErrors([]);
+                          setCellErrors([]);
+                          setImportedFile(null);
+                        }
+                      }}
+                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                      disabled={isSaving}
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 overflow-y-auto p-6">
+                    {!importedFile ? (
+                      <div className="space-y-4">
+                        <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept=".xlsx,.xls"
+                            onChange={handleImport}
+                            className="hidden"
+                            id="import-file-input"
+                          />
+                          <label
+                            htmlFor="import-file-input"
+                            className="cursor-pointer flex flex-col items-center gap-4"
+                          >
+                            <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            <div>
+                              <p className="text-lg font-medium text-gray-700 dark:text-gray-300">
+                                Klik untuk memilih file Excel
+                              </p>
+                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                Format: .xlsx atau .xls
+                              </p>
+                            </div>
+                          </label>
+                        </div>
+                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                          <p className="text-sm text-blue-800 dark:text-blue-300">
+                            <strong>Catatan:</strong> Pastikan file Excel mengikuti format template. Download template terlebih dahulu jika belum punya.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {/* File Info */}
+                        <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <div>
+                              <p className="font-medium text-gray-900 dark:text-white">{importedFile.name}</p>
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                {(importedFile.size / 1024).toFixed(2)} KB
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setImportedFile(null);
+                              setPreviewData([]);
+                              setValidationErrors([]);
+                              setCellErrors([]);
+                              if (fileInputRef.current) fileInputRef.current.value = "";
+                            }}
+                            className="text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors"
+                            disabled={isSaving}
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+
+                        {/* Validation Errors */}
+                        {validationErrors.length > 0 && (
+                          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                            <div className="flex items-start gap-2 mb-2">
+                              <svg className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <div className="flex-1">
+                                <p className="font-medium text-red-800 dark:text-red-300 mb-2">
+                                  Terdapat {validationErrors.length} error validasi:
+                                </p>
+                                <ul className="space-y-1 max-h-40 overflow-y-auto">
+                                  {validationErrors.slice(0, 10).map((err, idx) => (
+                                    <li key={idx} className="text-sm text-red-700 dark:text-red-400">
+                                      Baris {err.row}: {err.field} - {err.message}
+                                    </li>
+                                  ))}
+                                  {validationErrors.length > 10 && (
+                                    <li className="text-sm text-red-700 dark:text-red-400 font-medium">
+                                      ... dan {validationErrors.length - 10} error lainnya
+                                    </li>
+                                  )}
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Success Message */}
+                        {importedCount > 0 && (
+                          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                            <p className="text-green-800 dark:text-green-300">
+                              <strong>Berhasil!</strong> {importedCount} data berhasil diimpor.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Preview Table */}
+                        {previewData.length > 0 && (
+                          <div className="overflow-x-auto">
+                            <table className="w-full border-collapse border border-gray-300 dark:border-gray-700 text-sm">
+                              <thead>
+                                <tr className="bg-gray-100 dark:bg-gray-700">
+                                  <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">Bidang</th>
+                                  <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">NO</th>
+                                  <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">Kegiatan</th>
+                                  <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">Indeks Poin</th>
+                                  <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">Unit Kerja</th>
+                                  <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">Bukti Fisik</th>
+                                  <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">Prosedur</th>
+                                  <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">Is Sub Item</th>
+                                  <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">Parent NO</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {previewData.slice(0, 50).map((row, idx) => {
+                                  const rowNum = idx + 2;
+                                  const hasError = validationErrors.some((err) => err.row === rowNum);
+                                  return (
+                                    <tr
+                                      key={idx}
+                                      className={hasError ? "bg-red-50 dark:bg-red-900/10" : idx % 2 === 0 ? "bg-white dark:bg-gray-800" : "bg-gray-50 dark:bg-gray-700/50"}
+                                    >
+                                      <td className={`border border-gray-300 dark:border-gray-700 px-3 py-2 ${cellErrors[`${rowNum}-bidang`] ? "bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700" : ""}`}>
+                                        <input
+                                          type="text"
+                                          value={row.bidang}
+                                          onChange={(e) => handleCellEdit(idx, "bidang", e.target.value)}
+                                          className={`w-full px-2 py-1 border rounded text-sm bg-transparent ${
+                                            cellErrors[`${rowNum}-bidang`]
+                                              ? "border-red-500 dark:border-red-600 text-red-900 dark:text-red-200"
+                                              : "border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                                          }`}
+                                          title={cellErrors[`${rowNum}-bidang`] || ""}
+                                        />
+                                      </td>
+                                      <td className={`border border-gray-300 dark:border-gray-700 px-3 py-2 ${cellErrors[`${rowNum}-no`] ? "bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700" : ""}`}>
+                                        <input
+                                          type="text"
+                                          value={row.no}
+                                          onChange={(e) => handleCellEdit(idx, "no", e.target.value)}
+                                          className={`w-full px-2 py-1 border rounded text-sm bg-transparent ${
+                                            cellErrors[`${rowNum}-no`]
+                                              ? "border-red-500 dark:border-red-600 text-red-900 dark:text-red-200"
+                                              : "border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                                          }`}
+                                          title={cellErrors[`${rowNum}-no`] || ""}
+                                        />
+                                      </td>
+                                      <td className={`border border-gray-300 dark:border-gray-700 px-3 py-2 ${cellErrors[`${rowNum}-kegiatan`] ? "bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700" : ""}`}>
+                                        <input
+                                          type="text"
+                                          value={row.kegiatan}
+                                          onChange={(e) => handleCellEdit(idx, "kegiatan", e.target.value)}
+                                          className={`w-full px-2 py-1 border rounded text-sm bg-transparent ${
+                                            cellErrors[`${rowNum}-kegiatan`]
+                                              ? "border-red-500 dark:border-red-600 text-red-900 dark:text-red-200"
+                                              : "border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                                          }`}
+                                          title={cellErrors[`${rowNum}-kegiatan`] || ""}
+                                        />
+                                      </td>
+                                      <td className={`border border-gray-300 dark:border-gray-700 px-3 py-2 ${cellErrors[`${rowNum}-indeks_poin`] ? "bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700" : ""}`}>
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          min="0"
+                                          value={row.indeks_poin || ""}
+                                          onChange={(e) => handleCellEdit(idx, "indeks_poin", e.target.value)}
+                                          className={`w-full px-2 py-1 border rounded text-sm bg-transparent ${
+                                            cellErrors[`${rowNum}-indeks_poin`]
+                                              ? "border-red-500 dark:border-red-600 text-red-900 dark:text-red-200"
+                                              : "border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                                          }`}
+                                          title={cellErrors[`${rowNum}-indeks_poin`] || ""}
+                                        />
+                                      </td>
+                                      <td className="border border-gray-300 dark:border-gray-700 px-3 py-2">
+                                        <input
+                                          type="text"
+                                          value={row.unit_kerja || ""}
+                                          onChange={(e) => handleCellEdit(idx, "unit_kerja", e.target.value)}
+                                          className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-transparent text-gray-900 dark:text-white"
+                                        />
+                                      </td>
+                                      <td className="border border-gray-300 dark:border-gray-700 px-3 py-2">
+                                        <input
+                                          type="text"
+                                          value={row.bukti_fisik || ""}
+                                          onChange={(e) => handleCellEdit(idx, "bukti_fisik", e.target.value)}
+                                          className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-transparent text-gray-900 dark:text-white"
+                                        />
+                                      </td>
+                                      <td className="border border-gray-300 dark:border-gray-700 px-3 py-2">
+                                        <input
+                                          type="text"
+                                          value={row.prosedur || ""}
+                                          onChange={(e) => handleCellEdit(idx, "prosedur", e.target.value)}
+                                          className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-transparent text-gray-900 dark:text-white"
+                                        />
+                                      </td>
+                                      <td className={`border border-gray-300 dark:border-gray-700 px-3 py-2 ${cellErrors[`${rowNum}-is_sub_item`] ? "bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700" : ""}`}>
+                                        <select
+                                          value={row.is_sub_item ? "Y" : "N"}
+                                          onChange={(e) => handleCellEdit(idx, "is_sub_item", e.target.value)}
+                                          className={`w-full px-2 py-1 border rounded text-sm bg-transparent ${
+                                            cellErrors[`${rowNum}-is_sub_item`]
+                                              ? "border-red-500 dark:border-red-600 text-red-900 dark:text-red-200"
+                                              : "border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                                          }`}
+                                          title={cellErrors[`${rowNum}-is_sub_item`] || ""}
+                                        >
+                                          <option value="N">N</option>
+                                          <option value="Y">Y</option>
+                                        </select>
+                                      </td>
+                                      <td className={`border border-gray-300 dark:border-gray-700 px-3 py-2 ${cellErrors[`${rowNum}-parent_no`] ? "bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700" : ""}`}>
+                                        <input
+                                          type="text"
+                                          value={row.parent_no || ""}
+                                          onChange={(e) => handleCellEdit(idx, "parent_no", e.target.value)}
+                                          className={`w-full px-2 py-1 border rounded text-sm bg-transparent ${
+                                            cellErrors[`${rowNum}-parent_no`]
+                                              ? "border-red-500 dark:border-red-600 text-red-900 dark:text-red-200"
+                                              : "border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                                          }`}
+                                          title={cellErrors[`${rowNum}-parent_no`] || ""}
+                                          disabled={!row.is_sub_item}
+                                        />
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                            {previewData.length > 50 && (
+                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 text-center">
+                                Menampilkan 50 dari {previewData.length} baris
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end gap-3">
+                    <button
+                      onClick={() => {
+                        if (!isSaving) {
+                          setShowImportModal(false);
+                          setPreviewData([]);
+                          setValidationErrors([]);
+                          setCellErrors([]);
+                          setImportedFile(null);
+                        }
+                      }}
+                      className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                      disabled={isSaving}
+                    >
+                      {importedCount > 0 ? "Tutup" : "Batal"}
+                    </button>
+                    {previewData.length > 0 && validationErrors.length === 0 && importedCount === 0 && (
+                      <button
+                        onClick={handleSubmitImport}
+                        disabled={isSaving}
+                        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {isSaving ? (
+                          <>
+                            <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            Mengimpor...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                            Import Data
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
               </motion.div>

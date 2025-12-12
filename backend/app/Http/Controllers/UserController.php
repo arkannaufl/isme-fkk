@@ -122,7 +122,7 @@ class UserController extends Controller
         ]);
         
         try {
-            $validated = $request->validate([
+        $validated = $request->validate([
             'name' => 'required|string',
             'username' => [
                 'required',
