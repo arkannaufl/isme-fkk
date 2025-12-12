@@ -42,8 +42,10 @@ use App\Http\Controllers\WhatsAppController;
 use App\Http\Controllers\RekapIKDController;
 
 
-// Login dengan rate limiting lebih ketat untuk mencegah brute force
-Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
+// Login dengan rate limiting untuk mencegah brute force
+// Ditingkatkan ke 100 req/min untuk support banyak user dari IP yang sama (sekolah/kampus)
+// Masih aman karena brute force protection tetap ada (100 attempts per minute masih reasonable)
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:100,1');
 
 // Global rate limiting untuk semua API routes (120 requests per minute per user/IP)
 // Ini mencegah abuse dan overload server saat banyak user mengakses bersamaan

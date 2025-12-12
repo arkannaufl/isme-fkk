@@ -380,36 +380,9 @@ Sistem ini dioptimalkan untuk menangani **1000+ concurrent users** dengan optima
 - **MySQL**: `max_connections = 500` (dari default 151) - Handle 500 connection bersamaan
 - **Race Condition Fix**: Database lock untuk mencegah race condition saat banyak user login bersamaan
 
-**Script Optimasi:**
-- `fix-all.sh` - Script terpusat untuk optimasi semua konfigurasi (1x run, auto backup)
-- `check-config.sh` - Script untuk checking konfigurasi
-- `monitor-login.sh` - Script untuk monitoring real-time
-- `test-login-load.sh` - Script untuk load testing login endpoint (simulate banyak user)
+Sistem ini sudah dioptimalkan untuk menangani 1000+ concurrent users dengan konfigurasi server yang sudah disetup.
 
-**Cara Menggunakan:**
-```bash
-cd backend
-
-# 1. Berikan execute permission (perlu sudo)
-sudo chmod +x fix-all.sh
-
-# 2. Jalankan script (perlu sudo karena akan ubah config sistem)
-sudo ./fix-all.sh  # Run 1x saja, auto backup & fix semua config
-
-# 3. Monitoring (tidak perlu sudo)
-sudo chmod +x monitor-login.sh
-./monitor-login.sh # Monitoring real-time
-
-# 4. Load Testing (test kapasitas tanpa user real)
-sudo chmod +x test-login-load.sh
-./test-login-load.sh -r mahasiswa -c 100 -t 200 # Test dengan 100 concurrent users
-```
-
-**Catatan:**
-- `sudo chmod +x` diperlukan karena file mungkin dimiliki oleh `root` atau `www-data` setelah clone
-- `sudo ./fix-all.sh` diperlukan karena script akan mengubah konfigurasi sistem di `/etc/php/`, `/etc/mysql/`, dan `/etc/apache2/`
-
-Lihat dokumentasi lengkap di [Backend README](./backend/README.md#-performance-optimization-untuk-1000-users)
+Lihat dokumentasi lengkap di [Backend README](./backend/README.md#-performance-optimization)
 
 ### Optimasi Aplikasi
 

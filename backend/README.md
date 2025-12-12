@@ -1202,232 +1202,20 @@ chmod -R 775 storage bootstrap/cache
 chown -R www-data:www-data storage bootstrap/cache
 ```
 
-## ⚡ Performance Optimization untuk 1000+ Users
+## ⚡ Performance Optimization
 
-### Optimasi Konfigurasi Server
-
-Sistem ini dioptimalkan untuk menangani **1000+ concurrent users** dengan optimasi pada:
-- **PHP-FPM**: `max_children = 150` (dari default 5)
-- **Apache**: `MaxRequestWorkers = 300` (dari default 150)
-- **MySQL**: `max_connections = 500` (dari default 151)
+Sistem ini dioptimalkan untuk menangani **1000+ concurrent users** dengan:
+- **PHP-FPM**: `max_children = 150`
+- **Apache**: `MaxRequestWorkers = 300`
+- **MySQL**: `max_connections = 500`
 - **Race Condition Fix**: Database lock untuk mencegah race condition saat banyak user login bersamaan
-
-### Script Optimasi Otomatis
-
-**`fix-all.sh`** - Script terpusat untuk optimasi semua konfigurasi:
-
-```bash
-cd /var/www/isme-fkk/backend
-
-# 1. Berikan execute permission pada script
-# ⚠️ PENTING: Gunakan sudo karena file mungkin dimiliki oleh root atau www-data
-sudo chmod +x fix-all.sh
-
-# 2. Jalankan script dengan sudo
-sudo ./fix-all.sh
-```
-
-**Mengapa perlu `sudo` untuk `chmod +x`?**
-- Setelah `git clone`, file mungkin dimiliki oleh user yang melakukan clone (bukan `www-data`)
-- Untuk memberikan execute permission, perlu akses ke file tersebut
-- Jika file dimiliki oleh `root` atau `www-data`, perlu `sudo` untuk mengubah permission
-- Lebih aman menggunakan `sudo` untuk memastikan permission bisa diubah
-
-**Mengapa perlu `sudo` untuk menjalankan script?**
-- Script akan mengubah konfigurasi sistem di `/etc/php/`, `/etc/mysql/`, dan `/etc/apache2/`
-- Perubahan konfigurasi sistem memerlukan akses root
-- Script akan restart service PHP-FPM, MySQL, dan Apache yang memerlukan akses root
-
-**Apa yang dilakukan script:**
-1. ✅ **Auto Backup** - Backup otomatis semua config sebelum diubah
-2. ✅ **Fix PHP-FPM** - Update `pm.max_children` dari 5 → 150
-3. ✅ **Fix MySQL** - Update `max_connections` dari 151 → 500
-4. ✅ **Fix Apache** - Update `MaxRequestWorkers` dari 150 → 300
-5. ✅ **Test Config** - Validasi config sebelum restart
-6. ✅ **Auto Restore** - Restore backup jika ada error
-7. ✅ **Clear Cache** - Clear Laravel cache
-8. ✅ **Verify** - Verifikasi semua perubahan
-
-**Backup Locations:**
-- PHP-FPM: `/etc/php/8.4/fpm/pool.d/www.conf.backup.TIMESTAMP`
-- MySQL: `/etc/mysql/mysql.conf.d/mysqld.cnf.backup.TIMESTAMP`
-- Apache: `/etc/apache2/backup_TIMESTAMP/`
-
-**Catatan Penting:**
-- Script cukup dijalankan **1x saja** saat pertama kali setup VPS
-- Konfigurasi sistem tidak akan terpengaruh saat delete/clone project
-- Hanya perlu dijalankan lagi jika server di-reinstall atau config di-reset
-
-### Checking Konfigurasi
-
-**`check-config.sh`** - Script untuk mengecek konfigurasi:
-
-```bash
-cd /var/www/isme-fkk/backend
-sudo chmod +x check-config.sh
-./check-config.sh
-```
-
-Script ini akan menampilkan:
-- PHP-FPM configuration (max_children, start_servers, dll)
-- Session & Cache configuration
-- Redis status dan info
-- MySQL max_connections
-- Apache/Nginx worker configuration
-- Current resource usage
-- Potensi race condition di code
-
-### Monitoring Real-time
-
-**`monitor-login.sh`** - Script untuk monitoring real-time:
-
-```bash
-cd /var/www/isme-fkk/backend
-sudo chmod +x monitor-login.sh
-
-# Run di background
-nohup ./monitor-login.sh > /dev/null 2>&1 &
-
-# Atau run di terminal terpisah untuk lihat real-time
-./monitor-login.sh
-```
-
-**Monitoring akan capture:**
-- Redis connections dan memory usage
-- PHP-FPM processes count
-- System memory usage
-- System load average
-- Laravel errors count
-- Login-related errors
-- Database connections
-
-**Log file:** `storage/logs/monitor_YYYYMMDD.log`
-
-### Setup Test Users untuk Data Real
-
-**⚠️ PENTING**: Jika database sudah pakai data real (bukan seeder), password user sudah berbeda-beda. Ada 3 opsi:
-
-#### Option 1: Create Test Users Khusus (⭐ RECOMMENDED)
-
-**`create-test-users.sh`** - Buat test users khusus dengan password yang diketahui:
-
-```bash
-cd /var/www/isme-fkk/backend
-sudo chmod +x create-test-users.sh
-
-# Create 50 test users (role mahasiswa, password: test123)
-./create-test-users.sh -r mahasiswa -p test123 -c 50
-
-# Create 100 test users untuk dosen
-./create-test-users.sh -r dosen -p test123 -c 100
-
-# Create dengan prefix custom
-./create-test-users.sh -r mahasiswa -p test123 -c 50 -x loadtest
-```
-
-**Keuntungan:**
-- ✅ Password diketahui (bisa di-set sendiri)
-- ✅ Tidak mengganggu data real
-- ✅ File `users.txt` otomatis di-generate
-- ✅ Bisa dihapus setelah testing
-
-#### Option 2: Test dengan 1 User yang Password-nya Diketahui
-
-```bash
-# Test dengan 1 user, 100 concurrent requests (untuk test race condition)
-./test-login-load.sh -u realusername -p realpassword -c 100 -t 100
-```
-
-#### Option 3: Generate users.txt dari Database (Jika Password Sama)
-
-**`setup-test-users.sh`** - Generate file `users.txt` dari database:
-
-```bash
-cd /var/www/isme-fkk/backend
-sudo chmod +x setup-test-users.sh
-
-# Generate users.txt (asumsi semua password sama)
-./setup-test-users.sh -r mahasiswa -p password123
-```
-
-**Catatan:**
-- ⚠️ Hanya generate username, password harus diketahui
-- ⚠️ Hanya cocok jika semua users punya password yang sama
-- ⚠️ Untuk data real dengan password berbeda-beda, gunakan Option 1
-
-### Load Testing - Test Kapasitas Login
-
-**`test-login-load.sh`** - Script untuk load testing login endpoint tanpa perlu menunggu user real:
-
-```bash
-cd /var/www/isme-fkk/backend
-sudo chmod +x test-login-load.sh
-
-# ⭐ RECOMMENDED: Test dengan test users khusus (setelah create-test-users.sh)
-./test-login-load.sh -f users_mahasiswa_test.txt -c 50 -t 100
-
-# Atau test dengan 1 user yang password-nya diketahui
-./test-login-load.sh -u realusername -p realpassword -c 100 -t 100
-
-# Atau test dengan users dari database (jika password sama semua)
-DB_PASSWORD=password123 ./test-login-load.sh -r mahasiswa -c 50 -t 100
-
-# Test dengan custom API URL (production)
-API_URL=https://isme.fkkumj.ac.id/api ./test-login-load.sh -r mahasiswa -c 100 -t 100
-```
-
-**Options:**
-- `-u, --username USERNAME` - Username untuk test
-- `-p, --password PASSWORD` - Password untuk test
-- `-c, --concurrent NUM` - Jumlah concurrent users (default: 50)
-- `-t, --total NUM` - Total requests (default: 100)
-- `-d, --delay SECONDS` - Delay antara batches (default: 0.1)
-- `-a, --api-url URL` - API base URL (default: http://localhost:8000/api)
-- `-f, --users-file FILE` - File berisi list username:password (satu per baris)
-- `-r, --role ROLE` - Get users dari database dengan role tertentu (mahasiswa/dosen)
-
-**Output yang ditampilkan:**
-- ✓ Success count
-- ✗ Failed count
-- ⚠ Rate limited count
-- ⚠ Already logged in count
-- ⚠ Invalid credentials count
-- Success rate percentage
-- Average response time
-- Recommendations jika ada masalah
-
-**Contoh file `users.txt` (generated oleh create-test-users.sh):**
-```
-# Test Users untuk Load Testing
-# Generated: 2025-12-11
-# Role: mahasiswa
-# Password: test123
-# Total Users: 50
-
-testuser1:test123
-testuser2:test123
-testuser3:test123
-testuser4:test123
-...
-```
-
-**Catatan untuk Data Real:**
-- ⚠️ Data real punya password berbeda-beda
-- ✅ **RECOMMENDED**: Gunakan `create-test-users.sh` untuk buat test users khusus
-- ✅ Atau test dengan 1 user yang password-nya diketahui
-- ⚠️ Jangan pakai data real untuk load testing (bisa mengganggu user)
-
-**Catatan:**
-- Script akan simulate banyak user login bersamaan
-- Bisa test race condition dengan menggunakan user yang sama
-- Bisa test dengan banyak user berbeda untuk test kapasitas real
-- Monitor resource usage saat testing dengan `monitor-login.sh` di terminal terpisah
+- **Rate Limiting**: 100 requests per minute per IP untuk login endpoint
 
 ### Deployment Steps ke VPS
 
-**📋 Lihat panduan lengkap di [DEPLOYMENT_STEPS.md](./DEPLOYMENT_STEPS.md)**
+**📋 Lihat panduan deployment di bagian "Deployment Steps ke VPS" di bawah ini**
 
-**Quick Deploy (jika sudah pernah setup optimasi):**
+**Quick Deploy:**
 ```bash
 cd /var/www/isme-fkk && git pull && cd backend && \
 composer install --no-dev --optimize-autoloader && \
@@ -1436,77 +1224,11 @@ php artisan config:clear && \
 sudo ./fix-permissions.sh
 ```
 
-**Full Setup (pertama kali atau setelah reinstall server):**
+**Full Setup (pertama kali):**
 1. Deploy perubahan: `git pull`
 2. Update dependencies: `composer install --no-dev --optimize-autoloader`
 3. Run migrations: `php artisan migrate --force`
 4. Fix permissions: `sudo ./fix-permissions.sh`
-5. **Run optimasi (1x saja)**: `sudo ./fix-all.sh`
-6. Setup script testing: `sudo chmod +x *.sh`
-7. Test dengan load testing: `./test-login-load.sh -r mahasiswa -c 50 -t 100`
-
-### Workflow Testing Setelah Optimasi
-
-1. **Run fix script** (1x saja, jika belum pernah):
-   ```bash
-   sudo ./fix-all.sh
-   ```
-
-2. **Start monitoring** (di terminal terpisah):
-   ```bash
-   ./monitor-login.sh
-   ```
-
-3. **Test dengan load testing script** (di terminal terpisah):
-   ```bash
-   sudo chmod +x test-login-load.sh
-   
-   # Test gradual: mulai dari 50 concurrent users
-   ./test-login-load.sh -r mahasiswa -c 50 -t 100
-   
-   # Jika sukses, test dengan 100 concurrent users
-   ./test-login-load.sh -r mahasiswa -c 100 -t 200
-   
-   # Jika masih sukses, test dengan 150 concurrent users (limit max_children)
-   ./test-login-load.sh -r mahasiswa -c 150 -t 300
-   
-   # Atau test dengan user real (jika ada)
-   ./test-login-load.sh -u realuser -p realpassword -c 50 -t 100
-   ```
-
-4. **Atau test dengan user real** (opsional, gradual):
-   - Test 10 user dulu → Monitor 5-10 menit
-   - Jika OK, test 50 user → Monitor lagi
-   - Jika OK, test 100 user → Monitor lagi
-   - Jika OK, test 150 user (limit max_children)
-
-5. **Check results**:
-   ```bash
-   # Check monitoring log
-   tail -f storage/logs/monitor_$(date +%Y%m%d).log
-   
-   # Check error log
-   tail -f storage/logs/laravel.log | grep -i "error\|exception"
-   
-   # Check resource
-   free -h; ps aux | grep php-fpm | wc -l
-   ```
-
-### Perhitungan Optimasi
-
-**Asumsi untuk 1000 users:**
-- Concurrent users: ~10% = 100 user bersamaan
-- Buffer: 1.5x untuk safety = 150 concurrent requests
-
-**Konfigurasi yang dioptimalkan:**
-- PHP-FPM `max_children`: 150 (handle 150 request bersamaan)
-- Apache `MaxRequestWorkers`: 300 (handle 300 connection bersamaan)
-- MySQL `max_connections`: 500 (handle 500 connection bersamaan)
-
-**Resource Usage (Estimasi):**
-- PHP-FPM: ~150 processes × ~50MB = ~7.5GB
-- Apache: ~300 processes × ~10MB = ~3GB
-- Total: ~10-11GB (dengan swap 4GB, masih aman untuk server 7.8GB RAM)
 
 ### Race Condition Fix
 
