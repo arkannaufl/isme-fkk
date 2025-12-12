@@ -78,6 +78,14 @@ test_login() {
         curl_opts="$curl_opts -k"
     fi
     
+    # Extract host dari endpoint untuk Host header
+    local host_header=""
+    if [[ "$ENDPOINT" == http://localhost* ]] || [[ "$ENDPOINT" == http://127.0.0.1* ]]; then
+        # Jika localhost, coba pakai domain name untuk Host header
+        host_header="isme.fkkumj.ac.id"
+        curl_opts="$curl_opts -H \"Host: ${host_header}\""
+    fi
+    
     local response=$(eval curl $curl_opts 2>/dev/null)
     
     local end_time=$(date +%s.%N)
