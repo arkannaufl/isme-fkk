@@ -1303,25 +1303,184 @@ nohup ./monitor-login.sh > /dev/null 2>&1 &
 
 **Log file:** `storage/logs/monitor_YYYYMMDD.log`
 
+### Setup Test Users untuk Data Real
+
+**⚠️ PENTING**: Jika database sudah pakai data real (bukan seeder), password user sudah berbeda-beda. Ada 3 opsi:
+
+#### Option 1: Create Test Users Khusus (⭐ RECOMMENDED)
+
+**`create-test-users.sh`** - Buat test users khusus dengan password yang diketahui:
+
+```bash
+cd /var/www/isme-fkk/backend
+sudo chmod +x create-test-users.sh
+
+# Create 50 test users (role mahasiswa, password: test123)
+./create-test-users.sh -r mahasiswa -p test123 -c 50
+
+# Create 100 test users untuk dosen
+./create-test-users.sh -r dosen -p test123 -c 100
+
+# Create dengan prefix custom
+./create-test-users.sh -r mahasiswa -p test123 -c 50 -x loadtest
+```
+
+**Keuntungan:**
+- ✅ Password diketahui (bisa di-set sendiri)
+- ✅ Tidak mengganggu data real
+- ✅ File `users.txt` otomatis di-generate
+- ✅ Bisa dihapus setelah testing
+
+#### Option 2: Test dengan 1 User yang Password-nya Diketahui
+
+```bash
+# Test dengan 1 user, 100 concurrent requests (untuk test race condition)
+./test-login-load.sh -u realusername -p realpassword -c 100 -t 100
+```
+
+#### Option 3: Generate users.txt dari Database (Jika Password Sama)
+
+**`setup-test-users.sh`** - Generate file `users.txt` dari database:
+
+```bash
+cd /var/www/isme-fkk/backend
+sudo chmod +x setup-test-users.sh
+
+# Generate users.txt (asumsi semua password sama)
+./setup-test-users.sh -r mahasiswa -p password123
+```
+
+**Catatan:**
+- ⚠️ Hanya generate username, password harus diketahui
+- ⚠️ Hanya cocok jika semua users punya password yang sama
+- ⚠️ Untuk data real dengan password berbeda-beda, gunakan Option 1
+
+### Load Testing - Test Kapasitas Login
+
+**`test-login-load.sh`** - Script untuk load testing login endpoint tanpa perlu menunggu user real:
+
+```bash
+cd /var/www/isme-fkk/backend
+sudo chmod +x test-login-load.sh
+
+# ⭐ RECOMMENDED: Test dengan test users khusus (setelah create-test-users.sh)
+./test-login-load.sh -f users_mahasiswa_test.txt -c 50 -t 100
+
+# Atau test dengan 1 user yang password-nya diketahui
+./test-login-load.sh -u realusername -p realpassword -c 100 -t 100
+
+# Atau test dengan users dari database (jika password sama semua)
+DB_PASSWORD=password123 ./test-login-load.sh -r mahasiswa -c 50 -t 100
+
+# Test dengan custom API URL (production)
+API_URL=https://isme.fkkumj.ac.id/api ./test-login-load.sh -r mahasiswa -c 100 -t 100
+```
+
+**Options:**
+- `-u, --username USERNAME` - Username untuk test
+- `-p, --password PASSWORD` - Password untuk test
+- `-c, --concurrent NUM` - Jumlah concurrent users (default: 50)
+- `-t, --total NUM` - Total requests (default: 100)
+- `-d, --delay SECONDS` - Delay antara batches (default: 0.1)
+- `-a, --api-url URL` - API base URL (default: http://localhost:8000/api)
+- `-f, --users-file FILE` - File berisi list username:password (satu per baris)
+- `-r, --role ROLE` - Get users dari database dengan role tertentu (mahasiswa/dosen)
+
+**Output yang ditampilkan:**
+- ✓ Success count
+- ✗ Failed count
+- ⚠ Rate limited count
+- ⚠ Already logged in count
+- ⚠ Invalid credentials count
+- Success rate percentage
+- Average response time
+- Recommendations jika ada masalah
+
+**Contoh file `users.txt` (generated oleh create-test-users.sh):**
+```
+# Test Users untuk Load Testing
+# Generated: 2025-12-11
+# Role: mahasiswa
+# Password: test123
+# Total Users: 50
+
+testuser1:test123
+testuser2:test123
+testuser3:test123
+testuser4:test123
+...
+```
+
+**Catatan untuk Data Real:**
+- ⚠️ Data real punya password berbeda-beda
+- ✅ **RECOMMENDED**: Gunakan `create-test-users.sh` untuk buat test users khusus
+- ✅ Atau test dengan 1 user yang password-nya diketahui
+- ⚠️ Jangan pakai data real untuk load testing (bisa mengganggu user)
+
+**Catatan:**
+- Script akan simulate banyak user login bersamaan
+- Bisa test race condition dengan menggunakan user yang sama
+- Bisa test dengan banyak user berbeda untuk test kapasitas real
+- Monitor resource usage saat testing dengan `monitor-login.sh` di terminal terpisah
+
+### Deployment Steps ke VPS
+
+**📋 Lihat panduan lengkap di [DEPLOYMENT_STEPS.md](./DEPLOYMENT_STEPS.md)**
+
+**Quick Deploy (jika sudah pernah setup optimasi):**
+```bash
+cd /var/www/isme-fkk && git pull && cd backend && \
+composer install --no-dev --optimize-autoloader && \
+php artisan migrate --force && \
+php artisan config:clear && \
+sudo ./fix-permissions.sh
+```
+
+**Full Setup (pertama kali atau setelah reinstall server):**
+1. Deploy perubahan: `git pull`
+2. Update dependencies: `composer install --no-dev --optimize-autoloader`
+3. Run migrations: `php artisan migrate --force`
+4. Fix permissions: `sudo ./fix-permissions.sh`
+5. **Run optimasi (1x saja)**: `sudo ./fix-all.sh`
+6. Setup script testing: `sudo chmod +x *.sh`
+7. Test dengan load testing: `./test-login-load.sh -r mahasiswa -c 50 -t 100`
+
 ### Workflow Testing Setelah Optimasi
 
-1. **Run fix script** (1x saja):
+1. **Run fix script** (1x saja, jika belum pernah):
    ```bash
    sudo ./fix-all.sh
    ```
 
-2. **Start monitoring**:
+2. **Start monitoring** (di terminal terpisah):
    ```bash
    ./monitor-login.sh
    ```
 
-3. **Test dengan user** (gradual):
+3. **Test dengan load testing script** (di terminal terpisah):
+   ```bash
+   sudo chmod +x test-login-load.sh
+   
+   # Test gradual: mulai dari 50 concurrent users
+   ./test-login-load.sh -r mahasiswa -c 50 -t 100
+   
+   # Jika sukses, test dengan 100 concurrent users
+   ./test-login-load.sh -r mahasiswa -c 100 -t 200
+   
+   # Jika masih sukses, test dengan 150 concurrent users (limit max_children)
+   ./test-login-load.sh -r mahasiswa -c 150 -t 300
+   
+   # Atau test dengan user real (jika ada)
+   ./test-login-load.sh -u realuser -p realpassword -c 50 -t 100
+   ```
+
+4. **Atau test dengan user real** (opsional, gradual):
    - Test 10 user dulu → Monitor 5-10 menit
    - Jika OK, test 50 user → Monitor lagi
    - Jika OK, test 100 user → Monitor lagi
    - Jika OK, test 150 user (limit max_children)
 
-4. **Check results**:
+5. **Check results**:
    ```bash
    # Check monitoring log
    tail -f storage/logs/monitor_$(date +%Y%m%d).log

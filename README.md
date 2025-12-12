@@ -384,6 +384,7 @@ Sistem ini dioptimalkan untuk menangani **1000+ concurrent users** dengan optima
 - `fix-all.sh` - Script terpusat untuk optimasi semua konfigurasi (1x run, auto backup)
 - `check-config.sh` - Script untuk checking konfigurasi
 - `monitor-login.sh` - Script untuk monitoring real-time
+- `test-login-load.sh` - Script untuk load testing login endpoint (simulate banyak user)
 
 **Cara Menggunakan:**
 ```bash
@@ -398,6 +399,10 @@ sudo ./fix-all.sh  # Run 1x saja, auto backup & fix semua config
 # 3. Monitoring (tidak perlu sudo)
 sudo chmod +x monitor-login.sh
 ./monitor-login.sh # Monitoring real-time
+
+# 4. Load Testing (test kapasitas tanpa user real)
+sudo chmod +x test-login-load.sh
+./test-login-load.sh -r mahasiswa -c 100 -t 200 # Test dengan 100 concurrent users
 ```
 
 **Catatan:**
