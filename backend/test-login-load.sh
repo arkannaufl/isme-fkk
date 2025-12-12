@@ -11,7 +11,21 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-API_URL="${API_URL:-http://localhost:8000/api}"
+# Auto-detect API URL from .env if exists, otherwise use default
+if [ -f ".env" ]; then
+    APP_URL=$(grep "^APP_URL=" .env 2>/dev/null | cut -d '=' -f2 | tr -d '"' | tr -d "'" | xargs)
+    if [ -n "$APP_URL" ]; then
+        # Remove trailing slash if exists
+        APP_URL="${APP_URL%/}"
+        DEFAULT_API_URL="${APP_URL}/api"
+    else
+        DEFAULT_API_URL="http://localhost:8000/api"
+    fi
+else
+    DEFAULT_API_URL="http://localhost:8000/api"
+fi
+
+API_URL="${API_URL:-$DEFAULT_API_URL}"
 ENDPOINT="${API_URL}/login"
 CONCURRENT_USERS="${CONCURRENT_USERS:-50}"
 TOTAL_REQUESTS="${TOTAL_REQUESTS:-100}"
@@ -51,14 +65,20 @@ test_login() {
     
     local start_time=$(date +%s.%N)
     
-    # Make request dengan timeout 10 detik
-    local response=$(curl -s -w "\n%{http_code}\n%{time_total}" \
-        -X POST "${ENDPOINT}" \
-        -H "Content-Type: application/json" \
-        -H "Accept: application/json" \
-        -d "{\"login\":\"${username}\",\"password\":\"${password}\"}" \
-        --max-time 10 \
-        2>/dev/null)
+    # Make request dengan timeout 30 detik (increase untuk production)
+    # Add -k untuk skip SSL verification jika self-signed cert
+    local curl_opts="-s -w \"\n%{http_code}\n%{time_total}\" -X POST \"${ENDPOINT}\" \
+        -H \"Content-Type: application/json\" \
+        -H \"Accept: application/json\" \
+        -d \"{\\\"login\\\":\\\"${username}\\\",\\\"password\\\":\\\"${password}\\\"}\" \
+        --max-time 30"
+    
+    # Add -k jika HTTPS (skip SSL verification untuk testing)
+    if [[ "$ENDPOINT" == https://* ]]; then
+        curl_opts="$curl_opts -k"
+    fi
+    
+    local response=$(eval curl $curl_opts 2>/dev/null)
     
     local end_time=$(date +%s.%N)
     local duration=$(echo "$end_time - $start_time" | bc)
