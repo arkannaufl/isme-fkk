@@ -1,6 +1,6 @@
 # ISME - Integrated System Medical Education
 
-**Sistem Terintegrasi untuk Pendidikan Kedokteran Fakultas Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta**
+**Enterprise Academic Management System for Medical Education**
 
 [![Laravel](https://img.shields.io/badge/Laravel-12.x-red.svg)](https://laravel.com)
 [![React](https://img.shields.io/badge/React-18.x-blue.svg)](https://reactjs.org)
@@ -9,440 +9,565 @@
 [![MySQL](https://img.shields.io/badge/MySQL-8.0+-orange.svg)](https://www.mysql.com)
 [![Redis](https://img.shields.io/badge/Redis-6.0+-red.svg)](https://redis.io)
 
-## 📋 Deskripsi
-
-ISME adalah sistem manajemen akademik terintegrasi yang dirancang khusus untuk Fakultas Kedokteran dan Kesehatan UMJ. Sistem ini mengelola seluruh aspek pendidikan kedokteran mulai dari manajemen mata kuliah, jadwal, absensi, penilaian, hingga forum diskusi dan support center.
-
-## ✨ Fitur Utama
-
-### 🎓 Manajemen Akademik
-- **Mata Kuliah**: 
-  - Manajemen mata kuliah Blok, Non-Blok, CSR, PBL, dan Jurnal Reading
-  - Upload RPS (Rencana Pembelajaran Semester)
-  - Upload Materi Pembelajaran
-  - Mapping keahlian dosen ke mata kuliah
-  - Peran kurikulum dosen (koordinator, tim blok, dosen mengajar)
-- **Jadwal**: 
-  - Sistem jadwal terintegrasi untuk kuliah besar, praktikum, seminar, dan CSR
-  - Jadwal harian (combined view)
-  - Jadwal jurnal reading
-  - Jadwal persamaan persepsi
-  - Jadwal non-blok non-CSR
-  - Jadwal antara (semester antara)
-- **Tahun Ajaran & Semester**: 
-  - Manajemen tahun ajaran dan semester aktif
-  - Semester ganjil/genap
-  - Semester antara
-  - Activation/deactivation semester
-- **Ruangan**: 
-  - Manajemen ruangan dengan validasi kapasitas
-  - Filter ruangan by capacity
-  - Ruangan options untuk assignments
-- **Kelas & Kelompok**: 
-  - Manajemen kelas per semester
-  - Manajemen kelompok besar dan kecil
-  - Kelompok antara (semester antara)
-  - Assignment mahasiswa ke kelas/kelompok
-
-### 👥 Manajemen User
-- **Multi-Role**: Super Admin, Tim Akademik, Dosen, dan Mahasiswa
-- **Role-Based Access Control**: Akses terbatas berdasarkan peran
-- **User Management**: CRUD lengkap untuk semua jenis user
-- **Import/Export Excel**: Import data user dalam jumlah besar
-- **Digital Signature**: Signature upload untuk dosen
-- **Avatar Upload**: Avatar upload untuk semua user
-- **Email Verification**: Email verification untuk dosen
-- **Mahasiswa Veteran**: Manajemen mahasiswa veteran dengan multi-semester support
-- **User Search**: Advanced search dengan filter
-- **Bulk Operations**: Bulk delete dan bulk operations
-
-### 📚 Problem Based Learning (PBL)
-- **PBL Generation**: Generate otomatis assignment PBL dengan algoritma
-- **PBL Assignment**: Assignment dosen, mahasiswa, kelompok, ruangan, jadwal
-- **Kelompok Kecil**: Manajemen kelompok kecil PBL
-- **Kelompok Besar**: Manajemen kelompok besar PBL
-- **PBL Antara**: PBL untuk semester antara
-- **Penilaian PBL**: Sistem penilaian terintegrasi (regular & antara)
-- **Dashboard PBL**: Monitoring dan tracking PBL
-- **PBL Detail**: Detail PBL dengan semua assignments
-- **Proportional Distribution**: Distribusi proporsional untuk assignments
-
-### 🏥 Community Service (CSR)
-- **CSR Management**: Manajemen kegiatan CSR
-- **Jadwal CSR**: Penjadwalan kegiatan CSR
-- **Kelompok CSR**: Manajemen kelompok CSR
-- **Reporting CSR**: Laporan kegiatan CSR
-
-### ✅ Sistem Absensi
-- **QR Code Attendance**: Absensi menggunakan QR Code dengan html5-qrcode
-- **QR Code Generation**: Generate QR code untuk jadwal menggunakan qrcode.react
-- **Real-time Tracking**: Tracking absensi real-time
-- **Multiple Types**: 
-  - Absensi kuliah besar (regular & antara)
-  - Absensi praktikum
-  - Absensi seminar pleno
-  - Absensi CSR
-  - Absensi persamaan persepsi
-  - Absensi non-blok non-CSR (regular & antara)
-- **Detail Keabsenan**: Detail lengkap keabsenan mahasiswa dan dosen
-- **Absensi Export**: Export laporan absensi ke PDF/Excel
-
-### 📊 Penilaian & Evaluasi
-- **Penilaian PBL**: Sistem penilaian PBL (regular & antara)
-- **Seminar Proposal**: Penilaian seminar proposal dengan detail
-- **Sidang Skripsi**: Penilaian sidang skripsi dengan detail
-- **Jurnal Reading**: Penilaian jurnal reading (regular & antara)
-- **Bimbingan Akhir**: Manajemen bimbingan akhir (seminar & sidang)
-- **Hasil Penilaian**: View hasil penilaian untuk mahasiswa
-- **Export Penilaian**: Export laporan penilaian ke PDF/Excel
-
-### 💬 Forum Diskusi
-- **Kategori Forum**: Forum terorganisir berdasarkan kategori
-- **Reply & Like**: Sistem reply dan like
-- **Bookmark**: Bookmark forum dan reply penting
-- **Viewers Tracking**: Tracking pembaca forum
-
-### 🎫 Support Center
-- **Ticket System**: Sistem tiket untuk bug report dan feature request
-- **Knowledge Base**: Basis pengetahuan untuk FAQ
-- **Developer Assignment**: Assignment developer untuk tiket
-- **Analytics**: Analytics dan metrics support center
-
-### 📈 Reporting & Analytics
-- **Reporting Dosen**: Laporan aktivitas dosen (CSR & PBL reports)
-- **Activity Log**: Log aktivitas sistem dengan filter dan search
-- **Dashboard Analytics**: Dashboard dengan berbagai metrics per role
-- **Export Excel**: Export data ke Excel dengan formatting
-- **Summary Statistics**: Summary statistics untuk reporting
-- **Filter & Search**: Advanced filtering dan search functionality
-
-### 📱 Integrasi WhatsApp
-- **WhatsApp Bot**: Integrasi dengan Wablas API
-- **WablasService**: Service untuk send messages, templates, group messaging
-- **Notifikasi**: Notifikasi via WhatsApp
-- **Webhook**: Webhook handling untuk message status
-- **Logs**: Log pesan WhatsApp dengan status tracking
-- **Settings**: Konfigurasi WhatsApp (token, secret key, base URL)
-
-### 🔔 Notifikasi
-- **Real-time Notifications**: Notifikasi real-time dengan polling
-- **Role-based Notifications**: Notifikasi berdasarkan peran (dosen, mahasiswa, admin)
-- **Notification Center**: Pusat notifikasi dengan unread count
-- **Admin Notifications**: Admin notification management (Super Admin, Tim Akademik)
-- **Notification Types**: System, assignment, reminder, status change
-- **Notification Actions**: Mark as read, approve, reject, reschedule
-
-## 🏗️ Arsitektur
-
-```
-isme-fkk/
-├── backend/          # Laravel 12 API Backend
-│   ├── app/
-│   ├── config/
-│   ├── database/
-│   └── routes/
-├── frontend/         # React 18 + TypeScript Frontend
-│   ├── src/
-│   │   ├── pages/
-│   │   ├── components/
-│   │   └── layout/
-│   └── public/
-└── README.md         # Dokumentasi utama
-```
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- **PHP** >= 8.2
-- **Composer** >= 2.0
-- **Node.js** >= 20.x
-- **MySQL** >= 8.0
-- **Redis** >= 6.0 (untuk production)
-
-### Installation
-
-1. **Clone Repository**
-```bash
-git clone https://github.com/your-org/isme-fkk.git
-cd isme-fkk
-```
-
-2. **Setup Backend**
-```bash
-cd backend
-composer install
-
-# Setup environment (development - tidak perlu Redis)
-composer run setup:dev
-
-# APP_KEY akan auto-generate saat setup (jika kosong)
-
-# Run migrations
-php artisan migrate
-php artisan db:seed
-```
-
-3. **Setup Frontend**
-```bash
-cd ../frontend
-npm install
-cp env.example .env
-```
-
-4. **Run Development**
-```bash
-# Backend
-cd backend
-composer run dev
-
-# Frontend (terminal baru)
-cd frontend
-npm run dev
-```
-
-Lihat dokumentasi lengkap di:
-- [Backend Documentation](./backend/README.md)
-- [Frontend Documentation](./frontend/README.md)
-
-## 🔧 Environment Setup
-
-### Development
-```bash
-# Backend
-cd backend
-composer run setup:dev  # Auto-generate APP_KEY, auto-clear cache, setup email
-
-# Frontend
-cd frontend
-npm run setup:dev
-```
-
-### Production
-```bash
-# Backend
-cd backend
-composer run setup:prod  # Auto-generate APP_KEY, auto-clear cache, setup email
-
-# Frontend
-cd frontend
-npm run setup:prod
-npm run build
-```
-
-**Fitur Otomatis:**
-- ✅ **Auto-generate APP_KEY** - Jika `APP_KEY` kosong, akan di-generate otomatis dengan key unik per environment
-- ✅ **Auto-clear cache** - Otomatis clear config, cache, route, dan view cache setelah setup
-- ✅ **Email configuration** - Konfigurasi email Gmail sudah ter-setup (smtp.gmail.com:587)
-
-**Email Configuration:**
-- Development dan Production menggunakan Gmail SMTP
-- Setup Gmail App Password: https://myaccount.google.com/apppasswords
-- Email otomatis dikonfigurasi saat menjalankan `composer run setup:dev/prod`
-
-## 🚀 Deployment & VPS Setup
-
-### Setup Permissions untuk VPS
-
-**⚠️ PENTING**: Setelah clone repository dan install dependencies di VPS, **WAJIB** menjalankan script `fix-permissions.sh` untuk memastikan semua permission sudah benar.
-
-**Catatan Penting:**
-- Semua command yang melibatkan `chmod` dan `chown` di VPS **WAJIB** menggunakan `sudo`
-- File yang baru di-clone mungkin dimiliki oleh user yang melakukan clone, bukan `www-data`
-- Script `fix-permissions.sh` akan mengubah ownership ke `www-data:www-data` setelah dijalankan
-
-#### Mengapa Perlu Fix Permissions?
-
-Laravel memerlukan permission yang tepat agar:
-- ✅ File uploads bisa berfungsi (RPS, Materi, Signature, dll)
-- ✅ Logging bisa berfungsi (error logs, activity logs)
-- ✅ Cache bisa berfungsi (config cache, route cache, view cache)
-- ✅ Session bisa berfungsi (user sessions)
-- ✅ Tidak ada error "Permission denied"
-
-#### Cara Menjalankan Fix Permissions
-
-```bash
-# 1. Masuk ke direktori backend
-cd /var/www/isme-fkk/backend
-
-# 2. Berikan execute permission pada script
-# ⚠️ PENTING: Gunakan sudo karena file mungkin dimiliki oleh root atau www-data
-sudo chmod +x fix-permissions.sh
-
-# 3. Jalankan script dengan sudo
-sudo ./fix-permissions.sh
-```
-
-**Mengapa perlu `sudo` untuk `chmod +x`?**
-- Setelah `git clone`, file mungkin dimiliki oleh user yang melakukan clone (bukan `www-data`)
-- Untuk memberikan execute permission, perlu akses ke file tersebut
-- Jika file dimiliki oleh `root` atau `www-data`, perlu `sudo` untuk mengubah permission
-- Lebih aman menggunakan `sudo` untuk memastikan permission bisa diubah
-
-Script akan otomatis:
-- Set ownership semua file ke `www-data:www-data` (web server user)
-- Set permission yang benar untuk semua directory
-- Test write permissions untuk memastikan web server bisa menulis
-- Menampilkan summary dan hasil test
-
-#### Kapan Harus Menjalankan Script?
-
-Jalankan script ini:
-- ✅ **Setelah clone repository baru** di VPS
-- ✅ **Setelah deploy update** (jika ada masalah permission)
-- ✅ **Setelah ada error "Permission denied"**
-- ✅ **Setelah mengubah ownership/permission secara manual**
-
-#### Verifikasi Permission
-
-Setelah menjalankan script, verifikasi dengan:
-
-```bash
-# Cek storage permissions
-ls -la /var/www/isme-fkk/backend/storage | head -5
-
-# Cek apakah web server bisa write
-sudo -u www-data touch /var/www/isme-fkk/backend/storage/test.txt
-sudo -u www-data rm /var/www/isme-fkk/backend/storage/test.txt
-echo "✅ Jika tidak ada error, permission sudah benar!"
-```
-
-#### Checklist Permission yang Benar
-
-| Directory/File | Permission | Owner | Status |
-|----------------|------------|-------|--------|
-| `backend/storage/` | `775` | `www-data:www-data` | ✅ Writable |
-| `backend/bootstrap/cache/` | `775` | `www-data:www-data` | ✅ Writable |
-| `backend/storage/logs/` | `775` | `www-data:www-data` | ✅ Writable |
-| `backend/.env` | `644` | `www-data:www-data` | ✅ Read-only |
-| `backend/vendor/` | `755` | `www-data:www-data` | ✅ Read-only |
-| `frontend/dist/` | `755` | `www-data:www-data` | ✅ Read-only |
-
-Lihat dokumentasi lengkap di [Backend README](./backend/README.md#-deployment--vps-setup)
-
-## 📦 Teknologi yang Digunakan
-
-### Backend
-- **Laravel 12**: PHP Framework dengan arsitektur MVC
-- **Laravel Sanctum**: API Token Authentication
-- **Spatie Permission**: Role & Permission Management (RBAC)
-- **Spatie Activity Log**: Activity Logging untuk audit trail
-- **Maatwebsite Excel**: Excel Import/Export (XLSX)
-- **Laravel DomPDF**: PDF Generation untuk laporan
-- **Jenssegers Agent**: User Agent Detection
-- **Redis**: Caching, Session Storage, dan Queue (Production)
-- **MySQL 8.0+**: Relational Database dengan connection pooling
-- **PHP 8.2+**: Modern PHP dengan type hints dan attributes
-
-### Frontend
-- **React 18**: UI Framework dengan hooks dan concurrent features
-- **TypeScript 5.7**: Type Safety dan IntelliSense
-- **Vite 6**: Build Tool dengan HMR (Hot Module Replacement)
-- **Material UI 7**: UI Component Library
-- **Tailwind CSS 4**: Utility-first CSS framework
-- **React Router 7**: Client-side routing
-- **Axios**: HTTP Client dengan interceptors
-- **ApexCharts & Recharts**: Charts dan data visualization
-- **FullCalendar**: Calendar component untuk jadwal
-- **TinyMCE & Quill**: Rich Text Editors
-- **ExcelJS & XLSX**: Excel import/export
-- **jsPDF & html2canvas**: PDF generation dan screenshot
-- **html5-qrcode & qrcode.react**: QR Code generation dan scanning
-- **react-signature-canvas**: Digital signature
-- **Framer Motion**: Animations dan transitions
-- **Headless UI**: Accessible UI components
-- **React Beautiful DnD**: Drag and drop functionality
-- **Swiper**: Touch slider component
-- **date-fns**: Date manipulation library
-- **Font Awesome**: Icon library
-
-## 🔐 Security Features
-
-- **Rate Limiting**: 120 requests/minute untuk API, 10 requests/minute untuk login
-- **Token-based Authentication**: Laravel Sanctum
-- **Role-Based Access Control**: Spatie Permission
-- **Session Management**: Redis (Production) / Database (Development)
-- **Activity Logging**: Log semua aktivitas penting
-- **Input Validation**: Validasi input di backend dan frontend
-- **SQL Injection Protection**: Eloquent ORM
-- **XSS Protection**: Laravel Blade & React
-
-## 📊 Performance Optimization
-
-### Optimasi untuk 1000+ Users
-
-Sistem ini dioptimalkan untuk menangani **1000+ concurrent users** dengan optimasi konfigurasi server:
-
-**Konfigurasi yang Dioptimalkan:**
-- **PHP-FPM**: `max_children = 150` (dari default 5) - Handle 150 request bersamaan
-- **Apache**: `MaxRequestWorkers = 300` (dari default 150) - Handle 300 connection bersamaan
-- **MySQL**: `max_connections = 500` (dari default 151) - Handle 500 connection bersamaan
-- **Race Condition Fix**: Database lock untuk mencegah race condition saat banyak user login bersamaan
-
-Sistem ini sudah dioptimalkan untuk menangani 1000+ concurrent users dengan konfigurasi server yang sudah disetup.
-
-Lihat dokumentasi lengkap di [Backend README](./backend/README.md#-performance-optimization)
-
-### Optimasi Aplikasi
-
-- **Redis Caching**: Cache untuk session, cache, dan queue (Production)
-- **Database Indexing**: Index pada kolom yang sering di-query
-- **Pagination**: Pagination untuk data besar (default 50 items/page)
-- **Eager Loading**: Optimasi query dengan eager loading
-- **Connection Pooling**: MySQL connection pooling
-- **Rate Limiting**: Mencegah abuse dan overload (120 req/min untuk API, 10 req/min untuk login)
-- **Query Optimization**: Direct DB updates, batch operations, select specific columns
-
-## 🧪 Testing
-
-```bash
-# Backend Tests
-cd backend
-composer run test
-
-# Frontend Linting
-cd frontend
-npm run lint
-```
-
-## 📝 API Documentation
-
-API menggunakan RESTful architecture. Base URL:
-- **Development**: `http://localhost:8000/api`
-- **Production**: `https://isme.fkkumj.ac.id/api`
-
-Lihat dokumentasi lengkap API di [Backend README](./backend/README.md#api-endpoints)
-
-## 🤝 Contributing
-
-1. Fork repository
-2. Create feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to branch (`git push origin feature/AmazingFeature`)
-5. Open Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
-## 👥 Authors
-
-- **Development Team** - Fakultas Kedokteran dan Kesehatan UMJ
-
-## 🙏 Acknowledgments
-
-- Fakultas Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta
-- Semua kontributor dan pengguna sistem
-
-## 📞 Support
-
-Untuk support dan pertanyaan:
-- **Support Center**: Login ke aplikasi dan akses Support Center
-- **Documentation**: Lihat dokumentasi di folder `backend/` dan `frontend/`
+**Version:** 2.0.2  
+**Institution:** Fakultas Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta  
+**License:** MIT
 
 ---
 
-**Version**: 2.0.2  
-**Last Updated**: 11 Desember 2025
+## 1. Project Overview
 
+ISME (Integrated System Medical Education) is an enterprise-grade academic management system designed specifically for medical education institutions. The system provides comprehensive lifecycle management for medical school curricula, from course administration and automated scheduling to attendance tracking, assessment management, and student-faculty coordination.
+
+The platform addresses the complex requirements of Problem-Based Learning (PBL) methodologies, multi-type scheduling systems, and integrated assessment workflows unique to medical education programs.
+
+---
+
+## 2. Background and Problem Statement
+
+### Institutional Context
+
+Medical education programs require sophisticated management systems capable of handling:
+
+- **Complex Scheduling**: Multiple concurrent schedule types (lectures, practicums, PBL sessions, seminars, community service) with conflict resolution
+- **Automated Assignment**: Optimal distribution of students, faculty, and resources across PBL groups using algorithmic approaches
+- **Multi-Modal Attendance**: QR code-based and manual attendance tracking across diverse session types
+- **Integrated Assessment**: Coordinated grading systems for PBL, journal readings, seminars, and thesis defenses
+- **Regulatory Compliance**: Audit trails, activity logging, and comprehensive reporting for accreditation requirements
+
+### Technical Challenges Addressed
+
+1. **High Concurrency**: System must handle 1000+ concurrent users during peak academic periods
+2. **Data Integrity**: Complex relationships between courses, schedules, groups, and assessments require transactional consistency
+3. **Real-Time Coordination**: Faculty and student coordination requires timely notifications and status updates
+4. **Scalability**: Academic data grows continuously; system must maintain performance over time
+5. **Security**: Role-based access control with audit capabilities for sensitive academic data
+
+---
+
+## 3. System Scope and Main Capabilities
+
+### Core Functional Modules
+
+#### Academic Management
+- **Course Management**: Complete CRUD for courses (Blok, Non-Blok, CSR, PBL, Jurnal Reading)
+- **Academic Year & Semester**: Multi-semester management (Ganjil, Genap, Antara)
+- **Room Management**: Capacity-aware room assignment with validation
+- **Material Management**: RPS (Rencana Pembelajaran Semester) and course material uploads
+
+#### Scheduling System
+- **Multi-Type Scheduling**: Supports 8+ schedule types (lectures, practicums, PBL, CSR, seminars, etc.)
+- **Conflict Detection**: Automated scheduling conflict identification and resolution
+- **Confirmation Workflow**: Faculty confirmation system with rescheduling capabilities
+- **Excel Import/Export**: Bulk schedule management via Excel templates
+
+#### Problem-Based Learning (PBL)
+- **Automated Generation**: Algorithmic PBL assignment generation with proportional distribution
+- **Assignment Management**: Automated assignment of students, faculty, groups, rooms, and schedules
+- **Assessment Integration**: Linked grading system with attendance tracking
+- **Regular & Inter-Semester**: Support for both standard and inter-semester PBL programs
+
+#### Attendance Management
+- **QR Code System**: Time-limited QR token generation and scanning
+- **Multi-Modal Entry**: QR scanning and manual entry options
+- **Real-Time Tracking**: Live attendance updates across all session types
+- **Export Capabilities**: PDF and Excel export for attendance reports
+
+#### Assessment & Evaluation
+- **Comprehensive Grading**: PBL, journal reading, seminar proposal, and thesis defense assessments
+- **Multi-Evaluator Support**: Coordinated grading with multiple evaluators
+- **Result Management**: Finalization workflows with moderator oversight
+- **Export Functionality**: Assessment report generation
+
+#### User & Group Management
+- **Role-Based Users**: Four primary roles (super_admin, tim_akademik, dosen, mahasiswa) with granular permissions
+- **Bulk Operations**: Excel-based import for users, schedules, and academic data
+- **Group Management**: Large and small group management with inter-semester support
+- **Veteran Student Management**: Special handling for multi-semester veteran students
+
+#### Communication & Collaboration
+- **Forum System**: Categorized discussion forums with replies, likes, and bookmarks
+- **Notification System**: Real-time notifications with role-based filtering
+- **WhatsApp Integration**: Wablas API integration for schedule and assignment notifications
+- **Support Center**: Ticketing system with knowledge base and developer assignment
+
+#### Reporting & Analytics
+- **Activity Logging**: Comprehensive audit trail using Spatie Activity Log
+- **Dashboard Analytics**: Role-specific dashboards with key metrics
+- **Export Capabilities**: Excel export for reports, attendance, and assessments
+- **IKD Management**: Indikator Kinerja Dosen (Lecturer Performance Indicators) tracking
+
+---
+
+## 4. High-Level Architecture
+
+### System Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        CLIENT LAYER                          │
+│  React 18 + TypeScript SPA (Vite Build)                     │
+│  - Material UI 7 + Tailwind CSS 4                           │
+│  - Axios HTTP Client with Interceptors                      │
+│  - React Router 7 for Navigation                            │
+│  - Context API for State Management                         │
+└──────────────────────┬──────────────────────────────────────┘
+                       │ HTTPS/REST API
+                       │ Bearer Token Auth
+┌──────────────────────▼──────────────────────────────────────┐
+│                     API GATEWAY LAYER                        │
+│  Laravel 12 RESTful API                                     │
+│  - Rate Limiting (120 req/min)                              │
+│  - CORS Configuration                                       │
+│  - Request Validation                                        │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────────────┐
+│                  AUTHENTICATION LAYER                        │
+│  Laravel Sanctum Token-Based Auth                            │
+│  - Single-Device Login Enforcement                          │
+│  - Token Validation Middleware                               │
+│  - Role-Based Access Control                                 │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────────────┐
+│                    APPLICATION LAYER                         │
+│  61 Controllers | 65 Models | 2 Services                   │
+│  - Business Logic Processing                                 │
+│  - Activity Logging (Spatie)                                 │
+│  - Queue Job Processing                                      │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+        ┌──────────────┴──────────────┐
+        │                             │
+┌───────▼────────┐          ┌────────▼────────┐
+│  DATA LAYER    │          │   CACHE LAYER    │
+│  MySQL 8.0+   │          │  Redis (Prod)    │
+│  65+ Tables   │          │  Database (Dev)  │
+│  Eloquent ORM  │          │  - Sessions      │
+│  Transactions  │          │  - Cache         │
+│  Indexing      │          │  - Queue         │
+└────────────────┘          └──────────────────┘
+```
+
+### Component Interaction Flow
+
+**Request Processing:**
+```
+Client Request → API Gateway → Authentication → Authorization → 
+Controller → Service Layer → Model/Database → Response
+```
+
+**Authentication Flow:**
+```
+Login → Credential Validation → DB Transaction (Lock) → 
+Token Generation → Status Update → Cache Invalidation → Token Return
+```
+
+**Scheduling Flow:**
+```
+Schedule Creation → Validation → Conflict Detection → 
+Capacity Check → Database Insert → Notification Queue → Response
+```
+
+### Data Flow Patterns
+
+- **Synchronous Operations**: CRUD operations, authentication, real-time queries
+- **Asynchronous Operations**: Email notifications, WhatsApp messages, heavy imports (via queue)
+- **Caching Strategy**: Redis (production) for sessions, cache, queues; Database fallback (development)
+- **Session Management**: Token-based with single-device enforcement via database flags
+
+---
+
+## 5. Technology Stack Overview
+
+### Backend Stack
+
+| Component | Technology | Version | Purpose |
+|-----------|-----------|---------|---------|
+| **Framework** | Laravel | 12.28.1 | PHP MVC framework with ORM and routing |
+| **Language** | PHP | 8.2+ | Server-side scripting with type hints |
+| **Database** | MySQL | 8.0+ | Relational database with connection pooling |
+| **Cache/Queue** | Redis | 6.0+ | Session storage, caching, queue processing (production) |
+| **Authentication** | Laravel Sanctum | 4.2.0 | Token-based API authentication |
+| **Authorization** | Custom RBAC | - | Role-based access control middleware |
+| **Activity Logging** | Spatie Activity Log | 4.10.2 | Comprehensive audit trail |
+| **Excel Processing** | Maatwebsite Excel | 3.1.67 | Import/export functionality |
+| **PDF Generation** | Laravel DomPDF | 3.1.1 | Server-side PDF creation |
+| **User Agent** | Jenssegers Agent | 2.6.4 | Device and browser detection |
+
+### Frontend Stack
+
+| Component | Technology | Version | Purpose |
+|-----------|-----------|---------|---------|
+| **Framework** | React | 18.2.0 | UI component library |
+| **Language** | TypeScript | 5.7.2 | Type-safe JavaScript |
+| **Build Tool** | Vite | 6.1.0 | Fast build tool with HMR |
+| **Routing** | React Router | 7.6.2 | Client-side routing |
+| **HTTP Client** | Axios | 1.9.0 | API communication with interceptors |
+| **UI Framework** | Material UI | 7.1.1 | Component library |
+| **Styling** | Tailwind CSS | 4.0.8 | Utility-first CSS framework |
+| **Charts** | ApexCharts/Recharts | 4.1.0/3.1.2 | Data visualization |
+| **Calendar** | FullCalendar | 6.1.15 | Schedule visualization |
+| **Excel** | ExcelJS/XLSX | 4.4.0/0.18.5 | Client-side Excel manipulation |
+| **PDF** | jsPDF | 3.0.3 | Client-side PDF generation |
+| **QR Code** | html5-qrcode/qrcode.react | 2.3.8/4.2.0 | QR code scanning and generation |
+
+### Third-Party Integrations
+
+- **Wablas API**: WhatsApp Business API for notifications
+- **Gmail SMTP**: Email delivery service
+- **Future**: Potential integration with SIAKAD (academic information system)
+
+### Infrastructure Requirements
+
+- **Web Server**: Apache/Nginx with PHP-FPM
+- **PHP Configuration**: `max_children = 150` (concurrent requests)
+- **Apache Configuration**: `MaxRequestWorkers = 300` (concurrent connections)
+- **MySQL Configuration**: `max_connections = 500` (concurrent connections)
+- **Redis**: Required for production (sessions, cache, queue)
+
+---
+
+## 6. User Roles Summary
+
+### Role Hierarchy and Capabilities
+
+| Role | Primary Responsibilities | Key Capabilities |
+|------|-------------------------|------------------|
+| **super_admin** | System administration and configuration | Full system access, user management, system configuration, IKD management, support center administration |
+| **tim_akademik** | Academic program management | Course management, schedule administration, PBL assignment, CSR management, academic reporting |
+| **dosen** | Teaching and assessment | Schedule confirmation, attendance taking, grade submission, course material access, notification management |
+| **mahasiswa** | Academic participation | Schedule viewing, attendance submission, grade viewing, forum participation, profile management |
+| **ketua_ikd** | IKD unit management | IKD pedoman poin management, unit-specific rekap access, bukti fisik management |
+
+### Access Control Implementation
+
+- **Authentication**: Laravel Sanctum token-based authentication
+- **Authorization**: Custom `CheckRole` middleware with enum-based roles
+- **Single-Device Login**: Enforced via database flags (`is_logged_in`, `current_token`)
+- **Route Protection**: Middleware chain: `auth:sanctum` → `validate.token` → `role:roles`
+- **Frontend Protection**: `RequireAuth` and `RequireDosenRole` components
+
+### Permission Model
+
+- **Current**: Enum-based role system in database
+- **Future-Ready**: Spatie Permission package installed for granular permissions
+- **Route-Level**: Role-based route protection
+- **Feature-Level**: Component-level role checks in frontend
+
+---
+
+## 7. Repository Structure
+
+### Project Organization
+
+```
+isme-fkk/
+├── backend/                    # Laravel 12 API Backend
+│   ├── app/
+│   │   ├── Http/
+│   │   │   ├── Controllers/    # 61 API controllers
+│   │   │   └── Middleware/     # 5 custom middleware
+│   │   ├── Models/             # 65 Eloquent models
+│   │   ├── Services/           # Business logic services
+│   │   ├── Imports/            # Excel import classes
+│   │   └── Traits/             # Reusable traits
+│   ├── database/
+│   │   ├── migrations/         # 130 migration files
+│   │   └── seeders/            # 11 database seeders
+│   ├── routes/
+│   │   └── api.php             # 813 lines of API routes
+│   ├── config/                 # Configuration files
+│   └── storage/                 # File storage and logs
+│
+├── frontend/                    # React 18 + TypeScript SPA
+│   ├── src/
+│   │   ├── pages/              # 82 page components
+│   │   ├── components/          # Reusable UI components
+│   │   ├── layout/              # Layout components
+│   │   ├── context/             # React contexts
+│   │   ├── utils/               # Utility functions
+│   │   └── api/                 # API client
+│   └── public/                  # Static assets
+│
+├── README.md                    # This file
+├── TECHNICAL_ANALYSIS.md        # Comprehensive technical documentation
+└── backend/README.md            # Backend-specific documentation
+```
+
+### Key Directories
+
+**Backend Controllers (61 files)**
+- Authentication, User Management, Course Management
+- Scheduling (8+ schedule types)
+- PBL Generation, CSR Management
+- Assessment, Attendance, Forum, Support Center
+- Reporting, Notifications, WhatsApp Integration
+
+**Frontend Pages (82 files)**
+- Dashboard pages (role-specific)
+- Course and schedule management pages
+- Attendance and assessment pages
+- User management, forum, support center
+- IKD management pages
+
+**Database Migrations (130 files)**
+- User and authentication tables
+- Academic management tables
+- Scheduling tables (8+ types)
+- Attendance tables (8+ types)
+- Assessment tables
+- Forum and support center tables
+- Activity logging and system tables
+
+---
+
+## 8. Deployment and Environment Overview
+
+### Environment Configuration
+
+#### Development Environment
+- **Cache**: Database cache driver
+- **Session**: Database session driver
+- **Queue**: Database queue driver
+- **Redis**: Optional (not required)
+- **Debug**: Enabled for development
+
+#### Production Environment
+- **Cache**: Redis cache driver
+- **Session**: Redis session driver
+- **Queue**: Redis queue driver
+- **Redis**: Required for optimal performance
+- **Debug**: Disabled for security
+
+### Deployment Architecture
+
+**Server Configuration:**
+- PHP-FPM: `max_children = 150` (handles 150 concurrent requests)
+- Apache: `MaxRequestWorkers = 300` (handles 300 concurrent connections)
+- MySQL: `max_connections = 500` (handles 500 concurrent connections)
+- Redis: Session storage, caching, queue processing
+
+**File System:**
+- Storage: `storage/app/public` for uploaded files (RPS, materials, signatures)
+- Symlink: `public/storage` → `storage/app/public`
+- Permissions: `www-data:www-data` ownership required
+- Writable: `storage/` and `bootstrap/cache/` directories
+
+**Database:**
+- MySQL 8.0+ with utf8mb4 charset
+- Connection pooling enabled
+- Transaction support for data integrity
+- Indexing on frequently queried columns
+
+### Deployment Process
+
+1. **Code Deployment**: Git-based deployment to production server
+2. **Dependency Installation**: `composer install --no-dev --optimize-autoloader`
+3. **Database Migration**: `php artisan migrate --force`
+4. **Permission Setup**: Execute `fix-permissions.sh` script
+5. **Cache Optimization**: `php artisan config:cache`, `route:cache`, `view:cache`
+6. **Queue Worker**: Supervisor-managed queue workers for background jobs
+
+### Environment Variables
+
+Critical environment variables:
+- `APP_KEY`: Application encryption key (auto-generated)
+- `DB_*`: Database connection parameters
+- `REDIS_*`: Redis connection parameters (production)
+- `WABLAS_*`: WhatsApp API credentials
+- `MAIL_*`: Email service configuration
+- `CACHE_STORE`: Cache driver (database/redis)
+- `SESSION_DRIVER`: Session driver (database/redis)
+- `QUEUE_CONNECTION`: Queue driver (database/redis)
+
+---
+
+## 9. Security and Access Control Overview
+
+### Authentication Mechanism
+
+**Token-Based Authentication:**
+- Laravel Sanctum for API token management
+- Bearer token in Authorization header
+- Token validation on every authenticated request
+- Single-device login enforcement via database flags
+
+**Login Process:**
+- Database transaction with row-level locking (prevents race conditions)
+- Password hashing via bcrypt
+- Failed login attempt logging
+- Rate limiting: 100 requests/minute for login endpoint
+
+**Session Management:**
+- Token expiration handling
+- Automatic logout on token mismatch
+- Force logout capabilities (by token, user ID, or username)
+- Cache-based login status (5-minute TTL) for performance
+
+### Authorization Framework
+
+**Role-Based Access Control:**
+- Four primary roles with hierarchical permissions
+- Route-level protection via middleware
+- Component-level protection in frontend
+- Future-ready for granular permissions (Spatie Permission installed)
+
+**Access Control Flow:**
+```
+Request → Authentication Check → Token Validation → 
+Role Verification → Permission Check → Resource Access
+```
+
+### Security Features
+
+**Input Validation:**
+- Server-side validation for all inputs
+- SQL injection protection via Eloquent ORM
+- XSS protection via Laravel escaping and React
+- CSRF protection for state-changing operations
+
+**Rate Limiting:**
+- Global API rate limit: 120 requests/minute per user/IP
+- Login endpoint rate limit: 100 requests/minute
+- Prevents brute force attacks and API abuse
+
+**Activity Logging:**
+- Comprehensive audit trail (Spatie Activity Log)
+- Logs all important system activities
+- User action tracking for accountability
+- Exportable logs for compliance
+
+**Data Protection:**
+- Password hashing (bcrypt)
+- Token encryption
+- Secure file upload handling
+- Environment variable protection
+
+### Security Best Practices
+
+- HTTPS required for production
+- Environment variables for sensitive data
+- Database transaction isolation
+- Prepared statements (via Eloquent)
+- Input sanitization middleware
+- Security headers middleware
+- Regular dependency updates
+
+---
+
+## 10. Development Status and Roadmap
+
+### Current Status (Version 2.0.2)
+
+**Production-Ready Features:**
+- ✅ Complete academic management system
+- ✅ Multi-type scheduling with conflict detection
+- ✅ Automated PBL assignment generation
+- ✅ QR code attendance system
+- ✅ Comprehensive assessment management
+- ✅ Forum and support center
+- ✅ WhatsApp notification integration
+- ✅ Role-based access control
+- ✅ Activity logging and reporting
+- ✅ Excel import/export capabilities
+
+**Recent Major Updates:**
+- ✅ Migration from "Kelas" to "Kelompok Kecil" system (December 2025)
+- ✅ Enhanced Excel import with validation
+- ✅ Table zoom feature for large datasets
+- ✅ User creation improvements and linting fixes
+
+### Performance Optimization
+
+**Implemented:**
+- Database connection pooling
+- Redis caching (production)
+- Query optimization (eager loading, specific column selection)
+- Pagination for large datasets
+- Rate limiting for API protection
+- Activity logging optimization (try-catch wrapping)
+
+**Target Metrics:**
+- Supports 1000+ concurrent users
+- Response time: < 500ms for standard operations
+- Database query optimization: N+1 query prevention
+- Cache hit rate: > 80% for frequently accessed data
+
+### Known Limitations
+
+1. **Real-Time Communication**: Currently using polling for notifications (WebSocket implementation recommended for future)
+2. **File Storage**: Local filesystem storage (cloud storage migration recommended for scalability)
+3. **Single-Device Login**: Strict enforcement (multi-device support may be required)
+4. **Test Coverage**: Limited automated test coverage (comprehensive test suite recommended)
+
+### Technical Debt
+
+1. **Role System Migration**: Enum-based roles currently; Spatie Permission installed but not fully utilized
+2. **Code Duplication**: Some repeated logic across controllers (service layer extraction recommended)
+3. **Frontend Bundle Size**: Large bundle size (code splitting and lazy loading recommended)
+4. **Documentation**: Some complex features need expanded documentation
+
+### Roadmap Considerations
+
+**Short-Term (Next Release):**
+- Enhanced test coverage
+- Performance monitoring integration
+- Expanded API documentation
+- Code splitting for frontend optimization
+
+**Medium-Term:**
+- WebSocket implementation for real-time notifications
+- Cloud storage integration for file management
+- Granular permission system (Spatie Permission migration)
+- Multi-device login support
+
+**Long-Term:**
+- Microservices architecture consideration (if scale requires)
+- Mobile application development
+- Advanced analytics and reporting
+- Integration with external academic systems (SIAKAD, etc.)
+
+### Maintenance and Support
+
+**Current Support Model:**
+- Built-in support center with ticketing system
+- Knowledge base for common issues
+- Developer assignment for technical issues
+- Activity logging for troubleshooting
+
+**Recommended Practices:**
+- Regular security updates
+- Dependency version monitoring
+- Performance monitoring
+- Database optimization and maintenance
+- Backup and disaster recovery procedures
+
+---
+
+## Additional Resources
+
+- **Backend Documentation**: See `backend/README.md` for detailed API documentation
+- **Technical Analysis**: See `TECHNICAL_ANALYSIS.md` for comprehensive system analysis
+- **API Endpoints**: 200+ RESTful API endpoints documented in backend README
+- **Database Schema**: 65+ tables with complex relationships (see migrations)
+
+---
+
+## License
+
+This project is licensed under the MIT License.
+
+---
+
+## Contact and Support
+
+For technical inquiries, feature requests, or support:
+- **Support Center**: Available within the application (requires login)
+- **Documentation**: Comprehensive documentation in `backend/README.md` and `TECHNICAL_ANALYSIS.md`
+
+---
+
+**Last Updated**: December 13, 2025  
+**Maintained By**: Development Team - Fakultas Kedokteran dan Kesehatan UMJ
