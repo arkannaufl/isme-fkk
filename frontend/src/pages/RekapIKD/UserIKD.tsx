@@ -191,6 +191,13 @@ export default function UserIKD() {
       setIsSaving(false);
       return;
     }
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(form.email.trim())) {
+      setModalError("Format email tidak valid.");
+      setIsSaving(false);
+      return;
+    }
     if (!form.telp.trim()) {
       setModalError("Telepon wajib diisi.");
       setIsSaving(false);
@@ -229,27 +236,69 @@ export default function UserIKD() {
       const payload: any = {
         name: form.name.trim(),
         username: form.username.trim(),
-        email: form.email.trim(),
-        telp: form.telp.trim(),
+        email: form.email.trim() || null,
+        telp: form.telp.trim() || null,
         role: role,
       };
 
       if (editMode) {
-        if (form.password) {
-          payload.password = form.password;
+        if (form.password && form.password.trim()) {
+          payload.password = form.password.trim();
         }
-        await api.put(`/users/${form.id}`, payload);
-        setSuccess("Data user IKD berhasil diupdate.");
+        console.log("Updating user with payload:", payload);
+        const response = await api.put(`/users/${form.id}`, payload);
+        console.log("Update user response:", response.data);
+        
+        if (response.data && response.data.id) {
+          setSuccess("Data user IKD berhasil diupdate.");
+          await fetchData();
+          handleCloseModal();
+        } else {
+          setModalError("Gagal mengupdate user. Response tidak valid.");
+        }
       } else {
-        payload.password = form.password;
-        await api.post("/users", payload);
-        setSuccess("Data user IKD berhasil ditambahkan.");
+        payload.password = form.password.trim();
+        console.log("Creating user with payload:", payload);
+        
+        try {
+          const response = await api.post("/users", payload);
+          console.log("Create user response:", response);
+          console.log("Response status:", response.status);
+          console.log("Response data:", response.data);
+          
+          // Backend returns user object directly (status 201)
+          // Check if user was created successfully by checking response data
+          const createdUser = response.data;
+          
+          if (response.status === 201 && createdUser && createdUser.id) {
+            console.log("User created successfully with ID:", createdUser.id);
+            setSuccess("Data user IKD berhasil ditambahkan.");
+            // Wait a bit before fetching to ensure database is updated
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await fetchData();
+            handleCloseModal();
+          } else {
+            console.error("Invalid response format:", response);
+            setModalError("User berhasil dibuat tapi response tidak valid. Silakan refresh halaman.");
+            // Refresh anyway to check if user exists
+            await fetchData();
+          }
+        } catch (createError: any) {
+          console.error("Error during user creation:", createError);
+          console.error("Error response:", createError.response);
+          throw createError; // Re-throw to be caught by outer catch
+        }
       }
-
-      await fetchData();
-      handleCloseModal();
     } catch (err: any) {
-      setModalError(handleApiError(err, "Menyimpan data user IKD"));
+      console.error("Error saving user IKD:", err);
+      console.error("Error response:", err.response?.data);
+      const errorMessage = handleApiError(err, "Menyimpan data user IKD");
+      setModalError(errorMessage);
+      
+      // Log validation errors for debugging
+      if (err.response?.status === 422) {
+        console.error("Validation errors:", err.response.data?.errors);
+      }
     } finally {
       setIsSaving(false);
     }
