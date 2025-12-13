@@ -681,7 +681,7 @@ class MataKuliahController extends Controller
                     'jadwal_praktikum.topik',
                     DB::raw('(SELECT GROUP_CONCAT(u.name) FROM users u JOIN jadwal_praktikum_dosen jpd ON u.id = jpd.dosen_id WHERE jpd.jadwal_praktikum_id = jadwal_praktikum.id) as dosen_name'),
                     'ruangan.nama as ruangan_name',
-                    'jadwal_praktikum.kelas_praktikum as kelompok_name',
+                    DB::raw('(SELECT nama_kelompok FROM kelompok_kecil WHERE id = jadwal_praktikum.kelompok_kecil_id LIMIT 1) as kelompok_name'),
                     DB::raw('"confirmed" as status_konfirmasi')
                 )
                 ->get();

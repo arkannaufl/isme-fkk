@@ -98,7 +98,7 @@ interface JadwalPraktikum {
   kelompok_name: string;
   ruangan_name: string;
   status_konfirmasi: string;
-  kelas_praktikum?: string;
+  kelompok_kecil?: { id: number; nama_kelompok: string } | null;
   jumlah_sesi?: number;
   dosen?: Array<{
     id: number;
@@ -1030,7 +1030,7 @@ export default function MataKuliahDosenDetail() {
                           <tr key={jadwal.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{formatDate(jadwal.tanggal)}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{jadwal.jam_mulai} - {jadwal.jam_selesai}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{jadwal.kelas_praktikum}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{jadwal.kelompok_kecil?.nama_kelompok || "-"}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{`${jadwal.jumlah_sesi || 1} x 50 menit`}</td>
                             <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">{jadwal.materi}</td>
                             <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">{jadwal.topik}</td>

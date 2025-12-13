@@ -350,19 +350,7 @@ GET    /api/kelompok-kecil/{id}/dosen # Get dosen
 POST   /api/kelompok-kecil/{id}/assign-dosen # Assign dosen
 DELETE /api/kelompok-kecil/{id}/remove-dosen/{dosenId} # Remove dosen
 
-# Kelas
-GET    /api/kelas                    # List kelas
-POST   /api/kelas                    # Create kelas
-GET    /api/kelas/{id}               # Get kelas detail
-PUT    /api/kelas/{id}               # Update kelas
-DELETE /api/kelas/{id}               # Delete kelas
-POST   /api/kelas/import             # Import kelas
-GET    /api/kelas/options           # Get options
-GET    /api/kelas/semester/{semester} # Get by semester
-GET    /api/kelas/semester-id/{semesterId} # Get by semester ID
-GET    /api/kelas/{id}/mahasiswa    # Get mahasiswa by kelas
-POST   /api/kelas/{id}/assign-mahasiswa # Assign mahasiswa
-DELETE /api/kelas/{id}/remove-mahasiswa/{mahasiswaId} # Remove mahasiswa
+# Kelas - REMOVED (using Kelompok Kecil directly)
 
 # Kelompok Besar Antara
 GET    /api/kelompok-besar-antara   # List
@@ -881,7 +869,7 @@ Sistem menggunakan **Maatwebsite Excel** untuk import data:
 - `POST /api/csr/import` - Import CSR
 - `POST /api/kelompok-besar/import` - Import kelompok besar
 - `POST /api/kelompok-kecil/import` - Import kelompok kecil
-- `POST /api/kelas/import` - Import kelas
+- ~~`POST /api/kelas/import` - Import kelas~~ (REMOVED - using Kelompok Kecil directly)
 - `POST /api/jadwal-kuliah-besar/import` - Import jadwal kuliah besar
 - `POST /api/jadwal-csr/import` - Import jadwal CSR
 - `POST /api/jadwal-praktikum/import` - Import jadwal praktikum

@@ -22,7 +22,7 @@ import api, { handleApiError } from "../utils/api";
 
 interface DashboardStats {
   totalMataKuliah: number;
-  totalKelas: number;
+  // totalKelas removed - Kelas feature no longer exists
   totalRuangan: number;
   totalDosen: number;
   totalMahasiswa: number;
@@ -120,7 +120,7 @@ interface PraktikumPendingAbsensi {
   jam_mulai: string;
   jam_selesai: string;
   ruangan: string;
-  kelas_praktikum: string;
+  kelompok_kecil?: { id: number; nama_kelompok: string } | null;
   materi: string;
   topik?: string | null;
   dosen_names: string[];
@@ -155,7 +155,7 @@ const DashboardTimAkademik: React.FC = () => {
   >("reguler");
   const [stats, setStats] = useState<DashboardStats>({
     totalMataKuliah: 0,
-    totalKelas: 0,
+    // totalKelas removed
     totalRuangan: 0,
     totalDosen: 0,
     totalMahasiswa: 0,
@@ -1348,8 +1348,8 @@ const DashboardTimAkademik: React.FC = () => {
                             <p>
                               <span className="font-medium">Ruangan:</span>{" "}
                               {praktikum.ruangan} |{" "}
-                              <span className="font-medium">Kelas:</span>{" "}
-                              {praktikum.kelas_praktikum}
+                              <span className="font-medium">Kelompok Kecil:</span>{" "}
+                              {praktikum.kelompok_kecil?.nama_kelompok || "-"}
                             </p>
                             {praktikum.materi && (
                               <p>

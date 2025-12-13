@@ -16,7 +16,6 @@ use App\Http\Controllers\MataKuliahJurnalReadingController;
 use App\Http\Controllers\CSRController;
 use App\Http\Controllers\KelompokBesarController;
 use App\Http\Controllers\KelompokKecilController;
-use App\Http\Controllers\KelasController;
 use App\Http\Controllers\MataKuliahPBLKelompokKecilController;
 use App\Http\Controllers\JadwalKuliahBesarController;
 use App\Http\Controllers\JadwalCSRController;
@@ -249,13 +248,6 @@ Route::middleware('auth:sanctum')->get('/kelompok-kecil/{id}/mahasiswa', [Kelomp
 Route::middleware('auth:sanctum')->get('/kelompok-kecil/{id}', [KelompokKecilController::class, 'show']);
 Route::middleware('auth:sanctum')->post('/kelompok-kecil/batch-by-semester', [\App\Http\Controllers\KelompokKecilController::class, 'batchBySemester']);
 
-Route::middleware('auth:sanctum')->get('/kelas', [KelasController::class, 'index']);
-Route::middleware('auth:sanctum')->get('/kelas/semester/{semester}', [KelasController::class, 'getBySemester']);
-Route::middleware('auth:sanctum')->get('/kelas/semester-id/{semesterId}', [KelasController::class, 'getBySemesterId']);
-Route::middleware('auth:sanctum')->post('/kelas', [KelasController::class, 'store']);
-Route::middleware('auth:sanctum')->get('/kelas/{id}', [KelasController::class, 'show']);
-Route::middleware('auth:sanctum')->put('/kelas/{id}', [KelasController::class, 'update']);
-Route::middleware('auth:sanctum')->delete('/kelas/{id}', [KelasController::class, 'destroy']);
 
 // PBL Kelompok Kecil Routes
 Route::middleware('auth:sanctum')->post('/mata-kuliah/{kode}/pbl-kelompok-kecil', [MataKuliahPBLKelompokKecilController::class, 'store']);
@@ -428,7 +420,7 @@ Route::middleware('auth:sanctum')->prefix('praktikum')->group(function () {
     Route::put('/jadwal/{kode}/{id}', [App\Http\Controllers\JadwalPraktikumController::class, 'update']);
     Route::delete('/jadwal/{kode}/{id}', [App\Http\Controllers\JadwalPraktikumController::class, 'destroy']);
     Route::post('/jadwal/{kode}/import', [App\Http\Controllers\JadwalPraktikumController::class, 'importExcel']);
-    Route::get('/kelas/{semester}', [App\Http\Controllers\JadwalPraktikumController::class, 'getKelasPraktikum']);
+    Route::get('/kelompok-kecil/{semester}', [App\Http\Controllers\JadwalPraktikumController::class, 'getKelompokKecil']);
     Route::get('/materi/{blok}/{semester}', [App\Http\Controllers\JadwalPraktikumController::class, 'getMateri']);
     Route::get('/pengampu/{keahlian}/{blok}/{semester}', [App\Http\Controllers\JadwalPraktikumController::class, 'getPengampu']);
     Route::get('/{kode}/jadwal/{jadwalId}/mahasiswa', [App\Http\Controllers\JadwalPraktikumController::class, 'getMahasiswa']);

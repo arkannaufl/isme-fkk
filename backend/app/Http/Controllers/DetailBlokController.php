@@ -138,7 +138,7 @@ class DetailBlokController extends Controller
                 $data['ruangan'] = [];
             }
 
-            $data['kelas_praktikum'] = [];
+            // Hapus kelas_praktikum, tidak diperlukan lagi
             $data['materi_praktikum'] = [];
             $data['jam_options'] = $this->getJamOptions();
 
@@ -304,7 +304,7 @@ class DetailBlokController extends Controller
     private function getJadwalPraktikum($kode)
     {
         return JadwalPraktikum::where('mata_kuliah_kode', $kode)
-            ->with(['dosen', 'ruangan'])
+            ->with(['dosen', 'ruangan', 'kelompokKecil'])
             ->orderBy('tanggal', 'asc')
             ->orderBy('jam_mulai', 'asc')
             ->get()
@@ -319,15 +319,8 @@ class DetailBlokController extends Controller
                 if ($jadwal->dosen && $jadwal->dosen->isNotEmpty()) {
                     $jadwal->dosen_ids = $jadwal->dosen->pluck('id')->toArray();
                 }
-                // Ensure kelas_praktikum is explicitly included in response
-                // Always get from original attribute to ensure it's included even if empty
-                $originalKelasPraktikum = $jadwal->getOriginal('kelas_praktikum');
-                if ($originalKelasPraktikum !== null) {
-                    $jadwal->kelas_praktikum = $originalKelasPraktikum;
-                } else {
-                    // Explicitly set to empty string to ensure field is included in JSON response
-                    $jadwal->kelas_praktikum = '';
-                }
+                // Load relasi kelompok_kecil untuk response
+                $jadwal->load('kelompokKecil');
                 // Ensure materi is included
                 if (empty($jadwal->materi)) {
                     $originalMateri = $jadwal->getOriginal('materi');

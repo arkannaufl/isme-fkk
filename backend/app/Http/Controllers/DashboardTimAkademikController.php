@@ -6,7 +6,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Models\User;
 use App\Models\MataKuliah;
-use App\Models\Kelas;
 use App\Models\Ruangan;
 use App\Models\JadwalKuliahBesar;
 use App\Models\JadwalPBL;
@@ -48,9 +47,7 @@ class DashboardTimAkademikController extends Controller
             $totalMataKuliah = Cache::remember('stats_total_mata_kuliah', 300, function () {
                 return MataKuliah::count();
             });
-            $totalKelas = Cache::remember('stats_total_kelas', 300, function () {
-                return Kelas::count();
-            });
+            // Kelas feature removed - using kelompok kecil directly
             $totalRuangan = Cache::remember('stats_total_ruangan', 300, function () {
                 return Ruangan::count();
             });
@@ -93,7 +90,7 @@ class DashboardTimAkademikController extends Controller
 
             return response()->json([
                 'totalMataKuliah' => $totalMataKuliah,
-                'totalKelas' => $totalKelas,
+                // 'totalKelas' removed - Kelas feature no longer exists
                 'totalRuangan' => $totalRuangan,
                 'totalDosen' => $totalDosen,
                 'totalMahasiswa' => $totalMahasiswa,
@@ -830,7 +827,7 @@ class DashboardTimAkademikController extends Controller
         try {
             // Get all praktikum jadwal (both submitted and not submitted)
             // Order by tanggal desc to show latest first
-            $praktikumJadwal = JadwalPraktikum::with(['mataKuliah', 'ruangan', 'dosen'])
+            $praktikumJadwal = JadwalPraktikum::with(['mataKuliah', 'ruangan', 'kelompokKecil', 'dosen'])
                 ->orderBy('tanggal', 'desc')
                 ->orderBy('jam_mulai', 'desc')
                 ->limit(20) // Limit to latest 20 jadwal
@@ -856,7 +853,10 @@ class DashboardTimAkademikController extends Controller
                         'jam_mulai' => $jadwal->jam_mulai,
                         'jam_selesai' => $jadwal->jam_selesai,
                         'ruangan' => $jadwal->ruangan->nama ?? 'Unknown',
-                        'kelas_praktikum' => $jadwal->kelas_praktikum,
+                        'kelompok_kecil' => $jadwal->kelompokKecil ? [
+                            'id' => $jadwal->kelompokKecil->id,
+                            'nama_kelompok' => $jadwal->kelompokKecil->nama_kelompok,
+                        ] : null,
                         'materi' => $jadwal->materi,
                         'topik' => $jadwal->topik ?? null,
                         'dosen_names' => $dosenNames,

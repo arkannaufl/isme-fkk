@@ -790,9 +790,10 @@ class JadwalKuliahBesarController extends Controller
             $reasons[] = "Kelompok Kecil: " . ($kelompokKecil ? $kelompokKecil->nama_kelompok : 'Tidak diketahui');
         }
 
-        // Cek bentrok kelas praktikum
-        if (isset($data['kelas_praktikum']) && isset($jadwalBentrok->kelas_praktikum) && $data['kelas_praktikum'] == $jadwalBentrok->kelas_praktikum) {
-            $reasons[] = "Kelas Praktikum: " . $data['kelas_praktikum'];
+        // Cek bentrok kelompok kecil (untuk jadwal praktikum)
+        if (isset($data['kelompok_kecil_id']) && isset($jadwalBentrok->kelompok_kecil_id) && $data['kelompok_kecil_id'] == $jadwalBentrok->kelompok_kecil_id) {
+            $kelompokKecil = \App\Models\KelompokKecil::find($data['kelompok_kecil_id']);
+            $reasons[] = "Kelompok Kecil: " . ($kelompokKecil ? $kelompokKecil->nama_kelompok : 'Tidak diketahui');
         }
 
         return implode(', ', $reasons);

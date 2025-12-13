@@ -52,18 +52,7 @@ type JadwalAgendaKhususType = {
   [key: string]: any;
 };
 
-type JadwalPraktikumType = {
-  id?: number;
-  tanggal: string;
-  jam_mulai: string;
-  jam_selesai: string;
-  topik: string;
-  kelas_praktikum: string;
-  dosen_ids: number[];
-  ruangan_id: number;
-  jumlah_sesi: number;
-  [key: string]: any;
-};
+// JadwalPraktikumType dihapus - semester antara tidak memiliki praktikum
 
 type JadwalJurnalReadingType = {
   id?: number;
@@ -121,9 +110,9 @@ export default function DetailBlokAntara() {
     materi: string;
     topik: string;
     lokasi: number | null;
-    jenisBaris: 'materi' | 'agenda' | 'praktikum' | 'pbl' | 'jurnal';
+    jenisBaris: 'materi' | 'agenda' | 'pbl' | 'jurnal';
     agenda: string;
-    kelasPraktikum: string;
+    // kelasPraktikum dihapus
     pblTipe: string;
     modul: number | null;
     kelompok: string;
@@ -141,7 +130,6 @@ export default function DetailBlokAntara() {
     lokasi: null,
     jenisBaris: 'materi',
     agenda: '',
-    kelasPraktikum: '',
     pblTipe: '',
     modul: null,
     kelompok: '',
@@ -172,10 +160,7 @@ export default function DetailBlokAntara() {
   // Kelompok semester reguler tidak digunakan di semester antara
   const [jadwalKuliahBesar, setJadwalKuliahBesar] = useState<JadwalKuliahBesarType[]>([]);
   const [jadwalAgendaKhusus, setJadwalAgendaKhusus] = useState<JadwalAgendaKhususType[]>([]);
-  const [jadwalPraktikum, setJadwalPraktikum] = useState<JadwalPraktikumType[]>([]);
-  const [materiPraktikumOptions, setMateriPraktikumOptions] = useState<string[]>([]);
-  const [kelasPraktikumOptions, setKelasPraktikumOptions] = useState<string[]>([]);
-  const [pengampuPraktikumOptions, setPengampuPraktikumOptions] = useState<DosenType[]>([]);
+  // State praktikum dihapus - semester antara tidak memiliki praktikum
   const [jadwalJurnalReading, setJadwalJurnalReading] = useState<JadwalJurnalReadingType[]>([]);
   const [jamOptions, setJamOptions] = useState<string[]>([]);
   
@@ -183,8 +168,7 @@ export default function DetailBlokAntara() {
   const [kuliahBesarPage, setKuliahBesarPage] = useState(1);
   const [kuliahBesarPageSize, setKuliahBesarPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
   
-  const [praktikumPage, setPraktikumPage] = useState(1);
-  const [praktikumPageSize, setPraktikumPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
+  // Pagination praktikum dihapus - semester antara tidak memiliki praktikum
   
   const [agendaKhususPage, setAgendaKhususPage] = useState(1);
   const [agendaKhususPageSize, setAgendaKhususPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
@@ -209,14 +193,12 @@ export default function DetailBlokAntara() {
     return Math.ceil(dataLength / pageSize);
   }, []);
 
-  const resetPagination = useCallback((scheduleType: 'kuliahBesar' | 'praktikum' | 'agendaKhusus' | 'pbl' | 'jurnalReading') => {
+  const resetPagination = useCallback((scheduleType: 'kuliahBesar' | 'agendaKhusus' | 'pbl' | 'jurnalReading') => {
     switch (scheduleType) {
       case 'kuliahBesar':
         setKuliahBesarPage(1);
         break;
-      case 'praktikum':
-        setPraktikumPage(1);
-        break;
+      // case 'praktikum' dihapus - semester antara tidak memiliki praktikum
       case 'agendaKhusus':
         setAgendaKhususPage(1);
         break;
@@ -267,12 +249,12 @@ export default function DetailBlokAntara() {
 
   // State untuk bulk delete
   const [selectedKuliahBesarItems, setSelectedKuliahBesarItems] = useState<number[]>([]);
-  const [selectedPraktikumItems, setSelectedPraktikumItems] = useState<number[]>([]);
+  // selectedPraktikumItems dihapus - semester antara tidak memiliki praktikum
   const [selectedAgendaKhususItems, setSelectedAgendaKhususItems] = useState<number[]>([]);
   const [selectedPBLItems, setSelectedPBLItems] = useState<number[]>([]);
   const [selectedJurnalReadingItems, setSelectedJurnalReadingItems] = useState<number[]>([]);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
-  const [bulkDeleteType, setBulkDeleteType] = useState<'kuliah-besar' | 'praktikum' | 'agenda-khusus' | 'pbl' | 'jurnal-reading'>('kuliah-besar');
+  const [bulkDeleteType, setBulkDeleteType] = useState<'kuliah-besar' | 'agenda-khusus' | 'pbl' | 'jurnal-reading'>('kuliah-besar');
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
@@ -494,38 +476,7 @@ export default function DetailBlokAntara() {
 
 
 
-  // Fetch materi praktikum dinamis
-  const fetchMateriPraktikum = async () => {
-    if (!data) return;
-    try {
-      const res = await api.get(`/praktikum/materi/${data.blok}/${data.semester}`);
-      setMateriPraktikumOptions(Array.isArray(res.data) ? res.data : []);
-    } catch (error) {
-      // Silent fail - materi praktikum options are not critical
-    }
-  };
-
-  // Fetch kelas praktikum dinamis
-  const fetchKelasPraktikum = async () => {
-    if (!data) return;
-    try {
-      const res = await api.get(`/kelas/semester/${data.semester}`);
-      setKelasPraktikumOptions(Array.isArray(res.data) ? res.data.map((k: any) => k.nama_kelas) : []);
-    } catch (error) {
-      // Silent fail - kelas praktikum options are not critical
-    }
-  };
-
-  // Fetch pengampu praktikum berdasarkan materi
-  const fetchPengampuPraktikum = async (materi: string) => {
-    if (!data || !materi) return;
-    try {
-      const res = await api.get(`/praktikum/pengampu/${encodeURIComponent(materi)}/${data.blok}/${data.semester}`);
-      setPengampuPraktikumOptions(Array.isArray(res.data) ? res.data : []);
-    } catch (error) {
-      // Silent fail - pengampu praktikum options are not critical
-    }
-  };
+  // Fungsi fetch praktikum dihapus - semester antara tidak memiliki praktikum
 
   // Saat modal dibuka, fetch materi sesuai jenis baris
   useEffect(() => {
@@ -537,13 +488,7 @@ export default function DetailBlokAntara() {
         if (!form.materi) {
           setPengampuOptions([]);
         }
-      } else if (form.jenisBaris === 'praktikum') {
-        fetchMateriPraktikum();
-        fetchKelasPraktikum();
-        // Reset pengampu options jika materi belum dipilih
-        if (!form.materi) {
-          setPengampuPraktikumOptions([]);
-        }
+      // else if praktikum dihapus - semester antara tidak memiliki praktikum
       } else if (form.jenisBaris === 'agenda') {
         // fetchKelompokBesarAgendaOptions(); // Not used in semester antara
       }
@@ -561,26 +506,17 @@ export default function DetailBlokAntara() {
 
 
 
-  // Saat materi praktikum dipilih, fetch pengampu
-  useEffect(() => {
-    if (form.jenisBaris === 'praktikum' && form.materi) {
-      fetchPengampuPraktikum(form.materi);
-    } else {
-      setPengampuPraktikumOptions([]);
-    }
-  }, [form.jenisBaris, form.materi]);
+  // useEffect untuk praktikum dihapus - semester antara tidak memiliki praktikum
 
   // Reset pengampu options ketika jenis baris berubah
   useEffect(() => {
     if (form.jenisBaris !== 'materi') {
       setPengampuOptions([]);
     }
-    if (form.jenisBaris !== 'praktikum') {
-      setPengampuPraktikumOptions([]);
-    }
+    // if praktikum dihapus - semester antara tidak memiliki praktikum
     // Reset materi ketika jenis baris berubah
     if (form.materi) {
-      setForm(f => ({ ...f, materi: '', pengampu: form.jenisBaris === 'praktikum' ? [] : null }));
+      setForm(f => ({ ...f, materi: '', pengampu: null }));
     }
   }, [form.jenisBaris]);
 
@@ -650,19 +586,18 @@ export default function DetailBlokAntara() {
   }, [errorForm]);
 
   // Helper function untuk reset form dengan semua field yang diperlukan - optimized with useCallback
-  const resetForm = useCallback((jenisBaris: 'materi' | 'agenda' | 'praktikum' | 'pbl' | 'jurnal' = 'materi') => {
+  const resetForm = useCallback((jenisBaris: 'materi' | 'agenda' | 'pbl' | 'jurnal' = 'materi') => {
     setForm({
       hariTanggal: '',
       jamMulai: '',
       jumlahKali: 2,
       jamSelesai: '',
-      pengampu: jenisBaris === 'praktikum' ? [] : null,
+      pengampu: null,
       materi: '',
       topik: '',
       lokasi: null,
       jenisBaris,
       agenda: '',
-      kelasPraktikum: '',
       pblTipe: '',
       modul: null,
       kelompok: '',
@@ -759,33 +694,12 @@ export default function DetailBlokAntara() {
         lokasi: Number(row.lokasi || row.ruangan_id || 0),
         jenisBaris: row.jenisBaris || 'materi',
         agenda: String(row.agenda || ''),
-        kelasPraktikum: String(row.kelasPraktikum || ''),
         pblTipe: String((row as any).pbl_tipe ?? row.pblTipe ?? ''),
         modul: Number(row.modul || row.modul_pbl_id || 0),
         kelompok: String(row.kelompok || ''),
         kelompokBesar: null,
         useRuangan: true,
         fileJurnal: null,
-      });
-    } else if (row.jenisBaris === 'praktikum') {
-      setForm({
-        hariTanggal: tglISO,
-        jamMulai: String(row.jamMulai || row.pukul?.split('-')[0] || ''),
-        jumlahKali: Number(row.jumlahKali || (row.waktu ? row.waktu.split('x')[0] : 2)),
-        jamSelesai: String(row.jamSelesai || row.pukul?.split('-')[1] || ''),
-        pengampu: row.dosen_ids && row.dosen_ids.length > 0 ? row.dosen_ids : (row.dosen_id ? [row.dosen_id] : []),
-        materi: String(row.materi || row.topik || ''),
-        topik: String(row.topik || row.materi || ''),
-        lokasi: Number(row.lokasi || row.ruangan_id || 0),
-        jenisBaris: 'praktikum',
-        agenda: '',
-        kelasPraktikum: String(row.kelasPraktikum || ''),
-        pblTipe: '',
-        modul: 0,
-        kelompok: '',
-        kelompokBesar: null,
-        useRuangan: true,
-        fileJurnal: null, // Tambahkan fileJurnal
       });
     } else if (row.jenisBaris === 'pbl' || jenisBaris === 'pbl') {
       // Cari nama kelompok dari transform backend atau relasi
@@ -802,7 +716,6 @@ export default function DetailBlokAntara() {
         lokasi: Number(row.ruangan_id || 0),
         jenisBaris: 'pbl',
         agenda: '',
-        kelasPraktikum: '',
         pblTipe: String(row.pbl_tipe || ''),
         modul: Number(row.modul_pbl_id || 0),
         kelompok: namaKelompok,
@@ -822,7 +735,6 @@ export default function DetailBlokAntara() {
         lokasi: Number(row.lokasi || row.ruangan_id || 0),
         jenisBaris: 'jurnal',
         agenda: '',
-        kelasPraktikum: '',
         pblTipe: '',
         modul: 0,
         kelompok: '',
@@ -842,7 +754,6 @@ export default function DetailBlokAntara() {
         lokasi: Number(row.lokasi || row.ruangan_id || 0),
         jenisBaris: 'materi',
         agenda: '',
-        kelasPraktikum: '',
         pblTipe: '',
         modul: 0,
         kelompok: '',
@@ -964,26 +875,7 @@ export default function DetailBlokAntara() {
       return;
     }
     
-    // Handle untuk jenis baris 'praktikum'
-    if (form.jenisBaris === 'praktikum') {
-      // Validasi field wajib untuk praktikum
-      if (
-        !form.hariTanggal ||
-        !form.jamMulai ||
-        !form.jamSelesai ||
-        !form.materi ||
-        !form.kelasPraktikum ||
-        form.lokasi == null ||
-        !form.pengampu
-      ) {
-        setErrorForm('Semua field wajib diisi!');
-        throw new Error('Semua field wajib diisi!');
-      }
-      
-      // Gunakan handler khusus untuk praktikum
-      await handleTambahJadwalPraktikum();
-      return;
-    }
+    // Handle praktikum dihapus - semester antara tidak memiliki praktikum
     
   }
 
@@ -994,8 +886,7 @@ export default function DetailBlokAntara() {
   const [selectedDeleteType, setSelectedDeleteType] = useState<'materi' | 'pbl' | 'other'>('other');
   const [showDeleteAgendaModal, setShowDeleteAgendaModal] = useState(false);
   const [selectedDeleteAgendaIndex, setSelectedDeleteAgendaIndex] = useState<number | null>(null);
-  const [showDeletePraktikumModal, setShowDeletePraktikumModal] = useState(false);
-  const [selectedDeletePraktikumIndex, setSelectedDeletePraktikumIndex] = useState<number | null>(null);
+  // Modal praktikum dihapus - semester antara tidak memiliki praktikum
   // const [showDeleteAgendaKhususModal, setShowDeleteAgendaKhususModal] = useState(false);
   // const [selectedDeleteAgendaKhususIndex, setSelectedDeleteAgendaKhususIndex] = useState<number | null>(null);
   const [showDeleteJurnalReadingModal, setShowDeleteJurnalReadingModal] = useState(false);
@@ -1022,7 +913,7 @@ export default function DetailBlokAntara() {
       setJadwalPBL(Array.isArray(batchData.jadwal_pbl) ? batchData.jadwal_pbl : []);
       setJadwalKuliahBesar(Array.isArray(batchData.jadwal_kuliah_besar) ? batchData.jadwal_kuliah_besar : []);
       setJadwalAgendaKhusus(Array.isArray(batchData.jadwal_agenda_khusus) ? batchData.jadwal_agenda_khusus : []);
-      setJadwalPraktikum(Array.isArray(batchData.jadwal_praktikum) ? batchData.jadwal_praktikum : []);
+      // jadwalPraktikum dihapus - semester antara tidak memiliki praktikum
       setJadwalJurnalReading(Array.isArray(batchData.jadwal_jurnal_reading) ? batchData.jadwal_jurnal_reading : []);
       
       // Set reference data
@@ -1030,8 +921,7 @@ export default function DetailBlokAntara() {
       // setKelompokKecilList(Array.isArray(batchData.kelompok_kecil) ? batchData.kelompok_kecil : []); // Use kelompokKecilAntaraList instead
       setAllRuanganList(Array.isArray(batchData.ruangan) ? batchData.ruangan : []);
       setRuanganList(Array.isArray(batchData.ruangan) ? batchData.ruangan : []);
-      setKelasPraktikumOptions(Array.isArray(batchData.kelas_praktikum) ? batchData.kelas_praktikum.map((k: any) => k.nama || k) : []);
-      setMateriPraktikumOptions(Array.isArray(batchData.materi_praktikum) ? batchData.materi_praktikum : []);
+      // kelasPraktikumOptions dan materiPraktikumOptions dihapus - semester antara tidak memiliki praktikum
       setJamOptions(Array.isArray(batchData.jam_options) ? batchData.jam_options : []);
       
       // Set dosen data
@@ -1235,72 +1125,6 @@ export default function DetailBlokAntara() {
         </div>
       </div>
 
-      {/* Praktikum skeleton */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-2">
-          <div className="h-6 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-          <div className="h-8 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-        </div>
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-          <div className="max-w-full overflow-x-auto hide-scroll">
-            <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-              <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
-                <tr>
-                  <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">No</th>
-                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Hari/Tanggal</th>
-                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Kelas</th>
-                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pukul</th>
-                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Waktu</th>
-                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Materi</th>
-                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Pengampu</th>
-                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Topik</th>
-                  <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Lokasi</th>
-                  <th className="px-4 py-4 font-semibold text-gray-500 text-center text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">Aksi</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <tr key={`skeleton-praktikum-${index}`} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-white/[0.02]' : ''}>
-                    <td className="px-4 py-4">
-                      <div className="h-4 w-4 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 w-20 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 w-16 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 w-16 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 w-20 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 w-24 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 w-20 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 w-24 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="h-4 w-20 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex gap-2 justify-center">
-                        <div className="h-6 w-6 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
-                        <div className="h-6 w-6 bg-gray-200 dark:bg-gray-600 rounded animate-pulse"></div>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
 
       {/* Agenda Khusus skeleton */}
       <div className="mb-8">
@@ -1614,7 +1438,7 @@ export default function DetailBlokAntara() {
       }
       await fetchBatchData();
       setShowModal(false);
-      setForm({ hariTanggal: '', jamMulai: '', jumlahKali: 2, jamSelesai: '', pengampu: null, materi: '', topik: '', lokasi: null, jenisBaris: 'materi', agenda: '', kelasPraktikum: '', pblTipe: '', modul: null, kelompok: '', kelompokBesar: null, useRuangan: true, fileJurnal: null });
+      setForm({ hariTanggal: '', jamMulai: '', jumlahKali: 2, jamSelesai: '', pengampu: null, materi: '', topik: '', lokasi: null, jenisBaris: 'materi', agenda: '', pblTipe: '', modul: null, kelompok: '', kelompokBesar: null, useRuangan: true, fileJurnal: null });
       setExistingFileJurnal(null);
       setEditIndex(null);
     } catch (err: any) {
@@ -1639,7 +1463,6 @@ export default function DetailBlokAntara() {
       lokasi: row.ruangan_id,
       jenisBaris: 'materi',
       agenda: '',
-      kelasPraktikum: '',
       pblTipe: '',
       modul: null,
       kelompok: '',
@@ -1704,7 +1527,7 @@ export default function DetailBlokAntara() {
       }
       await fetchBatchData();
       setShowModal(false);
-      setForm({ hariTanggal: '', jamMulai: '', jumlahKali: 2, jamSelesai: '', pengampu: null, materi: '', topik: '', lokasi: null, jenisBaris: 'agenda', agenda: '', kelasPraktikum: '', pblTipe: '', modul: null, kelompok: '', kelompokBesar: null, useRuangan: true, fileJurnal: null });
+      setForm({ hariTanggal: '', jamMulai: '', jumlahKali: 2, jamSelesai: '', pengampu: null, materi: '', topik: '', lokasi: null, jenisBaris: 'agenda', agenda: '', pblTipe: '', modul: null, kelompok: '', kelompokBesar: null, useRuangan: true, fileJurnal: null });
       setExistingFileJurnal(null);
       setEditIndex(null);
     } catch (err: any) {
@@ -1729,7 +1552,6 @@ export default function DetailBlokAntara() {
       lokasi: row.use_ruangan ? row.ruangan_id : null,
       jenisBaris: 'agenda',
       agenda: row.agenda,
-      kelasPraktikum: '',
       pblTipe: '',
       modul: null,
       kelompok: '',
@@ -1767,96 +1589,7 @@ export default function DetailBlokAntara() {
 
 
 
-  // Handler tambah jadwal praktikum
-  async function handleTambahJadwalPraktikum() {
-    setErrorForm('');
-    setErrorBackend('');
-    // Validasi field wajib
-    if (!form.hariTanggal || !form.jamMulai || !form.jamSelesai || !form.materi || !form.kelasPraktikum || !form.lokasi || !form.pengampu || (Array.isArray(form.pengampu) && form.pengampu.length === 0)) {
-      setErrorForm('Semua field wajib diisi!');
-      throw new Error('Semua field wajib diisi!');
-    }
-    // Validasi bentrok frontend
-    const payload = {
-      tanggal: form.hariTanggal,
-      jam_mulai: form.jamMulai,
-      jam_selesai: form.jamSelesai,
-      materi: form.materi,
-      topik: form.topik,
-      kelas_praktikum: form.kelasPraktikum,
-      ruangan_id: Number(form.lokasi),
-      jumlah_sesi: form.jumlahKali,
-      dosen_ids: Array.isArray(form.pengampu) ? form.pengampu : (form.pengampu ? [form.pengampu] : []),
-    };
-
-    try {
-      if (editIndex !== null && jadwalPraktikum[editIndex]?.id) {
-        // Edit mode
-        await api.put(`/praktikum/jadwal/${data!.kode}/${jadwalPraktikum[editIndex].id}`, payload);
-      } else {
-        // Tambah mode
-        await api.post(`/praktikum/jadwal/${data!.kode}`, payload);
-      }
-      await fetchBatchData();
-      setShowModal(false);
-      setForm({ hariTanggal: '', jamMulai: '', jumlahKali: 2, jamSelesai: '', pengampu: [], materi: '', topik: '', lokasi: null, jenisBaris: 'praktikum', agenda: '', kelasPraktikum: '', pblTipe: '', modul: null, kelompok: '', kelompokBesar: null, useRuangan: true, fileJurnal: null });
-      setExistingFileJurnal(null);
-      setEditIndex(null);
-    } catch (err: any) {
-      setErrorBackend(err?.response?.data?.message || 'Gagal menyimpan jadwal praktikum');
-      throw err;
-    }
-  }
-
-  // Handler edit jadwal praktikum
-  function handleEditJadwalPraktikum(idx: number) {
-    const row = jadwalPraktikum[idx];
-    setForm({
-      hariTanggal: row.tanggal,
-      jamMulai: row.jam_mulai,
-      jumlahKali: Number(row.jumlah_sesi || 2),
-      jamSelesai: row.jam_selesai,
-      pengampu: row.dosen?.map((d: any) => d.id) || [],
-      materi: row.materi,
-      topik: row.topik || '',
-      lokasi: row.ruangan_id,
-      jenisBaris: 'praktikum',
-      agenda: '',
-      kelasPraktikum: row.kelas_praktikum,
-      pblTipe: '',
-      modul: null,
-      kelompok: '',
-      kelompokBesar: null,
-      useRuangan: true,
-      fileJurnal: null,
-    });
-    setEditIndex(idx);
-    setShowModal(true);
-    resetErrorForm();
-  }
-
-  // Handler hapus jadwal praktikum
-  async function handleDeleteJadwalPraktikum(idx: number) {
-    setSelectedDeletePraktikumIndex(idx);
-    setShowDeletePraktikumModal(true);
-  }
-
-  // Handler konfirmasi hapus praktikum
-  async function handleConfirmDeletePraktikum() {
-    if (selectedDeletePraktikumIndex === null) return;
-    
-    const row = jadwalPraktikum[selectedDeletePraktikumIndex];
-    if (!row?.id) return;
-    
-    setIsSaving(true);
-    try {
-      await api.delete(`/praktikum/jadwal/${data!.kode}/${row.id}`);
-      await fetchBatchData();
-    } catch {}
-    setIsSaving(false);
-    setShowDeletePraktikumModal(false);
-    setSelectedDeletePraktikumIndex(null);
-  }
+  // Handler praktikum dihapus - semester antara tidak memiliki praktikum
 
   // Handler tambah jadwal jurnal reading
   async function handleTambahJadwalJurnalReading() {
@@ -1958,7 +1691,7 @@ export default function DetailBlokAntara() {
       
       await fetchBatchData();
       setShowModal(false);
-      setForm({ hariTanggal: '', jamMulai: '', jumlahKali: 1, jamSelesai: '', pengampu: null, materi: '', topik: '', lokasi: null, jenisBaris: 'jurnal', agenda: '', kelasPraktikum: '', pblTipe: '', modul: null, kelompok: '', kelompokBesar: null, useRuangan: true, fileJurnal: null });
+      setForm({ hariTanggal: '', jamMulai: '', jumlahKali: 1, jamSelesai: '', pengampu: null, materi: '', topik: '', lokasi: null, jenisBaris: 'jurnal', agenda: '', pblTipe: '', modul: null, kelompok: '', kelompokBesar: null, useRuangan: true, fileJurnal: null });
       setExistingFileJurnal(null);
       setEditIndex(null);
     } catch (err: any) {
@@ -1982,7 +1715,6 @@ export default function DetailBlokAntara() {
       lokasi: row.ruangan_id || null,
       jenisBaris: 'jurnal',
       agenda: '',
-      kelasPraktikum: '',
       pblTipe: '',
       modul: null,
                 kelompok: row.kelompok_kecil_antara?.nama_kelompok || '',
@@ -2032,7 +1764,7 @@ export default function DetailBlokAntara() {
   }
 
   // Fungsi untuk handle bulk delete
-  const handleBulkDelete = (type: 'kuliah-besar' | 'praktikum' | 'agenda-khusus' | 'pbl' | 'jurnal-reading') => {
+  const handleBulkDelete = (type: 'kuliah-besar' | 'agenda-khusus' | 'pbl' | 'jurnal-reading') => {
     setBulkDeleteType(type);
     setShowBulkDeleteModal(true);
   };
@@ -2053,11 +1785,7 @@ export default function DetailBlokAntara() {
           endpoint = `/kuliah-besar/jadwal/${data.kode}`;
           successMessage = `${selectedItems.length} jadwal kuliah besar berhasil dihapus.`;
           break;
-        case 'praktikum':
-          selectedItems = selectedPraktikumItems;
-          endpoint = `/praktikum/jadwal/${data.kode}`;
-          successMessage = `${selectedItems.length} jadwal praktikum berhasil dihapus.`;
-          break;
+        // case 'praktikum' dihapus - semester antara tidak memiliki praktikum
         case 'agenda-khusus':
           selectedItems = selectedAgendaKhususItems;
           endpoint = `/agenda-khusus/jadwal/${data.kode}`;
@@ -2087,9 +1815,7 @@ export default function DetailBlokAntara() {
         case 'kuliah-besar':
           setSelectedKuliahBesarItems([]);
           break;
-        case 'praktikum':
-          setSelectedPraktikumItems([]);
-          break;
+        // case 'praktikum' dihapus - semester antara tidak memiliki praktikum
         case 'agenda-khusus':
           setSelectedAgendaKhususItems([]);
           break;
@@ -2114,7 +1840,7 @@ export default function DetailBlokAntara() {
     }
   };
 
-  const handleSelectAll = (type: 'kuliah-besar' | 'praktikum' | 'agenda-khusus' | 'pbl' | 'jurnal-reading', allItems: any[]) => {
+  const handleSelectAll = (type: 'kuliah-besar' | 'agenda-khusus' | 'pbl' | 'jurnal-reading', allItems: any[]) => {
     const allIds = allItems.map(item => item.id).filter(id => id !== undefined);
     
     switch (type) {
@@ -2125,13 +1851,7 @@ export default function DetailBlokAntara() {
           setSelectedKuliahBesarItems(allIds);
         }
         break;
-      case 'praktikum':
-        if (selectedPraktikumItems.length === allIds.length) {
-          setSelectedPraktikumItems([]);
-        } else {
-          setSelectedPraktikumItems(allIds);
-        }
-        break;
+      // case 'praktikum' dihapus - semester antara tidak memiliki praktikum
       case 'agenda-khusus':
         if (selectedAgendaKhususItems.length === allIds.length) {
           setSelectedAgendaKhususItems([]);
@@ -2156,7 +1876,7 @@ export default function DetailBlokAntara() {
     }
   };
 
-  const handleSelectItem = (type: 'kuliah-besar' | 'praktikum' | 'agenda-khusus' | 'pbl' | 'jurnal-reading', itemId: number) => {
+  const handleSelectItem = (type: 'kuliah-besar' | 'agenda-khusus' | 'pbl' | 'jurnal-reading', itemId: number) => {
     switch (type) {
       case 'kuliah-besar':
         if (selectedKuliahBesarItems.includes(itemId)) {
@@ -2165,13 +1885,7 @@ export default function DetailBlokAntara() {
           setSelectedKuliahBesarItems([...selectedKuliahBesarItems, itemId]);
         }
         break;
-      case 'praktikum':
-        if (selectedPraktikumItems.includes(itemId)) {
-          setSelectedPraktikumItems(selectedPraktikumItems.filter(id => id !== itemId));
-        } else {
-          setSelectedPraktikumItems([...selectedPraktikumItems, itemId]);
-        }
-        break;
+      // case 'praktikum' dihapus - semester antara tidak memiliki praktikum
       case 'agenda-khusus':
         if (selectedAgendaKhususItems.includes(itemId)) {
           setSelectedAgendaKhususItems(selectedAgendaKhususItems.filter(id => id !== itemId));
@@ -2313,7 +2027,6 @@ export default function DetailBlokAntara() {
                 lokasi: null,
                 jenisBaris: 'materi',
                 agenda: '',
-                kelasPraktikum: '',
                 pblTipe: '',
                 modul: null,
                 kelompok: '',
@@ -2635,7 +2348,6 @@ export default function DetailBlokAntara() {
                 lokasi: null,
                 jenisBaris: 'agenda',
                 agenda: '',
-                kelasPraktikum: '',
                 pblTipe: '',
                 modul: null,
                 kelompok: '',
@@ -2944,7 +2656,7 @@ export default function DetailBlokAntara() {
                   <div className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm cursor-not-allowed">
                     {form.jenisBaris === 'materi' && 'Kuliah Besar'}
                     {form.jenisBaris === 'agenda' && 'Agenda Khusus'}
-                    {form.jenisBaris === 'praktikum' && 'Praktikum'}
+                    {/* Praktikum dihapus - semester antara tidak memiliki praktikum */}
                     {form.jenisBaris === 'pbl' && 'PBL'}
                     {form.jenisBaris === 'jurnal' && 'Jurnal Reading'}
                   </div>
@@ -3441,658 +3153,7 @@ export default function DetailBlokAntara() {
                       </div>
                     </>
                   )}
-                  {form.jenisBaris === 'praktikum' && (
-                    <>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Hari/Tanggal</label>
-                        <input type="date" name="hariTanggal" value={form.hariTanggal || ''} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-                        {errorForm && <div className="text-sm text-red-500 mt-2">{errorForm}</div>}
-                      </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kelas Praktikum</label>
-                      {kelasPraktikumOptions.length === 0 ? (
-                        <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
-                          <div className="flex items-center gap-2">
-                            <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                            </svg>
-                            <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                              Belum ada kelas praktikum yang ditambahkan untuk mata kuliah ini
-                            </span>
-                          </div>
-                          <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                            Silakan tambahkan kelas praktikum terlebih dahulu di halaman Praktikum Detail
-                          </p>
-                        </div>
-                      ) : (
-                        <Select
-                          options={kelasPraktikumOptions.map(k => ({ value: k, label: k }))}
-                          value={kelasPraktikumOptions.find(k => k === form.kelasPraktikum) ? { value: form.kelasPraktikum, label: form.kelasPraktikum } : null}
-                          onChange={opt => {
-                            setForm(f => ({ ...f, kelasPraktikum: opt?.value || '' }));
-                            resetErrorForm();
-                          }}
-                          placeholder="Pilih Kelas"
-                          isClearable
-                          classNamePrefix="react-select"
-                          className="react-select-container"
-                          styles={{
-                            control: (base, state) => ({
-                              ...base,
-                              backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#f9fafb',
-                              borderColor: state.isFocused
-                                ? '#3b82f6'
-                                : (document.documentElement.classList.contains('dark') ? '#334155' : '#d1d5db'),
-                              color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                              boxShadow: state.isFocused ? '0 0 0 2px #3b82f633' : undefined,
-                              borderRadius: '0.75rem',
-                              minHeight: '2.5rem',
-                              fontSize: '1rem',
-                              paddingLeft: '0.75rem',
-                              paddingRight: '0.75rem',
-                              '&:hover': { borderColor: '#3b82f6' },
-                            }),
-                            menu: base => ({
-                              ...base,
-                              zIndex: 9999,
-                              fontSize: '1rem',
-                              backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff',
-                              color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                            }),
-                            option: (base, state) => ({
-                              ...base,
-                              backgroundColor: state.isSelected
-                                ? '#3b82f6'
-                                : state.isFocused
-                                ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                                : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
-                              color: state.isSelected
-                                ? '#fff'
-                                : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
-                              fontSize: '1rem',
-                            }),
-                            singleValue: base => ({
-                              ...base,
-                              color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                            }),
-                            placeholder: base => ({
-                              ...base,
-                              color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                            }),
-                            input: base => ({
-                              ...base,
-                              color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                            }),
-                            dropdownIndicator: base => ({
-                              ...base,
-                              color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                              '&:hover': { color: '#3b82f6' },
-                            }),
-                            indicatorSeparator: base => ({
-                              ...base,
-                              backgroundColor: 'transparent',
-                            }),
-                          }}
-                        />
-                      )}
-                    </div>
-                      <div className="flex gap-2">
-                        <div className="flex-1">
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Jam Mulai</label>
-                          <Select
-                            options={jamOptions.map((j: string) => ({ value: j, label: j }))}
-                            value={jamOptions.map((j: string) => ({ value: j, label: j })).find((opt: any) => opt.value === form.jamMulai) || null}
-                            onChange={opt => {
-                              const value = opt?.value || '';
-                              setForm(f => ({
-                                ...f,
-                                jamMulai: value,
-                                jamSelesai: hitungJamSelesai(value, f.jumlahKali)
-                              }));
-                            }}
-                            classNamePrefix="react-select"
-                            className="react-select-container"
-                            isClearable
-                            placeholder="Pilih Jam Mulai"
-                            styles={{
-                              control: (base, state) => ({
-                                ...base,
-                                backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#f9fafb',
-                                borderColor: state.isFocused
-                                  ? '#3b82f6'
-                                  : (document.documentElement.classList.contains('dark') ? '#334155' : '#d1d5db'),
-                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                                boxShadow: state.isFocused ? '0 0 0 2px #3b82f633' : undefined,
-                                borderRadius: '0.75rem',
-                                minHeight: '2.5rem',
-                                fontSize: '1rem',
-                                paddingLeft: '0.75rem',
-                                paddingRight: '0.75rem',
-                                '&:hover': { borderColor: '#3b82f6' },
-                              }),
-                              menu: base => ({
-                                ...base,
-                                zIndex: 9999,
-                                fontSize: '1rem',
-                                backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff',
-                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                              }),
-                              option: (base, state) => ({
-                                ...base,
-                                backgroundColor: state.isSelected
-                                  ? '#3b82f6'
-                                  : state.isFocused
-                                  ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                                  : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
-                                color: state.isSelected
-                                  ? '#fff'
-                                  : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
-                                fontSize: '1rem',
-                              }),
-                              singleValue: base => ({
-                                ...base,
-                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                              }),
-                              placeholder: base => ({
-                                ...base,
-                                color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                              }),
-                              input: base => ({
-                                ...base,
-                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                              }),
-                              dropdownIndicator: base => ({
-                                ...base,
-                                color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                                '&:hover': { color: '#3b82f6' },
-                              }),
-                              indicatorSeparator: base => ({
-                                ...base,
-                                backgroundColor: 'transparent',
-                              }),
-                            }}
-                          />
-                        </div>
-                        <div className="w-32">
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">x 50 menit</label>
-                          <select name="jumlahKali" value={form.jumlahKali} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                            {[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n} x 50'</option>)}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="mt-2">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Jam Selesai</label>
-                        <input type="text" name="jamSelesai" value={form.jamSelesai} readOnly className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm cursor-not-allowed" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Materi</label>
-                        {(form.jenisBaris === 'praktikum' ? materiPraktikumOptions.length === 0 : materiOptions.length === 0) ? (
-                          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
-                            <div className="flex items-center gap-2">
-                              <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                              </svg>
-                              <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                                Belum ada dosen yang bisa diambil keahliannya untuk menampilkan materi
-                              </span>
-                            </div>
-                            <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                              Silakan tambahkan dosen terlebih dahulu di halaman Dosen Detail
-                            </p>
-                          </div>
-                        ) : (
-                          <Select
-                            options={form.jenisBaris === 'praktikum' ? materiPraktikumOptions.map(m => ({ value: m, label: m })) : materiOptions.map((m: string) => ({ value: m, label: m }))}
-                            value={(form.jenisBaris === 'praktikum' ? materiPraktikumOptions.map(m => ({ value: m, label: m })) : materiOptions.map((m: string) => ({ value: m, label: m }))).find((opt: any) => opt.value === form.materi) || null}
-                            onChange={opt => {
-                              setForm(f => ({ 
-                                ...f, 
-                                materi: opt?.value || '',
-                                pengampu: form.jenisBaris === 'praktikum' ? [] : null // Reset pengampu ketika materi berubah
-                              }));
-                              // Reset pengampu options jika materi di-clear
-                              if (!opt?.value) {
-                                if (form.jenisBaris === 'praktikum') {
-                                  setPengampuPraktikumOptions([]);
-                                } else {
-                                  setPengampuOptions([]);
-                                }
-                              }
-                              resetErrorForm();
-                            }}
-                            placeholder="Pilih Materi"
-                            isClearable
-                            classNamePrefix="react-select"
-                            className="react-select-container"
-                            styles={{
-                              control: (base, state) => ({
-                                ...base,
-                                backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#f9fafb',
-                                borderColor: state.isFocused
-                                  ? '#3b82f6'
-                                  : (document.documentElement.classList.contains('dark') ? '#334155' : '#d1d5db'),
-                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                                boxShadow: state.isFocused ? '0 0 0 2px #3b82f633' : undefined,
-                                borderRadius: '0.75rem',
-                                minHeight: '2.5rem',
-                                fontSize: '1rem',
-                                paddingLeft: '0.75rem',
-                                paddingRight: '0.75rem',
-                                '&:hover': { borderColor: '#3b82f6' },
-                              }),
-                              menu: base => ({
-                                ...base,
-                                zIndex: 9999,
-                                fontSize: '1rem',
-                                backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff',
-                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                              }),
-                              option: (base, state) => ({
-                                ...base,
-                                backgroundColor: state.isSelected
-                                  ? '#3b82f6'
-                                  : state.isFocused
-                                  ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                                  : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
-                                color: state.isSelected
-                                  ? '#fff'
-                                  : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
-                                fontSize: '1rem',
-                              }),
-                              singleValue: base => ({
-                                ...base,
-                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                              }),
-                              placeholder: base => ({
-                                ...base,
-                                color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                              }),
-                              input: base => ({
-                                ...base,
-                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                              }),
-                              dropdownIndicator: base => ({
-                                ...base,
-                                color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                                '&:hover': { color: '#3b82f6' },
-                              }),
-                              indicatorSeparator: base => ({
-                                ...base,
-                                backgroundColor: 'transparent',
-                              }),
-                            }}
-                          />
-                        )}
-                      </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pengampu</label>
-                          {(['pbl', 'jurnal'].includes(form.jenisBaris)) && loadingAssignedPBL ? (
-                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
-                              <div className="flex items-center gap-2">
-                                <svg className="w-5 h-5 text-blue-500 animate-spin" fill="none" viewBox="0 0 24 24">
-                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                <span className="text-blue-700 dark:text-blue-300 text-sm font-medium">
-                                  Memuat data assigned dosen...
-                                </span>
-                              </div>
-                            </div>
-                          ) : (form.jenisBaris === 'praktikum' && form.materi && pengampuPraktikumOptions.length === 0) ? (
-                            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
-                              <div className="flex items-center gap-2">
-                                <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                                </svg>
-                                <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                                  Belum ada dosen yang memiliki keahlian "{form.materi}" untuk mata kuliah ini
-                                </span>
-                              </div>
-                              <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                                Silakan tambahkan dosen dengan keahlian "{form.materi}" terlebih dahulu di halaman Dosen Detail
-                              </p>
-                            </div>
-                          ) : (['pbl', 'jurnal'].includes(form.jenisBaris)) && (allDosenOptions.length === 0) ? (
-                            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
-                              <div className="flex items-center gap-2">
-                                <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                                </svg>
-                                <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                                  Belum ada dosen yang tersedia untuk PBL mata kuliah ini
-                                </span>
-                              </div>
-                              <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                                Untuk semester antara, semua dosen tersedia sebagai pengampu PBL
-                              </p>
-                            </div>
-                          ) : (
-                          <Select
-                              options={(() => {
-                                if (form.jenisBaris === 'praktikum') {
-                                  return pengampuPraktikumOptions.map(d => ({ 
-                              value: d.id, 
-                              label: d.name,
-                                    data: d 
-                                  }));
-                                } else if (['pbl', 'jurnal'].includes(form.jenisBaris)) {
-                                  return allDosenOptions.map(d => ({ value: d.id, label: d.name }));
-                                } else {
-                                  return pengampuOptions.map(d => ({ value: d.id, label: d.name }));
-                                }
-                              })()}
-                            value={(() => {
-                              if (form.jenisBaris === 'praktikum') {
-                                return Array.isArray(form.pengampu) 
-                                  ? pengampuPraktikumOptions.filter(d => (form.pengampu as number[]).includes(d.id)).map(d => ({ 
-                                      value: d.id, 
-                                      label: d.name,
-                                      data: d
-                                    }))
-                                  : null;
-                                } else if (['pbl', 'jurnal'].includes(form.jenisBaris)) {
-                                  return allDosenOptions.map(d => ({ value: d.id, label: d.name })).find(opt => opt.value === form.pengampu) || null;
-                              } else {
-                                return pengampuOptions.map(d => ({ value: d.id, label: d.name })).find(opt => opt.value === form.pengampu) || null;
-                              }
-                            })()}
-                            onChange={opt => {
-                              if (form.jenisBaris === 'praktikum') {
-                                // For multi-select, opt is an array of selected options
-                                setForm(f => ({ ...f, pengampu: opt ? (opt as { value: number; label: string; }[]).map(o => o.value) : [] }));
-                              } else {
-                                setForm(f => ({ ...f, pengampu: opt ? Number((opt as { value: number; label: string; }).value) : null }));
-                              }
-                              resetErrorForm();
-                            }}
-                              placeholder={(() => {
-                                if (loadingAssignedPBL && (['pbl', 'jurnal'].includes(form.jenisBaris))) {
-                                  return "Memuat...";
-                                } else if (form.jenisBaris === 'praktikum') {
-                                  return form.materi ? "Pilih Pengampu" : "Pilih materi terlebih dahulu";
-                                } else {
-                                  return "Pilih Pengampu";
-                                }
-                              })()}
-                            isClearable
-                            isMulti={form.jenisBaris === 'praktikum'}
-                            isDisabled={form.jenisBaris === 'praktikum' && !form.materi}
-                              isLoading={loadingAssignedPBL && (['pbl', 'jurnal'].includes(form.jenisBaris))}
-                            classNamePrefix="react-select"
-                            className="react-select-container"
-                            formatOptionLabel={(option: any) => {
-                              if (form.jenisBaris === 'praktikum' && option.data) {
-                                const dosen = option.data;
-                                const isStandby = Array.isArray(dosen.keahlian)
-                                  ? dosen.keahlian.some((k: string) => k.toLowerCase().includes("standby"))
-                                  : (dosen.keahlian || "").toLowerCase().includes("standby");
-                                
-                                return (
-                                  <div className="flex items-center gap-2 p-2">
-                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                                      isStandby ? "bg-yellow-400" : "bg-green-500"
-                                    }`}>
-                                      <span className="text-white text-xs font-bold">
-                                        {dosen.name.charAt(0)}
-                                      </span>
-                                    </div>
-                                    <span className={`text-xs font-medium ${
-                                      isStandby
-                                        ? "text-yellow-800 dark:text-yellow-200"
-                                        : "text-green-700 dark:text-green-200"
-                                    }`}>
-                                      {dosen.name}
-                                    </span>
-                                  </div>
-                                );
-                              }
-                              return option.label;
-                            }}
-                            formatGroupLabel={(data: any) => {
-                              if (form.jenisBaris === 'praktikum') {
-                                return (
-                                  <div className="text-xs font-semibold text-gray-600 dark:text-gray-400 py-1">
-                                    {data.label}
-                                  </div>
-                                );
-                              }
-                              return data.label;
-                            }}
-                            styles={{
-                              control: (base, state) => ({
-                                ...base,
-                                backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#f9fafb',
-                                borderColor: state.isFocused
-                                  ? '#3b82f6'
-                                  : (document.documentElement.classList.contains('dark') ? '#334155' : '#d1d5db'),
-                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                                boxShadow: state.isFocused ? '0 0 0 2px #3b82f633' : undefined,
-                                borderRadius: '0.75rem',
-                                minHeight: '2.5rem',
-                                fontSize: '1rem',
-                                paddingLeft: '0.75rem',
-                                paddingRight: '0.75rem',
-                                '&:hover': { borderColor: '#3b82f6' },
-                              }),
-                              menu: base => ({
-                                ...base,
-                                zIndex: 9999,
-                                fontSize: '1rem',
-                                backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff',
-                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                              }),
-                              option: (base, state) => ({
-                                ...base,
-                                backgroundColor: state.isSelected
-                                  ? '#3b82f6'
-                                  : state.isFocused
-                                  ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                                  : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
-                                color: state.isSelected
-                                  ? '#fff'
-                                  : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
-                                fontSize: '1rem',
-                                padding: '0.5rem',
-                              }),
-                              multiValue: (base, state) => ({
-                                ...base,
-                                backgroundColor: state.data?.data?.keahlian?.some((k: string) => k.toLowerCase().includes("standby"))
-                                  ? '#fef3c7' // yellow-100
-                                  : '#dcfce7', // green-100
-                                border: state.data?.data?.keahlian?.some((k: string) => k.toLowerCase().includes("standby"))
-                                  ? '1px solid #fde68a' // yellow-200
-                                  : '1px solid #bbf7d0', // green-200
-                                borderRadius: '9999px', // rounded-full
-                                padding: '0.25rem 0.75rem', // px-3 py-1
-                                margin: '0.125rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem', // gap-2
-                              }),
-                              multiValueLabel: (base, state) => ({
-                                ...base,
-                                color: state.data?.data?.keahlian?.some((k: string) => k.toLowerCase().includes("standby"))
-                                  ? '#92400e' // yellow-800
-                                  : '#166534', // green-700
-                                fontWeight: '500', // font-medium
-                                fontSize: '0.75rem', // text-xs
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.5rem', // gap-2
-                              }),
-                                                             multiValueRemove: (base) => ({
-                                ...base,
-                                color: '#ef4444', // red-500
-                                ':hover': {
-                                  backgroundColor: '#fee2e2', // red-100
-                                  color: '#dc2626', // red-600
-                                },
-                              }),
-                              singleValue: base => ({
-                                ...base,
-                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                              }),
-                              placeholder: base => ({
-                                ...base,
-                                color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                              }),
-                              input: base => ({
-                                ...base,
-                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                              }),
-                              dropdownIndicator: base => ({
-                                ...base,
-                                color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                                '&:hover': { color: '#3b82f6' },
-                              }),
-                              indicatorSeparator: base => ({
-                                ...base,
-                                backgroundColor: 'transparent',
-                              }),
-                            }}
-                            components={{
-                              MultiValue: ({ data, removeProps }: any) => {
-                                if (form.jenisBaris === 'praktikum' && data.data) {
-                                  const dosen = data.data;
-                                  const isStandby = Array.isArray(dosen.keahlian)
-                                    ? dosen.keahlian.some((k: string) => k.toLowerCase().includes("standby"))
-                                    : (dosen.keahlian || "").toLowerCase().includes("standby");
-                                  
-                                  return (
-                                    <div
-                                      className={`flex items-center gap-2 px-3 py-1 rounded-full ${
-                                        isStandby
-                                          ? "bg-yellow-100 dark:bg-yellow-900/40"
-                                          : "bg-green-100 dark:bg-green-900/40"
-                                      }`}
-                                    >
-                                      <div
-                                        className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                                          isStandby ? "bg-yellow-400" : "bg-green-500"
-                                        }`}
-                                      >
-                                        <span className="text-white text-xs font-bold">
-                                          {dosen.name.charAt(0)}
-                                        </span>
-                                      </div>
-                                      <span
-                                        className={`text-xs font-medium ${
-                                          isStandby
-                                            ? "text-yellow-800 dark:text-yellow-200"
-                                            : "text-green-700 dark:text-green-200"
-                                        }`}
-                                      >
-                                        {dosen.name}
-                                      </span>
-                                      <button
-                                        className="ml-2 p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-full transition text-xs"
-                                        title="Hapus dosen"
-                                        {...removeProps}
-                                      >
-                                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                                        </svg>
-                                      </button>
-                                    </div>
-                                  );
-                                }
-                                return null;
-                              }
-                            }}
-                          />
-                          )}
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Topik</label>
-                          <input type="text" name="topik" value={form.topik} onChange={handleFormChange} className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
-                        </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ruangan</label>
-                        {ruanganList.length === 0 ? (
-                          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
-                            <div className="flex items-center gap-2">
-                              <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                              </svg>
-                              <span className="text-orange-700 dark:text-orange-300 text-sm font-medium">
-                                Belum ada ruangan yang ditambahkan untuk mata kuliah ini
-                              </span>
-                            </div>
-                            <p className="text-orange-600 dark:text-orange-400 text-xs mt-2">
-                              Silakan tambahkan ruangan terlebih dahulu di halaman Ruangan Detail
-                            </p>
-                          </div>
-                        ) : (
-                          <Select
-                            options={ruanganOptions}
-                            value={ruanganOptions.find(opt => opt.value === form.lokasi) || null}
-                            onChange={opt => setForm(f => ({ ...f, lokasi: opt ? Number(opt.value) : null }))}
-                            placeholder="Pilih Ruangan"
-                            isClearable
-                            classNamePrefix="react-select"
-                            className="react-select-container"
-                            styles={{
-                              control: (base, state) => ({
-                                ...base,
-                                backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#f9fafb',
-                                borderColor: state.isFocused
-                                  ? '#3b82f6'
-                                  : (document.documentElement.classList.contains('dark') ? '#334155' : '#d1d5db'),
-                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                                boxShadow: state.isFocused ? '0 0 0 2px #3b82f633' : undefined,
-                                borderRadius: '0.75rem',
-                                minHeight: '2.5rem',
-                                fontSize: '1rem',
-                                paddingLeft: '0.75rem',
-                                paddingRight: '0.75rem',
-                                '&:hover': { borderColor: '#3b82f6' },
-                              }),
-                              menu: base => ({
-                                ...base,
-                                zIndex: 9999,
-                                fontSize: '1rem',
-                                backgroundColor: document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff',
-                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                              }),
-                              option: (base, state) => ({
-                                ...base,
-                                backgroundColor: state.isSelected
-                                  ? '#3b82f6'
-                                  : state.isFocused
-                                  ? (document.documentElement.classList.contains('dark') ? '#334155' : '#e0e7ff')
-                                  : (document.documentElement.classList.contains('dark') ? '#1e293b' : '#fff'),
-                                color: state.isSelected
-                                  ? '#fff'
-                                  : (document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937'),
-                                fontSize: '1rem',
-                              }),
-                              singleValue: base => ({
-                                ...base,
-                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                              }),
-                              placeholder: base => ({
-                                ...base,
-                                color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                              }),
-                              input: base => ({
-                                ...base,
-                                color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
-                              }),
-                              dropdownIndicator: base => ({
-                                ...base,
-                                color: document.documentElement.classList.contains('dark') ? '#64748b' : '#6b7280',
-                                '&:hover': { color: '#3b82f6' },
-                              }),
-                              indicatorSeparator: base => ({
-                                ...base,
-                                backgroundColor: 'transparent',
-                              }),
-                            }}
-                          />
-                        )}
-                      </div>
-                    </>
-                  )}
+                  {/* Form praktikum dihapus - semester antara tidak memiliki praktikum */}
                   {form.jenisBaris === 'agenda' && (
                     <>
                       <div>
@@ -4848,16 +3909,7 @@ export default function DetailBlokAntara() {
                         </div>
                       )}
 
-                      {(form.jenisBaris as string) === 'praktikum' && pengampuPraktikumOptions.length === 0 && form.materi && (
-                        <div className="text-xs text-yellow-600 bg-yellow-50 rounded p-2 mt-2">
-                          Tidak ada dosen yang memiliki keahlian "{form.materi}" untuk praktikum ini. Silakan tambahkan keahlian dosen atau pilih keahlian lain.
-                        </div>
-                      )}
-                      {(form.jenisBaris as string) === 'praktikum' && kelasPraktikumOptions.length === 0 && (
-                        <div className="text-xs text-yellow-600 bg-yellow-50 rounded p-2 mt-2">
-                          Belum ada kelas yang dibuat untuk semester ini. Silakan buat kelas terlebih dahulu di halaman Kelas.
-                        </div>
-                      )}
+                      {/* Validasi praktikum dihapus - semester antara tidak memiliki praktikum */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ruangan</label>
                         {ruanganList.length === 0 ? (
@@ -5567,7 +4619,7 @@ export default function DetailBlokAntara() {
     !form.hariTanggal ||
     (form.jenisBaris === 'materi' && (!form.jamMulai || !form.jumlahKali || !form.pengampu || !form.topik || !form.lokasi)) ||
     (form.jenisBaris === 'agenda' && (!form.agenda || !form.jamMulai || !form.jumlahKali || !form.jamSelesai || (form.useRuangan && !form.lokasi))) ||
-    (form.jenisBaris === 'praktikum' && (!form.kelasPraktikum || !form.topik)) ||
+    // Validasi praktikum dihapus - semester antara tidak memiliki praktikum
     // PERBAIKI BAGIAN INI:
     (form.jenisBaris === 'pbl' && (
       !form.pblTipe ||
@@ -5618,7 +4670,6 @@ export default function DetailBlokAntara() {
                 lokasi: null,
                 jenisBaris: 'pbl',
                 agenda: '',
-                kelasPraktikum: '',
                 pblTipe: '',
                 modul: null,
                 kelompok: '',
@@ -5976,7 +5027,6 @@ export default function DetailBlokAntara() {
                 lokasi: null,
                 jenisBaris: 'jurnal',
                 agenda: '',
-                kelasPraktikum: '',
                 pblTipe: '',
                 modul: null,
                 kelompok: '',
@@ -6396,21 +5446,7 @@ export default function DetailBlokAntara() {
           </div>
         )}
       </AnimatePresence>
-      <AnimatePresence>
-        {showDeletePraktikumModal && (
-          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-gray-500/30 dark:bg-gray-700/50 backdrop-blur-sm" onClick={() => setShowDeletePraktikumModal(false)} />
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.2 }} className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-50 hide-scroll">
-              <h2 className="text-lg font-bold mb-4 text-gray-800 dark:text-white">Konfirmasi Hapus</h2>
-              <p className="mb-6 text-gray-500 dark:text-gray-300">Apakah Anda yakin ingin menghapus data ini? Data yang dihapus tidak dapat dikembalikan.</p>
-              <div className="flex justify-end gap-2">
-                <button onClick={() => setShowDeletePraktikumModal(false)} className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition">Batal</button>
-                <button onClick={handleConfirmDeletePraktikum} className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition">Hapus</button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* Modal praktikum dihapus - semester antara tidak memiliki praktikum */}
       <AnimatePresence>
         {showDeleteJurnalReadingModal && (
           <div className="fixed inset-0 z-[100000] flex items-center justify-center">
@@ -7206,12 +6242,11 @@ export default function DetailBlokAntara() {
                   <p className="mb-6 text-gray-500 dark:text-gray-400">
                     Apakah Anda yakin ingin menghapus <span className="font-semibold text-gray-800 dark:text-white">
                       {bulkDeleteType === 'kuliah-besar' && selectedKuliahBesarItems.length}
-                      {bulkDeleteType === 'praktikum' && selectedPraktikumItems.length}
+                      {/* praktikum dihapus - semester antara tidak memiliki praktikum */}
                       {bulkDeleteType === 'agenda-khusus' && selectedAgendaKhususItems.length}
                       {bulkDeleteType === 'pbl' && selectedPBLItems.length}
                       {bulkDeleteType === 'jurnal-reading' && selectedJurnalReadingItems.length}
                     </span> jadwal {bulkDeleteType === 'kuliah-besar' && 'kuliah besar'}
-                    {bulkDeleteType === 'praktikum' && 'praktikum'}
                     {bulkDeleteType === 'agenda-khusus' && 'agenda khusus'}
                     {bulkDeleteType === 'pbl' && 'PBL'}
                     {bulkDeleteType === 'jurnal-reading' && 'jurnal reading'} terpilih? Data yang dihapus tidak dapat dikembalikan.

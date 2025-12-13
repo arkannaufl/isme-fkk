@@ -102,10 +102,10 @@ export default function DetailAbSenMahasiswaPraktikum() {
       
       console.log('QR Enabled setelah parse:', qrEnabledValue);
 
-      // VALIDASI: Cek apakah mahasiswa terdaftar di jadwal ini (praktikum menggunakan kelas praktikum)
+      // VALIDASI: Cek apakah mahasiswa terdaftar di jadwal ini (praktikum menggunakan kelompok kecil)
       let mahasiswaTerdaftar: any[] = [];
       
-      // Fetch mahasiswa dari kelas praktikum
+      // Fetch mahasiswa dari kelompok kecil
       try {
         const mahasiswaResponse = await api.get(`/praktikum/${kode}/jadwal/${jadwalId}/mahasiswa`);
         const mahasiswaList = mahasiswaResponse.data?.mahasiswa || [];
@@ -117,7 +117,7 @@ export default function DetailAbSenMahasiswaPraktikum() {
           }))
           .filter((m: any) => m.id && m.nim && m.nim !== 'N/A' && m.nim !== '');
       } catch (err) {
-        console.error('Error fetching mahasiswa dari kelas praktikum:', err);
+        console.error('Error fetching mahasiswa dari kelompok kecil:', err);
       }
 
       // Normalisasi NIM untuk perbandingan yang lebih robust

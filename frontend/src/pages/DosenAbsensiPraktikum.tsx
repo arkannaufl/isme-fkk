@@ -856,7 +856,7 @@ export default function DosenAbsensiPraktikumPage() {
       setJadwalDetail(foundJadwal);
       setQrEnabled(foundJadwal.qr_enabled || false);
 
-      // Fetch mahasiswa dari kelas praktikum
+      // Fetch mahasiswa dari kelompok kecil
       try {
         const mahasiswaResponse = await api.get(
           `/praktikum/${kode}/jadwal/${jadwalId}/mahasiswa`
@@ -866,17 +866,17 @@ export default function DosenAbsensiPraktikumPage() {
 
         if (mahasiswa.length === 0) {
           setError(
-            "Tidak ada mahasiswa yang terdaftar di kelas praktikum ini."
+            "Tidak ada mahasiswa yang terdaftar di kelompok kecil ini."
           );
         }
       } catch (err: any) {
         const errorMessage =
           err?.response?.data?.message || err?.message || "Unknown error";
         
-        // Jika error 404 dengan message "Kelas praktikum tidak ditemukan", tampilkan pesan yang lebih informatif
-        if (err?.response?.status === 404 && errorMessage.includes("Kelas praktikum tidak ditemukan")) {
+        // Jika error 404 dengan message "Kelompok kecil tidak ditemukan", tampilkan pesan yang lebih informatif
+        if (err?.response?.status === 404 && errorMessage.includes("Kelompok kecil tidak ditemukan")) {
           setError(
-            "Kelas praktikum tidak ditemukan. Pastikan kelas praktikum sudah dibuat dan sesuai dengan jadwal praktikum."
+            "Kelompok kecil tidak ditemukan. Pastikan kelompok kecil sudah dibuat dan sesuai dengan jadwal praktikum."
           );
         } else {
           setError(`Gagal memuat data mahasiswa: ${errorMessage}`);
@@ -1786,7 +1786,7 @@ export default function DosenAbsensiPraktikumPage() {
         jadwalDetail?.mata_kuliah_kode ||
         "-";
       const semester = jadwalDetail?.mata_kuliah?.semester || "-";
-      const kelasPraktikum = jadwalDetail?.kelas_praktikum || "-";
+      const kelompokKecil = jadwalDetail?.kelompok_kecil?.nama_kelompok || "-";
       const tanggal = jadwalDetail.tanggal
         ? new Date(jadwalDetail.tanggal).toLocaleDateString("id-ID", {
             weekday: "long",
@@ -1808,7 +1808,7 @@ export default function DosenAbsensiPraktikumPage() {
 
       const infoData = [
         ["Mata Kuliah:", mataKuliahNama, "", "Semester:", semester],
-        ["Kelas Praktikum:", kelasPraktikum, "", "Tanggal:", tanggal],
+        ["Kelompok Kecil:", kelompokKecil, "", "Tanggal:", tanggal],
         ["Materi:", materi, "", "Waktu:", waktu],
         ["Topik:", topik, "", "Ruangan:", ruangan],
         ["Dibuat:", new Date().toLocaleDateString("id-ID"), "", "", ""],
@@ -2323,7 +2323,7 @@ export default function DosenAbsensiPraktikumPage() {
         jadwalDetail?.mata_kuliah_kode ||
         "-";
       const semester = jadwalDetail?.mata_kuliah?.semester || "-";
-      const kelasPraktikum = jadwalDetail?.kelas_praktikum || "-";
+      const kelompokKecil = jadwalDetail?.kelompok_kecil?.nama_kelompok || "-";
       const tanggal = jadwalDetail.tanggal
         ? new Date(jadwalDetail.tanggal).toLocaleDateString("id-ID", {
             weekday: "long",
@@ -2351,8 +2351,8 @@ export default function DosenAbsensiPraktikumPage() {
       doc.text("Semester", margin, yPos);
       doc.text(`: ${semester}`, colonXKelas, yPos);
       yPos += 6;
-      doc.text("Kelas Praktikum", margin, yPos);
-      doc.text(`: ${kelasPraktikum}`, colonXKelas, yPos);
+      doc.text("Kelompok Kecil", margin, yPos);
+      doc.text(`: ${kelompokKecil}`, colonXKelas, yPos);
       yPos += 6;
       doc.text("Materi", margin, yPos);
       doc.text(`: ${materi}`, colonXKelas, yPos);

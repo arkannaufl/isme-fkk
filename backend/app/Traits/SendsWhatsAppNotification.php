@@ -77,8 +77,13 @@ trait SendsWhatsAppNotification
             $message .= "Ruangan: {$ruangan}\n";
         }
 
-        if (isset($jadwalData['kelas_praktikum'])) {
-            $message .= "Kelas: {$jadwalData['kelas_praktikum']}\n";
+        if (isset($jadwalData['kelompok_kecil'])) {
+            $namaKelompok = is_array($jadwalData['kelompok_kecil']) 
+                ? ($jadwalData['kelompok_kecil']['nama_kelompok'] ?? '') 
+                : $jadwalData['kelompok_kecil'];
+            if ($namaKelompok) {
+                $message .= "Kelompok: {$namaKelompok}\n";
+            }
         }
 
         if (isset($jadwalData['topik'])) {

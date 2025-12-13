@@ -682,7 +682,7 @@ class UserController extends Controller
                             'jumlah_sesi' => $item->jumlah_sesi,
                             'semester' => $item->mata_kuliah->semester ?? '',
                             'blok' => $item->mata_kuliah->blok ?? null,
-                            'kelompok_kecil' => $item->kelas_praktikum,
+                            'kelompok_kecil' => $item->kelompokKecil ? $item->kelompokKecil->nama_kelompok : null,
                             'status_konfirmasi' => $statusKonfirmasi,
                             'alasan_konfirmasi' => $item->alasan_konfirmasi ?? null,
                             'status_reschedule' => $item->status_reschedule ?? null,

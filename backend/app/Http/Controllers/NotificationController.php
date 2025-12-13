@@ -2277,7 +2277,7 @@ class NotificationController extends Controller
         $whatsappMessages = [];
 
         // Get Praktikum schedules based on reminder type
-        $query = \App\Models\JadwalPraktikum::with(['mataKuliah', 'ruangan', 'dosen']);
+        $query = \App\Models\JadwalPraktikum::with(['mataKuliah', 'ruangan', 'kelompokKecil', 'dosen']);
 
         if ($reminderType === 'unconfirmed') {
             $query->whereHas('dosen', function ($q) {
@@ -5498,8 +5498,8 @@ class NotificationController extends Controller
                 if ($jadwal->topik) {
                     $content .= "Topik: {$jadwal->topik}\n";
                 }
-                if ($jadwal->kelas_praktikum) {
-                    $content .= "Kelas: {$jadwal->kelas_praktikum}\n";
+                if ($jadwal->kelompokKecil) {
+                    $content .= "Kelompok: {$jadwal->kelompokKecil->nama_kelompok}\n";
                 }
                 break;
 
@@ -5628,7 +5628,7 @@ class NotificationController extends Controller
             case 'kuliah_besar':
                 return \App\Models\JadwalKuliahBesar::with(['mataKuliah', 'ruangan', 'dosen'])->find($jadwalId);
             case 'praktikum':
-                return \App\Models\JadwalPraktikum::with(['mataKuliah', 'ruangan'])->find($jadwalId);
+                return \App\Models\JadwalPraktikum::with(['mataKuliah', 'ruangan', 'kelompokKecil'])->find($jadwalId);
             case 'jurnal_reading':
                 return \App\Models\JadwalJurnalReading::with(['mataKuliah', 'ruangan', 'dosen'])->find($jadwalId);
             case 'csr':

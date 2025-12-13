@@ -1939,7 +1939,7 @@ export default function PetaBlok() {
 
         if (topik) labelParts.push(`Topik: ${topik}`);
         if (ruang) labelParts.push(`Ruang: ${ruang}`);
-        if (kb.kelas_praktikum) labelParts.push(`Kelas: ${kb.kelas_praktikum}`);
+        if (kb.kelompok_kecil?.nama_kelompok) labelParts.push(`Kelompok: ${kb.kelompok_kecil.nama_kelompok}`);
         if (dosen) labelParts.push(`Dosen: ${dosen}`);
         if (kb.__blok && kb.__blok > 0) labelParts.push(`Blok: ${kb.__blok}`);
 
@@ -2049,7 +2049,7 @@ export default function PetaBlok() {
       const jumlah = Number(pr.jumlah_sesi || 2);
 
       const topik = pr.topik || "";
-      const kelas = pr.kelas_praktikum || "";
+      const kelompok = pr.kelompok_kecil?.nama_kelompok || "";
 
       // Parse dosen dari array objects - extract 'name' field
       let dosen = "";
@@ -2080,7 +2080,7 @@ export default function PetaBlok() {
       // Detail untuk popup
       const detail = {
         topik,
-        kelas,
+        kelompok,
         dosen,
         ruang,
         kode: pr.__kode,
@@ -3655,14 +3655,14 @@ export default function PetaBlok() {
                                 </div>
                               </div>
                             )}
-                            {detail.detail.kelas && (
+                            {detail.detail.kelompok && (
                               <div className="flex items-start gap-3 p-3 bg-white/60 dark:bg-gray-700/40 rounded-xl border border-gray-200/50 dark:border-gray-600/50">
                                 <div className="flex-1">
                                   <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                                    Kelas
+                                    Kelompok Kecil
                                   </span>
                                   <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mt-1">
-                                    {detail.detail.kelas}
+                                    {detail.detail.kelompok}
                                   </p>
                                 </div>
                               </div>

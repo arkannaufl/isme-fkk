@@ -24,11 +24,9 @@ import DetailSeminarProposal from "./pages/DetailSeminarProposal";
 import DetailSidangSkripsi from "./pages/DetailSidangSkripsi";
 import PenilaianSeminarProposal from "./pages/PenilaianSeminarProposal";
 import PenilaianSidangSkripsi from "./pages/PenilaianSidangSkripsi";
-import Kelas from "./pages/Kelas";
 import KelompokBesar from "./pages/KelompokBesar";
 import Kelompok from "./pages/Kelompok";
 import KelompokKecil from "./pages/KelompokKecil";
-import KelasDetail from "./pages/KelasDetail";
 import MahasiswaVeteran from "./pages/MahasiswaVeteran";
 import Histori from "./pages/Histori";
 import ReportingDosen from "./pages/ReportingDosen";
@@ -730,16 +728,6 @@ function AppContent() {
                 }
               />
               <Route
-                path="/generate/kelas"
-                element={
-                  <RequireDosenRole
-                    allowedRoles={["super_admin", "tim_akademik"]}
-                  >
-                    <Kelas />
-                  </RequireDosenRole>
-                }
-              />
-              <Route
                 path="/generate/mahasiswa-veteran"
                 element={
                   <RequireDosenRole
@@ -784,16 +772,6 @@ function AppContent() {
                     allowedRoles={["super_admin", "tim_akademik"]}
                   >
                     <KelompokKecil />
-                  </RequireDosenRole>
-                }
-              />
-              <Route
-                path="/generate/kelas/:semester"
-                element={
-                  <RequireDosenRole
-                    allowedRoles={["super_admin", "tim_akademik"]}
-                  >
-                    <KelasDetail />
                   </RequireDosenRole>
                 }
               />

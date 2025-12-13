@@ -120,7 +120,7 @@ interface JadwalPraktikum {
   status_reschedule?: "waiting" | "approved" | "rejected";
   mata_kuliah_kode: string;
   mata_kuliah_nama: string;
-  kelas_praktikum: string;
+  kelompok_kecil?: { id: number; nama_kelompok: string } | null;
   dosen: Array<{
     id: number;
     name: string;
@@ -554,7 +554,7 @@ export default function DashboardDosen() {
       jam_mulai: string;
       jam_selesai: string;
       ruangan: string;
-      kelas_praktikum: string;
+      kelompok_kecil?: { id: number; nama_kelompok: string } | null;
       materi: string;
       topik?: string;
       koordinator_signature: string | null;
@@ -1129,7 +1129,7 @@ export default function DashboardDosen() {
       if (selectedJadwal.modul) {
         endpoint = `/jadwal-pbl/${selectedJadwal.id}/konfirmasi`;
         payload.dosen_id = getUser()?.id;
-      } else if (selectedJadwal.kelas_praktikum !== undefined) {
+      } else if (selectedJadwal.kelompok_kecil !== undefined) {
         endpoint = `/jadwal-praktikum/${selectedJadwal.id}/konfirmasi`;
         payload.dosen_id = getUser()?.id;
       } else if (selectedJadwal.file_jurnal !== undefined) {
@@ -1146,7 +1146,7 @@ export default function DashboardDosen() {
       } else if (
         selectedJadwal.koordinator_ids !== undefined &&
         !selectedJadwal.modul &&
-        !selectedJadwal.kelas_praktikum &&
+        !selectedJadwal.kelompok_kecil &&
         !selectedJadwal.file_jurnal &&
         !selectedJadwal.jenis_csr &&
         !selectedJadwal.jenis_baris
@@ -1208,7 +1208,7 @@ export default function DashboardDosen() {
       } else if (
         selectedJadwal.koordinator_ids !== undefined &&
         !selectedJadwal.modul &&
-        !selectedJadwal.kelas_praktikum &&
+        !selectedJadwal.kelompok_kecil &&
         !selectedJadwal.file_jurnal &&
         !selectedJadwal.jenis_csr &&
         !selectedJadwal.jenis_baris
@@ -2004,7 +2004,7 @@ export default function DashboardDosen() {
                       )}
                       {jadwalType === "praktikum" && (
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
-                          {item.kelas_praktikum}
+                          {item.kelompok_kecil?.nama_kelompok || "-"}
                         </td>
                       )}
                       {jadwalType !== "pbl" && (
@@ -3771,8 +3771,8 @@ export default function DashboardDosen() {
                             })()}
                           </p>
                           <p>
-                            <span className="font-medium">Kelas:</span>{" "}
-                            {praktikum.kelas_praktikum}
+                            <span className="font-medium">Kelompok Kecil:</span>{" "}
+                            {praktikum.kelompok_kecil?.nama_kelompok || "-"}
                           </p>
                           {praktikum.materi && (
                             <p>

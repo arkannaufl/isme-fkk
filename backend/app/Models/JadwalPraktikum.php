@@ -17,7 +17,7 @@ class JadwalPraktikum extends Model
         'mata_kuliah_kode',
         'materi',
         'topik',
-        'kelas_praktikum',
+        'kelompok_kecil_id',
         'ruangan_id',
         'tanggal',
         'jam_mulai',
@@ -62,6 +62,11 @@ class JadwalPraktikum extends Model
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function kelompokKecil()
+    {
+        return $this->belongsTo(KelompokKecil::class, 'kelompok_kecil_id');
     }
 
     public function getActivitylogOptions(): LogOptions

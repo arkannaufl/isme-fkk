@@ -75,19 +75,7 @@ export interface KelompokKecil {
   updated_at: string;
 }
 
-export interface Kelas {
-  id: number;
-  semester: string;
-  nama_kelas: string;
-  deskripsi?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface KelasResponse {
-  semester: Semester;
-  data: Kelas[];
-}
+// Kelas interface - DIHAPUS, tidak diperlukan lagi
 
 export interface KelompokStats {
   kelompok: string;
@@ -179,41 +167,7 @@ export const kelompokKecilApi = {
     api.post('/kelompok-kecil/batch-by-semester', data),
 };
 
-// Kelas API
-export const kelasApi = {
-  // Get kelas per semester
-  getBySemester: (semester: string) =>
-    api.get<Kelas[]>(`/kelas/semester/${semester}`),
-
-  // Get kelas per semester ID
-  getBySemesterId: (semesterId: number) =>
-    api.get<KelasResponse>(`/kelas/semester-id/${semesterId}`),
-
-  // Buat kelas baru
-  create: (data: {
-    semester: string;
-    nama_kelas: string;
-    deskripsi?: string;
-    kelompok_ids: string[];
-  }) =>
-    api.post('/kelas', data),
-
-  // Get detail kelas
-  getById: (id: number) =>
-    api.get(`/kelas/${id}`),
-
-  // Update kelas
-  update: (id: number, data: {
-    nama_kelas: string;
-    deskripsi?: string;
-    kelompok_ids: string[];
-  }) =>
-    api.put(`/kelas/${id}`, data),
-
-  // Hapus kelas
-  delete: (id: number) =>
-    api.delete(`/kelas/${id}`),
-};
+// Kelas API - DIHAPUS, tidak diperlukan lagi
 
 // Mahasiswa API (untuk mendapatkan data mahasiswa)
 export const mahasiswaApi = {

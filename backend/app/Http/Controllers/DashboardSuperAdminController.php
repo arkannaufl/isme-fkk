@@ -6,7 +6,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Models\User;
 use App\Models\MataKuliah;
-use App\Models\Kelas;
 use App\Models\Ruangan;
 use App\Models\JadwalKuliahBesar;
 use App\Models\JadwalPBL;
@@ -54,9 +53,7 @@ class DashboardSuperAdminController extends Controller
             $totalMataKuliah = Cache::remember('stats_total_mata_kuliah', 300, function () {
                 return MataKuliah::count();
             });
-            $totalKelas = Cache::remember('stats_total_kelas', 300, function () {
-                return Kelas::count();
-            });
+            // Kelas feature removed - using kelompok kecil directly
             $totalRuangan = Cache::remember('stats_total_ruangan', 300, function () {
                 return Ruangan::count();
             });
@@ -104,7 +101,7 @@ class DashboardSuperAdminController extends Controller
                 'totalSuperAdmin' => $totalSuperAdmin,
                 'superAdmins' => $superAdmins,
                 'totalMataKuliah' => $totalMataKuliah,
-                'totalKelas' => $totalKelas,
+                // 'totalKelas' removed - Kelas feature no longer exists
                 'totalRuangan' => $totalRuangan,
                 'totalJadwalAktif' => $totalJadwalAktif,
                 'recentActivities' => $recentActivities,
@@ -454,9 +451,9 @@ class DashboardSuperAdminController extends Controller
             if ($mataKuliahAntara->isEmpty()) return 0;
             
             // Hitung mahasiswa dengan attendance rendah
-            $studentsWithLowAttendance = Kelas::whereIn('mata_kuliah_kode', $mataKuliahAntara)
-                ->distinct('mahasiswa_nim')
-                ->count('mahasiswa_nim');
+            // Hapus logika ini karena menggunakan Kelas yang sudah dihapus
+            // TODO: Implementasi ulang jika diperlukan menggunakan kelompok_kecil
+            $studentsWithLowAttendance = 0;
             
             // Simplified: assume 20% of students have low attendance
             return max(0, round($studentsWithLowAttendance * 0.2));

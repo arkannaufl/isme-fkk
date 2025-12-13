@@ -81,7 +81,7 @@ interface JadwalPraktikum {
   jam_selesai: string;
   materi: string;
   topik?: string;
-  kelas_praktikum: string;
+  kelompok_kecil?: { id: number; nama_kelompok: string } | null;
   dosen: Array<{
     id: number;
     name: string;
@@ -1129,7 +1129,7 @@ export default function DashboardMahasiswa() {
                     )}
                     {jadwalType === "praktikum" && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {item.kelas_praktikum}
+                        {item.kelompok_kecil?.nama_kelompok || "-"}
                       </td>
                     )}
                     {jadwalType !== "pbl" && (

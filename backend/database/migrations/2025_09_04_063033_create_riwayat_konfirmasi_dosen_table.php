@@ -25,7 +25,7 @@ return new class extends Migration
             $table->text('materi')->nullable();
             $table->text('topik')->nullable();
             $table->text('agenda')->nullable();
-            $table->string('kelas_praktikum')->nullable(); // untuk praktikum
+            $table->string('kelompok_kecil_name')->nullable(); // untuk praktikum (changed from kelas_praktikum)
             $table->enum('status_konfirmasi', ['bisa', 'tidak_bisa']);
             $table->text('alasan_konfirmasi')->nullable();
             $table->timestamp('waktu_konfirmasi');

@@ -24,7 +24,7 @@ class RiwayatKonfirmasiDosen extends Model
         'materi',
         'topik',
         'agenda',
-        'kelas_praktikum',
+        'kelompok_kecil',
         'status_konfirmasi',
         'alasan_konfirmasi',
         'waktu_konfirmasi'
