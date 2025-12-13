@@ -93,6 +93,9 @@ const PedomanPoinIKD: React.FC = () => {
   const [importedCount, setImportedCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // State untuk zoom tabel
+  const [tableZoom, setTableZoom] = useState(1); // 1 = 100%, default
+
   // Fetch data
   useEffect(() => {
     fetchPedomanData();
@@ -1893,6 +1896,33 @@ const PedomanPoinIKD: React.FC = () => {
     });
   };
 
+  // Helper function to delay execution
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+  // Helper function to retry API calls with exponential backoff
+  const retryApiCall = async <T>(
+    apiCall: () => Promise<T>,
+    maxRetries: number = 3,
+    baseDelay: number = 1000
+  ): Promise<T> => {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await apiCall();
+      } catch (error: any) {
+        // If it's a 429 error and we have retries left, wait and retry
+        if (error.response?.status === 429 && attempt < maxRetries - 1) {
+          const waitTime = baseDelay * Math.pow(2, attempt); // Exponential backoff: 1s, 2s, 4s
+          console.log(`Rate limited. Retrying in ${waitTime}ms... (Attempt ${attempt + 1}/${maxRetries})`);
+          await delay(waitTime);
+          continue;
+        }
+        // If not a 429 or no retries left, throw the error
+        throw error;
+      }
+    }
+    throw new Error('Max retries exceeded');
+  };
+
   // Handle submit import
   const handleSubmitImport = async () => {
     if (!previewData || previewData.length === 0) return;
@@ -1930,6 +1960,10 @@ const PedomanPoinIKD: React.FC = () => {
         const mainItems = items.filter((item) => !item.is_sub_item);
         const subItems = items.filter((item) => item.is_sub_item);
 
+        // Map to store created/updated main items with their IDs
+        // Key: `${bidang}-${no}`, Value: { id, no, bidang }
+        const createdMainItemsMap: { [key: string]: { id: number; no: string; bidang: string } } = {};
+
         // Process main items first
         for (const item of mainItems) {
           try {
@@ -1955,13 +1989,35 @@ const PedomanPoinIKD: React.FC = () => {
                 (!existing.parent_id || existing.parent_id === null)
             );
 
+            let mainItemId: number | null = null;
+
             if (existingItem?.id) {
-              // Update existing item
-              await api.put(`/rekap-ikd/pedoman-poin/${existingItem.id}`, payload);
+              // Update existing item with retry logic
+              await retryApiCall(() => api.put(`/rekap-ikd/pedoman-poin/${existingItem.id}`, payload));
+              mainItemId = existingItem.id;
             } else {
-              // Create new item
-              await api.post("/rekap-ikd/pedoman-poin", payload);
+              // Create new item and get the ID from response with retry logic
+              const response = await retryApiCall(() => api.post("/rekap-ikd/pedoman-poin", payload));
+              // Try to get ID from response
+              mainItemId = response.data?.data?.id || response.data?.id || null;
+              if (!mainItemId && response.data?.success && response.data?.data?.id) {
+                mainItemId = response.data.data.id;
+              }
             }
+
+            // Add small delay between requests to avoid rate limiting (50ms)
+            await delay(50);
+
+            // Store the created/updated item with its ID for later use by sub-items
+            if (mainItemId) {
+              const mapKey = `${bidang}-${item.no}`;
+              createdMainItemsMap[mapKey] = {
+                id: mainItemId,
+                no: item.no,
+                bidang: bidang,
+              };
+            }
+
             totalImported++;
           } catch (err: any) {
             console.error("Error importing item:", err);
@@ -1969,68 +2025,91 @@ const PedomanPoinIKD: React.FC = () => {
           }
         }
 
-        // Process sub-items after main items
-        // Create a map of main items by their ID for quick lookup
-        const mainItemsMap: { [key: string]: any } = {};
-        mainItems.forEach((item) => {
-          const key = `${item.bidang}-${item.no}-${item.kegiatan}`;
-          mainItemsMap[key] = item;
-        });
+        // Fetch all pedoman data once after creating all main items (only if needed)
+        // Initialize with existing pedomanData, will be updated if fetch is needed
+        let allPedomanData: any[] = [...pedomanData];
+        let needsFetch = false;
+        for (const subItem of subItems) {
+          const mapKey = `${bidang}-${subItem.parent_no}`;
+          if (!createdMainItemsMap[mapKey]) {
+            // Check if parent exists in existing pedomanData
+            const parentInExisting = pedomanData.find(
+              (p) =>
+                p.no === subItem.parent_no &&
+                p.bidang === bidang &&
+                (p.level === 0 || p.level === undefined) &&
+                (!p.parent_id || p.parent_id === null)
+            );
+            if (!parentInExisting) {
+              needsFetch = true;
+              break;
+            }
+          }
+        }
 
+        // Only fetch once if needed
+        if (needsFetch) {
+          try {
+            // Add delay before fetch to let previous requests complete
+            await delay(200);
+            const pedomanRes = await retryApiCall(() => api.get(`/rekap-ikd/pedoman-poin`));
+            const fetchedData = pedomanRes.data?.success && pedomanRes.data?.data
+              ? pedomanRes.data.data
+              : Array.isArray(pedomanRes.data) ? pedomanRes.data : [];
+            // Merge with existing data, replacing with fetched data
+            allPedomanData = [...fetchedData];
+            
+            // Update createdMainItemsMap with IDs from fetched data
+            for (const item of mainItems) {
+              const mapKey = `${bidang}-${item.no}`;
+              if (!createdMainItemsMap[mapKey]) {
+                const foundParent = allPedomanData.find(
+                  (p: any) =>
+                    String(p.no || "").trim() === String(item.no || "").trim() &&
+                    String(p.bidang || "").trim() === String(bidang || "").trim() &&
+                    (p.level === 0 || p.level === undefined) &&
+                    (!p.parent_id || p.parent_id === null)
+                );
+                if (foundParent?.id) {
+                  createdMainItemsMap[mapKey] = {
+                    id: foundParent.id,
+                    no: item.no,
+                    bidang: bidang,
+                  };
+                }
+              }
+            }
+          } catch (err) {
+            console.error("Error fetching pedoman data:", err);
+          }
+        }
+
+        // Process sub-items after main items
         for (const subItem of subItems) {
           try {
-            let parentItem: any = null;
             let parentId: number | null = null;
+            const mapKey = `${bidang}-${subItem.parent_no}`;
 
-            // Find parent by parent_no and bidang only (simple lookup)
-            // First try in main items we just created
-            parentItem = mainItems.find(
-              (m) => m.no === subItem.parent_no && m.bidang === bidang
-            );
-            
-            // If not found, try in existing data
-            if (!parentItem) {
-              parentItem = pedomanData.find(
+            // First, try to get parent ID from created main items map
+            if (createdMainItemsMap[mapKey]) {
+              parentId = createdMainItemsMap[mapKey].id;
+            } else {
+              // If not found, try in existing/fetched pedoman data
+              const parentItem = allPedomanData.find(
                 (p) =>
                   p.no === subItem.parent_no &&
                   p.bidang === bidang &&
                   (p.level === 0 || p.level === undefined) &&
                   (!p.parent_id || p.parent_id === null)
               );
-            }
-            
-            if (parentItem?.id) {
-              parentId = parentItem.id;
-            }
-
-            // If parent was just created in this import session, we need to fetch its ID
-            if (parentItem && !parentId) {
-              // Fetch all pedoman to get the ID of the newly created parent
-              try {
-                const pedomanRes = await api.get(`/rekap-ikd/pedoman-poin`);
-                const allPedoman = pedomanRes.data?.success && pedomanRes.data?.data
-                  ? pedomanRes.data.data
-                  : Array.isArray(pedomanRes.data) ? pedomanRes.data : [];
-                
-                // Find the parent we just created by no and bidang
-                const foundParent = allPedoman.find(
-                  (p: any) =>
-                    String(p.no || "").trim() === String(parentItem.no || "").trim() &&
-                    String(p.bidang || "").trim() === String(parentItem.bidang || "").trim() &&
-                    (p.level === 0 || p.level === undefined) &&
-                    (!p.parent_id || p.parent_id === null)
-                );
-                
-                if (foundParent?.id) {
-                  parentId = foundParent.id;
-                }
-              } catch (err) {
-                console.error("Error fetching parent ID:", err);
+              
+              if (parentItem?.id) {
+                parentId = parentItem.id;
               }
             }
 
-            if (!parentItem || !parentId) {
-              console.error(`Parent not found for sub-item: ${subItem.kegiatan}, parent_no: ${subItem.parent_no}`);
+            if (!parentId) {
+              console.error(`Parent not found for sub-item: ${subItem.kegiatan}, parent_no: ${subItem.parent_no}, bidang: ${bidang}`);
               totalErrors++;
               continue;
             }
@@ -2050,8 +2129,8 @@ const PedomanPoinIKD: React.FC = () => {
               level: 1,
             };
 
-            // Check if sub-item already exists
-            const existingSubItem = pedomanData.find(
+            // Check if sub-item already exists (use allPedomanData which includes newly fetched data)
+            const existingSubItem = allPedomanData.find(
               (existing) =>
                 existing.no === subItem.no &&
                 existing.bidang === bidang &&
@@ -2060,13 +2139,16 @@ const PedomanPoinIKD: React.FC = () => {
             );
 
             if (existingSubItem?.id) {
-              // Update existing sub-item
-              await api.put(`/rekap-ikd/pedoman-poin/${existingSubItem.id}`, payload);
+              // Update existing sub-item with retry logic
+              await retryApiCall(() => api.put(`/rekap-ikd/pedoman-poin/${existingSubItem.id}`, payload));
             } else {
-              // Create new sub-item
-              await api.post("/rekap-ikd/pedoman-poin", payload);
+              // Create new sub-item with retry logic
+              await retryApiCall(() => api.post("/rekap-ikd/pedoman-poin", payload));
             }
             totalImported++;
+            
+            // Add small delay between sub-item requests to avoid rate limiting (100ms for sub-items)
+            await delay(100);
           } catch (err: any) {
             console.error("Error importing sub-item:", err);
             totalErrors++;
@@ -2074,8 +2156,40 @@ const PedomanPoinIKD: React.FC = () => {
         }
       }
 
-      // Reload data after import
-      await fetchPedomanData();
+      // Reload data after import with delay to let all requests complete
+      await delay(500);
+      try {
+        // Fetch with retry logic
+        const res = await retryApiCall(() => api.get("/rekap-ikd/pedoman-poin"));
+        let data: IKDPedomanItem[] = [];
+        if (res.data?.success && Array.isArray(res.data.data)) {
+          data = res.data.data;
+        } else if (Array.isArray(res.data)) {
+          data = res.data;
+        }
+        setPedomanData(data);
+        
+        // Extract unique bidang from pedomanData and populate bidangList
+        const uniqueBidang = new Map<string, { kode: string; nama: string; is_auto: boolean }>();
+        data.forEach((item) => {
+          if (item.bidang && !uniqueBidang.has(item.bidang)) {
+            uniqueBidang.set(item.bidang, {
+              kode: item.bidang,
+              nama: item.bidang_nama || item.bidang,
+              is_auto: false,
+            });
+          }
+        });
+        setBidangList(Array.from(uniqueBidang.values()));
+      } catch (err) {
+        console.error("Error reloading data after import:", err);
+        // Don't fail the entire import if reload fails, just try to fetch normally
+        try {
+          await fetchPedomanData();
+        } catch (fetchErr) {
+          console.error("Error in fallback fetch:", fetchErr);
+        }
+      }
 
       setImportedCount(totalImported);
       if (totalErrors > 0) {
@@ -2615,6 +2729,47 @@ const PedomanPoinIKD: React.FC = () => {
           </div>
         )}
 
+        {/* Zoom Controls - hanya tampil jika ada data */}
+        {hasData && !loading && (
+          <div className="flex justify-between items-center mb-3">
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              Zoom: {Math.round(tableZoom * 100)}%
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setTableZoom(prev => Math.max(0.5, prev - 0.1))}
+                className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors flex items-center gap-2 text-sm"
+                title="Zoom Out"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" />
+                </svg>
+                Zoom Out
+              </button>
+              <button
+                onClick={() => setTableZoom(1)}
+                className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors flex items-center gap-2 text-sm"
+                title="Reset Zoom"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Reset
+              </button>
+              <button
+                onClick={() => setTableZoom(prev => Math.min(2, prev + 0.1))}
+                className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors flex items-center gap-2 text-sm"
+                title="Zoom In"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+                </svg>
+                Zoom In
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Table */}
         {loading ? (
           <div className="overflow-x-auto w-full">
@@ -2674,8 +2829,16 @@ const PedomanPoinIKD: React.FC = () => {
             </table>
           </div>
         ) : hasData ? (
-          <div className="overflow-x-auto w-full">
-            <table className="w-full border-collapse border border-gray-300 dark:border-gray-700">
+          <div className="overflow-auto w-full" style={{ maxHeight: '80vh' }}>
+            <div 
+              style={{ 
+                transform: `scale(${tableZoom})`, 
+                transformOrigin: 'top left',
+                transition: 'transform 0.2s ease-in-out',
+                width: `${100 / tableZoom}%`
+              }}
+            >
+              <table className="w-full border-collapse border border-gray-300 dark:border-gray-700">
                 <thead>
                   <tr className="bg-gray-100 dark:bg-gray-800">
                     <th className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-left text-sm font-semibold text-gray-900 dark:text-white">
@@ -2746,6 +2909,7 @@ const PedomanPoinIKD: React.FC = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
           </div>
         ) : (
           <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg">
@@ -3924,7 +4088,8 @@ const PedomanPoinIKD: React.FC = () => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[100000] bg-black/40 dark:bg-black/60 backdrop-blur-sm"
+                className="fixed top-0 left-0 right-0 bottom-0 z-[100000] bg-black/40 dark:bg-black/60 backdrop-blur-sm"
+                style={{ width: '100vw', height: '100vh', minHeight: '100vh' }}
                 onClick={() => {
                   if (!isSaving) {
                     setShowImportModal(false);
@@ -4074,9 +4239,9 @@ const PedomanPoinIKD: React.FC = () => {
 
                         {/* Preview Table */}
                         {previewData.length > 0 && (
-                          <div className="overflow-x-auto">
+                          <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
                             <table className="w-full border-collapse border border-gray-300 dark:border-gray-700 text-sm">
-                              <thead>
+                              <thead className="sticky top-0 bg-gray-100 dark:bg-gray-700 z-10">
                                 <tr className="bg-gray-100 dark:bg-gray-700">
                                   <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">Bidang</th>
                                   <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">NO</th>
@@ -4090,7 +4255,7 @@ const PedomanPoinIKD: React.FC = () => {
                                 </tr>
                               </thead>
                               <tbody>
-                                {previewData.slice(0, 50).map((row, idx) => {
+                                {previewData.map((row, idx) => {
                                   const rowNum = idx + 2;
                                   const hasError = validationErrors.some((err) => err.row === rowNum);
                                   return (
@@ -4210,11 +4375,9 @@ const PedomanPoinIKD: React.FC = () => {
                                 })}
                               </tbody>
                             </table>
-                            {previewData.length > 50 && (
-                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 text-center">
-                                Menampilkan 50 dari {previewData.length} baris
-                              </p>
-                            )}
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 text-center sticky bottom-0 bg-gray-50 dark:bg-gray-800 py-2">
+                              Menampilkan semua {previewData.length} baris
+                            </p>
                           </div>
                         )}
                       </div>
