@@ -713,11 +713,40 @@ php artisan storage:link
 ```
 
 **6. Permissions (Linux/Mac):**
+
+**For Local Development:**
 ```bash
 # Set proper permissions for storage and cache
 chmod -R 775 storage bootstrap/cache
 chown -R www-data:www-data storage bootstrap/cache
 ```
+
+**For VPS/Production (Recommended):**
+```bash
+# Navigate to backend directory
+cd /var/www/isme-fkk/backend
+
+# Give execute permission to script
+sudo chmod +x fix-permissions.sh
+
+# Run the script
+sudo ./fix-permissions.sh
+```
+
+The `fix-permissions.sh` script automatically:
+- Sets correct permissions for storage, cache, and logs (775 for writable directories)
+- Sets ownership to `www-data:www-data` (web server user)
+- Configures `.env` file permissions (644 for security)
+- Sets vendor and frontend dist permissions (755 for read-only)
+- Creates storage symlink if missing
+- Tests write permissions to ensure everything works
+
+**When to run fix-permissions.sh:**
+- After cloning repository to VPS
+- After deploying updates
+- After encountering "Permission denied" errors
+- After manually changing ownership/permissions
+- After running `composer install` or `npm install`
 
 **7. Start Development Server:**
 ```bash
@@ -761,10 +790,179 @@ php artisan tinker
 - Solution: Check `.env` database credentials, ensure MySQL is running
 
 **Issue: Permission denied (storage)**
-- Solution: Run `chmod -R 775 storage bootstrap/cache` (Linux/Mac) or use `fix-permissions.sh`
+- **Local Development**: Run `chmod -R 775 storage bootstrap/cache`
+- **VPS/Production**: Use the automated script:
+  ```bash
+  cd /var/www/isme-fkk/backend
+  sudo chmod +x fix-permissions.sh
+  sudo ./fix-permissions.sh
+  ```
+  The script will automatically fix all permission issues and test write access.
 
 **Issue: Redis connection error (production)**
 - Solution: Ensure Redis is installed and running, check `REDIS_HOST` and `REDIS_PORT` in `.env`
+
+---
+
+## VPS Deployment and Permission Setup
+
+### Fix Permissions Script for VPS
+
+The `fix-permissions.sh` script automates permission setup for Laravel applications on VPS servers. It ensures that the web server (`www-data`) can write to necessary directories while maintaining security.
+
+**Location:** `backend/fix-permissions.sh`
+
+**Prerequisites:**
+- VPS running Linux (Ubuntu/Debian recommended)
+- Web server user: `www-data` (default for Apache/Nginx on Ubuntu/Debian)
+- Project path: `/var/www/isme-fkk` (or update script with your path)
+- Sudo access
+
+**How to Run:**
+
+```bash
+# 1. Navigate to backend directory
+cd /var/www/isme-fkk/backend
+
+# 2. Give execute permission to script
+sudo chmod +x fix-permissions.sh
+
+# 3. Run the script
+sudo ./fix-permissions.sh
+```
+
+**What the Script Does:**
+
+1. **Sets Project Ownership:**
+   - Changes ownership of entire project to `www-data:www-data`
+
+2. **Configures Writable Directories (775):**
+   - `storage/` and all subdirectories
+   - `storage/app/public/` (for file uploads)
+   - `storage/framework/cache/`
+   - `storage/framework/sessions/`
+   - `storage/framework/views/`
+   - `storage/logs/`
+   - `bootstrap/cache/`
+
+3. **Configures Read-Only Files/Directories:**
+   - `.env` file: `644` (read-only for security)
+   - `vendor/` directory: `755` (read-only)
+   - `frontend/dist/` directory: `755` (read-only)
+
+4. **Creates Storage Symlink:**
+   - Creates `public/storage` symlink if missing
+   - Ensures file uploads are accessible via web
+
+5. **Tests Write Permissions:**
+   - Tests write access to storage root
+   - Tests write access to `storage/app/public`
+   - Tests write access to logs
+   - Tests write access to bootstrap cache
+   - Displays PASSED/FAILED for each test
+
+**Expected Output:**
+
+```
+🔧 Setting up permissions for Laravel project...
+📁 Setting root project permissions...
+📁 Setting backend permissions...
+📝 Setting storage and cache permissions (writable)...
+📝 Setting log file permissions...
+🔒 Setting .env file permissions (read-only)...
+📦 Setting vendor permissions (read-only)...
+📁 Setting frontend permissions...
+🔗 Checking storage link...
+
+✅ Permissions setup complete!
+
+📋 Summary:
+   ✅ Storage & all subdirectories: 775 (writable by web server)
+   ✅ Bootstrap Cache: 775 (writable by web server)
+   ✅ .env file: 644 (read-only for security)
+   ✅ Vendor: 755 (read-only)
+   ✅ Frontend dist: 755 (read-only)
+   ✅ Logs: 664 (writable by web server)
+
+🧪 Testing write permissions...
+   ✅ Storage root: PASSED
+   ✅ Storage/app/public: PASSED (file uploads akan bekerja)
+   ✅ Storage/logs: PASSED (logging akan bekerja)
+   ✅ Bootstrap/cache: PASSED (cache akan bekerja)
+```
+
+**When to Run:**
+
+- ✅ After cloning repository to VPS
+- ✅ After deploying code updates
+- ✅ After encountering "Permission denied" errors
+- ✅ After manually changing ownership/permissions
+- ✅ After running `composer install` or `npm install`
+- ✅ After creating new directories in storage
+
+**Customizing the Script:**
+
+If your project path differs from `/var/www/isme-fkk`, edit the script:
+
+```bash
+# Edit the script
+nano fix-permissions.sh
+
+# Change line 11:
+PROJECT_PATH="/var/www/isme-fkk"
+# To your project path, e.g.:
+PROJECT_PATH="/home/user/isme-fkk"
+```
+
+**Troubleshooting:**
+
+**Error: "Permission denied" when running script:**
+```bash
+# Ensure you're using sudo
+sudo ./fix-permissions.sh
+```
+
+**Error: "www-data user not found":**
+```bash
+# Check if www-data exists
+id www-data
+
+# If not found (rare), create it
+sudo useradd -r -s /bin/false www-data
+```
+
+**Error: "No such file or directory":**
+```bash
+# Verify you're in the correct directory
+pwd
+# Should show: /var/www/isme-fkk/backend
+
+# Or use absolute path
+sudo /var/www/isme-fkk/backend/fix-permissions.sh
+```
+
+**Different Web Server User:**
+
+If your web server uses a different user (e.g., `apache`, `nginx`), edit the script and replace all occurrences of `www-data` with your web server user.
+
+**Quick Command (Copy-Paste):**
+
+```bash
+cd /var/www/isme-fkk/backend && sudo chmod +x fix-permissions.sh && sudo ./fix-permissions.sh
+```
+
+**Creating an Alias (Optional):**
+
+For convenience, add to `~/.bashrc` or `~/.zshrc`:
+
+```bash
+alias fix-perms='cd /var/www/isme-fkk/backend && sudo ./fix-permissions.sh'
+```
+
+Then reload shell and use:
+```bash
+fix-perms
+```
 
 ---
 
