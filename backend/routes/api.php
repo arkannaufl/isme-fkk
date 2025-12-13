@@ -69,6 +69,25 @@ Route::middleware('throttle:120,1')->group(function () {
     Route::middleware(['auth:sanctum', 'validate.token'])->post('/profile/avatar', [AuthController::class, 'updateAvatar']);
 
     Route::middleware(['auth:sanctum', 'validate.token'])->get('/users/search', [UserController::class, 'search']);
+    
+    // Debug endpoint untuk cek database info (hanya untuk debugging)
+    Route::middleware(['auth:sanctum', 'validate.token', 'role:super_admin'])->get('/debug/db-info', function() {
+        $dbName = \Illuminate\Support\Facades\DB::connection()->getDatabaseName();
+        $allUsers = \App\Models\User::orderBy('id', 'desc')->limit(10)->get(['id', 'username', 'role']);
+        $ketuaIkdUsers = \App\Models\User::where('role', 'ketua_ikd')->orderBy('id', 'desc')->limit(10)->get(['id', 'username', 'role']);
+        
+        return response()->json([
+            'connection' => config('database.default'),
+            'database_name' => config('database.connections.mysql.database'),
+            'host' => config('database.connections.mysql.host'),
+            'actual_database' => $dbName,
+            'users_count' => \App\Models\User::count(),
+            'ketua_ikd_count' => \App\Models\User::where('role', 'ketua_ikd')->count(),
+            'latest_10_users' => $allUsers,
+            'latest_10_ketua_ikd' => $ketuaIkdUsers,
+            'max_id' => \App\Models\User::max('id'),
+        ]);
+    });
 
     Route::middleware(['auth:sanctum', 'validate.token', 'role:super_admin,tim_akademik,dosen'])->apiResource('users', \App\Http\Controllers\UserController::class);
 
