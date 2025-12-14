@@ -52,8 +52,6 @@ type JadwalAgendaKhususType = {
   [key: string]: any;
 };
 
-// JadwalPraktikumType dihapus - semester antara tidak memiliki praktikum
-
 type JadwalJurnalReadingType = {
   id?: number;
   tanggal: string;
@@ -88,9 +86,6 @@ type JadwalPBLType = {
   [key: string]: any;
 };
 
-// Semua data sudah diambil dari backend melalui batch API
-
-
 export default function DetailBlokAntara() {
   const { kode } = useParams();
   const navigate = useNavigate();
@@ -112,7 +107,6 @@ export default function DetailBlokAntara() {
     lokasi: number | null;
     jenisBaris: 'materi' | 'agenda' | 'pbl' | 'jurnal';
     agenda: string;
-    // kelasPraktikum dihapus
     pblTipe: string;
     modul: number | null;
     kelompok: string;
@@ -145,31 +139,20 @@ export default function DetailBlokAntara() {
   const [allDosenList, setAllDosenList] = useState<DosenType[]>([]);
   const [allRuanganList, setAllRuanganList] = useState<RuanganType[]>([]);
   const [jadwalPBL, setJadwalPBL] = useState<JadwalPBLType[]>([]);
-
-  
-
   const [isSaving, setIsSaving] = useState(false);
   const [modulPBLList, setModulPBLList] = useState<ModulPBLType[]>([]);
-  // Gunakan kelompokKecilAntaraList untuk semester antara (sudah ada di bawah)
   const [loadingPBL, setLoadingPBL] = useState(true);
   const [loadingDosenRuangan, setLoadingDosenRuangan] = useState(true);
-
-  // Tambahkan state untuk materi dan pengampu dinamis
   const [materiOptions, setMateriOptions] = useState<string[]>([]);
   const [pengampuOptions, setPengampuOptions] = useState<DosenType[]>([]);
-  // Kelompok semester reguler tidak digunakan di semester antara
   const [jadwalKuliahBesar, setJadwalKuliahBesar] = useState<JadwalKuliahBesarType[]>([]);
   const [jadwalAgendaKhusus, setJadwalAgendaKhusus] = useState<JadwalAgendaKhususType[]>([]);
-  // State praktikum dihapus - semester antara tidak memiliki praktikum
   const [jadwalJurnalReading, setJadwalJurnalReading] = useState<JadwalJurnalReadingType[]>([]);
   const [jamOptions, setJamOptions] = useState<string[]>([]);
   
   // Pagination state for all schedule types
   const [kuliahBesarPage, setKuliahBesarPage] = useState(1);
   const [kuliahBesarPageSize, setKuliahBesarPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
-  
-  // Pagination praktikum dihapus - semester antara tidak memiliki praktikum
-  
   const [agendaKhususPage, setAgendaKhususPage] = useState(1);
   const [agendaKhususPageSize, setAgendaKhususPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
   
@@ -198,7 +181,6 @@ export default function DetailBlokAntara() {
       case 'kuliahBesar':
         setKuliahBesarPage(1);
         break;
-      // case 'praktikum' dihapus - semester antara tidak memiliki praktikum
       case 'agendaKhusus':
         setAgendaKhususPage(1);
         break;
@@ -214,7 +196,6 @@ export default function DetailBlokAntara() {
   // State untuk loading assigned PBL - untuk semester antara menggunakan allDosenOptions
   const [loadingAssignedPBL, setLoadingAssignedPBL] = useState(false);
 
-  // Untuk DetailBlokAntara, semester antara adalah default behavior (tidak perlu state)gim
   const [allDosenOptions, setAllDosenOptions] = useState<DosenType[]>([]);
   const [kelompokBesarAntaraOptions, setKelompokBesarAntaraOptions] = useState<{id: number, label: string, jumlah_mahasiswa: number, mahasiswa: any[]}[]>([]);
   const [showKelompokBesarAntaraModal, setShowKelompokBesarAntaraModal] = useState(false);
@@ -230,8 +211,6 @@ export default function DetailBlokAntara() {
     mahasiswa_ids: [] as number[]
   });
 
-  // State untuk modal kelompok kecil semester antara
-  // const [showKelompokKecilAntaraModal, setShowKelompokKecilAntaraModal] = useState(false);
   const [kelompokKecilAntaraList, setKelompokKecilAntaraList] = useState<{id: number, nama_kelompok: string, jumlah_anggota: number, mahasiswa_ids: number[]}[]>([]);
   const [kelompokKecilAntaraForm, setKelompokKecilAntaraForm] = useState({
     nama_kelompok: '',
@@ -249,7 +228,6 @@ export default function DetailBlokAntara() {
 
   // State untuk bulk delete
   const [selectedKuliahBesarItems, setSelectedKuliahBesarItems] = useState<number[]>([]);
-  // selectedPraktikumItems dihapus - semester antara tidak memiliki praktikum
   const [selectedAgendaKhususItems, setSelectedAgendaKhususItems] = useState<number[]>([]);
   const [selectedPBLItems, setSelectedPBLItems] = useState<number[]>([]);
   const [selectedJurnalReadingItems, setSelectedJurnalReadingItems] = useState<number[]>([]);
@@ -473,11 +451,6 @@ export default function DetailBlokAntara() {
   };
 
   // Semester antara tidak menggunakan kelompok semester reguler
-
-
-
-  // Fungsi fetch praktikum dihapus - semester antara tidak memiliki praktikum
-
   // Saat modal dibuka, fetch materi sesuai jenis baris
   useEffect(() => {
     if (showModal) {
@@ -488,7 +461,6 @@ export default function DetailBlokAntara() {
         if (!form.materi) {
           setPengampuOptions([]);
         }
-      // else if praktikum dihapus - semester antara tidak memiliki praktikum
       } else if (form.jenisBaris === 'agenda') {
         // fetchKelompokBesarAgendaOptions(); // Not used in semester antara
       }
@@ -503,17 +475,11 @@ export default function DetailBlokAntara() {
       setPengampuOptions([]);
     }
   }, [form.jenisBaris, form.materi]);
-
-
-
-  // useEffect untuk praktikum dihapus - semester antara tidak memiliki praktikum
-
   // Reset pengampu options ketika jenis baris berubah
   useEffect(() => {
     if (form.jenisBaris !== 'materi') {
       setPengampuOptions([]);
     }
-    // if praktikum dihapus - semester antara tidak memiliki praktikum
     // Reset materi ketika jenis baris berubah
     if (form.materi) {
       setForm(f => ({ ...f, materi: '', pengampu: null }));
@@ -875,8 +841,6 @@ export default function DetailBlokAntara() {
       return;
     }
     
-    // Handle praktikum dihapus - semester antara tidak memiliki praktikum
-    
   }
 
   // Hapus useEffect yang tidak perlu karena data sudah dalam format yang benar
@@ -886,9 +850,6 @@ export default function DetailBlokAntara() {
   const [selectedDeleteType, setSelectedDeleteType] = useState<'materi' | 'pbl' | 'other'>('other');
   const [showDeleteAgendaModal, setShowDeleteAgendaModal] = useState(false);
   const [selectedDeleteAgendaIndex, setSelectedDeleteAgendaIndex] = useState<number | null>(null);
-  // Modal praktikum dihapus - semester antara tidak memiliki praktikum
-  // const [showDeleteAgendaKhususModal, setShowDeleteAgendaKhususModal] = useState(false);
-  // const [selectedDeleteAgendaKhususIndex, setSelectedDeleteAgendaKhususIndex] = useState<number | null>(null);
   const [showDeleteJurnalReadingModal, setShowDeleteJurnalReadingModal] = useState(false);
   const [selectedDeleteJurnalReadingIndex, setSelectedDeleteJurnalReadingIndex] = useState<number | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -913,7 +874,6 @@ export default function DetailBlokAntara() {
       setJadwalPBL(Array.isArray(batchData.jadwal_pbl) ? batchData.jadwal_pbl : []);
       setJadwalKuliahBesar(Array.isArray(batchData.jadwal_kuliah_besar) ? batchData.jadwal_kuliah_besar : []);
       setJadwalAgendaKhusus(Array.isArray(batchData.jadwal_agenda_khusus) ? batchData.jadwal_agenda_khusus : []);
-      // jadwalPraktikum dihapus - semester antara tidak memiliki praktikum
       setJadwalJurnalReading(Array.isArray(batchData.jadwal_jurnal_reading) ? batchData.jadwal_jurnal_reading : []);
       
       // Set reference data
@@ -921,7 +881,6 @@ export default function DetailBlokAntara() {
       // setKelompokKecilList(Array.isArray(batchData.kelompok_kecil) ? batchData.kelompok_kecil : []); // Use kelompokKecilAntaraList instead
       setAllRuanganList(Array.isArray(batchData.ruangan) ? batchData.ruangan : []);
       setRuanganList(Array.isArray(batchData.ruangan) ? batchData.ruangan : []);
-      // kelasPraktikumOptions dan materiPraktikumOptions dihapus - semester antara tidak memiliki praktikum
       setJamOptions(Array.isArray(batchData.jam_options) ? batchData.jam_options : []);
       
       // Set dosen data
@@ -1587,10 +1546,6 @@ export default function DetailBlokAntara() {
     setSelectedDeleteAgendaIndex(null);
   }
 
-
-
-  // Handler praktikum dihapus - semester antara tidak memiliki praktikum
-
   // Handler tambah jadwal jurnal reading
   async function handleTambahJadwalJurnalReading() {
     setErrorForm('');
@@ -1785,7 +1740,6 @@ export default function DetailBlokAntara() {
           endpoint = `/kuliah-besar/jadwal/${data.kode}`;
           successMessage = `${selectedItems.length} jadwal kuliah besar berhasil dihapus.`;
           break;
-        // case 'praktikum' dihapus - semester antara tidak memiliki praktikum
         case 'agenda-khusus':
           selectedItems = selectedAgendaKhususItems;
           endpoint = `/agenda-khusus/jadwal/${data.kode}`;
@@ -1815,7 +1769,6 @@ export default function DetailBlokAntara() {
         case 'kuliah-besar':
           setSelectedKuliahBesarItems([]);
           break;
-        // case 'praktikum' dihapus - semester antara tidak memiliki praktikum
         case 'agenda-khusus':
           setSelectedAgendaKhususItems([]);
           break;
@@ -1851,7 +1804,6 @@ export default function DetailBlokAntara() {
           setSelectedKuliahBesarItems(allIds);
         }
         break;
-      // case 'praktikum' dihapus - semester antara tidak memiliki praktikum
       case 'agenda-khusus':
         if (selectedAgendaKhususItems.length === allIds.length) {
           setSelectedAgendaKhususItems([]);
@@ -1885,7 +1837,6 @@ export default function DetailBlokAntara() {
           setSelectedKuliahBesarItems([...selectedKuliahBesarItems, itemId]);
         }
         break;
-      // case 'praktikum' dihapus - semester antara tidak memiliki praktikum
       case 'agenda-khusus':
         if (selectedAgendaKhususItems.includes(itemId)) {
           setSelectedAgendaKhususItems(selectedAgendaKhususItems.filter(id => id !== itemId));
@@ -2656,7 +2607,6 @@ export default function DetailBlokAntara() {
                   <div className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm cursor-not-allowed">
                     {form.jenisBaris === 'materi' && 'Kuliah Besar'}
                     {form.jenisBaris === 'agenda' && 'Agenda Khusus'}
-                    {/* Praktikum dihapus - semester antara tidak memiliki praktikum */}
                     {form.jenisBaris === 'pbl' && 'PBL'}
                     {form.jenisBaris === 'jurnal' && 'Jurnal Reading'}
                   </div>
@@ -3153,7 +3103,6 @@ export default function DetailBlokAntara() {
                       </div>
                     </>
                   )}
-                  {/* Form praktikum dihapus - semester antara tidak memiliki praktikum */}
                   {form.jenisBaris === 'agenda' && (
                     <>
                       <div>
@@ -3909,7 +3858,6 @@ export default function DetailBlokAntara() {
                         </div>
                       )}
 
-                      {/* Validasi praktikum dihapus - semester antara tidak memiliki praktikum */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ruangan</label>
                         {ruanganList.length === 0 ? (
@@ -4619,8 +4567,6 @@ export default function DetailBlokAntara() {
     !form.hariTanggal ||
     (form.jenisBaris === 'materi' && (!form.jamMulai || !form.jumlahKali || !form.pengampu || !form.topik || !form.lokasi)) ||
     (form.jenisBaris === 'agenda' && (!form.agenda || !form.jamMulai || !form.jumlahKali || !form.jamSelesai || (form.useRuangan && !form.lokasi))) ||
-    // Validasi praktikum dihapus - semester antara tidak memiliki praktikum
-    // PERBAIKI BAGIAN INI:
     (form.jenisBaris === 'pbl' && (
       !form.pblTipe ||
       !form.jamMulai ||
@@ -5446,7 +5392,6 @@ export default function DetailBlokAntara() {
           </div>
         )}
       </AnimatePresence>
-      {/* Modal praktikum dihapus - semester antara tidak memiliki praktikum */}
       <AnimatePresence>
         {showDeleteJurnalReadingModal && (
           <div className="fixed inset-0 z-[100000] flex items-center justify-center">
@@ -6242,7 +6187,6 @@ export default function DetailBlokAntara() {
                   <p className="mb-6 text-gray-500 dark:text-gray-400">
                     Apakah Anda yakin ingin menghapus <span className="font-semibold text-gray-800 dark:text-white">
                       {bulkDeleteType === 'kuliah-besar' && selectedKuliahBesarItems.length}
-                      {/* praktikum dihapus - semester antara tidak memiliki praktikum */}
                       {bulkDeleteType === 'agenda-khusus' && selectedAgendaKhususItems.length}
                       {bulkDeleteType === 'pbl' && selectedPBLItems.length}
                       {bulkDeleteType === 'jurnal-reading' && selectedJurnalReadingItems.length}

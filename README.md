@@ -292,7 +292,6 @@ isme-fkk/
 │   └── public/                  # Static assets
 │
 ├── README.md                    # This file
-├── TECHNICAL_ANALYSIS.md        # Comprehensive technical documentation
 └── backend/README.md            # Backend-specific documentation
 ```
 
@@ -549,7 +548,6 @@ Role Verification → Permission Check → Resource Access
 ## Additional Resources
 
 - **Backend Documentation**: See `backend/README.md` for detailed API documentation
-- **Technical Analysis**: See `TECHNICAL_ANALYSIS.md` for comprehensive system analysis
 - **API Endpoints**: 200+ RESTful API endpoints documented in backend README
 - **Database Schema**: 65+ tables with complex relationships (see migrations)
 
@@ -565,7 +563,7 @@ This project is licensed under the MIT License.
 
 For technical inquiries, feature requests, or support:
 - **Support Center**: Available within the application (requires login)
-- **Documentation**: Comprehensive documentation in `backend/README.md` and `TECHNICAL_ANALYSIS.md`
+- **Documentation**: Comprehensive documentation in `backend/README.md`
 
 ---
 

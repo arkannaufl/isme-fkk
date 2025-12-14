@@ -80,7 +80,6 @@ interface MataKuliah {
 }
 
 // Type definitions untuk jadwal
-
 type JadwalKuliahBesarType = {
   id?: number;
 
@@ -368,8 +367,6 @@ export default function DetailBlok() {
 
     agenda: string;
 
-    // kelasPraktikum dihapus, menggunakan kelompok saja
-
     pblTipe: string;
 
     modul: number | null;
@@ -403,9 +400,6 @@ export default function DetailBlok() {
     jenisBaris: "materi",
 
     agenda: "",
-
-    // kelasPraktikum dihapus
-
     pblTipe: "",
 
     modul: null,
@@ -720,8 +714,6 @@ export default function DetailBlok() {
   const [materiPraktikumOptions, setMateriPraktikumOptions] = useState<
     string[]
   >([]);
-
-  // Hapus kelasPraktikumOptions, tidak diperlukan lagi
 
   const [pengampuPraktikumOptions, setPengampuPraktikumOptions] = useState<
     DosenType[]
@@ -1288,9 +1280,6 @@ export default function DetailBlok() {
     }
   };
 
-  // Hapus fetchKelasPraktikum, tidak diperlukan lagi
-  // Kelompok kecil sudah tersedia di kelompokKecilList
-
   // Fetch pengampu praktikum berdasarkan materi - ambil dosen yang punya keahlian yang dipilih
 
   const fetchPengampuPraktikum = async (materi: string) => {
@@ -1385,8 +1374,6 @@ export default function DetailBlok() {
         }
       } else if (form.jenisBaris === "praktikum") {
         fetchMateriPraktikum();
-
-        // Hapus fetchKelasPraktikum, kelompok kecil sudah tersedia di kelompokKecilList
 
         // Fetch pengampu jika materi sudah dipilih (untuk edit)
 
@@ -1578,8 +1565,6 @@ export default function DetailBlok() {
 
       agenda: "",
 
-      // kelasPraktikum dihapus
-
       pblTipe: "",
 
       modul: null,
@@ -1766,7 +1751,6 @@ export default function DetailBlok() {
 
         agenda: String(row.agenda || ""),
 
-        // kelasPraktikum dihapus, menggunakan kelompok
         kelompok: String(row.kelompokKecil || row.kelompok || ""),
 
         pblTipe: String((row as any).pbl_tipe ?? row.pblTipe ?? ""),
@@ -1805,7 +1789,6 @@ export default function DetailBlok() {
 
         agenda: "",
 
-        // kelasPraktikum dihapus, menggunakan kelompok
         kelompok: String(row.kelompokKecil || row.kelompok || ""),
 
         pblTipe: "",
@@ -1846,8 +1829,6 @@ export default function DetailBlok() {
 
         agenda: "",
 
-        // kelasPraktikum dihapus
-
         pblTipe: String(row.pbl_tipe || ""),
 
         modul: Number(row.modul_pbl_id || 0),
@@ -1886,8 +1867,6 @@ export default function DetailBlok() {
 
         agenda: "",
 
-        // kelasPraktikum dihapus
-
         pblTipe: "",
 
         modul: 0,
@@ -1923,8 +1902,6 @@ export default function DetailBlok() {
         jenisBaris: "materi",
 
         agenda: "",
-
-        // kelasPraktikum dihapus
 
         pblTipe: "",
 
@@ -2269,7 +2246,6 @@ export default function DetailBlok() {
 
       setRuanganList(Array.isArray(batchData.ruangan) ? batchData.ruangan : []);
 
-      // Hapus kelas_praktikum dari batch data, tidak diperlukan lagi
       setMateriPraktikumOptions(
         Array.isArray(batchData.materi_praktikum)
           ? batchData.materi_praktikum
@@ -2383,7 +2359,6 @@ export default function DetailBlok() {
   useEffect(() => {
     const loadData = async () => {
       await fetchBatchData();
-      // Hapus fetchKelasPraktikum, tidak diperlukan lagi
     };
 
     loadData();
@@ -3433,7 +3408,6 @@ export default function DetailBlok() {
         lokasi: null,
         jenisBaris: "materi",
         agenda: "",
-        // kelasPraktikum dihapus
         pblTipe: "",
         modul: null,
         kelompok: "",
@@ -3486,7 +3460,6 @@ export default function DetailBlok() {
       lokasi: actualRow.ruangan_id || null,
       jenisBaris: "materi",
       agenda: "",
-      // kelasPraktikum dihapus
       pblTipe: "",
       modul: null,
       kelompok: "",
@@ -3605,7 +3578,6 @@ export default function DetailBlok() {
         lokasi: null,
         jenisBaris: "agenda",
         agenda: "",
-        // kelasPraktikum dihapus
         pblTipe: "",
         modul: null,
         kelompok: "",
@@ -3658,7 +3630,6 @@ export default function DetailBlok() {
       lokasi: actualRow.use_ruangan ? actualRow.ruangan_id || null : null,
       jenisBaris: "agenda",
       agenda: actualRow.agenda || "",
-      // kelasPraktikum dihapus
       pblTipe: "",
       modul: null,
       kelompok: "",
@@ -3799,7 +3770,6 @@ export default function DetailBlok() {
         lokasi: null,
         jenisBaris: "praktikum",
         agenda: "",
-        // kelasPraktikum dihapus
         pblTipe: "",
         modul: null,
         kelompok: "",
@@ -3872,7 +3842,6 @@ export default function DetailBlok() {
       lokasi: actualRow.ruangan_id || null,
       jenisBaris: "praktikum",
       agenda: "",
-      // kelasPraktikum dihapus, ambil dari relasi kelompok_kecil
       kelompok: actualRow.kelompok_kecil?.nama_kelompok || "",
       pblTipe: "",
       modul: null,
@@ -4098,7 +4067,6 @@ export default function DetailBlok() {
         lokasi: null,
         jenisBaris: "jurnal",
         agenda: "",
-        // kelasPraktikum dihapus
         pblTipe: "",
         modul: null,
         kelompok: "",
@@ -4175,7 +4143,6 @@ export default function DetailBlok() {
       lokasi: actualRow.ruangan_id || null,
       jenisBaris: "jurnal",
       agenda: "",
-      // kelasPraktikum dihapus
       pblTipe: "",
       modul: null,
       kelompok: kelompokValue,
@@ -4641,7 +4608,6 @@ export default function DetailBlok() {
     "Waktu Mulai\n(Lihat Daftar Waktu Mulai)",
     "Waktu Selesai\n(Lihat Daftar Waktu Selesai)",
   ];
-  ``;
 
   // Common SIAKAD column widths
   const SIAKAD_COLUMN_WIDTHS = [
@@ -4868,20 +4834,46 @@ export default function DetailBlok() {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("Jadwal Kuliah Besar SIAKAD");
 
+      // Header khusus untuk kuliah besar (tanpa "Kelompok Kecil", menggunakan "Nama Kelas")
+      const SIAKAD_HEADERS_KULIAH_BESAR = [
+        "Kurikulum",
+        "Kode MK",
+        "Nama Kelas",
+        "Kelompok\n(Contoh: 1)",
+        "Topik",
+        "Substansi\n(Lihat Daftar Substansi)",
+        "Jenis Pertemuan\n(Lihat Daftar Jenis Pertemuan)",
+        "Metode\n(Lihat Daftar Metode)",
+        "Ruang\n(Lihat Daftar Ruang)",
+        "NIP Pengajar",
+        "Dosen Pengganti\n(Y jika Ya)",
+        "Tanggal\n(YYYY-MM-DD)",
+        "Waktu Mulai\n(Lihat Daftar Waktu Mulai)",
+        "Waktu Selesai\n(Lihat Daftar Waktu Selesai)",
+      ];
+
       // Add headers and apply styling
-      worksheet.addRow(SIAKAD_HEADERS);
+      worksheet.addRow(SIAKAD_HEADERS_KULIAH_BESAR);
       applySIAKADStyling(worksheet);
 
       // Tambahkan data rows
       jadwalKuliahBesar.forEach((row) => {
         const dosen = allDosenList.find((d) => d.id === row.dosen_id);
         const ruangan = allRuanganList.find((r) => r.id === row.ruangan_id);
+        
+        // Cari kelompok besar dari database berdasarkan kelompok_besar_id
+        const kelompokBesar = kelompokBesarOptions.find(
+          (kb) => kb.id === row.kelompok_besar_id
+        );
+        const kelompokBesarLabel = kelompokBesar?.label || 
+          (row.kelompok_besar_id ? String(row.kelompok_besar_id) : "") ||
+          row.siakad_kelompok || "";
 
         worksheet.addRow([
           row.siakad_kurikulum || "", // Kurikulum - dari data asli SIAKAD
           row.siakad_kode_mk || "", // Kode MK - dari data asli SIAKAD
           row.siakad_nama_kelas || "", // Nama Kelas - dari data asli SIAKAD
-          row.siakad_kelompok || "", // Kelompok - dari data asli SIAKAD
+          kelompokBesarLabel, // Kelompok - dari database (kelompok besar), fallback ke siakad_kelompok
           row.topik || "", // Topik - dari data asli SIAKAD
           row.materi || "", // Substansi - dari materi
           row.siakad_jenis_pertemuan || "", // Jenis Pertemuan - dari data asli SIAKAD
@@ -5039,9 +5031,69 @@ export default function DetailBlok() {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("Jadwal Praktikum SIAKAD");
 
-      // Add headers and apply styling
-      worksheet.addRow(SIAKAD_HEADERS);
-      applySIAKADStyling(worksheet);
+      // Header khusus untuk praktikum (tanpa "Kelompok Kecil", karena di-mapping ke "Kelompok")
+      const SIAKAD_HEADERS_PRAKTIKUM = [
+        "Kurikulum",
+        "Kode MK",
+        "Kelompok\n(Contoh: 1)",
+        "Topik",
+        "Substansi\n(Lihat Daftar Substansi)",
+        "Jenis Pertemuan\n(Lihat Daftar Jenis Pertemuan)",
+        "Metode\n(Lihat Daftar Metode)",
+        "Ruang\n(Lihat Daftar Ruang)",
+        "NIP Pengajar",
+        "Dosen Pengganti\n(Y jika Ya)",
+        "Tanggal\n(YYYY-MM-DD)",
+        "Waktu Mulai\n(Lihat Daftar Waktu Mulai)",
+        "Waktu Selesai\n(Lihat Daftar Waktu Selesai)",
+      ];
+
+      // Add headers
+      worksheet.addRow(SIAKAD_HEADERS_PRAKTIKUM);
+      
+      // Apply styling dengan column widths khusus untuk praktikum (tanpa kolom "Kelompok Kecil")
+      const SIAKAD_COLUMN_WIDTHS_PRAKTIKUM = [
+        { width: 12 }, // Kurikulum
+        { width: 10 }, // Kode MK
+        { width: 12 }, // Kelompok (dari kelompok kecil)
+        { width: 30 }, // Topik
+        { width: 22 }, // Substansi
+        { width: 30 }, // Jenis Pertemuan
+        { width: 25 }, // Metode
+        { width: 25 }, // Ruang
+        { width: 15 }, // NIP Pengajar
+        { width: 18 }, // Dosen Pengganti
+        { width: 15 }, // Tanggal
+        { width: 28 }, // Waktu Mulai
+        { width: 28 }, // Waktu Selesai
+      ];
+      
+      // Apply styling to header row
+      const headerRow = worksheet.getRow(1);
+      headerRow.eachCell((cell: any, colNumber: number) => {
+        // Green headers: Kurikulum, Kode MK, Topik, Jenis Pertemuan, Metode, Tanggal, Waktu Mulai, Waktu Selesai
+        if ([1, 2, 4, 6, 7, 11, 12, 13].includes(colNumber)) {
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FF92D050" },
+          };
+          cell.font = { bold: true, color: { argb: "FF000000" } };
+          cell.alignment = { horizontal: "left", vertical: "top", wrapText: true };
+        } else {
+          // Orange headers: Kelompok, Substansi, Ruang, NIP Pengajar, Dosen Pengganti
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFFFC000" },
+          };
+          cell.font = { bold: true, color: { argb: "FF000000" } };
+          cell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+        }
+      });
+      
+      // Set column widths
+      worksheet.columns = SIAKAD_COLUMN_WIDTHS_PRAKTIKUM;
 
       // Add data rows
       jadwalPraktikum.forEach((row) => {
@@ -5050,12 +5102,16 @@ export default function DetailBlok() {
           ? row.dosen.map((d: any) => d.nid).join(", ")
           : "";
         const ruangan = allRuanganList.find((r) => r.id === row.ruangan_id);
+        
+        // Mapping kelompok kecil ke kolom "Kelompok"
+        const kelompokKecilName = row.kelompok_kecil?.nama_kelompok || 
+          (row as any).kelompok_kecil_name || 
+          row.siakad_kelompok || "";
 
         worksheet.addRow([
           row.siakad_kurikulum || "",
           row.siakad_kode_mk || "",
-          row.kelompok_kecil?.nama_kelompok || "",
-          row.siakad_kelompok || "",
+          kelompokKecilName, // Kelompok kecil di-mapping ke kolom "Kelompok"
           row.topik || "",
           row.materi || "",
           row.siakad_jenis_pertemuan || "",
@@ -5305,9 +5361,69 @@ export default function DetailBlok() {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("Jadwal PBL SIAKAD");
 
-      // Add headers and apply styling
-      worksheet.addRow(SIAKAD_HEADERS);
-      applySIAKADStyling(worksheet);
+      // Header khusus untuk PBL (tanpa "Kelompok Kecil", karena di-mapping ke "Kelompok")
+      const SIAKAD_HEADERS_PBL = [
+        "Kurikulum",
+        "Kode MK",
+        "Kelompok\n(Contoh: 1)",
+        "Topik",
+        "Substansi\n(Lihat Daftar Substansi)",
+        "Jenis Pertemuan\n(Lihat Daftar Jenis Pertemuan)",
+        "Metode\n(Lihat Daftar Metode)",
+        "Ruang\n(Lihat Daftar Ruang)",
+        "NIP Pengajar",
+        "Dosen Pengganti\n(Y jika Ya)",
+        "Tanggal\n(YYYY-MM-DD)",
+        "Waktu Mulai\n(Lihat Daftar Waktu Mulai)",
+        "Waktu Selesai\n(Lihat Daftar Waktu Selesai)",
+      ];
+
+      // Add headers
+      worksheet.addRow(SIAKAD_HEADERS_PBL);
+      
+      // Apply styling dengan column widths khusus untuk PBL (tanpa kolom "Kelompok Kecil" dan "Nama Kelas")
+      const SIAKAD_COLUMN_WIDTHS_PBL = [
+        { width: 12 }, // Kurikulum
+        { width: 10 }, // Kode MK
+        { width: 12 }, // Kelompok (dari kelompok kecil)
+        { width: 30 }, // Topik
+        { width: 22 }, // Substansi
+        { width: 30 }, // Jenis Pertemuan
+        { width: 25 }, // Metode
+        { width: 25 }, // Ruang
+        { width: 15 }, // NIP Pengajar
+        { width: 18 }, // Dosen Pengganti
+        { width: 15 }, // Tanggal
+        { width: 28 }, // Waktu Mulai
+        { width: 28 }, // Waktu Selesai
+      ];
+      
+      // Apply styling to header row
+      const headerRow = worksheet.getRow(1);
+      headerRow.eachCell((cell: any, colNumber: number) => {
+        // Green headers: Kurikulum, Kode MK, Topik, Jenis Pertemuan, Metode, Tanggal, Waktu Mulai, Waktu Selesai
+        if ([1, 2, 4, 6, 7, 11, 12, 13].includes(colNumber)) {
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FF92D050" },
+          };
+          cell.font = { bold: true, color: { argb: "FF000000" } };
+          cell.alignment = { horizontal: "left", vertical: "top", wrapText: true };
+        } else {
+          // Orange headers: Kelompok, Substansi, Ruang, NIP Pengajar, Dosen Pengganti
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FFFFC000" },
+          };
+          cell.font = { bold: true, color: { argb: "FF000000" } };
+          cell.alignment = { horizontal: "left", vertical: "middle", wrapText: true };
+        }
+      });
+      
+      // Set column widths
+      worksheet.columns = SIAKAD_COLUMN_WIDTHS_PBL;
 
       // Add data rows dengan optimasi performa
       jadwalPBL.forEach((row) => {
@@ -5316,14 +5432,16 @@ export default function DetailBlok() {
         const kelompok = kelompokKecilList.find(
           (k) => k.id === row.kelompok_kecil_id
         );
+        
+        // Mapping kelompok kecil ke kolom "Kelompok"
+        const kelompokKecilName = kelompok?.nama_kelompok || "";
 
         worksheet.addRow([
           row.siakad_kurikulum || "",
           row.siakad_kode_mk || "",
-          row.siakad_nama_kelas || "", // Dari file asli SIAKAD
-          kelompok?.nama_kelompok || "", // Dari sistem (beda dengan kuliah besar & praktikum)
+          kelompokKecilName, // Kelompok kecil di-mapping ke kolom "Kelompok"
           row.topik || "",
-          row.siakad_substansi || "", // Dari file asli SIAKAD (beda dengan kuliah besar & praktikum)
+          row.siakad_substansi || "", // Dari file asli SIAKAD
           row.siakad_jenis_pertemuan || "",
           row.siakad_metode || "",
           ruangan?.id_ruangan || "",
@@ -5912,10 +6030,37 @@ export default function DetailBlok() {
         ["🏢 RUANGAN YANG TERSEDIA:"],
         ...ruanganList.map((ruangan) => [`• ${ruangan.nama}`]),
         [""],
-        ["📚 KELOMPOK KECIL YANG TERSEDIA:"],
-        ...(kelompokKecilList.length > 0
-          ? kelompokKecilList.map((k) => [`• ${k.nama_kelompok}`])
-          : [["• Belum ada kelompok kecil yang dibuat untuk semester ini"]]),
+        ["👥 KELOMPOK KECIL YANG TERSEDIA:"],
+        ...(() => {
+          // Kelompok data berdasarkan nama_kelompok dan hitung jumlah mahasiswa
+          const kelompokMap = new Map<string, number>();
+
+          kelompokKecilList.forEach((item) => {
+            const namaKelompok = item.nama_kelompok || `Kelompok ${item.id || "Unknown"}`;
+            if (kelompokMap.has(namaKelompok)) {
+              kelompokMap.set(namaKelompok, kelompokMap.get(namaKelompok)! + 1);
+            } else {
+              kelompokMap.set(namaKelompok, 1);
+            }
+          });
+
+          // Convert map to array and sort by nama_kelompok
+          return kelompokMap.size > 0
+            ? Array.from(kelompokMap.entries())
+                .sort(([a], [b]) => {
+                  // Sort numerically if both are numbers, otherwise alphabetically
+                  const numA = parseInt(a);
+                  const numB = parseInt(b);
+                  if (!isNaN(numA) && !isNaN(numB)) {
+                    return numA - numB;
+                  }
+                  return a.localeCompare(b);
+                })
+                .map(([namaKelompok, jumlahAnggota]) => [
+                  `• ${namaKelompok} (${jumlahAnggota} mahasiswa)`,
+                ])
+            : [["• Belum ada kelompok kecil yang dibuat untuk semester ini"]];
+        })(),
         [""],
         ["📚 MATERI YANG TERSEDIA (dari keahlian_required mata kuliah):"],
         ...(data?.keahlian_required || []).map((keahlian) => [`• ${keahlian}`]),
@@ -6930,24 +7075,35 @@ export default function DetailBlok() {
         });
       }
 
-      // Validasi kelompok kecil
-      const kelompokKecilName = row.kelompok_kecil?.nama_kelompok || row.kelompok || "";
-      if (!kelompokKecilName || kelompokKecilName.trim() === "") {
+      // Validasi kelompok kecil - cek dari berbagai sumber
+      const kelompokKecilName = 
+        row.kelompok_kecil?.nama_kelompok || 
+        (row as any).kelompok_kecil_name || 
+        row.kelompok || 
+        "";
+      const kelompokKecilNameNormalized = String(kelompokKecilName).trim();
+      
+      if (!kelompokKecilNameNormalized) {
         cellErrors.push({
           row: rowNumber,
           field: "kelompok_kecil_id",
-          message: `Kelompok kecil wajib diisi (Baris ${rowNumber}, Kolom Kelompok)`,
+          message: `Kelompok kecil wajib diisi (Baris ${rowNumber}, Kolom Kelompok) (Baris ${rowNumber}, Kolom KELOMPOK_KECIL_ID)`,
         });
-      } else if (!kelasOptions.includes(kelompokKecilName)) {
+      } else {
+        // Normalize kelasOptions untuk perbandingan (case insensitive, handle number format)
+        const normalizedKelasOptions = kelasOptions.map(k => String(k).trim().toLowerCase());
+        const isFound = normalizedKelasOptions.some(
+          opt => opt === kelompokKecilNameNormalized.toLowerCase() || 
+                 opt === kelompokKecilNameNormalized
+        );
+        
+        if (!isFound) {
         cellErrors.push({
           row: rowNumber,
-          field: "kelompok_kecil_id",
-          message: `Kelompok kecil "${
-            kelompokKecilName
-          }" tidak ditemukan. Kelompok yang tersedia: ${kelasOptions.join(
-            ", "
-          )} (Baris ${rowNumber}, Kolom Kelompok)`,
+            field: "kelompok_kecil_id",
+            message: `Kelompok kecil "${kelompokKecilNameNormalized}" tidak ditemukan (Baris ${rowNumber}, Kolom Kelompok Kecil)`,
         });
+        }
       }
 
       // Validasi dosen - untuk SIAKAD template, dosen HARUS diisi manual di preview table
@@ -7501,15 +7657,20 @@ export default function DetailBlok() {
           const jamMulai = convertTimeFormat(jamMulaiRaw);
           const materi = rowObj["Materi"] || rowObj.materi || "";
           const topik = rowObj["Topik"] || rowObj.topik || "";
-          const kelompokKecilName =
+          // Normalize kelompok kecil name: convert to string, trim, handle number format
+          const kelompokKecilNameRaw =
             rowObj["Kelompok Kecil"] || rowObj.kelompok_kecil || "";
+          const kelompokKecilName = String(kelompokKecilNameRaw).trim();
           const dosen = rowObj["Dosen"] || rowObj.dosen || "";
           const ruangan = rowObj["Ruangan"] || rowObj.ruangan || "";
           const sesi = rowObj["Sesi"] || rowObj.jumlah_sesi || 1;
 
-          // Find kelompok kecil data
+          // Find kelompok kecil data - case insensitive dan handle number format
           const kelompokKecilData = kelompokKecilList.find(
-            (k) => k.nama_kelompok === kelompokKecilName
+            (k) =>
+              k.nama_kelompok.toLowerCase().trim() ===
+                kelompokKecilName.toLowerCase().trim() ||
+              String(k.nama_kelompok).trim() === kelompokKecilName
           );
 
           // Find dosen data
@@ -7536,6 +7697,10 @@ export default function DetailBlok() {
             topik: topik,
             kelompok_kecil_id: kelompokKecilData?.id || null,
             kelompok_kecil_name: kelompokKecilName,
+            kelompok_kecil: kelompokKecilData ? {
+              id: kelompokKecilData.id,
+              nama_kelompok: kelompokKecilData.nama_kelompok,
+            } : null,
             dosen_id: dosenData?.id || 0,
             nama_dosen: dosen || dosenData?.name || "",
             ruangan_id: ruanganData?.id || 0,
@@ -7672,7 +7837,6 @@ export default function DetailBlok() {
           );
           const jamMulai = convertTimeFormat(jamMulaiRaw);
           const topik = rowObj["Topik"] || "";
-          // kelasPraktikum dihapus, tidak diperlukan lagi
           const kelompok = getValueFromMultipleFormats(
             "Kelompok\n(Contoh: 1)",
             rowObj
@@ -7715,9 +7879,15 @@ export default function DetailBlok() {
             (kb) => kb.label.toLowerCase() === kelompok.toLowerCase()
           );
 
-          // Find kelompok kecil data berdasarkan nama kelompok
+          // Normalize kelompok name: convert to string, trim, handle number format
+          const kelompokNormalized = String(kelompok).trim();
+
+          // Find kelompok kecil data berdasarkan nama kelompok - case insensitive dan handle number format
           const kelompokKecilData = kelompokKecilList?.find(
-            (kk) => kk.nama_kelompok.toLowerCase() === kelompok.toLowerCase()
+            (kk) =>
+              kk.nama_kelompok.toLowerCase().trim() ===
+                kelompokNormalized.toLowerCase().trim() ||
+              String(kk.nama_kelompok).trim() === kelompokNormalized
           );
 
           // Hitung jam selesai otomatis berdasarkan sistem
@@ -7731,6 +7901,11 @@ export default function DetailBlok() {
             materi: "Kosong (isi manual)", // User isi manual di preview
             topik: topik,
             kelompok_kecil_id: kelompokKecilData?.id || null,
+            kelompok_kecil_name: kelompokNormalized, // Simpan nama kelompok dari Excel
+            kelompok_kecil: kelompokKecilData ? {
+              id: kelompokKecilData.id,
+              nama_kelompok: kelompokKecilData.nama_kelompok,
+            } : null,
             dosen_id: null, // User isi manual di preview
             nama_dosen: "Kosong (isi manual)", // User isi manual di preview
             ruangan_id: ruanganData?.id || 0,
@@ -8127,7 +8302,7 @@ export default function DetailBlok() {
           // SIAKAD fields dari file asli
           const siakadKurikulum = rowObj["Kurikulum"] || "";
           const siakadKodeMk = rowObj["Kode MK"] || "";
-          const siakadNamaKelas = rowObj["Nama Kelas"] || "";
+          // Nama Kelas tidak ada di header export baru untuk PBL
           const topik = rowObj["Topik"] || "";
           const siakadSubstansi = getValueFromMultipleFormats(
             "Substansi\n(Lihat Daftar Substansi)",
@@ -8191,7 +8366,7 @@ export default function DetailBlok() {
             // SIAKAD fields
             siakad_kurikulum: siakadKurikulum,
             siakad_kode_mk: siakadKodeMk,
-            siakad_nama_kelas: siakadNamaKelas,
+            siakad_nama_kelas: "", // Nama Kelas tidak ada di header export baru untuk PBL
             topik: topik,
             siakad_substansi: siakadSubstansi,
             siakad_jenis_pertemuan: siakadJenisPertemuan,
@@ -8352,14 +8527,13 @@ export default function DetailBlok() {
           return isValid;
         } else if (type === "praktikum") {
           // Template SIAKAD praktikum harus memiliki header yang sesuai dengan format SIAKAD
-          // Headers dengan format yang sebenarnya ada di file Excel (dengan \n untuk line break)
+          // Header untuk praktikum: tanpa "Nama Kelas" dan tanpa "Kelompok Kecil" (kelompok kecil di-mapping ke "Kelompok")
           const requiredHeaders = [
             "Kurikulum",
             "Kode MK",
-            "Nama Kelas",
             "Kelompok\n(Contoh: 1)",
             "Topik",
-            "Substansi\n(Lihat Daftar Substansi)", // Header tambahan yang ada di file Excel
+            "Substansi\n(Lihat Daftar Substansi)",
             "Jenis Pertemuan\n(Lihat Daftar Jenis Pertemuan)",
             "Metode\n(Lihat Daftar Metode)",
             "Ruang\n(Lihat Daftar Ruang)",
@@ -8409,10 +8583,10 @@ export default function DetailBlok() {
           return isValid;
         } else if (type === "pbl") {
           // Template SIAKAD PBL harus memiliki header yang sesuai dengan format SIAKAD
+          // Header untuk PBL: tanpa "Nama Kelas" dan tanpa "Kelompok Kecil" (kelompok kecil di-mapping ke "Kelompok")
           const requiredHeaders = [
             "Kurikulum",
             "Kode MK",
-            "Nama Kelas",
             "Kelompok\n(Contoh: 1)",
             "Topik",
             "Substansi\n(Lihat Daftar Substansi)",
@@ -12881,7 +13055,7 @@ export default function DetailBlok() {
   ) => {
     const updatedData = [...praktikumImportData];
 
-    // Mapping field untuk dosen dan ruangan
+    // Mapping field untuk dosen, ruangan, dan kelompok kecil
     if (key === "dosen_id") {
       updatedData[rowIdx] = {
         ...updatedData[rowIdx],
@@ -12902,6 +13076,30 @@ export default function DetailBlok() {
         (r) => r.nama.toLowerCase() === (value as string).toLowerCase()
       );
       updatedData[rowIdx].ruangan_id = ruangan?.id || 0;
+    } else if (key === "kelompok_kecil_id") {
+      // Handle kelompok kecil edit - user bisa ketik nama kelompok
+      const kelompokKecilName = String(value).trim();
+      updatedData[rowIdx] = {
+        ...updatedData[rowIdx],
+        kelompok_kecil_name: kelompokKecilName,
+      };
+      // Find kelompok kecil berdasarkan nama (case insensitive dan handle number format)
+      const kelompokKecil = kelompokKecilList.find(
+        (k) =>
+          k.nama_kelompok.toLowerCase().trim() ===
+            kelompokKecilName.toLowerCase().trim() ||
+          String(k.nama_kelompok).trim() === kelompokKecilName
+      );
+      updatedData[rowIdx].kelompok_kecil_id = kelompokKecil?.id || null;
+      // Update kelompok_kecil object untuk display
+      if (kelompokKecil) {
+        updatedData[rowIdx].kelompok_kecil = {
+          id: kelompokKecil.id,
+          nama_kelompok: kelompokKecil.nama_kelompok,
+        };
+      } else {
+        updatedData[rowIdx].kelompok_kecil = null;
+      }
     } else {
       updatedData[rowIdx] = { ...updatedData[rowIdx], [key]: value };
     }
@@ -12920,8 +13118,12 @@ export default function DetailBlok() {
 
     setPraktikumImportData(updatedData);
 
-    // Re-validate
-    const { cellErrors } = validatePraktikumExcelData(updatedData);
+    // Re-validate dengan kelompok kecil yang tersedia
+    const kelompokKecilNamesForValidation = kelompokKecilList.map((k) => k.nama_kelompok);
+    const { cellErrors } = validatePraktikumExcelData(
+      updatedData,
+      kelompokKecilNamesForValidation
+    );
     setPraktikumCellErrors(cellErrors);
   };
 
@@ -12942,8 +13144,12 @@ export default function DetailBlok() {
     };
     setPraktikumSiakadImportData(newData);
 
-    // Re-validate
-    const { cellErrors } = validatePraktikumExcelData(newData);
+    // Re-validate dengan kelompok kecil yang tersedia
+    const kelompokKecilNamesForValidation = kelompokKecilList.map((k) => k.nama_kelompok);
+    const { cellErrors } = validatePraktikumExcelData(
+      newData,
+      kelompokKecilNamesForValidation
+    );
     setPraktikumSiakadCellErrors(cellErrors);
   };
 
@@ -12954,7 +13160,34 @@ export default function DetailBlok() {
     value: string | number
   ) => {
     const updatedData = [...praktikumSiakadImportData];
+    
+    // Handle kelompok kecil edit - user bisa ketik nama kelompok
+    if (key === "kelompok_kecil_id") {
+      const kelompokKecilName = String(value).trim();
+      updatedData[rowIdx] = {
+        ...updatedData[rowIdx],
+        kelompok_kecil_name: kelompokKecilName,
+      };
+      // Find kelompok kecil berdasarkan nama (case insensitive dan handle number format)
+      const kelompokKecil = kelompokKecilList.find(
+        (k) =>
+          k.nama_kelompok.toLowerCase().trim() ===
+            kelompokKecilName.toLowerCase().trim() ||
+          String(k.nama_kelompok).trim() === kelompokKecilName
+      );
+      updatedData[rowIdx].kelompok_kecil_id = kelompokKecil?.id || null;
+      // Update kelompok_kecil object untuk display
+      if (kelompokKecil) {
+        updatedData[rowIdx].kelompok_kecil = {
+          id: kelompokKecil.id,
+          nama_kelompok: kelompokKecil.nama_kelompok,
+        };
+      } else {
+        updatedData[rowIdx].kelompok_kecil = null;
+      }
+    } else {
     updatedData[rowIdx] = { ...updatedData[rowIdx], [key]: value };
+    }
 
     // Jika mengedit jam_mulai atau jumlah_sesi, hitung ulang jam selesai
     if (key === "jam_mulai" || key === "jumlah_sesi") {
@@ -12970,8 +13203,12 @@ export default function DetailBlok() {
 
     setPraktikumSiakadImportData(updatedData);
 
-    // Re-validate
-    const { cellErrors } = validatePraktikumExcelData(updatedData);
+    // Re-validate dengan kelompok kecil yang tersedia
+    const kelompokKecilNamesForValidation = kelompokKecilList.map((k) => k.nama_kelompok);
+    const { cellErrors } = validatePraktikumExcelData(
+      updatedData,
+      kelompokKecilNamesForValidation
+    );
     setPraktikumSiakadCellErrors(cellErrors);
   };
 
@@ -12991,8 +13228,12 @@ export default function DetailBlok() {
     };
     setPraktikumSiakadImportData(newData);
 
-    // Re-validate
-    const { cellErrors } = validatePraktikumExcelData(newData);
+    // Re-validate dengan kelompok kecil yang tersedia
+    const kelompokKecilNamesForValidation = kelompokKecilList.map((k) => k.nama_kelompok);
+    const { cellErrors } = validatePraktikumExcelData(
+      newData,
+      kelompokKecilNamesForValidation
+    );
     setPraktikumSiakadCellErrors(cellErrors);
   };
 
@@ -13004,8 +13245,12 @@ export default function DetailBlok() {
     };
     setPraktikumSiakadImportData(newData);
 
-    // Re-validate
-    const { cellErrors } = validatePraktikumExcelData(newData);
+    // Re-validate dengan kelompok kecil yang tersedia
+    const kelompokKecilNamesForValidation = kelompokKecilList.map((k) => k.nama_kelompok);
+    const { cellErrors } = validatePraktikumExcelData(
+      newData,
+      kelompokKecilNamesForValidation
+    );
     setPraktikumSiakadCellErrors(cellErrors);
   };
 
@@ -13020,8 +13265,12 @@ export default function DetailBlok() {
     };
     setPraktikumSiakadImportData(newData);
 
-    // Re-validate
-    const { cellErrors } = validatePraktikumExcelData(newData);
+    // Re-validate dengan kelompok kecil yang tersedia
+    const kelompokKecilNamesForValidation = kelompokKecilList.map((k) => k.nama_kelompok);
+    const { cellErrors } = validatePraktikumExcelData(
+      newData,
+      kelompokKecilNamesForValidation
+    );
     setPraktikumSiakadCellErrors(cellErrors);
   };
 
@@ -14208,8 +14457,6 @@ export default function DetailBlok() {
 
                   agenda: "",
 
-                  // kelasPraktikum dihapus
-
                   pblTipe: "",
 
                   modul: null,
@@ -14790,7 +15037,6 @@ export default function DetailBlok() {
                   lokasi: null,
                   jenisBaris: "seminar-pleno",
                   agenda: "",
-                  // kelasPraktikum dihapus
                   pblTipe: "",
                   modul: null,
                   kelompok: "",
@@ -15022,7 +15268,7 @@ export default function DetailBlok() {
                                   (d: any) =>
                                     d.peran === "koordinator" ||
                                     d.peran_display === "Koordinator" ||
-                                    d.is_koordinator
+                                    d.is_koordinator === true
                                 )
                                 .map((d: any) => d.id);
                             }
@@ -15093,7 +15339,7 @@ export default function DetailBlok() {
                                       (d: any) =>
                                         d.peran === "koordinator" ||
                                         d.peran_display === "Koordinator" ||
-                                        d.is_koordinator
+                                        d.is_koordinator === true === true
                                     )
                                     .map((d: any) => d.id);
                                 }
@@ -15122,7 +15368,6 @@ export default function DetailBlok() {
                                   lokasi: actualRow.ruangan_id || null,
                                   jenisBaris: "seminar-pleno",
                                   agenda: "",
-                                  // kelasPraktikum dihapus
                                   pblTipe: "",
                                   modul: null,
                                   kelompok: "",
@@ -15440,8 +15685,6 @@ export default function DetailBlok() {
                   jenisBaris: "praktikum",
 
                   agenda: "",
-
-                  // kelasPraktikum dihapus
 
                   pblTipe: "",
 
@@ -16071,8 +16314,6 @@ export default function DetailBlok() {
                   jenisBaris: "agenda",
 
                   agenda: "",
-
-                  // kelasPraktikum dihapus
 
                   pblTipe: "",
 
@@ -25001,8 +25242,6 @@ export default function DetailBlok() {
 
                   agenda: "",
 
-                  // kelasPraktikum dihapus
-
                   pblTipe: "",
 
                   modul: null,
@@ -26504,7 +26743,6 @@ export default function DetailBlok() {
                   lokasi: null,
                   jenisBaris: "persamaan-persepsi",
                   agenda: "",
-                  // kelasPraktikum dihapus
                   pblTipe: "",
                   modul: null,
                   kelompok: "",
@@ -26731,7 +26969,7 @@ export default function DetailBlok() {
                                   (d: any) =>
                                     d.peran === "koordinator" ||
                                     d.peran_display === "Koordinator" ||
-                                    d.is_koordinator
+                                    d.is_koordinator === true
                                 )
                                 .map((d: any) => d.id);
                             }
@@ -26802,7 +27040,7 @@ export default function DetailBlok() {
                                       (d: any) =>
                                         d.peran === "koordinator" ||
                                         d.peran_display === "Koordinator" ||
-                                        d.is_koordinator
+                                        d.is_koordinator === true === true
                                     )
                                     .map((d: any) => d.id);
                                 }
@@ -26831,7 +27069,6 @@ export default function DetailBlok() {
                                   lokasi: actualRow.ruangan_id || null,
                                   jenisBaris: "persamaan-persepsi",
                                   agenda: "",
-                                  // kelasPraktikum dihapus
                                   pblTipe: "",
                                   modul: null,
                                   kelompok: "",
@@ -27121,7 +27358,6 @@ export default function DetailBlok() {
                   lokasi: null,
                   jenisBaris: "jurnal",
                   agenda: "",
-                  // kelasPraktikum dihapus
                   pblTipe: "",
                   modul: null,
                   kelompok: "",
@@ -28233,7 +28469,7 @@ export default function DetailBlok() {
                             <li>Waktu Mulai → Jam mulai</li>
                             <li>Topik → Topik</li>
                             <li>Ruang → Ruangan</li>
-                            <li>Kelompok Besar → Kelompok besar</li>
+                            <li>Kelompok → Kelompok besar</li>
                           </ul>
                         </div>
                         <div>
@@ -30547,8 +30783,7 @@ export default function DetailBlok() {
                             <li>Waktu Mulai → Jam mulai</li>
                             <li>Waktu Selesai → Jam selesai</li>
                             <li>Topik → Topik</li>
-                            <li>Kelompok Kecil → Kelompok kecil</li>
-                            <li>Kelompok → Kelompok besar</li>
+                            <li>Kelompok → Kelompok kecil</li>
                             <li>Ruang → Ruangan</li>
                           </ul>
                         </div>
@@ -31082,7 +31317,9 @@ export default function DetailBlok() {
                                   {renderEditableCell("topik", row.topik)}
                                   {renderEditableCell(
                                     "kelompok_kecil_id",
-                                    row.kelompok_kecil?.nama_kelompok || ""
+                                    row.kelompok_kecil?.nama_kelompok ||
+                                      (row as any).kelompok_kecil_name ||
+                                      ""
                                   )}
                                   {renderEditableCell(
                                     "dosen_id",
