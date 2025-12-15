@@ -65,7 +65,11 @@ class UserController extends Controller
         
         // Optimize: Gunakan pagination dengan caching untuk data yang jarang berubah
         $perPage = $request->get('per_page', 50); // Default 50 items per page
-        $cacheKey = 'users_list_' . md5($request->getQueryString() . '_' . $perPage);
+        // Build normalized query string untuk cache key konsistensi
+        $queryParams = $request->only(['role', 'semester', 'keahlian', 'per_page']);
+        ksort($queryParams); // Sort untuk konsistensi urutan
+        $normalizedQueryString = http_build_query($queryParams);
+        $cacheKey = 'users_list_' . md5($normalizedQueryString . '_' . $perPage);
         
         $users = Cache::remember($cacheKey, 300, function () use ($query, $perPage) {
             return $query->paginate($perPage);
@@ -303,6 +307,26 @@ class UserController extends Controller
                 'database' => DB::connection()->getDatabaseName(),
             ]);
 
+        // Clear cache untuk users list berdasarkan role
+        // Cache key format: md5(normalized_query_string . '_' . $perPage)
+        // Normalized query string menggunakan http_build_query dengan ksort
+        $perPageOptions = [10, 20, 30, 40, 50, 100, 500, 1000];
+        foreach ($perPageOptions as $perPage) {
+            // Build normalized query string untuk role ini
+            $queryParams = ['role' => $user->role, 'per_page' => $perPage];
+            ksort($queryParams);
+            $normalizedQueryString = http_build_query($queryParams);
+            $cacheKey = 'users_list_' . md5($normalizedQueryString . '_' . $perPage);
+            Cache::forget($cacheKey);
+            
+            // Juga clear untuk query tanpa per_page (default 50)
+            $queryParams2 = ['role' => $user->role];
+            ksort($queryParams2);
+            $normalizedQueryString2 = http_build_query($queryParams2);
+            $cacheKey2 = 'users_list_' . md5($normalizedQueryString2 . '_50'); // Default per_page
+            Cache::forget($cacheKey2);
+        }
+
         return response()->json($user, 201);
         } catch (ValidationException $e) {
             \Log::error('UserController::store - Validation failed', [
@@ -374,7 +398,30 @@ class UserController extends Controller
         if (isset($validated['keahlian']) && is_string($validated['keahlian'])) {
             $validated['keahlian'] = array_map('trim', explode(',', $validated['keahlian']));
         }
+        $oldRole = $user->role;
         $user->update($validated);
+        $newRole = $user->role;
+
+        // Clear cache untuk users list berdasarkan role (old dan new)
+        // Cache key format: md5(normalized_query_string . '_' . $perPage)
+        $rolesToClear = array_unique([$oldRole, $newRole]);
+        $perPageOptions = [10, 20, 30, 40, 50, 100, 500, 1000];
+        foreach ($rolesToClear as $role) {
+            foreach ($perPageOptions as $perPage) {
+                // Build normalized query string untuk role ini
+                $queryParams = ['role' => $role, 'per_page' => $perPage];
+                ksort($queryParams);
+                $normalizedQueryString = http_build_query($queryParams);
+                $cacheKey = 'users_list_' . md5($normalizedQueryString . '_' . $perPage);
+                Cache::forget($cacheKey);
+            }
+            // Juga clear untuk query tanpa per_page (default 50)
+            $queryParams2 = ['role' => $role];
+            ksort($queryParams2);
+            $normalizedQueryString2 = http_build_query($queryParams2);
+            $cacheKey2 = 'users_list_' . md5($normalizedQueryString2 . '_50'); // Default per_page
+            Cache::forget($cacheKey2);
+        }
 
         // Handle dosen_peran jika ada
         if ($request->has('dosen_peran') && is_array($request->dosen_peran)) {
@@ -416,10 +463,29 @@ class UserController extends Controller
 
         // Reset login status and delete all tokens
         $user->is_logged_in = 0;
+        $role = $user->role;
         $user->current_token = null;
         $user->save();
         $user->tokens()->delete();
         $user->delete();
+
+        // Clear cache untuk users list berdasarkan role
+        // Cache key format: md5(normalized_query_string . '_' . $perPage)
+        $perPageOptions = [10, 20, 30, 40, 50, 100, 500, 1000];
+        foreach ($perPageOptions as $perPage) {
+            // Build normalized query string untuk role ini
+            $queryParams = ['role' => $role, 'per_page' => $perPage];
+            ksort($queryParams);
+            $normalizedQueryString = http_build_query($queryParams);
+            $cacheKey = 'users_list_' . md5($normalizedQueryString . '_' . $perPage);
+            Cache::forget($cacheKey);
+        }
+        // Juga clear untuk query tanpa per_page (default 50)
+        $queryParams2 = ['role' => $role];
+        ksort($queryParams2);
+        $normalizedQueryString2 = http_build_query($queryParams2);
+        $cacheKey2 = 'users_list_' . md5($normalizedQueryString2 . '_50'); // Default per_page
+        Cache::forget($cacheKey2);
 
         return response()->json(['message' => 'User deleted']);
     }

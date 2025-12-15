@@ -93,6 +93,7 @@ export default function UserIKD() {
   const fetchData = async () => {
     try {
       setLoading(true);
+      setError(null);
       // Mapping Unit Kerja ke role format
       const roleMapping: { [key: string]: string } = {
         Akademik: "akademik", // Role baru, berbeda dari tim_akademik
@@ -109,6 +110,7 @@ export default function UserIKD() {
       };
 
       const allUsers: UserIKD[] = [];
+      let fetchErrors: string[] = [];
 
       // Fetch users untuk setiap role yang sesuai dengan Unit Kerja
       // Catatan: "Dosen" tidak di-fetch karena sudah ada di halaman Dosen sendiri
@@ -117,12 +119,32 @@ export default function UserIKD() {
         if (!role) continue;
 
         try {
-          const res = await api.get(`/users?role=${role}`);
+          const res = await api.get(`/users?role=${role}&per_page=1000`); // Request lebih banyak per page untuk mendapatkan semua data
           let users: any[] = [];
+          
+          // Handle berbagai format response
           if (Array.isArray(res.data)) {
+            // Format: langsung array
             users = res.data;
           } else if (res.data?.data && Array.isArray(res.data.data)) {
+            // Format: pagination Laravel { data: [...], current_page: ..., etc }
             users = res.data.data;
+          } else if (res.data?.users && Array.isArray(res.data.users)) {
+            // Format: { users: [...] }
+            users = res.data.users;
+          } else if (res.data?.items && Array.isArray(res.data.items)) {
+            // Format: { items: [...] }
+            users = res.data.items;
+          } else if (res.data && typeof res.data === 'object') {
+            // Jika response adalah object tapi bukan array, mungkin data ada di property lain
+            // Cek apakah ada property yang berisi array
+            const possibleDataKeys = ['results', 'list', 'records', 'users', 'items', 'data'];
+            for (const key of possibleDataKeys) {
+              if (res.data[key] && Array.isArray(res.data[key])) {
+                users = res.data[key];
+                break;
+              }
+            }
           }
 
           // Map role kembali ke Unit Kerja format untuk display
@@ -132,8 +154,11 @@ export default function UserIKD() {
           }));
 
           allUsers.push(...mappedUsers);
-        } catch (err) {
-          // Skip jika role tidak ada atau error
+        } catch (err: any) {
+          // Log error tapi continue untuk role lain
+          const errorMsg = err?.response?.data?.message || err?.message || 'Unknown error';
+          console.warn(`Error fetching users for role ${role} (${unitKerja}):`, errorMsg);
+          fetchErrors.push(`${unitKerja}: ${errorMsg}`);
           continue;
         }
       }
@@ -144,8 +169,21 @@ export default function UserIKD() {
         return userRole !== "dosen";
       });
 
+      // Log untuk debugging
+      console.log('Fetched users:', filteredUsers.length, 'users');
+      console.log('All users before filter:', allUsers.length);
+
       setData(filteredUsers);
+
+      // Jika ada error tapi masih dapat beberapa data, tampilkan warning
+      if (fetchErrors.length > 0 && filteredUsers.length === 0) {
+        setError(`Gagal memuat data: ${fetchErrors.join('; ')}`);
+      } else if (fetchErrors.length > 0) {
+        // Ada error tapi masih dapat data, log saja tanpa set error
+        console.warn('Some roles failed to load:', fetchErrors);
+      }
     } catch (err: any) {
+      console.error('Error in fetchData:', err);
       setError(handleApiError(err, "Memuat data user IKD"));
     } finally {
       setLoading(false);
@@ -344,14 +382,33 @@ export default function UserIKD() {
     setIsDeleting(true);
     try {
       if (selectedDeleteId) {
-        await api.delete(`/users/${selectedDeleteId}`);
+        // Optimistically remove from state
+        setData((prevData) => prevData.filter((user) => user.id !== selectedDeleteId));
+        
+        // Close modal immediately for better UX
+        setShowDeleteModal(false);
+        const deletedId = selectedDeleteId;
+        setSelectedDeleteId(null);
+
+        // Delete from backend
+        await api.delete(`/users/${deletedId}`);
+        
+        // Wait a bit to ensure backend cache is cleared
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Refresh data from server
         await fetchData();
+        
         setSuccess("Data user IKD berhasil dihapus.");
       }
+    } catch (err: any) {
+      // If delete fails, restore data by fetching again
+      console.error("Error deleting user:", err);
+      setError(handleApiError(err, "Menghapus data user IKD"));
+      // Restore data by fetching again
+      await fetchData();
       setShowDeleteModal(false);
       setSelectedDeleteId(null);
-    } catch (err: any) {
-      setError(handleApiError(err, "Menghapus data user IKD"));
     } finally {
       setIsDeleting(false);
     }
