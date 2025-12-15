@@ -1126,10 +1126,16 @@ export default function DashboardDosen() {
       };
 
       // Determine endpoint based on jadwal type
-      if (selectedJadwal.modul) {
+      // URUTAN PENTING: Cek CSR dan jenis_csr DULU sebelum kelompok_kecil (karena CSR juga punya kelompok_kecil)
+      if (selectedJadwal.jenis_csr !== undefined) {
+        // CSR memiliki jenis_csr (reguler/responsi)
+        endpoint = `/jadwal-csr/${selectedJadwal.id}/konfirmasi`;
+        payload.dosen_id = getUser()?.id;
+      } else if (selectedJadwal.modul) {
         endpoint = `/jadwal-pbl/${selectedJadwal.id}/konfirmasi`;
         payload.dosen_id = getUser()?.id;
-      } else if (selectedJadwal.kelompok_kecil !== undefined) {
+      } else if (selectedJadwal.kelompok_kecil !== undefined && !selectedJadwal.jenis_csr) {
+        // Praktikum memiliki kelompok_kecil tapi tidak memiliki jenis_csr
         endpoint = `/jadwal-praktikum/${selectedJadwal.id}/konfirmasi`;
         payload.dosen_id = getUser()?.id;
       } else if (selectedJadwal.file_jurnal !== undefined) {
@@ -1153,9 +1159,6 @@ export default function DashboardDosen() {
       ) {
         // Persamaan Persepsi memiliki koordinator_ids tapi tidak memiliki kelompok_besar_id
         endpoint = `/jadwal-persamaan-persepsi/${selectedJadwal.id}/konfirmasi`;
-        payload.dosen_id = getUser()?.id;
-      } else if (selectedJadwal.jenis_csr !== undefined) {
-        endpoint = `/jadwal-csr/${selectedJadwal.id}/konfirmasi`;
         payload.dosen_id = getUser()?.id;
       } else if (selectedJadwal.jenis_baris !== undefined) {
         endpoint = `/jadwal-non-blok-non-csr/${selectedJadwal.id}/konfirmasi`;
@@ -1193,8 +1196,12 @@ export default function DashboardDosen() {
       };
 
       // Determine endpoint based on jadwal type
+      // URUTAN PENTING: Cek CSR dan jenis_csr DULU sebelum kelompok_kecil (karena CSR juga punya kelompok_kecil)
       // Praktikum tidak memiliki reschedule
-      if (selectedJadwal.modul) {
+      if (selectedJadwal.jenis_csr !== undefined) {
+        // CSR memiliki jenis_csr (reguler/responsi)
+        endpoint = `/jadwal-csr/${selectedJadwal.id}/reschedule`;
+      } else if (selectedJadwal.modul) {
         endpoint = `/jadwal-pbl/${selectedJadwal.id}/reschedule`;
       } else if (selectedJadwal.file_jurnal !== undefined) {
         endpoint = `/jadwal-jurnal-reading/${selectedJadwal.id}/reschedule`;
@@ -1215,8 +1222,6 @@ export default function DashboardDosen() {
       ) {
         // Persamaan Persepsi memiliki koordinator_ids tapi tidak memiliki kelompok_besar_id
         endpoint = `/jadwal-persamaan-persepsi/${selectedJadwal.id}/reschedule`;
-      } else if (selectedJadwal.jenis_csr !== undefined) {
-        endpoint = `/jadwal-csr/${selectedJadwal.id}/reschedule`;
       } else if (selectedJadwal.jenis_baris !== undefined) {
         endpoint = `/jadwal-non-blok-non-csr/${selectedJadwal.id}/reschedule`;
       } else if (
@@ -2623,8 +2628,12 @@ export default function DashboardDosen() {
                           ) : (
                             <>
                               {/* Untuk jadwal lain (bukan bimbingan akhir), tampilkan button konfirmasi jika belum konfirmasi */}
+                              {/* CSR tidak memiliki is_active_dosen, jadi cek dosen_id atau langsung tampilkan */}
                               {!(jadwalType === "bimbingan_akhir_sempro" || jadwalType === "bimbingan_akhir_sidang") &&
-                                item.is_active_dosen &&
+                                (jadwalType === "csr" ? 
+                                  (item.dosen_id && Number(item.dosen_id) === Number(getUser()?.id)) :
+                                  item.is_active_dosen
+                                ) &&
                                 item.status_konfirmasi ===
                                   "belum_konfirmasi" && (
                                 <button
@@ -2636,8 +2645,12 @@ export default function DashboardDosen() {
                                 </button>
                               )}
                               {/* Tampilkan button aksi jika status sudah "bisa" */}
-                              {item.is_active_dosen &&
-                                item.status_konfirmasi === "bisa" && (
+                              {/* CSR tidak memiliki is_active_dosen, jadi cek dosen_id atau langsung tampilkan */}
+                              {((jadwalType === "csr" ? 
+                                  (item.dosen_id && Number(item.dosen_id) === Number(getUser()?.id)) :
+                                  item.is_active_dosen
+                                ) &&
+                                item.status_konfirmasi === "bisa") && (
                                 <>
                                   {jadwalType === "csr" ? (
                                     <button
@@ -2793,6 +2806,7 @@ export default function DashboardDosen() {
                               {/* Persamaan Persepsi dan Seminar Pleno tidak ada button reschedule (langsung bisa) */}
                               {/* Praktikum tidak ada button reschedule */}
                               {/* Bimbingan Akhir (seminar proposal dan sidang skripsi) sudah ditangani di atas, jangan tampilkan lagi di sini */}
+                              {/* CSR tidak memiliki is_active_dosen, jadi cek dosen_id atau langsung tampilkan */}
                               {(jadwalType === "pbl" ||
                                 jadwalType === "kuliah_besar" ||
                                 jadwalType === "agenda_khusus" ||
@@ -2801,7 +2815,10 @@ export default function DashboardDosen() {
                                 (jadwalType === "non_blok_non_csr" && 
                                  item.jenis_baris !== "seminar_proposal" && 
                                  item.jenis_baris !== "sidang_skripsi")) &&
-                                item.is_active_dosen &&
+                                (jadwalType === "csr" ? 
+                                  (item.dosen_id && Number(item.dosen_id) === Number(getUser()?.id)) :
+                                  item.is_active_dosen
+                                ) &&
                                 item.status_konfirmasi ===
                                   "belum_konfirmasi" && (
                                 <button

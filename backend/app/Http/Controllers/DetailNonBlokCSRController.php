@@ -156,11 +156,20 @@ class DetailNonBlokCSRController extends Controller
             // Get kelompok kecil berdasarkan semester mata kuliah - optimized with cache
             $cacheKeyKelompok = 'kelompok_kecil_semester_' . $mataKuliah->semester;
             $kelompokKecilList = Cache::remember($cacheKeyKelompok, 1800, function () use ($mataKuliah) {
+                // Ambil semua kelompok kecil untuk semester ini, lalu ambil unik berdasarkan nama_kelompok
+                // Ambil id pertama untuk setiap nama_kelompok
                 return KelompokKecil::where('semester', $mataKuliah->semester)
                     ->select('id', 'nama_kelompok')
-                    ->distinct()
                     ->orderBy('nama_kelompok', 'asc')
-                    ->get();
+                    ->get()
+                    ->unique('nama_kelompok')
+                    ->values()
+                    ->map(function ($item) {
+                        return [
+                            'id' => $item->id,
+                            'nama_kelompok' => $item->nama_kelompok
+                        ];
+                    });
             });
 
             // Get jam options (hardcoded for now, can be moved to config)

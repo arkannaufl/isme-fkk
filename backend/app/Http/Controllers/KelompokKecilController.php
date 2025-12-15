@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class KelompokKecilController extends Controller
 {
@@ -120,6 +121,9 @@ class KelompokKecilController extends Controller
             $this->autoMapKelompokToMataKuliah($semester, $request->jumlah_kelompok);
         });
 
+        // Clear cache untuk kelompok kecil semester ini
+        Cache::forget('kelompok_kecil_semester_' . $semester);
+
         // Log aktivitas generate kelompok
         activity()
             ->causedBy(Auth::user())
@@ -179,9 +183,13 @@ class KelompokKecilController extends Controller
         ]);
 
         $kelompokKecil = KelompokKecil::findOrFail($id);
+        $semester = $kelompokKecil->semester;
         $kelompokKecil->update([
             'nama_kelompok' => $request->nama_kelompok
         ]);
+
+        // Clear cache untuk kelompok kecil semester ini
+        Cache::forget('kelompok_kecil_semester_' . $semester);
 
         return response()->json(['message' => 'Pengelompokan berhasil diupdate']);
     }
@@ -199,6 +207,9 @@ class KelompokKecilController extends Controller
             // Re-generate mapping setelah delete
             $this->autoMapKelompokToMataKuliah($semester, $jumlahKelompok);
         });
+
+        // Clear cache untuk kelompok kecil semester ini
+        Cache::forget('kelompok_kecil_semester_' . $semester);
 
         return response()->json(['message' => 'Data berhasil dihapus']);
     }
@@ -223,19 +234,32 @@ class KelompokKecilController extends Controller
             'updates.*.nama_kelompok' => 'required|string',
         ]);
 
-        DB::transaction(function () use ($request) {
+        $updatedSemesters = [];
+        DB::transaction(function () use ($request, &$updatedSemesters) {
             foreach ($request->updates as $update) {
-                \App\Models\KelompokKecil::where('id', $update['id'])->update(['nama_kelompok' => $update['nama_kelompok']]);
+                $kelompokKecil = \App\Models\KelompokKecil::find($update['id']);
+                if ($kelompokKecil) {
+                    $kelompokKecil->update(['nama_kelompok' => $update['nama_kelompok']]);
+                    $updatedSemesters[] = $kelompokKecil->semester;
+                }
             }
 
             // Re-generate mapping setelah update
-            $kelompokKecil = \App\Models\KelompokKecil::where('id', $request->updates[0]['id'])->first();
-            if ($kelompokKecil) {
-                $semester = $kelompokKecil->semester;
-                $jumlahKelompok = $kelompokKecil->jumlah_kelompok;
-                $this->autoMapKelompokToMataKuliah($semester, $jumlahKelompok);
+            if (!empty($updatedSemesters)) {
+                $semester = $updatedSemesters[0];
+                $kelompokKecil = \App\Models\KelompokKecil::where('semester', $semester)->first();
+                if ($kelompokKecil) {
+                    $jumlahKelompok = $kelompokKecil->jumlah_kelompok;
+                    $this->autoMapKelompokToMataKuliah($semester, $jumlahKelompok);
+                }
             }
         });
+
+        // Clear cache untuk semua semester yang di-update
+        $uniqueSemesters = array_unique($updatedSemesters);
+        foreach ($uniqueSemesters as $semester) {
+            Cache::forget('kelompok_kecil_semester_' . $semester);
+        }
 
         return response()->json(['message' => 'Batch update berhasil']);
     }

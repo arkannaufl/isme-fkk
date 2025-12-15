@@ -1002,24 +1002,50 @@ class JadwalPraktikumController extends Controller
             'alasan' => 'nullable|string|max:1000'
         ]);
 
-        $jadwal = JadwalPraktikum::findOrFail($id);
+        try {
+            $jadwal = JadwalPraktikum::with('dosen')->findOrFail($id);
 
-        // Update pivot table untuk konfirmasi dosen
-        $jadwal->dosen()->updateExistingPivot($request->dosen_id, [
-            'status_konfirmasi' => $request->status,
-            'alasan_konfirmasi' => $request->alasan,
-            'updated_at' => now()
-        ]);
+            // Cek apakah dosen sudah ada di pivot table
+            $pivotExists = $jadwal->dosen()->where('users.id', $request->dosen_id)->exists();
 
-        // Kirim notifikasi ke super admin jika dosen tidak bisa
-        if ($request->status === 'tidak_bisa') {
-            $this->sendReplacementNotification($jadwal, $request->dosen_id, $request->alasan);
+            if ($pivotExists) {
+                // Update pivot table jika sudah ada
+                $jadwal->dosen()->updateExistingPivot($request->dosen_id, [
+                    'status_konfirmasi' => $request->status,
+                    'alasan_konfirmasi' => $request->alasan,
+                    'updated_at' => now()
+                ]);
+            } else {
+                // Jika belum ada, attach dosen ke jadwal dengan status konfirmasi
+                $jadwal->dosen()->attach($request->dosen_id, [
+                    'status_konfirmasi' => $request->status,
+                    'alasan_konfirmasi' => $request->alasan,
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
+            }
+
+            // Kirim notifikasi ke super admin jika dosen tidak bisa
+            if ($request->status === 'tidak_bisa') {
+                $this->sendReplacementNotification($jadwal, $request->dosen_id, $request->alasan);
+            }
+
+            return response()->json([
+                'message' => 'Konfirmasi berhasil disimpan',
+                'status' => $request->status
+            ]);
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'message' => 'Jadwal praktikum tidak ditemukan',
+                'error' => "Jadwal dengan ID {$id} tidak ditemukan"
+            ], 404);
+        } catch (\Exception $e) {
+            Log::error("Error konfirmasi jadwal praktikum: " . $e->getMessage());
+            return response()->json([
+                'message' => 'Gagal menyimpan konfirmasi',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        return response()->json([
-            'message' => 'Konfirmasi berhasil disimpan',
-            'status' => $request->status
-        ]);
     }
 
     /**

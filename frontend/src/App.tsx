@@ -240,7 +240,7 @@ function AppContent() {
                 path="/absensi-csr/:kode/:jadwalId"
                 element={
                   <RequireDosenRole
-                    allowedRoles={["super_admin", "tim_akademik"]}
+                    allowedRoles={["dosen", "super_admin", "tim_akademik"]}
                   >
                     <AbsensiCSRPage />
                   </RequireDosenRole>
