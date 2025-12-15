@@ -79,6 +79,57 @@ interface SystemHealth {
   lastBackup: string;
 }
 
+interface MonitoringMetrics {
+  timestamp: string;
+  database: {
+    current_connections: number;
+    max_connections: number;
+    connection_usage_percent: number;
+    running_threads: number;
+    max_used_connections: number;
+    slow_queries: number;
+    table_locks_waited: number;
+    table_locks_immediate: number;
+    status: "healthy" | "warning" | "critical" | "error";
+  };
+  queue: {
+    queue_length: number;
+    processing_jobs: number;
+    failed_jobs: number;
+    queue_connection: string;
+    status: "healthy" | "warning" | "critical" | "error";
+  };
+  performance: {
+    memory_usage_mb: number;
+    memory_peak_mb: number;
+    memory_limit: string;
+    memory_usage_percent: number;
+    execution_time_ms: number;
+    query_count: number;
+    status: "healthy" | "warning" | "critical" | "error";
+  };
+  system: {
+    uptime: string;
+    cpu_usage_percent: number | null;
+    cpu_load: {
+      "1min": number;
+      "5min": number;
+      "15min": number;
+    } | null;
+    php_version: string;
+    laravel_version: string;
+    os: string;
+    status: "healthy" | "warning" | "critical" | "error";
+  };
+  cache: {
+    driver: string;
+    hits?: number;
+    misses?: number;
+    hit_rate?: number;
+    error?: string;
+  };
+}
+
 interface AttendanceStats {
   overall_rate: number;
   pbl_rate: number;
@@ -302,6 +353,11 @@ const DashboardSuperAdmin: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  
+  // Monitoring metrics state
+  const [monitoringMetrics, setMonitoringMetrics] = useState<MonitoringMetrics | null>(null);
+  const [loadingMonitoring, setLoadingMonitoring] = useState(false);
+  const [monitoringError, setMonitoringError] = useState<string | null>(null);
 
   // Helper function to format growth percentage
   const formatGrowthPercentage = (
@@ -932,6 +988,33 @@ const DashboardSuperAdmin: React.FC = () => {
     }
   }, [success]);
 
+  // Fetch monitoring metrics
+  const fetchMonitoringMetrics = async () => {
+    try {
+      setLoadingMonitoring(true);
+      setMonitoringError(null);
+      const token = localStorage.getItem("token");
+      if (!token) {
+        throw new Error("Authentication token not found");
+      }
+
+      const response = await api.get("/dashboard/super-admin/monitoring");
+      setMonitoringMetrics(response.data);
+    } catch (err: any) {
+      setMonitoringError(err.response?.data?.message || "Failed to fetch monitoring metrics");
+      console.error("Error fetching monitoring metrics:", err);
+    } finally {
+      setLoadingMonitoring(false);
+    }
+  };
+
+  // Auto-refresh monitoring metrics every 30 seconds
+  useEffect(() => {
+    fetchMonitoringMetrics();
+    const interval = setInterval(fetchMonitoringMetrics, 30000); // Refresh every 30 seconds
+    return () => clearInterval(interval);
+  }, []);
+
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
@@ -1260,35 +1343,26 @@ const DashboardSuperAdmin: React.FC = () => {
           </div>
         </div>
 
-        {/* Main Stats Cards Skeleton */}
+        {/* Main Statistics Cards Skeleton - 3x3 Grid */}
         <div className="col-span-12">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
-            {[1, 2, 3].map((i) => (
-              <SkeletonCard key={i}>
-                <div className="flex items-center justify-between mb-4">
-                  <SkeletonCircle />
-                  <SkeletonLine width="w-16" height="h-6" />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6 mb-6">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="group relative overflow-hidden rounded-2xl bg-white p-6 shadow-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800">
+                <div className="absolute top-0 right-0 w-20 h-20 bg-gray-100 dark:bg-gray-700/50 rounded-full -mr-10 -mt-10 animate-pulse"></div>
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-4">
+                    <SkeletonCircle size="w-12 h-12" />
+                    <div className="w-16 h-6 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse"></div>
+                  </div>
+                  <div className="space-y-2">
+                    <SkeletonLine width="w-20" height="h-4" />
+                    <SkeletonLine width="w-16" height="h-8" />
+                    <SkeletonLine width="w-32" height="h-3" />
+                  </div>
+                </div>
               </div>
-                <SkeletonLine width="w-20" height="h-4" />
-                <SkeletonLine width="w-16" height="h-8" />
-              </SkeletonCard>
             ))}
           </div>
-          </div>
-          
-        {/* Academic Stats Skeleton */}
-        <div className="col-span-12">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-            {[1, 2, 3, 4].map((i) => (
-              <SkeletonCard key={i}>
-                <SkeletonCircle />
-                <div className="mt-4">
-                  <SkeletonLine width="w-24" height="h-4" />
-                  <SkeletonLine width="w-16" height="h-8" />
-                </div>
-              </SkeletonCard>
-                  ))}
-                </div>
         </div>
 
         {/* Analytics Cards Skeleton */}
@@ -1700,7 +1774,7 @@ const DashboardSuperAdmin: React.FC = () => {
            </div>
          )}
 
-        {/* Main Statistics Cards - 2 Rows of 3 Cards Each */}
+        {/* Main Statistics Cards - 3x3 Grid */}
          <div className="col-span-12">
            <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6 mb-6">
              {/* Total Users Card */}
@@ -1880,14 +1954,9 @@ const DashboardSuperAdmin: React.FC = () => {
             </div>
           </div>
         </div>
-           </div>
-         </div>
 
-               {/* Academic Statistics Grid */}
-         <div className="col-span-12">
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
              {/* Mata Kuliah Card */}
-        <div className="group relative overflow-hidden rounded-2xl bg-white p-5 shadow-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800 hover:shadow-md transition-all duration-300 hover:-translate-y-1 md:p-6">
+        <div className="group relative overflow-hidden rounded-2xl bg-white p-6 shadow-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
                <div className="absolute top-0 right-0 w-16 h-16 bg-indigo-50 dark:bg-indigo-900/20 rounded-full -mr-8 -mt-8"></div>
                <div className="relative">
                  <div className="w-12 h-12 bg-indigo-500 rounded-2xl flex items-center justify-center shadow-lg mb-4">
@@ -1909,15 +1978,18 @@ const DashboardSuperAdmin: React.FC = () => {
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
                       Mata Kuliah
                     </p>
-                    <h4 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    <h4 className="text-3xl font-bold text-gray-900 dark:text-white">
                       {stats.totalMataKuliah.toLocaleString()}
                     </h4>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      Total courses
+                    </p>
             </div>
                </div>
              </div>
 
              {/* Ruangan Card */}
-        <div className="group relative overflow-hidden rounded-2xl bg-white p-5 shadow-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800 hover:shadow-md transition-all duration-300 hover:-translate-y-1 md:p-6">
+        <div className="group relative overflow-hidden rounded-2xl bg-white p-6 shadow-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
                <div className="absolute top-0 right-0 w-16 h-16 bg-pink-50 dark:bg-pink-900/20 rounded-full -mr-8 -mt-8"></div>
                <div className="relative">
                  <div className="w-12 h-12 bg-pink-500 rounded-2xl flex items-center justify-center shadow-lg mb-4">
@@ -1939,15 +2011,18 @@ const DashboardSuperAdmin: React.FC = () => {
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
                       Ruangan
                     </p>
-                    <h4 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    <h4 className="text-3xl font-bold text-gray-900 dark:text-white">
                       {stats.totalRuangan.toLocaleString()}
                     </h4>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      Available rooms
+                    </p>
             </div>
                </div>
              </div>
 
              {/* Jadwal Aktif Card */}
-        <div className="group relative overflow-hidden rounded-2xl bg-white p-5 shadow-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800 hover:shadow-md transition-all duration-300 hover:-translate-y-1 md:p-6">
+        <div className="group relative overflow-hidden rounded-2xl bg-white p-6 shadow-sm border border-gray-200 dark:border-gray-700 dark:bg-gray-800 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
                <div className="absolute top-0 right-0 w-16 h-16 bg-cyan-50 dark:bg-cyan-900/20 rounded-full -mr-8 -mt-8"></div>
                <div className="relative">
                  <div className="w-12 h-12 bg-cyan-500 rounded-2xl flex items-center justify-center shadow-lg mb-4">
@@ -1969,14 +2044,17 @@ const DashboardSuperAdmin: React.FC = () => {
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
                       Jadwal Aktif
                     </p>
-                    <h4 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    <h4 className="text-3xl font-bold text-gray-900 dark:text-white">
                       {stats.totalJadwalAktif.toLocaleString()}
                     </h4>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      Active schedules
+                    </p>
             </div>
           </div>
         </div>
            </div>
-      </div>
+         </div>
 
       {/* Second Row - Super Admin Management & Quick Actions */}
       <div className="col-span-12">
@@ -2429,6 +2507,432 @@ const DashboardSuperAdmin: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* System Monitoring Metrics */}
+      <div className="col-span-12">
+        <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03] shadow-sm">
+          {/* Header */}
+          <div className="border-b border-gray-200 dark:border-gray-800 px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                  System Monitoring
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Real-time system performance metrics
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                  <span>{currentTime.toLocaleTimeString()}</span>
+                </div>
+                <button
+                  onClick={fetchMonitoringMetrics}
+                  disabled={loadingMonitoring}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg
+                    className={`w-3.5 h-3.5 ${loadingMonitoring ? 'animate-spin' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                  Refresh
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="p-6">
+
+          {loadingMonitoring && !monitoringMetrics ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="group relative bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 overflow-hidden">
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-gray-300 dark:bg-gray-600"></div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
+                      <div className="w-20 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                    </div>
+                    <div className="w-16 h-6 bg-gray-200 dark:bg-gray-700 rounded-md animate-pulse"></div>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="w-24 h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                        <div className="w-16 h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                      </div>
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 animate-pulse"></div>
+                      <div className="w-20 h-3 bg-gray-200 dark:bg-gray-700 rounded mt-1.5 animate-pulse"></div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                      <div>
+                        <div className="w-20 h-3 bg-gray-200 dark:bg-gray-700 rounded mb-1 animate-pulse"></div>
+                        <div className="w-8 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                      </div>
+                      <div>
+                        <div className="w-20 h-3 bg-gray-200 dark:bg-gray-700 rounded mb-1 animate-pulse"></div>
+                        <div className="w-8 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : monitoringError ? (
+            <div className="text-center py-12">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-red-50 dark:bg-red-900/20 mb-3">
+                <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-red-600 dark:text-red-400">{monitoringError}</p>
+            </div>
+          ) : monitoringMetrics ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {/* Database Metrics */}
+              <div className="group relative bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-200 p-6 overflow-hidden">
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-gray-300 dark:bg-gray-600"></div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
+                      <svg className="w-4.5 h-4.5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                      </svg>
+                    </div>
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                      Database
+                    </h4>
+                  </div>
+                  <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium ${
+                    monitoringMetrics.database.status === 'healthy' 
+                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                      : monitoringMetrics.database.status === 'warning'
+                      ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                      : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      monitoringMetrics.database.status === 'healthy' ? 'bg-emerald-500' :
+                      monitoringMetrics.database.status === 'warning' ? 'bg-amber-500' : 'bg-red-500'
+                    }`}></span>
+                    {monitoringMetrics.database.status}
+                  </span>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Connections</span>
+                      <span className="text-xs font-semibold text-gray-900 dark:text-white">
+                        {monitoringMetrics.database.current_connections} / {monitoringMetrics.database.max_connections}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-100 dark:bg-gray-700/50 rounded-full h-2 overflow-hidden">
+                      <div
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          monitoringMetrics.database.connection_usage_percent > 90
+                            ? 'bg-red-500'
+                            : monitoringMetrics.database.connection_usage_percent > 80
+                            ? 'bg-amber-500'
+                            : 'bg-emerald-500'
+                        }`}
+                        style={{ width: `${Math.min(monitoringMetrics.database.connection_usage_percent, 100)}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                      {monitoringMetrics.database.connection_usage_percent.toFixed(1)}% used
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Running Threads</p>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{monitoringMetrics.database.running_threads}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Slow Queries</p>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{monitoringMetrics.database.slow_queries}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Queue Metrics */}
+              <div className="group relative bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-200 p-6 overflow-hidden">
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-gray-300 dark:bg-gray-600"></div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center">
+                      <svg className="w-4.5 h-4.5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                    </div>
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                      Queue
+                    </h4>
+                  </div>
+                  <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium ${
+                    monitoringMetrics.queue.status === 'healthy' 
+                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                      : monitoringMetrics.queue.status === 'warning'
+                      ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                      : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      monitoringMetrics.queue.status === 'healthy' ? 'bg-emerald-500' :
+                      monitoringMetrics.queue.status === 'warning' ? 'bg-amber-500' : 'bg-red-500'
+                    }`}></span>
+                    {monitoringMetrics.queue.status}
+                  </span>
+                </div>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Pending</p>
+                      <p className="text-lg font-semibold text-gray-900 dark:text-white">{monitoringMetrics.queue.queue_length}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Processing</p>
+                      <p className="text-lg font-semibold text-gray-900 dark:text-white">{monitoringMetrics.queue.processing_jobs}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Failed</p>
+                      <p className="text-lg font-semibold text-red-600 dark:text-red-400">{monitoringMetrics.queue.failed_jobs}</p>
+                    </div>
+                  </div>
+                  <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Driver: <span className="font-semibold text-gray-900 dark:text-white">{monitoringMetrics.queue.queue_connection}</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Performance Metrics */}
+              <div className="group relative bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-200 p-6 overflow-hidden">
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-gray-300 dark:bg-gray-600"></div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center">
+                      <svg className="w-4.5 h-4.5 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    </div>
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                      Performance
+                    </h4>
+                  </div>
+                  <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium ${
+                    monitoringMetrics.performance.status === 'healthy' 
+                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                      : monitoringMetrics.performance.status === 'warning'
+                      ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                      : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      monitoringMetrics.performance.status === 'healthy' ? 'bg-emerald-500' :
+                      monitoringMetrics.performance.status === 'warning' ? 'bg-amber-500' : 'bg-red-500'
+                    }`}></span>
+                    {monitoringMetrics.performance.status}
+                  </span>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Memory Usage</span>
+                      <span className="text-xs font-semibold text-gray-900 dark:text-white">
+                        {monitoringMetrics.performance.memory_usage_mb} MB / {monitoringMetrics.performance.memory_limit}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-100 dark:bg-gray-700/50 rounded-full h-2 overflow-hidden">
+                      <div
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          monitoringMetrics.performance.memory_usage_percent > 90
+                            ? 'bg-red-500'
+                            : monitoringMetrics.performance.memory_usage_percent > 80
+                            ? 'bg-amber-500'
+                            : 'bg-emerald-500'
+                        }`}
+                        style={{ width: `${Math.min(monitoringMetrics.performance.memory_usage_percent, 100)}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                      {monitoringMetrics.performance.memory_usage_percent.toFixed(1)}% used
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Response Time</p>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{monitoringMetrics.performance.execution_time_ms}ms</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Queries</p>
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{monitoringMetrics.performance.query_count}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* System Metrics */}
+              <div className="group relative bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-200 p-6 overflow-hidden">
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-gray-300 dark:bg-gray-600"></div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-slate-900/20 flex items-center justify-center">
+                      <svg className="w-4.5 h-4.5 text-slate-600 dark:text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                      </svg>
+                    </div>
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                      System
+                    </h4>
+                  </div>
+                  <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium ${
+                    monitoringMetrics.system.status === 'healthy' 
+                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                      : monitoringMetrics.system.status === 'warning'
+                      ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                      : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      monitoringMetrics.system.status === 'healthy' ? 'bg-emerald-500' :
+                      monitoringMetrics.system.status === 'warning' ? 'bg-amber-500' : 'bg-red-500'
+                    }`}></span>
+                    {monitoringMetrics.system.status}
+                  </span>
+                </div>
+                <div className="space-y-4 text-xs">
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Uptime</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">{monitoringMetrics.system.uptime}</p>
+                  </div>
+                  {monitoringMetrics.system.cpu_usage_percent !== null && (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">CPU Usage</span>
+                        <span className="text-xs font-semibold text-gray-900 dark:text-white">{monitoringMetrics.system.cpu_usage_percent}%</span>
+                      </div>
+                      <div className="w-full bg-gray-100 dark:bg-gray-700/50 rounded-full h-2 overflow-hidden">
+                        <div
+                          className={`h-2 rounded-full transition-all duration-300 ${
+                            monitoringMetrics.system.cpu_usage_percent > 90
+                              ? 'bg-red-500'
+                              : monitoringMetrics.system.cpu_usage_percent > 80
+                              ? 'bg-amber-500'
+                              : 'bg-emerald-500'
+                          }`}
+                          style={{ width: `${Math.min(monitoringMetrics.system.cpu_usage_percent, 100)}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  )}
+                  {monitoringMetrics.system.cpu_load && (
+                    <div className="grid grid-cols-3 gap-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Load 1m</p>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">{monitoringMetrics.system.cpu_load["1min"]}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Load 5m</p>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">{monitoringMetrics.system.cpu_load["5min"]}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Load 15m</p>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">{monitoringMetrics.system.cpu_load["15min"]}</p>
+                      </div>
+                    </div>
+                  )}
+                  <div className="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">PHP</span>
+                      <span className="text-xs font-semibold text-gray-900 dark:text-white">{monitoringMetrics.system.php_version}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">Laravel</span>
+                      <span className="text-xs font-semibold text-gray-900 dark:text-white">{monitoringMetrics.system.laravel_version}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cache Metrics */}
+              <div className="group relative bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md hover:border-gray-300 dark:hover:border-gray-600 transition-all duration-200 p-6 overflow-hidden">
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-gray-300 dark:bg-gray-600"></div>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center">
+                      <svg className="w-4.5 h-4.5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+                      </svg>
+                    </div>
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                      Cache
+                    </h4>
+                  </div>
+                </div>
+                <div className="space-y-4 text-xs">
+                  {monitoringMetrics.cache.error ? (
+                    <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>{monitoringMetrics.cache.error}</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Driver</p>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">{monitoringMetrics.cache.driver}</p>
+                      </div>
+                      {monitoringMetrics.cache.hit_rate !== undefined && (
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Hit Rate</span>
+                            <span className="text-xs font-semibold text-gray-900 dark:text-white">{monitoringMetrics.cache.hit_rate}%</span>
+                          </div>
+                          <div className="w-full bg-gray-100 dark:bg-gray-700/50 rounded-full h-2 overflow-hidden">
+                            <div
+                              className={`h-2 rounded-full transition-all duration-300 ${
+                                monitoringMetrics.cache.hit_rate > 80
+                                  ? 'bg-emerald-500'
+                                  : monitoringMetrics.cache.hit_rate > 60
+                                  ? 'bg-amber-500'
+                                  : 'bg-red-500'
+                              }`}
+                              style={{ width: `${monitoringMetrics.cache.hit_rate}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      )}
+                      {monitoringMetrics.cache.hits !== undefined && (
+                        <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                          <div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Hits</p>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">{monitoringMetrics.cache.hits.toLocaleString()}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">Misses</p>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">{monitoringMetrics.cache.misses?.toLocaleString() || 0}</p>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
 
       {/* Recent Activities Table */}
       <div className="col-span-12">

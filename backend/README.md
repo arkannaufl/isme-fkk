@@ -119,8 +119,8 @@ DB::transaction(function () use ($user) {
 ```
 
 **Rate Limiting:**
-- Login endpoint: 100 requests/minute (prevents brute force)
-- All authenticated endpoints: 120 requests/minute per user/IP
+- Login endpoint: 150 requests/minute (prevents brute force, supports multiple users from same IP)
+- All authenticated endpoints: 300 requests/minute per user/IP (supports 300+ concurrent users)
 - Custom `RateLimitMiddleware` for fine-grained control
 
 ### Authorization: Role-Based Access Control (RBAC)

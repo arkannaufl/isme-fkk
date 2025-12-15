@@ -42,13 +42,14 @@ use App\Http\Controllers\RekapIKDController;
 
 
 // Login dengan rate limiting untuk mencegah brute force
-// Ditingkatkan ke 100 req/min untuk support banyak user dari IP yang sama (sekolah/kampus)
-// Masih aman karena brute force protection tetap ada (100 attempts per minute masih reasonable)
-Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:100,1');
+// Ditingkatkan ke 150 req/min untuk support banyak user dari IP yang sama (sekolah/kampus)
+// Masih aman karena brute force protection tetap ada (150 attempts per minute masih reasonable)
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:150,1');
 
-// Global rate limiting untuk semua API routes (120 requests per minute per user/IP)
-// Ini mencegah abuse dan overload server saat banyak user mengakses bersamaan
-Route::middleware('throttle:120,1')->group(function () {
+// Global rate limiting untuk semua API routes
+// Ditingkatkan ke 300 requests per minute per user/IP untuk support 300+ concurrent users
+// Dengan asumsi setiap user melakukan ~1 request per detik, 300 req/min cukup untuk 300 user aktif
+Route::middleware('throttle:300,1')->group(function () {
     Route::middleware(['auth:sanctum', 'validate.token'])->post('/logout', [AuthController::class, 'logout']);
     Route::post('/force-logout-by-token', [AuthController::class, 'forceLogoutByToken']);
     Route::post('/force-logout-by-user', [AuthController::class, 'forceLogoutByUser']);
@@ -600,6 +601,7 @@ Route::middleware(['auth:sanctum', 'role:super_admin'])->prefix('dashboard/super
     Route::get('/schedule-stats', [App\Http\Controllers\DashboardSuperAdminController::class, 'getScheduleStats']);
     Route::get('/monthly-user-stats', [App\Http\Controllers\DashboardSuperAdminController::class, 'getMonthlyUserStats']);
     Route::get('/system-metrics', [App\Http\Controllers\DashboardSuperAdminController::class, 'getSystemMetrics']);
+    Route::get('/monitoring', [App\Http\Controllers\DashboardSuperAdminController::class, 'getDetailedMonitoringMetrics']);
 });
 
 // Routes untuk dashboard tim akademik

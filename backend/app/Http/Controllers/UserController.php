@@ -16,6 +16,7 @@ use App\Services\SemesterService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 use App\Models\AbsensiDosenPraktikum;
 
 
@@ -48,7 +49,7 @@ class UserController extends Controller
         if ($request->has('keahlian')) {
             $keahlian = trim($request->keahlian);
             $keahlianLower = strtolower($keahlian);
-
+            
             // Case-insensitive search for keahlian
             // Use multiple approaches to handle different data formats and case variations
             $query->where(function ($q) use ($keahlian, $keahlianLower) {
@@ -61,11 +62,15 @@ class UserController extends Controller
                     ->orWhereRaw('LOWER(CAST(keahlian AS CHAR)) LIKE ?', ['%' . $keahlianLower . '%']);
             });
         }
-
-        // Optimize: Gunakan pagination untuk menghindari load semua data sekaligus
+        
+        // Optimize: Gunakan pagination dengan caching untuk data yang jarang berubah
         $perPage = $request->get('per_page', 50); // Default 50 items per page
-        $users = $query->paginate($perPage);
-
+        $cacheKey = 'users_list_' . md5($request->getQueryString() . '_' . $perPage);
+        
+        $users = Cache::remember($cacheKey, 300, function () use ($query, $perPage) {
+            return $query->paginate($perPage);
+        });
+        
         // Tambahan: jika role dosen, tambahkan field peran multi
         if ($request->role === 'dosen') {
             $users->getCollection()->transform(function ($user) {
@@ -127,7 +132,7 @@ class UserController extends Controller
             'all' => $request->all(),
             'role' => $request->input('role'),
         ]);
-
+        
         try {
             // Convert empty strings to null for nullable fields
             $requestData = $request->all();
@@ -140,68 +145,68 @@ class UserController extends Controller
             // Merge back to request
             $request->merge($requestData);
             
-            $validated = $request->validate([
-                'name' => 'required|string',
-                'username' => [
-                    'required',
-                    'string',
-                    Rule::unique('users')->where(function ($query) use ($request) {
-                        return $query->where('role', $request->role);
-                    }),
-                ],
-                'email' => [
-                    'nullable',
-                    'email',
-                    Rule::unique('users')->where(function ($query) use ($request) {
-                        return $query->where('role', $request->role);
-                    }),
-                ],
-                'nip' => 'nullable|unique:users,nip',
-                'nid' => 'nullable|unique:users,nid',
-                'nidn' => 'nullable',
-                'nuptk' => 'nullable',
-                'nim' => 'nullable|unique:users,nim|min:8|max:15',
-                'telp' => 'nullable',
-                'ket' => 'nullable',
-                'gender' => 'nullable',
-                'ipk' => 'nullable|numeric',
-                'status' => 'nullable',
-                'angkatan' => 'nullable',
-                'role' => 'required|in:super_admin,tim_akademik,dosen,mahasiswa,ketua_ikd,akademik,aik,meu,profesi,kemahasiswaan,sdm,upt_jurnal,upt_ppm,verifikator',
-                'password' => 'required|string|min:6',
-                'kompetensi' => 'nullable',
-                'keahlian' => 'nullable',
-                'semester' => 'nullable|integer|min:1|max:8',
-                'dosen_peran' => 'nullable|array', // array of peran
-            ]);
-            $validated['password'] = Hash::make($validated['password']);
+        $validated = $request->validate([
+            'name' => 'required|string',
+            'username' => [
+                'required',
+                'string',
+                Rule::unique('users')->where(function ($query) use ($request) {
+                    return $query->where('role', $request->role);
+                }),
+            ],
+            'email' => [
+                'nullable',
+                'email',
+                Rule::unique('users')->where(function ($query) use ($request) {
+                    return $query->where('role', $request->role);
+                }),
+            ],
+            'nip' => 'nullable|unique:users,nip',
+            'nid' => 'nullable|unique:users,nid',
+            'nidn' => 'nullable',
+            'nuptk' => 'nullable',
+            'nim' => 'nullable|unique:users,nim|min:8|max:15',
+            'telp' => 'nullable',
+            'ket' => 'nullable',
+            'gender' => 'nullable',
+            'ipk' => 'nullable|numeric',
+            'status' => 'nullable',
+            'angkatan' => 'nullable',
+            'role' => 'required|in:super_admin,tim_akademik,dosen,mahasiswa,ketua_ikd,akademik,aik,meu,profesi,kemahasiswaan,sdm,upt_jurnal,upt_ppm,verifikator',
+            'password' => 'required|string|min:6',
+            'kompetensi' => 'nullable',
+            'keahlian' => 'nullable',
+            'semester' => 'nullable|integer|min:1|max:8',
+            'dosen_peran' => 'nullable|array', // array of peran
+        ]);
+        $validated['password'] = Hash::make($validated['password']);
 
-            // Convert kompetensi from string to array if it's a string (e.g., from form input)
-            if (isset($validated['kompetensi']) && is_string($validated['kompetensi'])) {
-                $validated['kompetensi'] = array_map('trim', explode(',', $validated['kompetensi']));
-            }
+        // Convert kompetensi from string to array if it's a string (e.g., from form input)
+        if (isset($validated['kompetensi']) && is_string($validated['kompetensi'])) {
+            $validated['kompetensi'] = array_map('trim', explode(',', $validated['kompetensi']));
+        }
 
-            // Hilangkan validasi dan assignment peran_utama dan peran_kurikulum
-            $dosenPeran = $request->input('dosen_peran', []);
+        // Hilangkan validasi dan assignment peran_utama dan peran_kurikulum
+        $dosenPeran = $request->input('dosen_peran', []);
 
-            // Tambahkan validasi: maksimal 2 peran di blok yang sama untuk satu dosen
-            $blokCount = [];
-            foreach ($dosenPeran as $peran) {
-                if (($peran['tipe_peran'] ?? null) !== 'mengajar' && !empty($peran['mata_kuliah_kode'])) {
-                    $kode = $peran['mata_kuliah_kode'];
-                    $blokCount[$kode] = ($blokCount[$kode] ?? 0) + 1;
-                }
+        // Tambahkan validasi: maksimal 2 peran di blok yang sama untuk satu dosen
+        $blokCount = [];
+        foreach ($dosenPeran as $peran) {
+            if (($peran['tipe_peran'] ?? null) !== 'mengajar' && !empty($peran['mata_kuliah_kode'])) {
+                $kode = $peran['mata_kuliah_kode'];
+                $blokCount[$kode] = ($blokCount[$kode] ?? 0) + 1;
             }
-            foreach ($blokCount as $kode => $count) {
-                if ($count > 2) {
-                    // Ambil nama blok jika bisa
-                    $mk = \App\Models\MataKuliah::where('kode', $kode)->first();
-                    $nama = $mk ? $mk->nama : $kode;
-                    return response()->json([
-                        'message' => "Maksimal 2 peran di blok $nama untuk satu dosen.",
-                    ], 422);
-                }
+        }
+        foreach ($blokCount as $kode => $count) {
+            if ($count > 2) {
+                // Ambil nama blok jika bisa
+                $mk = \App\Models\MataKuliah::where('kode', $kode)->first();
+                $nama = $mk ? $mk->nama : $kode;
+                return response()->json([
+                    'message' => "Maksimal 2 peran di blok $nama untuk satu dosen.",
+                ], 422);
             }
+        }
             // Log before create
             \Log::info('UserController::store - Before creating user', [
                 'validated_data' => $validated,
@@ -209,7 +214,7 @@ class UserController extends Controller
                 'connection' => config('database.default'),
             ]);
 
-            $user = User::create($validated);
+        $user = User::create($validated);
 
             // Log successful user creation dengan detail lebih lengkap
             \Log::info('UserController::store - User created successfully', [
@@ -229,22 +234,22 @@ class UserController extends Controller
                 'direct_query_data' => $directQuery,
             ]);
 
-            // Jika user adalah mahasiswa, update semester berdasarkan semester aktif
-            if ($user->role === 'mahasiswa') {
-                $this->semesterService->updateNewStudentSemester($user);
-            }
+        // Jika user adalah mahasiswa, update semester berdasarkan semester aktif
+        if ($user->role === 'mahasiswa') {
+            $this->semesterService->updateNewStudentSemester($user);
+        }
 
-            // Simpan peran ke tabel dosen_peran
-            foreach ($dosenPeran as $peran) {
-                DosenPeran::create([
-                    'user_id' => $user->id,
-                    'tipe_peran' => $peran['tipe_peran'],
-                    'mata_kuliah_kode' => $peran['tipe_peran'] === 'mengajar' ? null : $peran['mata_kuliah_kode'],
-                    'peran_kurikulum' => $peran['peran_kurikulum'],
-                    'blok' => $peran['tipe_peran'] === 'mengajar' ? null : ($peran['blok'] ?? null),
-                    'semester' => $peran['tipe_peran'] === 'mengajar' ? null : ($peran['semester'] ?? null),
-                ]);
-            }
+        // Simpan peran ke tabel dosen_peran
+        foreach ($dosenPeran as $peran) {
+            DosenPeran::create([
+                'user_id' => $user->id,
+                'tipe_peran' => $peran['tipe_peran'],
+                'mata_kuliah_kode' => $peran['tipe_peran'] === 'mengajar' ? null : $peran['mata_kuliah_kode'],
+                'peran_kurikulum' => $peran['peran_kurikulum'],
+                'blok' => $peran['tipe_peran'] === 'mengajar' ? null : ($peran['blok'] ?? null),
+                'semester' => $peran['tipe_peran'] === 'mengajar' ? null : ($peran['semester'] ?? null),
+            ]);
+        }
 
             // Refresh user dari database untuk memastikan data terbaru
             $user->refresh();
@@ -298,7 +303,7 @@ class UserController extends Controller
                 'database' => DB::connection()->getDatabaseName(),
             ]);
 
-            return response()->json($user, 201);
+        return response()->json($user, 201);
         } catch (ValidationException $e) {
             \Log::error('UserController::store - Validation failed', [
                 'errors' => $e->errors(),
@@ -383,15 +388,15 @@ class UserController extends Controller
             foreach ($request->dosen_peran as $peran) {
                 // Pastikan hanya koordinator dan tim_blok yang disimpan
                 if (in_array($peran['tipe_peran'] ?? '', ['koordinator', 'tim_blok'])) {
-                    DosenPeran::create([
-                        'user_id' => $user->id,
-                        'mata_kuliah_kode' => $peran['mata_kuliah_kode'],
-                        'peran_kurikulum' => $peran['peran_kurikulum'],
-                        'blok' => $peran['blok'] ?? null,
-                        'semester' => $peran['semester'] ?? null,
-                        'tipe_peran' => $peran['tipe_peran'],
-                    ]);
-                }
+                DosenPeran::create([
+                    'user_id' => $user->id,
+                    'mata_kuliah_kode' => $peran['mata_kuliah_kode'],
+                    'peran_kurikulum' => $peran['peran_kurikulum'],
+                    'blok' => $peran['blok'] ?? null,
+                    'semester' => $peran['semester'] ?? null,
+                    'tipe_peran' => $peran['tipe_peran'],
+                ]);
+            }
             }
         } else {
             // Jika dosen_peran tidak ada di request (selectedPeranType === "none"),

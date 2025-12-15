@@ -347,6 +347,7 @@ isme-fkk/
 - Apache: `MaxRequestWorkers = 300` (handles 300 concurrent connections)
 - MySQL: `max_connections = 500` (handles 500 concurrent connections)
 - Redis: Session storage, caching, queue processing
+- Rate Limiting: 300 requests/minute per user/IP (supports 300+ concurrent users)
 
 **File System:**
 - Storage: `storage/app/public` for uploaded files (RPS, materials, signatures)

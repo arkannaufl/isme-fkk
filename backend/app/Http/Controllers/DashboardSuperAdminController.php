@@ -87,11 +87,13 @@ class DashboardSuperAdminController extends Controller
                 ], 404);
             }
 
-            // Get Super Admin list
-            $superAdmins = User::where('role', 'super_admin')
-                ->select('id', 'name', 'email', 'username', 'created_at', 'is_logged_in')
-                ->orderBy('created_at', 'desc')
-                ->get();
+            // Get Super Admin list with caching
+            $superAdmins = Cache::remember('super_admins_list', 600, function () {
+                return User::where('role', 'super_admin')
+                    ->select('id', 'name', 'email', 'username', 'created_at', 'is_logged_in')
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+            });
 
             return response()->json([
                 'totalUsers' => $totalUsers,
@@ -151,11 +153,13 @@ class DashboardSuperAdminController extends Controller
     private function getRecentActivities(): array
     {
         try {
-            $activities = Activity::with('causer')
-                ->latest()
-                ->limit(10)
-                ->get()
-                ->map(function ($activity) {
+            // Cache recent activities for 1 minute to reduce database load
+            $activities = Cache::remember('recent_activities', 60, function () {
+                return Activity::with('causer:id,name,role')
+                    ->latest()
+                    ->limit(10)
+                    ->get()
+                    ->map(function ($activity) {
                     $user = $activity->causer ? $activity->causer->name : 'System';
                     $userRole = $activity->causer ? $activity->causer->role : 'System';
                     $action = $this->formatActivityDescription($activity->description);
@@ -175,6 +179,7 @@ class DashboardSuperAdminController extends Controller
                         'type' => $this->getActivityType($activity->description)
                     ];
                 });
+            });
 
             return $activities->toArray();
         } catch (\Exception $e) {
@@ -472,54 +477,69 @@ class DashboardSuperAdminController extends Controller
     {
         try {
             $today = Carbon::today();
-            $schedule = [];
+            $cacheKey = 'today_schedule_' . $today->format('Y-m-d');
             
-            // Get today's schedules from different types
-            $kuliahBesar = JadwalKuliahBesar::with(['mataKuliah', 'dosen', 'ruangan'])
-                ->whereDate('tanggal', $today)
-                ->get()
-                ->map(function($item) {
-                    return [
-                        'type' => 'Kuliah Besar',
-                        'mata_kuliah' => $item->mataKuliah->nama ?? 'Unknown',
-                        'dosen' => $item->dosen->name ?? 'Unknown',
-                        'ruangan' => $item->ruangan->nama ?? 'Unknown',
-                        'waktu' => $item->jam_mulai . ' - ' . $item->jam_selesai,
-                        'topik' => $item->topik
-                    ];
-                });
-            
-            $pbl = JadwalPBL::with(['mataKuliah', 'dosen', 'ruangan'])
-                ->whereDate('tanggal', $today)
-                ->get()
-                ->map(function($item) {
-                    return [
-                        'type' => 'PBL',
-                        'mata_kuliah' => $item->mataKuliah->nama ?? 'Unknown',
-                        'dosen' => $item->dosen->name ?? 'Unknown',
-                        'ruangan' => $item->ruangan->nama ?? 'Unknown',
-                        'waktu' => $item->jam_mulai . ' - ' . $item->jam_selesai,
-                        'topik' => $item->topik
-                    ];
-                });
-            
-            $journal = JadwalJurnalReading::with(['mataKuliah', 'dosen', 'ruangan'])
-                ->whereDate('tanggal', $today)
-                ->get()
-                ->map(function($item) {
-                    return [
-                        'type' => 'Journal Reading',
-                        'mata_kuliah' => $item->mataKuliah->nama ?? 'Unknown',
-                        'dosen' => $item->dosen->name ?? 'Unknown',
-                        'ruangan' => $item->ruangan->nama ?? 'Unknown',
-                        'waktu' => $item->jam_mulai . ' - ' . $item->jam_selesai,
-                        'topik' => $item->topik
-                    ];
-                });
-            
-            $schedule = $kuliahBesar->concat($pbl)->concat($journal)->sortBy('waktu');
-            
-            return $schedule->take(10)->values()->toArray();
+            // Cache today's schedule for 5 minutes
+            return Cache::remember($cacheKey, 300, function () use ($today) {
+                // Get today's schedules from different types with eager loading
+                $kuliahBesar = JadwalKuliahBesar::with([
+                    'mataKuliah:kode,nama',
+                    'dosen:id,name',
+                    'ruangan:id,nama'
+                ])
+                    ->whereDate('tanggal', $today)
+                    ->get()
+                    ->map(function($item) {
+                        return [
+                            'type' => 'Kuliah Besar',
+                            'mata_kuliah' => $item->mataKuliah->nama ?? 'Unknown',
+                            'dosen' => $item->dosen->name ?? 'Unknown',
+                            'ruangan' => $item->ruangan->nama ?? 'Unknown',
+                            'waktu' => $item->jam_mulai . ' - ' . $item->jam_selesai,
+                            'topik' => $item->topik
+                        ];
+                    });
+                
+                $pbl = JadwalPBL::with([
+                    'mataKuliah:kode,nama',
+                    'dosen:id,name',
+                    'ruangan:id,nama'
+                ])
+                    ->whereDate('tanggal', $today)
+                    ->get()
+                    ->map(function($item) {
+                        return [
+                            'type' => 'PBL',
+                            'mata_kuliah' => $item->mataKuliah->nama ?? 'Unknown',
+                            'dosen' => $item->dosen->name ?? 'Unknown',
+                            'ruangan' => $item->ruangan->nama ?? 'Unknown',
+                            'waktu' => $item->jam_mulai . ' - ' . $item->jam_selesai,
+                            'topik' => $item->topik
+                        ];
+                    });
+                
+                $journal = JadwalJurnalReading::with([
+                    'mataKuliah:kode,nama',
+                    'dosen:id,name',
+                    'ruangan:id,nama'
+                ])
+                    ->whereDate('tanggal', $today)
+                    ->get()
+                    ->map(function($item) {
+                        return [
+                            'type' => 'Journal Reading',
+                            'mata_kuliah' => $item->mataKuliah->nama ?? 'Unknown',
+                            'dosen' => $item->dosen->name ?? 'Unknown',
+                            'ruangan' => $item->ruangan->nama ?? 'Unknown',
+                            'waktu' => $item->jam_mulai . ' - ' . $item->jam_selesai,
+                            'topik' => $item->topik
+                        ];
+                    });
+                
+                $schedule = $kuliahBesar->concat($pbl)->concat($journal)->sortBy('waktu');
+                
+                return $schedule->take(10)->values()->toArray();
+            });
         } catch (\Exception $e) {
             // Return demo data if there's an error
             return [
@@ -706,5 +726,328 @@ class DashboardSuperAdminController extends Controller
         
         $growth = (($current - $previous) / $previous) * 100;
         return round($growth, 1);
+    }
+
+    /**
+     * Get comprehensive system monitoring metrics
+     * Includes: database connections, queue length, response time, memory, CPU
+     * This is a more detailed version than getSystemMetrics()
+     */
+    public function getDetailedMonitoringMetrics(): JsonResponse
+    {
+        try {
+            // Enable query logging for accurate query count
+            DB::enableQueryLog();
+            
+            $metrics = [
+                'timestamp' => now()->toISOString(),
+                'database' => $this->getDatabaseMetrics(),
+                'queue' => $this->getQueueMetrics(),
+                'performance' => $this->getPerformanceMetrics(),
+                'system' => $this->getSystemResourceMetrics(),
+                'cache' => $this->getCacheMetrics(),
+            ];
+
+            return response()->json($metrics);
+        } catch (\Exception $e) {
+            \Log::error('Error fetching monitoring metrics: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Failed to fetch monitoring metrics',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get database connection pool metrics
+     */
+    private function getDatabaseMetrics(): array
+    {
+        try {
+            $connection = DB::connection();
+            $pdo = $connection->getPdo();
+            
+            // Get MySQL connection status
+            $status = DB::select("SHOW STATUS WHERE Variable_name IN ('Threads_connected', 'Threads_running', 'Max_used_connections', 'Max_connections')");
+            $statusMap = [];
+            foreach ($status as $row) {
+                $statusMap[$row->Variable_name] = (int) $row->Value;
+            }
+
+            // Get current connections
+            $currentConnections = $statusMap['Threads_connected'] ?? 0;
+            $maxConnections = $statusMap['Max_connections'] ?? 500;
+            $runningThreads = $statusMap['Threads_running'] ?? 0;
+            $maxUsedConnections = $statusMap['Max_used_connections'] ?? 0;
+
+            // Calculate connection pool usage percentage
+            $connectionUsagePercent = $maxConnections > 0 
+                ? round(($currentConnections / $maxConnections) * 100, 2) 
+                : 0;
+
+            // Get slow queries count (if slow query log is enabled)
+            $slowQueries = DB::select("SHOW STATUS WHERE Variable_name = 'Slow_queries'");
+            $slowQueriesCount = $slowQueries[0]->Value ?? 0;
+
+            // Get table locks
+            $tableLocks = DB::select("SHOW STATUS WHERE Variable_name IN ('Table_locks_waited', 'Table_locks_immediate')");
+            $locksMap = [];
+            foreach ($tableLocks as $row) {
+                $locksMap[$row->Variable_name] = (int) $row->Value;
+            }
+
+            return [
+                'current_connections' => $currentConnections,
+                'max_connections' => $maxConnections,
+                'connection_usage_percent' => $connectionUsagePercent,
+                'running_threads' => $runningThreads,
+                'max_used_connections' => $maxUsedConnections,
+                'slow_queries' => (int) $slowQueriesCount,
+                'table_locks_waited' => $locksMap['Table_locks_waited'] ?? 0,
+                'table_locks_immediate' => $locksMap['Table_locks_immediate'] ?? 0,
+                'status' => $connectionUsagePercent > 80 ? 'warning' : ($connectionUsagePercent > 90 ? 'critical' : 'healthy'),
+            ];
+        } catch (\Exception $e) {
+            \Log::error('Error fetching database metrics: ' . $e->getMessage());
+            return [
+                'error' => 'Unable to fetch database metrics',
+                'status' => 'error'
+            ];
+        }
+    }
+
+    /**
+     * Get queue metrics
+     */
+    private function getQueueMetrics(): array
+    {
+        try {
+            $queueConnection = config('queue.default');
+            
+            if ($queueConnection === 'redis') {
+                $redis = \Illuminate\Support\Facades\Redis::connection();
+                
+                // Get queue length from Redis
+                $defaultQueue = config('queue.connections.redis.queue', 'default');
+                $queueLength = $redis->llen("queues:{$defaultQueue}");
+                
+                // Get failed jobs count
+                $failedJobs = DB::table('failed_jobs')->count();
+                
+                // Get processing jobs (if using Laravel Horizon or similar)
+                $processingJobs = 0;
+                try {
+                    $processingJobs = $redis->llen("queues:{$defaultQueue}:reserved");
+                } catch (\Exception $e) {
+                    // Horizon might not be installed
+                }
+
+                return [
+                    'queue_length' => $queueLength,
+                    'processing_jobs' => $processingJobs,
+                    'failed_jobs' => $failedJobs,
+                    'queue_connection' => $queueConnection,
+                    'status' => $queueLength > 1000 ? 'warning' : ($queueLength > 5000 ? 'critical' : 'healthy'),
+                ];
+            } else {
+                // Database queue
+                $queueLength = DB::table('jobs')->count();
+                $failedJobs = DB::table('failed_jobs')->count();
+                
+                return [
+                    'queue_length' => $queueLength,
+                    'processing_jobs' => 0,
+                    'failed_jobs' => $failedJobs,
+                    'queue_connection' => $queueConnection,
+                    'status' => $queueLength > 1000 ? 'warning' : ($queueLength > 5000 ? 'critical' : 'healthy'),
+                ];
+            }
+        } catch (\Exception $e) {
+            \Log::error('Error fetching queue metrics: ' . $e->getMessage());
+            return [
+                'error' => 'Unable to fetch queue metrics',
+                'status' => 'error'
+            ];
+        }
+    }
+
+    /**
+     * Get performance metrics (response time, memory)
+     */
+    private function getPerformanceMetrics(): array
+    {
+        try {
+            $memoryUsage = memory_get_usage(true);
+            $memoryPeak = memory_get_peak_usage(true);
+            $memoryLimit = ini_get('memory_limit');
+            $memoryLimitBytes = $this->convertToBytes($memoryLimit);
+            
+            $memoryUsagePercent = $memoryLimitBytes > 0 
+                ? round(($memoryUsage / $memoryLimitBytes) * 100, 2) 
+                : 0;
+
+            // Get execution time (if LARAVEL_START is defined)
+            $executionTime = defined('LARAVEL_START') 
+                ? round((microtime(true) - LARAVEL_START) * 1000, 2) // Convert to milliseconds
+                : 0;
+
+            // Get query count
+            $queryCount = DB::getQueryLog() ? count(DB::getQueryLog()) : 0;
+
+            return [
+                'memory_usage_mb' => round($memoryUsage / 1024 / 1024, 2),
+                'memory_peak_mb' => round($memoryPeak / 1024 / 1024, 2),
+                'memory_limit' => $memoryLimit,
+                'memory_usage_percent' => $memoryUsagePercent,
+                'execution_time_ms' => $executionTime,
+                'query_count' => $queryCount,
+                'status' => $memoryUsagePercent > 80 ? 'warning' : ($memoryUsagePercent > 90 ? 'critical' : 'healthy'),
+            ];
+        } catch (\Exception $e) {
+            \Log::error('Error fetching performance metrics: ' . $e->getMessage());
+            return [
+                'error' => 'Unable to fetch performance metrics',
+                'status' => 'error'
+            ];
+        }
+    }
+
+    /**
+     * Get system resource metrics (CPU, uptime)
+     */
+    private function getSystemResourceMetrics(): array
+    {
+        try {
+            $uptime = $this->getSystemUptime();
+            
+            // Get CPU usage (Linux only)
+            $cpuUsage = null;
+            $cpuLoad = null;
+            
+            if (PHP_OS_FAMILY === 'Linux') {
+                try {
+                    // Get CPU load average
+                    $loadAvg = sys_getloadavg();
+                    if ($loadAvg !== false) {
+                        $cpuLoad = [
+                            '1min' => round($loadAvg[0], 2),
+                            '5min' => round($loadAvg[1], 2),
+                            '15min' => round($loadAvg[2], 2),
+                        ];
+                    }
+
+                    // Try to get CPU usage percentage (requires /proc/stat)
+                    if (file_exists('/proc/stat')) {
+                        $stat1 = file_get_contents('/proc/stat');
+                        usleep(100000); // Wait 100ms
+                        $stat2 = file_get_contents('/proc/stat');
+                        
+                        preg_match('/cpu\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/', $stat1, $matches1);
+                        preg_match('/cpu\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/', $stat2, $matches2);
+                        
+                        if (isset($matches1[1]) && isset($matches2[1])) {
+                            $total1 = array_sum(array_slice($matches1, 1));
+                            $total2 = array_sum(array_slice($matches2, 1));
+                            $idle1 = $matches1[4];
+                            $idle2 = $matches2[4];
+                            
+                            $totalDiff = $total2 - $total1;
+                            $idleDiff = $idle2 - $idle1;
+                            
+                            if ($totalDiff > 0) {
+                                $cpuUsage = round((1 - ($idleDiff / $totalDiff)) * 100, 2);
+                            }
+                        }
+                    }
+                } catch (\Exception $e) {
+                    // CPU metrics not available
+                }
+            }
+
+            return [
+                'uptime' => $uptime,
+                'cpu_usage_percent' => $cpuUsage,
+                'cpu_load' => $cpuLoad,
+                'php_version' => PHP_VERSION,
+                'laravel_version' => app()->version(),
+                'os' => PHP_OS,
+                'status' => ($cpuUsage !== null && $cpuUsage > 80) ? 'warning' : (($cpuUsage !== null && $cpuUsage > 90) ? 'critical' : 'healthy'),
+            ];
+        } catch (\Exception $e) {
+            \Log::error('Error fetching system metrics: ' . $e->getMessage());
+            return [
+                'error' => 'Unable to fetch system metrics',
+                'status' => 'error'
+            ];
+        }
+    }
+
+    /**
+     * Get cache metrics
+     */
+    private function getCacheMetrics(): array
+    {
+        try {
+            $cacheDriver = config('cache.default');
+            $cacheStats = [];
+
+            if ($cacheDriver === 'redis') {
+                try {
+                    $redis = \Illuminate\Support\Facades\Redis::connection();
+                    $info = $redis->info('stats');
+                    
+                    $cacheStats = [
+                        'driver' => $cacheDriver,
+                        'hits' => $info['keyspace_hits'] ?? 0,
+                        'misses' => $info['keyspace_misses'] ?? 0,
+                        'hit_rate' => 0,
+                    ];
+                    
+                    $total = ($cacheStats['hits'] + $cacheStats['misses']);
+                    if ($total > 0) {
+                        $cacheStats['hit_rate'] = round(($cacheStats['hits'] / $total) * 100, 2);
+                    }
+                } catch (\Exception $e) {
+                    $cacheStats = [
+                        'driver' => $cacheDriver,
+                        'error' => 'Unable to fetch Redis cache stats',
+                    ];
+                }
+            } else {
+                $cacheStats = [
+                    'driver' => $cacheDriver,
+                    'note' => 'Cache stats not available for ' . $cacheDriver . ' driver',
+                ];
+            }
+
+            return $cacheStats;
+        } catch (\Exception $e) {
+            \Log::error('Error fetching cache metrics: ' . $e->getMessage());
+            return [
+                'error' => 'Unable to fetch cache metrics',
+                'status' => 'error'
+            ];
+        }
+    }
+
+    /**
+     * Convert memory limit string to bytes
+     */
+    private function convertToBytes(string $memoryLimit): int
+    {
+        $memoryLimit = trim($memoryLimit);
+        $last = strtolower($memoryLimit[strlen($memoryLimit) - 1]);
+        $value = (int) $memoryLimit;
+
+        switch ($last) {
+            case 'g':
+                $value *= 1024;
+            case 'm':
+                $value *= 1024;
+            case 'k':
+                $value *= 1024;
+        }
+
+        return $value;
     }
 }
