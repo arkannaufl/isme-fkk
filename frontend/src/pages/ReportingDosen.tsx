@@ -112,6 +112,7 @@ const ReportingDosen: React.FC = () => {
   const toggleExpandedPeran = (rowKey: string) => {
     setExpandedPeran((prev) => ({ ...prev, [rowKey]: !prev[rowKey] }));
   };
+  const [showExcelDropdown, setShowExcelDropdown] = useState(false);
 
   // Pindahkan ke luar agar bisa dipanggil event listener
   const fetchDosenReport = async () => {
@@ -150,16 +151,8 @@ const ReportingDosen: React.FC = () => {
         response = await api.get(`/reporting/dosen-pbl?${params}`);
         let data = Array.isArray(response.data.data) ? response.data.data : [];
         
-        // Debug: log response dan data
-        console.log('=== API RESPONSE DEBUG ===');
-        console.log('API Response:', response.data);
-        console.log('Data length:', data.length);
-        console.log('Sample data:', data[0]);
-        console.log('=== END API DEBUG ===');
-        
         data = data.map((d: DosenPBLReport) => {
           // Debug: log setiap dosen
-          console.log('Processing dosen:', d.dosen_name, 'per_semester:', d.per_semester?.length);
           
           // HAPUS: proses JSON.parse/overwrite keahlian di sini
           let allTanggalMulai: string[] = [];
@@ -190,11 +183,6 @@ const ReportingDosen: React.FC = () => {
         total: response.data.total || 0,
       });
     } catch (error) {
-      console.error('=== API ERROR ===');
-      console.error('Error fetching data:', error);
-      console.error('Error response:', error.response?.data);
-      console.error('=== END API ERROR ===');
-      
       if (activeTab === "csr") {
         setAllDosenCsrReport([]);
         setDosenCsrReport([]);
@@ -370,7 +358,6 @@ const ReportingDosen: React.FC = () => {
         // Cleanup URL
         URL.revokeObjectURL(logoUrl);
       } catch (logoError) {
-        console.warn('Logo tidak bisa dimuat, menggunakan teks alternatif');
         // Fallback jika logo tidak bisa dimuat
         doc.setFontSize(12);
         doc.setFont("helvetica", "bold");
@@ -610,7 +597,6 @@ const ReportingDosen: React.FC = () => {
       doc.save(filename);
       
     } catch (error) {
-      console.error('Error generating PDF:', error);
       // Bisa ditambahkan toast notification di sini
     }
   };
@@ -633,12 +619,12 @@ const ReportingDosen: React.FC = () => {
         { header: 'TANGGAL AKHIR', key: 'tanggal_akhir', width: 18 }
       ];
 
-      // Style header row - hijau gelap dengan teks putih
+      // Style header row - abu-abu gelap dengan teks putih sesuai template
       worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
       worksheet.getRow(1).fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: 'FF2D5016' } // Hijau gelap
+        fgColor: { argb: 'FF808080' } // Abu-abu gelap sesuai template
       };
       worksheet.getRow(1).alignment = { horizontal: 'center', vertical: 'middle' };
 
@@ -784,503 +770,1069 @@ const ReportingDosen: React.FC = () => {
       document.body.removeChild(a);
 
     } catch (error) {
-      console.error('Error generating Excel:', error);
       // Bisa ditambahkan toast notification di sini
     }
   };
 
-  const handleExportExcelAll = async () => {
+  const handleExportExcelByBlok = async (selectedBlok: number | null) => {
     try {
         // Debug logging untuk melihat data yang tersedia
-        console.log('=== DEBUG EXCEL EXPORT - BLOK DATA BASED ===');
-        console.log('Total dosen PBL:', dosenPblReport.length);
         
         // Ambil data blok dari API yang sudah kita buat
         const blokResponse = await api.get('/reporting/blok-data-excel');
         const blokData = blokResponse.data.data || [];
-        console.log('=== API RESPONSE DEBUG ===');
-        console.log('API Response Status:', blokResponse.status);
-        console.log('API Response Data:', blokResponse.data);
-        console.log('Total blok data:', blokData.length);
-        console.log('Sample blok data:', blokData[0]);
-        console.log('=== END API RESPONSE DEBUG ===');
+        if (blokData.length > 0) {
+        }
         
         // Ambil data dosen untuk mapping
         const dosenResponse = await api.get('/users');
         const dosenData = dosenResponse.data.data || [];
-        console.log('Total dosen:', dosenData.length);
         
         // Buat mapping dosen
-        const dosenMap = {};
-        dosenData.forEach(dosen => {
+        const dosenMap: { [key: number]: string } = {};
+        dosenData.forEach((dosen: any) => {
           dosenMap[dosen.id] = dosen.name;
         });
         
-        console.log('=== END DEBUG ===');
+        // Ambil data mata kuliah untuk menghitung perencanaan PBL dan Jurnal Reading
+        // Perencanaan PBL = jumlah daftar modul PBL × 5
+        // Perencanaan Jurnal Reading = jumlah daftar jurnal reading × 2
+        const mataKuliahResponse = await api.get('/mata-kuliah');
+        const allMataKuliah = mataKuliahResponse.data || [];
+        
+        // Buat mapping perencanaan PBL dan Jurnal Reading berdasarkan blok, semester, dan dosen
+        // PERBAIKAN: 
+        // - Perencanaan PBL dihitung per blok (karena daftar modul PBL biasanya sama untuk semua semester dengan blok yang sama)
+        // - Perencanaan Jurnal Reading dihitung per semester (karena bisa berbeda per semester)
+        // Key PBL: `${dosen_name}_blok${blok}`
+        // Key Jurnal: `${dosen_name}_blok${blok}_semester${semester}`
+        const perencanaanPblMap: { [key: string]: number } = {}; // Key: `${dosen_name}_blok${blok}`
+        const perencanaanJurnalMap: { [key: string]: number } = {}; // Key: `${dosen_name}_blok${blok}_semester${semester}`
+        
+        // Map untuk tracking mata kuliah yang sudah dihitung per dosen (untuk menghindari duplikasi)
+        const processedMkPerDosenPbl: { [key: string]: Set<string> } = {}; // Key: `${dosen_name}_blok${blok}`
+        const processedMkPerDosenJurnal: { [key: string]: Set<string> } = {}; // Key: `${dosen_name}_blok${blok}_semester${semester}`
+        
+        // Filter mata kuliah berdasarkan selectedBlok
+        const filteredMataKuliah = selectedBlok !== null
+          ? allMataKuliah.filter((mk: any) => mk.jenis === 'Blok' && mk.blok === selectedBlok)
+          : allMataKuliah.filter((mk: any) => mk.jenis === 'Non Blok');
+        
+        
+        // Ambil data daftar modul PBL dan jurnal reading untuk setiap mata kuliah
+        for (const mk of filteredMataKuliah) {
+          try {
+            // Ambil daftar modul PBL
+            const pblListResponse = await api.get(`/mata-kuliah/${mk.kode}/pbls`);
+            const pblList = Array.isArray(pblListResponse.data) ? pblListResponse.data : [];
+            const jumlahModulPbl = pblList.length;
+            
+            // Ambil daftar jurnal reading
+            const jurnalListResponse = await api.get(`/mata-kuliah/${mk.kode}/jurnal-readings`);
+            const jurnalList = Array.isArray(jurnalListResponse.data) ? jurnalListResponse.data : [];
+            const jumlahJurnalReading = jurnalList.length;
+            
+            // Ambil semua dosen yang mengajar di mata kuliah ini dari blokData
+            const dosenDiMataKuliah = new Set<string>();
+            blokData.forEach((item: any) => {
+              if (item.mata_kuliah_kode === mk.kode) {
+                // Ambil dosen dari semua jenis jadwal
+                if (item.pbl1) {
+                  item.pbl1.forEach((j: any) => {
+                    if (j.dosen_name) dosenDiMataKuliah.add(j.dosen_name);
+                  });
+                }
+                if (item.pbl2) {
+                  item.pbl2.forEach((j: any) => {
+                    if (j.dosen_name) dosenDiMataKuliah.add(j.dosen_name);
+                  });
+                }
+                if (item.jurnal_reading) {
+                  item.jurnal_reading.forEach((j: any) => {
+                    if (j.dosen_name) dosenDiMataKuliah.add(j.dosen_name);
+                  });
+                }
+                if (item.kuliah_besar) {
+                  item.kuliah_besar.forEach((j: any) => {
+                    if (j.dosen_name) dosenDiMataKuliah.add(j.dosen_name);
+                  });
+                }
+                if (item.praktikum) {
+                  item.praktikum.forEach((j: any) => {
+                    if (j.dosen_name) dosenDiMataKuliah.add(j.dosen_name);
+                  });
+                }
+                if (item.seminar_pleno) {
+                  item.seminar_pleno.forEach((j: any) => {
+                    if (j.dosen_name) dosenDiMataKuliah.add(j.dosen_name);
+                  });
+                }
+                if (item.pp_pbl) {
+                  item.pp_pbl.forEach((j: any) => {
+                    if (j.dosen_name) dosenDiMataKuliah.add(j.dosen_name);
+                  });
+                }
+              }
+            });
+            
+            // Hitung perencanaan untuk setiap dosen
+            // PERBAIKAN: 
+            // - Perencanaan PBL dihitung per blok (karena daftar modul PBL biasanya sama untuk semua semester dengan blok yang sama)
+            // - Perencanaan Jurnal Reading dihitung per semester (karena bisa berbeda per semester)
+            dosenDiMataKuliah.forEach((dosenName) => {
+              // Key perencanaan PBL: per blok saja (tanpa semester)
+              const keyPerencanaanPbl = `${dosenName}_blok${mk.blok || 'null'}`;
+              // Key perencanaan Jurnal: per blok dan semester
+              const keyPerencanaanJurnal = `${dosenName}_blok${mk.blok || 'null'}_semester${mk.semester}`;
+              
+              // Initialize maps jika belum ada
+              if (!perencanaanPblMap[keyPerencanaanPbl]) {
+                perencanaanPblMap[keyPerencanaanPbl] = 0;
+              }
+              if (!perencanaanJurnalMap[keyPerencanaanJurnal]) {
+                perencanaanJurnalMap[keyPerencanaanJurnal] = 0;
+              }
+              if (!processedMkPerDosenPbl[keyPerencanaanPbl]) {
+                processedMkPerDosenPbl[keyPerencanaanPbl] = new Set<string>();
+              }
+              if (!processedMkPerDosenJurnal[keyPerencanaanJurnal]) {
+                processedMkPerDosenJurnal[keyPerencanaanJurnal] = new Set<string>();
+              }
+              
+              // Hitung perencanaan PBL (per blok)
+              // Cek apakah mata kuliah ini sudah dihitung untuk dosen ini
+              if (!processedMkPerDosenPbl[keyPerencanaanPbl].has(mk.kode)) {
+                const pblPerencanaan = jumlahModulPbl * 5;
+                
+                if (pblPerencanaan > 0) {
+                  // Hanya update jika nilai yang sudah ada adalah 0 atau nilai baru lebih besar
+                  if (perencanaanPblMap[keyPerencanaanPbl] === 0) {
+                    perencanaanPblMap[keyPerencanaanPbl] = pblPerencanaan;
+                  } else if (pblPerencanaan > perencanaanPblMap[keyPerencanaanPbl]) {
+                    // Jika nilai baru lebih besar, update (mungkin ada mata kuliah lain dengan lebih banyak daftar PBL)
+                    perencanaanPblMap[keyPerencanaanPbl] = pblPerencanaan;
+                  }
+                }
+                
+                // Tandai mata kuliah ini sudah diproses untuk PBL
+                processedMkPerDosenPbl[keyPerencanaanPbl].add(mk.kode);
+              }
+              
+              // Hitung perencanaan Jurnal Reading (per semester)
+              // PERBAIKAN: Perencanaan jurnal reading dihitung per mata kuliah
+              // Jika mata kuliah tidak memiliki daftar jurnal reading, nilainya 0
+              // Cek apakah mata kuliah ini sudah dihitung untuk dosen ini di semester ini
+              if (!processedMkPerDosenJurnal[keyPerencanaanJurnal].has(mk.kode)) {
+                const jurnalPerencanaan = jumlahJurnalReading * 2;
+                
+                // PERBAIKAN: Jika tidak ada daftar jurnal reading, set nilai ke 0
+                // Ini untuk memastikan bahwa jika mata kuliah tidak memiliki daftar jurnal reading,
+                // perencanaan jurnal reading untuk dosen yang mengajar di mata kuliah tersebut adalah 0
+                if (jumlahJurnalReading === 0) {
+                  // Jika tidak ada daftar jurnal reading, set nilai ke 0 (jika belum ada nilai sebelumnya)
+                  if (perencanaanJurnalMap[keyPerencanaanJurnal] === undefined) {
+                    perencanaanJurnalMap[keyPerencanaanJurnal] = 0;
+                  }
+                } else if (jurnalPerencanaan > 0) {
+                  // Hanya update jika nilai yang sudah ada adalah 0 atau nilai baru lebih besar
+                  if (perencanaanJurnalMap[keyPerencanaanJurnal] === 0 || perencanaanJurnalMap[keyPerencanaanJurnal] === undefined) {
+                    perencanaanJurnalMap[keyPerencanaanJurnal] = jurnalPerencanaan;
+                  } else if (jurnalPerencanaan > perencanaanJurnalMap[keyPerencanaanJurnal]) {
+                    // Jika nilai baru lebih besar, update
+                    perencanaanJurnalMap[keyPerencanaanJurnal] = jurnalPerencanaan;
+                  }
+                }
+                
+                // Tandai mata kuliah ini sudah diproses untuk Jurnal Reading
+                processedMkPerDosenJurnal[keyPerencanaanJurnal].add(mk.kode);
+              }
+            });
+          } catch (error) {
+          }
+        }
       
       const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet('Reporting Dosen PBL');
+      const worksheetName = selectedBlok === null ? 'Non Blok' : `Blok ${selectedBlok}`;
+      const worksheet = workbook.addWorksheet(`DAFTAR REKAPITULASI SKS ${worksheetName}`);
 
-      // Set column headers with wider widths to prevent text truncation
-      // Only define columns for Blok data (6 columns: NAMA DOSEN, PBL 1, PBL 2, PRAKTIKUM, KULIAH BESAR, JURNAL READING)
-      worksheet.columns = [
-        { header: 'NAMA DOSEN', key: 'nama', width: 35 }, // Increased for longer names
-        { header: 'PBL 1', key: 'pbl1', width: 15 }, // Increased for better visibility
-        { header: 'PBL 2', key: 'pbl2', width: 15 }, // Increased for better visibility
-        { header: 'PRAKTIKUM', key: 'praktikum', width: 18 }, // Increased for full text
-        { header: 'KULIAH BESAR', key: 'kuliah_besar', width: 25 }, // Increased for full text
-        { header: 'JURNAL READING', key: 'jurnal_reading', width: 25 } // Increased for full text
-      ];
+      // Set column widths sesuai template baru
+      if (selectedBlok === null) {
+        // Non-blok: Kolom sesuai template dengan lebar yang cukup untuk header tidak terpotong
+        worksheet.columns = [
+          { width: 10 },  // A: NO (ditingkatkan dari 8)
+          { width: 40 },  // B: NAMA DOSEN (ditingkatkan dari 35)
+          { width: 18 },  // C: CSR REGULER (PERENCANAAN) (ditingkatkan dari 15)
+          { width: 18 },  // D: CSR RESPONSI (PERENCANAAN) (ditingkatkan dari 15)
+          { width: 18 },  // E: MATERI (PERENCANAAN) (ditingkatkan dari 15)
+          { width: 15 },  // F: TOTAL JAM (PERENCANAAN) (ditingkatkan dari 12)
+          { width: 18 },  // G: CSR REGULER (REALISASI) (ditingkatkan dari 15)
+          { width: 18 },  // H: CSR RESPONSI (REALISASI) (ditingkatkan dari 15)
+          { width: 18 },  // I: MATERI (REALISASI) (ditingkatkan dari 15)
+          { width: 15 }   // J: Total Jam (REALISASI) (ditingkatkan dari 12)
+        ];
+      } else {
+        // Blok data: Kolom sesuai template dengan lebar yang cukup untuk header tidak terpotong
+        // PBL 1 dan PBL 2 di perencanaan digabung jadi satu kolom "PBL"
+        worksheet.columns = [
+          { width: 10 },  // A: NO (ditingkatkan dari 8)
+          { width: 40 },  // B: NAMA DOSEN (ditingkatkan dari 35)
+          { width: 18 },  // C: PBL (PER 50') - PERENCANAAN (gabungan PBL 1 + PBL 2)
+          { width: 18 },  // D: JURDING (PER 50') - PERENCANAAN
+          { width: 18 },  // E: KULIAH (PER 50') - PERENCANAAN
+          { width: 18 },  // F: PRAKTIKUM (PER 50') - PERENCANAAN
+          { width: 18 },  // G: PP PBL (PER 50') - PERENCANAAN
+          { width: 18 },  // H: SEMINAR PLENO (PER 50') - PERENCANAAN
+          { width: 15 },  // I: TOTAL JAM - PERENCANAAN
+          { width: 18 },  // J: PBL 1 (PER 50') - REALISASI
+          { width: 18 },  // K: PBL 2 (PER 50') - REALISASI
+          { width: 18 },  // L: JURDING (PER 50') - REALISASI
+          { width: 18 },  // M: KULIAH (PER 50') - REALISASI
+          { width: 18 },  // N: PRAKTIKUM (PER 50') - REALISASI
+          { width: 18 },  // O: PP PBL (PER 50') - REALISASI
+          { width: 18 },  // P: SEMINAR PLENO (PER 50') - REALISASI
+          { width: 15 }   // Q: Total Jam - REALISASI
+        ];
+      }
 
       let currentRow = 1;
 
-      // Add main title
-      worksheet.mergeCells(`A${currentRow}:F${currentRow}`);
-      worksheet.getCell(`A${currentRow}`).value = 'Reporting Dosen PBL';
-      worksheet.getCell(`A${currentRow}`).font = { size: 16, bold: true };
-      worksheet.getCell(`A${currentRow}`).alignment = { horizontal: 'center' };
-      
-      // Make columns G onwards white and empty
-      for (let i = 7; i <= 20; i++) { // Columns G to T
-        const cell = worksheet.getCell(`${String.fromCharCode(64 + i)}${currentRow}`);
-        cell.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FFFFFFFF' } // Background putih
-        };
-        cell.value = ''; // Empty value
-      }
-      
-      currentRow += 2;
+      // Helper function to safely merge cells
+      // This function handles cases where cells might already be merged
+      const safeMergeCells = (range: string) => {
+        try {
+          // Check if start cell is already part of a merge
+          const [startCellRef] = range.split(':');
+          const startCell = worksheet.getCell(startCellRef);
+          
+          // If cell is merged, try to unmerge it first
+          if (startCell.isMerged) {
+            try {
+              // Try to unmerge using the range - this might fail if the range doesn't match exactly
+              worksheet.unMergeCells(range);
+            } catch (unmergeError) {
+              // If unmerge fails, the range might be different
+              // Try to find the actual merged range by checking adjacent cells
+              // For now, we'll just skip this merge to avoid errors
+              return;
+            }
+          }
+          
+          // Now try to merge
+          worksheet.mergeCells(range);
+        } catch (error: any) {
+          // If merge fails, check the error message
+          const errorMsg = error.message || String(error);
+          
+          if (errorMsg.includes('already merged') || errorMsg.includes('Cannot merge')) {
+            // Cells are already merged - this is okay, just skip
+          } else {
+            // Some other error - log it but don't throw
+          }
+          // Don't throw - just continue without merging
+        }
+      };
 
-      // Add subtitle
-      worksheet.mergeCells(`A${currentRow}:F${currentRow}`);
-      worksheet.getCell(`A${currentRow}`).value = `Blok: 1-4 | Export: ${new Date().toLocaleDateString('id-ID')}`;
-      worksheet.getCell(`A${currentRow}`).font = { size: 12 };
-      worksheet.getCell(`A${currentRow}`).alignment = { horizontal: 'center' };
+      // Get blok name and semester info from data
+      let blokName = '';
+      let semesterInfo = '';
+      const currentYear = new Date().getFullYear();
+      const nextYear = currentYear + 1;
+      const tahunAjaran = `${currentYear}_${nextYear}`;
       
-      // Make columns G onwards white and empty
-      for (let i = 7; i <= 20; i++) { // Columns G to T
-        const cell = worksheet.getCell(`${String.fromCharCode(64 + i)}${currentRow}`);
-        cell.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FFFFFFFF' } // Background putih
-        };
-        cell.value = ''; // Empty value
+      if (blokData.length > 0 && selectedBlok !== null) {
+        // Find first blok data untuk mendapatkan nama blok
+        const firstBlokData = blokData.find((item: any) => item.blok === selectedBlok);
+        if (firstBlokData) {
+          blokName = firstBlokData.mata_kuliah_nama || `BLOK ${selectedBlok}`;
+          // Get semester info - convert semester number to GANJIL/GENAP
+          // Semester 1,3,5,7 = GANJIL, Semester 2,4,6 = GENAP
+          const semester = firstBlokData.semester ? parseInt(firstBlokData.semester) : 1;
+          const isGenap = semester % 2 === 0;
+          semesterInfo = `SEMESTER ${isGenap ? 'GENAP' : 'GANJIL'}: ${tahunAjaran}`;
+        } else {
+          // Fallback jika tidak ada data
+          blokName = `BLOK ${selectedBlok}`;
+          semesterInfo = `SEMESTER GANJIL: ${tahunAjaran}`;
+        }
+      } else if (selectedBlok === null) {
+        // For non-blok, get semester from first non-blok data
+        const firstNonBlokData = blokData.find((item: any) => item.blok === null || item.blok === undefined);
+        if (firstNonBlokData) {
+          const semester = firstNonBlokData.semester ? parseInt(firstNonBlokData.semester) : 1;
+          const isGenap = semester % 2 === 0;
+          semesterInfo = `SEMESTER ${isGenap ? 'GENAP' : 'GANJIL'}: ${tahunAjaran}`;
+        } else {
+          semesterInfo = `SEMESTER GANJIL: ${tahunAjaran}`;
+        }
+      } else {
+        // Fallback
+        semesterInfo = `SEMESTER GANJIL: ${tahunAjaran}`;
       }
-      
-      currentRow += 2;
+
+      // Header Row 1: Main Title - merge cell dari A sampai kolom terakhir, teks memanjang tidak terpotong
+      const titleCols = selectedBlok === null ? 'A:J' : 'A:Q';
+      safeMergeCells(`${titleCols}${currentRow}`);
+      const titleRow = worksheet.getRow(currentRow);
+      titleRow.height = 20; // Row height normal
+      const titleCell = worksheet.getCell(`A${currentRow}`);
+      titleCell.value = 'DAFTAR REKAPITULASI PERHITUNGAN SKS DOSEN';
+      titleCell.font = { size: 16, bold: true, color: { argb: 'FF000000' } }; // Teks hitam
+      titleCell.alignment = { 
+        horizontal: 'center', 
+        vertical: 'middle', 
+        wrapText: false, // Tidak wrap, teks memanjang
+        shrinkToFit: false // Teks tidak mengecil
+      };
+      titleRow.alignment = { horizontal: 'center', vertical: 'middle' }; // Pastikan row juga di tengah
+      titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } }; // Background putih
+      currentRow += 1;
+
+      // Header Row 2: Blok/Non Blok Info - merge cell dari A sampai kolom terakhir, teks memanjang tidak terpotong
+      safeMergeCells(`${titleCols}${currentRow}`);
+      const blokInfoRow = worksheet.getRow(currentRow);
+      blokInfoRow.height = 20; // Row height normal
+      const blokInfoCell = worksheet.getCell(`A${currentRow}`);
+      if (selectedBlok !== null) {
+        blokInfoCell.value = `PSKD FKK UMJ: BLOK ${selectedBlok}: ${blokName}`;
+      } else {
+        blokInfoCell.value = `PSKD FKK UMJ: NON BLOK`;
+      }
+      blokInfoCell.font = { size: 14, bold: true, color: { argb: 'FF000000' } }; // Teks hitam
+      blokInfoCell.alignment = { 
+        horizontal: 'center', 
+        vertical: 'middle', 
+        wrapText: false, // Tidak wrap, teks memanjang
+        shrinkToFit: false // Teks tidak mengecil
+      };
+      blokInfoRow.alignment = { horizontal: 'center', vertical: 'middle' }; // Pastikan row juga di tengah
+      blokInfoCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } }; // Background putih
+      currentRow += 1;
+
+      // Header Row 3: Semester Info - merge cell dari A sampai kolom terakhir, teks memanjang tidak terpotong
+      safeMergeCells(`${titleCols}${currentRow}`);
+      const semesterRow = worksheet.getRow(currentRow);
+      semesterRow.height = 20; // Row height normal
+      const semesterCell = worksheet.getCell(`A${currentRow}`);
+      semesterCell.value = semesterInfo;
+      semesterCell.font = { size: 14, bold: true, color: { argb: 'FF000000' } }; // Teks hitam
+      semesterCell.alignment = { 
+        horizontal: 'center', 
+        vertical: 'middle', 
+        wrapText: false, // Tidak wrap, teks memanjang
+        shrinkToFit: false // Teks tidak mengecil
+      };
+      semesterRow.alignment = { horizontal: 'center', vertical: 'middle' }; // Pastikan row juga di tengah
+      semesterCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } }; // Background putih
+      currentRow += 2; // Skip one row before table
 
       // Group data blok by dosen, blok, dan semester
+      // Struktur baru: memisahkan perencanaan dan realisasi
       const jadwalByDosenBlokSemester: { [key: string]: any } = {};
       
-      console.log('=== PROCESSING BLOK DATA ===');
-      console.log('Total blok data:', blokData.length);
       
       // Debug: Cek struktur data blok
       if (blokData.length === 0) {
-        console.error('❌ ERROR: Blok data kosong!');
-        console.error('API Response:', blokResponse.data);
-        return;
+        // Don't return - continue to generate empty template
       }
       
-      console.log('Sample blok data structure:', {
-        blok: blokData[0].blok,
-        semester: blokData[0].semester,
-        mata_kuliah_nama: blokData[0].mata_kuliah_nama,
-        kuliah_besar: blokData[0].kuliah_besar,
-        praktikum: blokData[0].praktikum
-      });
       
-      // Process data blok dari API
-      blokData.forEach((blokDataItem: any) => {
-        const blok = blokDataItem.blok;
-        const semester = blokDataItem.semester;
-        
-        console.log(`Processing Blok ${blok}, Semester ${semester}: ${blokDataItem.mata_kuliah_nama}`);
-        
-        // Skip processing if this is non blok data (we'll handle it separately)
-        if (blok === null || blok === undefined) {
-          console.log(`  Skipping non blok data for semester ${semester}`);
-          return;
+      // Helper function untuk memisahkan perencanaan dan realisasi
+      const processJadwal = (jadwal: any, jenis: string, key: string, isPerencanaan: boolean) => {
+        if (!jadwalByDosenBlokSemester[key]) {
+          jadwalByDosenBlokSemester[key] = {
+            dosen_name: jadwal.dosen_name,
+            blok: jadwal.blok || null,
+            semester: jadwal.semester,
+            // Perencanaan
+            pbl1_perencanaan: 0,
+            pbl2_perencanaan: 0,
+            jurnalReading_perencanaan: 0,
+            csrReguler_perencanaan: 0,
+            csrResponsi_perencanaan: 0,
+            materi_perencanaan: 0,
+            seminarPleno_perencanaan: 0,
+            ppPbl_perencanaan: 0,
+            praktikum_perencanaan: 0,
+            kuliahBesar_perencanaan: 0,
+            // Realisasi
+            pbl1_realisasi: 0,
+            pbl2_realisasi: 0,
+            praktikum_realisasi: 0,
+            kuliahBesar_realisasi: 0,
+            jurnalReading_realisasi: 0,
+            csrReguler_realisasi: 0,
+            csrResponsi_realisasi: 0,
+            materi_realisasi: 0,
+            seminarPleno_realisasi: 0,
+            ppPbl_realisasi: 0,
+          };
         }
         
-        // Process PBL 1
-        if (blokDataItem.pbl1 && blokDataItem.pbl1.length > 0) {
-          console.log(`  PBL 1: ${blokDataItem.pbl1.length} jadwal`);
+        // Cek apakah jadwal sudah dinilai/absensi
+        let isSudahDinilaiAbsensi = false;
+        
+        if (jenis === 'pbl1' || jenis === 'pbl2' || jenis === 'jurnal_reading') {
+          // Nilai: PBL 1, PBL 2, Jurnal Reading - cek penilaian_submitted
+          isSudahDinilaiAbsensi = jadwal.penilaian_submitted === true;
+        } else if (jenis === 'kuliah_besar' || jenis === 'praktikum' || jenis === 'seminar_pleno') {
+          // Absensi: Kuliah Besar, Praktikum, Seminar Pleno - cek has_absensi
+          isSudahDinilaiAbsensi = jadwal.has_absensi === true;
+        } else if (jenis === 'pp_pbl') {
+          // Absensi + Masuk Laporan: PP PBL - harus sudah di-absensi DAN centang masuk laporan
+          isSudahDinilaiAbsensi = jadwal.has_absensi === true && jadwal.penilaian_submitted === true;
+        } else if (jenis === 'csr_reguler' || jenis === 'csr_responsi') {
+          // CSR: cek penilaian_submitted
+          isSudahDinilaiAbsensi = jadwal.penilaian_submitted === true;
+        } else if (jenis === 'materi') {
+          // Materi: cek status_konfirmasi
+          isSudahDinilaiAbsensi = jadwal.status_konfirmasi === "bisa";
+        }
+        
+        if (isPerencanaan) {
+          // Perencanaan PBL dan Jurnal Reading diambil dari daftar modul PBL dan jurnal reading mata kuliah
+          // Bukan dari jadwal, jadi skip perhitungan dari jadwal untuk PBL dan Jurnal Reading
+          if (jenis === 'pbl1' || jenis === 'pbl2' || jenis === 'jurnal_reading') {
+            // Perencanaan PBL dan Jurnal Reading akan dihitung dari perencanaanPblJurnalMap
+            // Skip perhitungan dari jadwal
+            return;
+          }
+          
+          // Perencanaan: hanya jadwal yang BELUM dinilai/absensi (untuk jenis lain selain PBL dan Jurnal Reading)
+          if (!isSudahDinilaiAbsensi) {
+            if (jenis === 'csr_reguler') {
+              // Perencanaan CSR akan dihitung nanti berdasarkan keahlian dosen (jumlah keahlian × 5)
+              // Untuk saat ini, hanya tandai bahwa dosen memiliki assignment CSR
+              // Nilai sebenarnya akan dihitung di bagian agregasi berdasarkan keahlian dosen
+              jadwalByDosenBlokSemester[key].csrReguler_perencanaan = 1; // Flag bahwa ada assignment
+            } else if (jenis === 'csr_responsi') {
+              // Perencanaan CSR akan dihitung nanti berdasarkan keahlian dosen (jumlah keahlian × 5)
+              jadwalByDosenBlokSemester[key].csrResponsi_perencanaan = 1; // Flag bahwa ada assignment
+            } else if (jenis === 'materi') {
+              jadwalByDosenBlokSemester[key].materi_perencanaan += jadwal.jumlah_sesi || 0;
+            } else if (jenis === 'seminar_pleno') {
+              jadwalByDosenBlokSemester[key].seminarPleno_perencanaan += jadwal.jumlah_sesi || 0;
+            } else if (jenis === 'pp_pbl') {
+              jadwalByDosenBlokSemester[key].ppPbl_perencanaan += jadwal.jumlah_sesi || 0;
+            } else if (jenis === 'praktikum') {
+              // Perencanaan Praktikum: hitung dari semua jadwal
+              jadwalByDosenBlokSemester[key].praktikum_perencanaan += jadwal.jumlah_sesi || 0;
+            } else if (jenis === 'kuliah_besar') {
+              // Perencanaan Kuliah Besar: hitung dari semua jadwal
+              jadwalByDosenBlokSemester[key].kuliahBesar_perencanaan += jadwal.jumlah_sesi || 0;
+            }
+          }
+        } else {
+          // Realisasi: hanya jadwal yang SUDAH dinilai/absensi
+          if (isSudahDinilaiAbsensi) {
+            if (jenis === 'pbl1') {
+              // PBL 1 memiliki nilai tetap 2 per jadwal
+              jadwalByDosenBlokSemester[key].pbl1_realisasi += 2;
+            } else if (jenis === 'pbl2') {
+              // PBL 2 memiliki nilai tetap 3 per jadwal
+              jadwalByDosenBlokSemester[key].pbl2_realisasi += 3;
+            } else if (jenis === 'jurnal_reading') {
+              jadwalByDosenBlokSemester[key].jurnalReading_realisasi += jadwal.jumlah_sesi || 0;
+            } else if (jenis === 'praktikum') {
+              jadwalByDosenBlokSemester[key].praktikum_realisasi += jadwal.jumlah_sesi || 0;
+            } else if (jenis === 'kuliah_besar') {
+              jadwalByDosenBlokSemester[key].kuliahBesar_realisasi += jadwal.jumlah_sesi || 0;
+            } else if (jenis === 'csr_reguler') {
+              jadwalByDosenBlokSemester[key].csrReguler_realisasi += jadwal.jumlah_sesi || 0;
+            } else if (jenis === 'csr_responsi') {
+              jadwalByDosenBlokSemester[key].csrResponsi_realisasi += jadwal.jumlah_sesi || 0;
+            } else if (jenis === 'materi') {
+              jadwalByDosenBlokSemester[key].materi_realisasi += jadwal.jumlah_sesi || 0;
+            } else if (jenis === 'seminar_pleno') {
+              jadwalByDosenBlokSemester[key].seminarPleno_realisasi += jadwal.jumlah_sesi || 0;
+            } else if (jenis === 'pp_pbl') {
+              jadwalByDosenBlokSemester[key].ppPbl_realisasi += jadwal.jumlah_sesi || 0;
+            }
+          }
+        }
+      };
+      
+      // Process data blok dari API (only if selectedBlok is not null)
+      if (selectedBlok !== null) {
+        blokData.forEach((blokDataItem: any) => {
+          const blok = blokDataItem.blok;
+          const semester = blokDataItem.semester;
+          
+          // Only process selected blok data
+          if (blok === null || blok === undefined || blok !== selectedBlok) {
+            return;
+          }
+          
+          
+          // Process PBL 1 - Perencanaan dan Realisasi
+          if (blokDataItem.pbl1 && blokDataItem.pbl1.length > 0) {
           blokDataItem.pbl1.forEach((jadwal: any) => {
             const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
-            if (!jadwalByDosenBlokSemester[key]) {
-              jadwalByDosenBlokSemester[key] = {
-                dosen_name: jadwal.dosen_name,
-                blok: blok,
-                semester: semester,
-                pbl1: 0,
-                pbl2: 0,
-                csrReguler: 0,
-                csrResponsi: 0,
-                praktikum: 0,
-                kuliahBesar: 0,
-                jurnalReading: 0,
-                materi: 0
-              };
-            }
-            jadwalByDosenBlokSemester[key].pbl1 += jadwal.jumlah_sesi;
-            console.log(`    ${jadwal.dosen_name}: ${jadwal.jumlah_sesi} sesi`);
+            // Tambahkan blok dan semester ke jadwal untuk helper function
+            jadwal.blok = blok;
+            jadwal.semester = semester;
+            // Process perencanaan (semua jadwal masuk ke perencanaan)
+            processJadwal(jadwal, 'pbl1', key, true);
+            // Process realisasi (hanya yang sudah dinilai dan masuk laporan)
+            processJadwal(jadwal, 'pbl1', key, false);
           });
         }
         
-        // Process PBL 2
+        // Process PBL 2 - Perencanaan dan Realisasi
         if (blokDataItem.pbl2 && blokDataItem.pbl2.length > 0) {
-          console.log(`  PBL 2: ${blokDataItem.pbl2.length} jadwal`);
           blokDataItem.pbl2.forEach((jadwal: any) => {
             const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
-            if (!jadwalByDosenBlokSemester[key]) {
-              jadwalByDosenBlokSemester[key] = {
-                dosen_name: jadwal.dosen_name,
-                blok: blok,
-                semester: semester,
-                pbl1: 0,
-                pbl2: 0,
-                csrReguler: 0,
-                csrResponsi: 0,
-                praktikum: 0,
-                kuliahBesar: 0,
-                jurnalReading: 0,
-                materi: 0
-              };
-            }
-            jadwalByDosenBlokSemester[key].pbl2 += jadwal.jumlah_sesi;
-            console.log(`    ${jadwal.dosen_name}: ${jadwal.jumlah_sesi} sesi`);
+            jadwal.blok = blok;
+            jadwal.semester = semester;
+            // Process perencanaan (semua jadwal masuk ke perencanaan)
+            processJadwal(jadwal, 'pbl2', key, true);
+            // Process realisasi (hanya yang sudah dinilai dan masuk laporan)
+            processJadwal(jadwal, 'pbl2', key, false);
           });
         }
         
         // Skip CSR Reguler and CSR Responsi for blok data (only for non blok)
-        console.log(`  CSR Reguler: SKIPPED (only for non blok)`);
-        console.log(`  CSR Responsi: SKIPPED (only for non blok)`);
         
-        // Process Praktikum
+        // Process Praktikum - Perencanaan dan Realisasi
         if (blokDataItem.praktikum && blokDataItem.praktikum.length > 0) {
-          console.log(`  Praktikum: ${blokDataItem.praktikum.length} jadwal`);
           blokDataItem.praktikum.forEach((jadwal: any) => {
             const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
-            if (!jadwalByDosenBlokSemester[key]) {
-              jadwalByDosenBlokSemester[key] = {
-                dosen_name: jadwal.dosen_name,
-                blok: blok,
-                semester: semester,
-                pbl1: 0,
-                pbl2: 0,
-                csrReguler: 0,
-                csrResponsi: 0,
-                praktikum: 0,
-                kuliahBesar: 0,
-                jurnalReading: 0,
-                materi: 0
-              };
-            }
-            jadwalByDosenBlokSemester[key].praktikum += jadwal.jumlah_sesi;
-            console.log(`    ${jadwal.dosen_name}: ${jadwal.jumlah_sesi} sesi`);
+            jadwal.blok = blok;
+            jadwal.semester = semester;
+            // Process perencanaan (semua jadwal masuk ke perencanaan)
+            processJadwal(jadwal, 'praktikum', key, true);
+            // Process realisasi (hanya yang sudah di-absensi)
+            processJadwal(jadwal, 'praktikum', key, false);
           });
         }
         
-        // Process Kuliah Besar
+        // Process Kuliah Besar - Perencanaan dan Realisasi
         if (blokDataItem.kuliah_besar && blokDataItem.kuliah_besar.length > 0) {
-          console.log(`  Kuliah Besar: ${blokDataItem.kuliah_besar.length} jadwal`);
           blokDataItem.kuliah_besar.forEach((jadwal: any) => {
             const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
-            if (!jadwalByDosenBlokSemester[key]) {
-              jadwalByDosenBlokSemester[key] = {
-                dosen_name: jadwal.dosen_name,
-                blok: blok,
-                semester: semester,
-                pbl1: 0,
-                pbl2: 0,
-                csrReguler: 0,
-                csrResponsi: 0,
-                praktikum: 0,
-                kuliahBesar: 0,
-                jurnalReading: 0,
-                materi: 0
-              };
-            }
-            jadwalByDosenBlokSemester[key].kuliahBesar += jadwal.jumlah_sesi;
-            console.log(`    ${jadwal.dosen_name}: ${jadwal.jumlah_sesi} sesi`);
-            console.log(`    Key: ${key}`);
-            console.log(`    Data after:`, jadwalByDosenBlokSemester[key]);
+            jadwal.blok = blok;
+            jadwal.semester = semester;
+            // Process perencanaan (semua jadwal masuk ke perencanaan)
+            processJadwal(jadwal, 'kuliah_besar', key, true);
+            // Process realisasi (hanya yang sudah di-absensi)
+            processJadwal(jadwal, 'kuliah_besar', key, false);
           });
-        } else {
-          console.log(`  Kuliah Besar: 0 jadwal`);
         }
         
-        // Process Jurnal Reading
+        // Process Jurnal Reading - Perencanaan dan Realisasi
         if (blokDataItem.jurnal_reading && blokDataItem.jurnal_reading.length > 0) {
-          console.log(`  Jurnal Reading: ${blokDataItem.jurnal_reading.length} jadwal`);
           blokDataItem.jurnal_reading.forEach((jadwal: any) => {
             const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
-            if (!jadwalByDosenBlokSemester[key]) {
-              jadwalByDosenBlokSemester[key] = {
-                dosen_name: jadwal.dosen_name,
-                blok: blok,
-                semester: semester,
-                pbl1: 0,
-                pbl2: 0,
-                csrReguler: 0,
-                csrResponsi: 0,
-                praktikum: 0,
-                kuliahBesar: 0,
-                jurnalReading: 0,
-                materi: 0
-              };
-            }
-            jadwalByDosenBlokSemester[key].jurnalReading += jadwal.jumlah_sesi;
-            console.log(`    ${jadwal.dosen_name}: ${jadwal.jumlah_sesi} sesi`);
+            jadwal.blok = blok;
+            jadwal.semester = semester;
+            // Process perencanaan (semua jadwal masuk ke perencanaan)
+            processJadwal(jadwal, 'jurnal_reading', key, true);
+            // Process realisasi (hanya yang sudah dinilai dan masuk laporan)
+            processJadwal(jadwal, 'jurnal_reading', key, false);
+          });
+        }
+        
+        // Process Seminar Pleno - Perencanaan dan Realisasi
+        if (blokDataItem.seminar_pleno && blokDataItem.seminar_pleno.length > 0) {
+          blokDataItem.seminar_pleno.forEach((jadwal: any) => {
+            const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
+            jadwal.blok = blok;
+            jadwal.semester = semester;
+            // Process perencanaan (semua jadwal masuk ke perencanaan)
+            processJadwal(jadwal, 'seminar_pleno', key, true);
+            // Process realisasi (hanya yang sudah di-absensi)
+            processJadwal(jadwal, 'seminar_pleno', key, false);
+          });
+        }
+        
+        // Process PP PBL - Perencanaan dan Realisasi
+        if (blokDataItem.pp_pbl && blokDataItem.pp_pbl.length > 0) {
+          blokDataItem.pp_pbl.forEach((jadwal: any) => {
+            const key = `${jadwal.dosen_name}_blok${blok}_semester${semester}`;
+            jadwal.blok = blok;
+            jadwal.semester = semester;
+            // Process perencanaan (semua jadwal masuk ke perencanaan)
+            processJadwal(jadwal, 'pp_pbl', key, true);
+            // Process realisasi (hanya yang sudah di-absensi DAN centang masuk laporan)
+            processJadwal(jadwal, 'pp_pbl', key, false);
           });
         }
         
         // Skip Materi for blok data (only for non blok)
-        console.log(`  Materi: SKIPPED (only for non blok)`);
-      });
+        });
+      }
 
-      // Process non blok data separately
-      console.log('=== PROCESSING NON BLOK DATA ===');
-      blokData.forEach((blokDataItem: any) => {
-        const blok = blokDataItem.blok;
-        const semester = blokDataItem.semester;
+      // Process non blok data separately (only if selectedBlok is null)
+      if (selectedBlok === null) {
+        blokData.forEach((blokDataItem: any) => {
+          const blok = blokDataItem.blok;
+          const semester = blokDataItem.semester;
+          
+          // Only process non blok data
+          if (blok !== null && blok !== undefined) {
+            return;
+          }
+          
         
-        // Only process non blok data
-        if (blok !== null && blok !== undefined) {
-          return;
-        }
-        
-        console.log(`Processing Non Blok Semester ${semester}: ${blokDataItem.mata_kuliah_nama}`);
-        
-        // Process CSR Reguler for non blok
+        // Process CSR Reguler for non blok - Perencanaan dan Realisasi
         if (blokDataItem.csr_reguler && blokDataItem.csr_reguler.length > 0) {
-          console.log(`  CSR Reguler: ${blokDataItem.csr_reguler.length} jadwal`);
           blokDataItem.csr_reguler.forEach((jadwal: any) => {
             const key = `${jadwal.dosen_name}_nonblok_semester${semester}`;
-            if (!jadwalByDosenBlokSemester[key]) {
-              jadwalByDosenBlokSemester[key] = {
-                dosen_name: jadwal.dosen_name,
-                blok: null, // Non blok
-                semester: semester,
-                pbl1: 0,
-                pbl2: 0,
-                csrReguler: 0,
-                csrResponsi: 0,
-                praktikum: 0,
-                kuliahBesar: 0,
-                jurnalReading: 0,
-                materi: 0
-              };
-            }
-            jadwalByDosenBlokSemester[key].csrReguler += jadwal.jumlah_sesi;
-            console.log(`    ${jadwal.dosen_name}: ${jadwal.jumlah_sesi} sesi`);
+            jadwal.blok = null;
+            jadwal.semester = semester;
+            // Process perencanaan (akan dihitung berdasarkan keahlian dosen nanti)
+            processJadwal(jadwal, 'csr_reguler', key, true);
+            // Process realisasi (hanya yang sudah dinilai dan masuk laporan)
+            processJadwal(jadwal, 'csr_reguler', key, false);
           });
         }
         
-        // Process CSR Responsi for non blok
+        // Process CSR Responsi for non blok - Perencanaan dan Realisasi
         if (blokDataItem.csr_responsi && blokDataItem.csr_responsi.length > 0) {
-          console.log(`  CSR Responsi: ${blokDataItem.csr_responsi.length} jadwal`);
           blokDataItem.csr_responsi.forEach((jadwal: any) => {
             const key = `${jadwal.dosen_name}_nonblok_semester${semester}`;
-            if (!jadwalByDosenBlokSemester[key]) {
-              jadwalByDosenBlokSemester[key] = {
-                dosen_name: jadwal.dosen_name,
-                blok: null, // Non blok
-                semester: semester,
-                pbl1: 0,
-                pbl2: 0,
-                csrReguler: 0,
-                csrResponsi: 0,
-                praktikum: 0,
-                kuliahBesar: 0,
-                jurnalReading: 0,
-                materi: 0
-              };
-            }
-            jadwalByDosenBlokSemester[key].csrResponsi += jadwal.jumlah_sesi;
-            console.log(`    ${jadwal.dosen_name}: ${jadwal.jumlah_sesi} sesi`);
+            jadwal.blok = null;
+            jadwal.semester = semester;
+            // Process perencanaan (akan dihitung berdasarkan keahlian dosen nanti)
+            processJadwal(jadwal, 'csr_responsi', key, true);
+            // Process realisasi (hanya yang sudah dinilai dan masuk laporan)
+            processJadwal(jadwal, 'csr_responsi', key, false);
           });
         }
         
-        // Process Materi for non blok
+        // Process Materi for non blok - Perencanaan dan Realisasi
         if (blokDataItem.materi && blokDataItem.materi.length > 0) {
-          console.log(`  Materi: ${blokDataItem.materi.length} jadwal`);
           blokDataItem.materi.forEach((jadwal: any) => {
             const key = `${jadwal.dosen_name}_nonblok_semester${semester}`;
-            if (!jadwalByDosenBlokSemester[key]) {
-              jadwalByDosenBlokSemester[key] = {
-                dosen_name: jadwal.dosen_name,
-                blok: null, // Non blok
-                semester: semester,
-                pbl1: 0,
-                pbl2: 0,
-                csrReguler: 0,
-                csrResponsi: 0,
-                praktikum: 0,
-                kuliahBesar: 0,
-                jurnalReading: 0,
-                materi: 0
-              };
-            }
-            jadwalByDosenBlokSemester[key].materi += jadwal.jumlah_sesi;
-            console.log(`    ${jadwal.dosen_name}: ${jadwal.jumlah_sesi} sesi`);
+            jadwal.blok = null;
+            jadwal.semester = semester;
+            // Process perencanaan (semua jadwal masuk ke perencanaan)
+            processJadwal(jadwal, 'materi', key, true);
+            // Process realisasi (hanya jika status_konfirmasi === "bisa")
+            processJadwal(jadwal, 'materi', key, false);
           });
         }
-      });
+        });
+      }
 
-      console.log('=== END PROCESSING ===');
-      console.log('Total jadwal grouped:', Object.keys(jadwalByDosenBlokSemester).length);
-      console.log('Sample grouped data:', Object.values(jadwalByDosenBlokSemester)[0]);
+      // Isi perencanaan PBL dan Jurnal Reading dari perencanaanPblMap dan perencanaanJurnalMap
+      // PERBAIKAN: 
+      // - Perencanaan PBL dihitung per blok (tanpa semester)
+      // - Perencanaan Jurnal Reading dihitung per semester
+      // Perencanaan PBL = jumlah daftar modul PBL × 5
+      // Perencanaan Jurnal Reading = jumlah daftar jurnal reading × 2
       
+      // Isi perencanaan PBL (per blok, berlaku untuk semua semester dengan blok yang sama)
+      Object.entries(perencanaanPblMap).forEach(([keyPerencanaanPbl, pblValue]) => {
+        // Parse key perencanaan PBL: `${dosenName}_blok${blok}`
+        const [dosenName, blokPart] = keyPerencanaanPbl.split('_');
+          const blokMatch = blokPart.match(/blok(\d+|null)/);
+          const blok = blokMatch && blokMatch[1] !== 'null' ? parseInt(blokMatch[1]) : null;
+        
+        // Isi perencanaan PBL untuk semua semester dengan blok yang sama
+        Object.keys(jadwalByDosenBlokSemester).forEach((keyJadwal) => {
+          const jadwalData = jadwalByDosenBlokSemester[keyJadwal];
+          // Cek apakah jadwal ini untuk dosen dan blok yang sama
+          if (jadwalData.dosen_name === dosenName && jadwalData.blok === blok) {
+        // Isi perencanaan PBL (gabungan PBL 1 + PBL 2)
+        // Karena PBL 1 dan PBL 2 digabung di perencanaan, kita bagi rata atau bisa juga langsung isi ke pbl1_perencanaan
+            // Berdasarkan penjelasan: PBL per 1 daftar = 5, jadi total perencanaan PBL = pblValue
+        // Kita bagi ke pbl1_perencanaan dan pbl2_perencanaan dengan proporsi yang sama, atau langsung isi ke pbl1_perencanaan
+        // Untuk sementara, kita isi ke pbl1_perencanaan saja karena nanti akan digabung
+            jadwalData.pbl1_perencanaan = pblValue;
+            jadwalData.pbl2_perencanaan = 0; // PBL 2 perencanaan juga 0 karena sudah digabung
+            
+          }
+        });
+      });
+      
+      // Isi perencanaan Jurnal Reading (per semester)
+      // PERBAIKAN: Pastikan semua jadwal diinisialisasi dengan 0 terlebih dahulu
+      // Kemudian isi nilai dari map jika ada
+      Object.keys(jadwalByDosenBlokSemester).forEach((keyJadwal) => {
+        const jadwalData = jadwalByDosenBlokSemester[keyJadwal];
+        // Inisialisasi perencanaan jurnal reading dengan 0
+        if (jadwalData.jurnalReading_perencanaan === undefined) {
+          jadwalData.jurnalReading_perencanaan = 0;
+        }
+      });
+      
+      // Isi perencanaan Jurnal Reading dari map (hanya jika ada nilai)
+      Object.entries(perencanaanJurnalMap).forEach(([keyPerencanaanJurnal, jurnalValue]) => {
+        // Parse key perencanaan Jurnal: `${dosenName}_blok${blok}_semester${semester}`
+        const [dosenName, blokPart, semesterPart] = keyPerencanaanJurnal.split('_');
+        const blokMatch = blokPart.match(/blok(\d+|null)/);
+        const semesterMatch = semesterPart.match(/semester(\d+)/);
+        const blok = blokMatch && blokMatch[1] !== 'null' ? parseInt(blokMatch[1]) : null;
+        const semester = semesterMatch ? parseInt(semesterMatch[1]) : 1;
+        
+        // Cari jadwal yang sesuai dengan dosen, blok, dan semester
+        const keyJadwal = `${dosenName}_blok${blok || 'null'}_semester${semester}`;
+        if (jadwalByDosenBlokSemester[keyJadwal]) {
+          // Isi perencanaan Jurnal Reading (hanya jika ada nilai > 0)
+          if (jurnalValue > 0) {
+            jadwalByDosenBlokSemester[keyJadwal].jurnalReading_perencanaan = jurnalValue;
+          } else {
+            // Pastikan nilainya 0 jika tidak ada daftar jurnal reading
+            jadwalByDosenBlokSemester[keyJadwal].jurnalReading_perencanaan = 0;
+          }
+        }
+      });
       // Debug: Cek apakah ada data yang akan ditampilkan
       if (Object.keys(jadwalByDosenBlokSemester).length === 0) {
-        console.error('❌ ERROR: Tidak ada data yang diproses!');
-        console.error('Blok data length:', blokData.length);
-        console.error('Sample blok data:', blokData[0]);
-        return;
+        // Don't return - continue to generate empty template
       }
       
-      // Debug: Tampilkan semua data yang akan ditampilkan di Excel
-      console.log('=== EXCEL DATA PREVIEW ===');
-      console.log('Total data to display:', Object.keys(jadwalByDosenBlokSemester).length);
-      Object.values(jadwalByDosenBlokSemester).forEach((data: any, index) => {
-        if (index < 10) { // Tampilkan 10 data pertama
-          console.log(`Data ${index + 1}:`, {
-            dosen_name: data.dosen_name,
-            blok: data.blok,
-            semester: data.semester,
-            pbl1: data.pbl1,
-            pbl2: data.pbl2,
-            csrReguler: data.csrReguler,
-            csrResponsi: data.csrResponsi,
-            praktikum: data.praktikum,
-            kuliahBesar: data.kuliahBesar,
-            jurnalReading: data.jurnalReading,
-            materi: data.materi
-          });
+
+      // Aggregate data by dosen (combine all semesters for selected blok/non-blok)
+      // Struktur baru: memisahkan perencanaan dan realisasi
+      const dosenAggregated: { [key: string]: any } = {};
+      
+      Object.values(jadwalByDosenBlokSemester).forEach((data: any) => {
+        const isBlokMatch = selectedBlok !== null && data.blok === selectedBlok;
+        const isNonBlokMatch = selectedBlok === null && data.blok === null;
+        
+        if (isBlokMatch || isNonBlokMatch) {
+          const key = data.dosen_name;
+          if (!dosenAggregated[key]) {
+            dosenAggregated[key] = {
+              dosen_name: data.dosen_name,
+              dosen_id: null, // Akan diisi dari dosenData
+              // Perencanaan
+              pbl1_perencanaan: 0,
+              pbl2_perencanaan: 0,
+              jurnalReading_perencanaan: 0,
+              csrReguler_perencanaan: 0,
+              csrResponsi_perencanaan: 0,
+              materi_perencanaan: 0,
+              seminarPleno_perencanaan: 0,
+              ppPbl_perencanaan: 0,
+              praktikum_perencanaan: 0,
+              kuliahBesar_perencanaan: 0,
+              // Realisasi
+              pbl1_realisasi: 0,
+              pbl2_realisasi: 0,
+              praktikum_realisasi: 0,
+              kuliahBesar_realisasi: 0,
+              jurnalReading_realisasi: 0,
+              csrReguler_realisasi: 0,
+              csrResponsi_realisasi: 0,
+              materi_realisasi: 0,
+              seminarPleno_realisasi: 0,
+              ppPbl_realisasi: 0,
+            };
+          }
+          // Aggregate perencanaan
+          // PERBAIKAN: 
+          // - Perencanaan PBL tidak diakumulasi per semester (ambil nilai maksimum)
+          //   karena perencanaan dihitung berdasarkan daftar modul PBL di mata kuliah,
+          //   yang sama untuk semua semester dengan blok yang sama
+          // - Perencanaan Jurnal Reading: hanya diambil dari semester yang memiliki daftar jurnal reading
+          //   Jika semester tertentu tidak memiliki daftar jurnal reading, nilainya 0 untuk semester tersebut
+          //   Jadi jika semester 1 memiliki daftar jurnal reading dan semester 3 tidak, 
+          //   perencanaan Jurnal Reading hanya dari semester 1, bukan dari semester 3
+          //   Kita akumulasi hanya nilai yang > 0 (yang memiliki daftar jurnal reading)
+          if ((data.pbl1_perencanaan || 0) > dosenAggregated[key].pbl1_perencanaan) {
+            dosenAggregated[key].pbl1_perencanaan = data.pbl1_perencanaan || 0;
+          }
+          if ((data.pbl2_perencanaan || 0) > dosenAggregated[key].pbl2_perencanaan) {
+            dosenAggregated[key].pbl2_perencanaan = data.pbl2_perencanaan || 0;
+          }
+          // Perencanaan Jurnal Reading: hanya akumulasi nilai yang > 0 (yang memiliki daftar jurnal reading)
+          // Jika semester tertentu tidak memiliki daftar jurnal reading (nilai = 0), tidak diakumulasi
+          // Ini untuk memastikan bahwa perencanaan Jurnal Reading hanya dari semester yang memiliki daftar jurnal reading
+          if ((data.jurnalReading_perencanaan || 0) > 0) {
+            dosenAggregated[key].jurnalReading_perencanaan += data.jurnalReading_perencanaan || 0;
+          }
+          dosenAggregated[key].csrReguler_perencanaan += data.csrReguler_perencanaan || 0;
+          dosenAggregated[key].csrResponsi_perencanaan += data.csrResponsi_perencanaan || 0;
+          dosenAggregated[key].materi_perencanaan += data.materi_perencanaan || 0;
+          dosenAggregated[key].seminarPleno_perencanaan += data.seminarPleno_perencanaan || 0;
+          dosenAggregated[key].ppPbl_perencanaan += data.ppPbl_perencanaan || 0;
+          dosenAggregated[key].praktikum_perencanaan += data.praktikum_perencanaan || 0;
+          dosenAggregated[key].kuliahBesar_perencanaan += data.kuliahBesar_perencanaan || 0;
+          // Aggregate realisasi
+          dosenAggregated[key].pbl1_realisasi += data.pbl1_realisasi || 0;
+          dosenAggregated[key].pbl2_realisasi += data.pbl2_realisasi || 0;
+          dosenAggregated[key].praktikum_realisasi += data.praktikum_realisasi || 0;
+          dosenAggregated[key].kuliahBesar_realisasi += data.kuliahBesar_realisasi || 0;
+          dosenAggregated[key].jurnalReading_realisasi += data.jurnalReading_realisasi || 0;
+          dosenAggregated[key].csrReguler_realisasi += data.csrReguler_realisasi || 0;
+          dosenAggregated[key].csrResponsi_realisasi += data.csrResponsi_realisasi || 0;
+          dosenAggregated[key].materi_realisasi += data.materi_realisasi || 0;
+          dosenAggregated[key].seminarPleno_realisasi += data.seminarPleno_realisasi || 0;
+          dosenAggregated[key].ppPbl_realisasi += data.ppPbl_realisasi || 0;
         }
       });
-      console.log('=== END EXCEL DATA PREVIEW ===');
-
-      // Process each blok (1-4)
-      for (let blokNumber = 1; blokNumber <= 4; blokNumber++) {
-        // Add blok title
-        worksheet.mergeCells(`A${currentRow}:F${currentRow}`);
-        worksheet.getCell(`A${currentRow}`).value = `blok ${blokNumber}`;
-        worksheet.getCell(`A${currentRow}`).font = { size: 14, bold: true };
-        worksheet.getCell(`A${currentRow}`).alignment = { horizontal: 'left' };
-        // Clear background color for merged cells
-        worksheet.getCell(`A${currentRow}`).fill = { type: 'pattern', pattern: 'none' };
-        
-        // Make columns G onwards white and empty
-        for (let i = 7; i <= 20; i++) { // Columns G to T
-          const cell = worksheet.getCell(`${String.fromCharCode(64 + i)}${currentRow}`);
-          cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FFFFFFFF' } // Background putih
-          };
-          cell.value = ''; // Empty value
-        }
-        
-        currentRow += 1;
-
-        // Process each semester (1-7) for this blok
-        for (let semesterNumber = 1; semesterNumber <= 7; semesterNumber++) {
-          // Get data for this specific blok and semester first
-          const dosenData = Object.values(jadwalByDosenBlokSemester).filter((data: any) => 
-            data.blok === blokNumber && String(data.semester) === String(semesterNumber)
-          );
+      
+      // Hitung perencanaan CSR berdasarkan keahlian dosen (jumlah keahlian × 5)
+      // dan update dosen_id dari dosenData
+      Object.keys(dosenAggregated).forEach((dosenName) => {
+        const dosen = dosenData.find((d: any) => d.name === dosenName);
+        if (dosen) {
+          dosenAggregated[dosenName].dosen_id = dosen.id;
           
-          console.log(`🔍 Checking Blok ${blokNumber}, Semester ${semesterNumber}: ${dosenData.length} dosen`);
-
-          // Only add semester if there is data (skip completely empty sections)
-          if (dosenData.length > 0) {
-            console.log(`✅ FOUND DATA for Blok ${blokNumber}, Semester ${semesterNumber}: ${dosenData.length} dosen`);
+          // Hitung perencanaan CSR berdasarkan keahlian
+          // Perencanaan CSR = jumlah keahlian × 5 (hanya jika dosen memiliki assignment CSR)
+          if (dosen.keahlian) {
+            const jumlahKeahlian = Array.isArray(dosen.keahlian)
+              ? dosen.keahlian.length
+              : typeof dosen.keahlian === "string"
+              ? dosen.keahlian.split(",").filter((k: string) => k.trim()).length
+              : 1;
             
-          // Add semester title
-          worksheet.mergeCells(`A${currentRow}:F${currentRow}`);
-          worksheet.getCell(`A${currentRow}`).value = `Semester ${semesterNumber}`;
-          worksheet.getCell(`A${currentRow}`).font = { size: 12, bold: true };
-          worksheet.getCell(`A${currentRow}`).alignment = { horizontal: 'left' };
-          // Clear background color for merged cells
-          worksheet.getCell(`A${currentRow}`).fill = { type: 'pattern', pattern: 'none' };
+            // Perencanaan CSR = jumlah keahlian × 5
+            // Hanya jika dosen memiliki assignment CSR (ada realisasi atau flag perencanaan > 0)
+            if (dosenAggregated[dosenName].csrReguler_perencanaan > 0 || 
+                dosenAggregated[dosenName].csrReguler_realisasi > 0) {
+              dosenAggregated[dosenName].csrReguler_perencanaan = jumlahKeahlian * 5;
+            } else {
+              dosenAggregated[dosenName].csrReguler_perencanaan = 0;
+            }
+            
+            if (dosenAggregated[dosenName].csrResponsi_perencanaan > 0 || 
+                dosenAggregated[dosenName].csrResponsi_realisasi > 0) {
+              dosenAggregated[dosenName].csrResponsi_perencanaan = jumlahKeahlian * 5;
+            } else {
+              dosenAggregated[dosenName].csrResponsi_perencanaan = 0;
+            }
+          } else {
+            // Jika tidak ada keahlian, set perencanaan CSR = 0
+            dosenAggregated[dosenName].csrReguler_perencanaan = 0;
+            dosenAggregated[dosenName].csrResponsi_perencanaan = 0;
+          }
+        }
+      });
+
+      // Convert to array and sort by dosen name
+      const dosenList = Object.values(dosenAggregated).sort((a: any, b: any) => 
+        a.dosen_name.localeCompare(b.dosen_name)
+      );
+
+
+      if (selectedBlok !== null) {
+        // Create table header for Blok (Row 5)
+        const headerRow5 = worksheet.getRow(currentRow);
+        headerRow5.getCell(1).value = 'NO'; // A5
+        headerRow5.getCell(2).value = 'NAMA DOSEN'; // B5
+        
+        // Set nilai PERENCANAAN dan REALISASI di row 5 dulu sebelum merge
+        // Nilai ini akan tetap muncul setelah merge karena merge dilakukan dari row 5 ke row 6
+        const cellPerencanaan = headerRow5.getCell(3);
+        const cellRealisasi = headerRow5.getCell(10);
+        cellPerencanaan.value = 'PERENCANAAN';
+        cellRealisasi.value = 'REALISASI';
+        
+        // Merge horizontal untuk PERENCANAAN dan REALISASI di row 5
+        // PERENCANAAN: C5:I5 (7 kolom: PBL, JURDING, KULIAH, PRAKTIKUM, PP PBL, SEMINAR PLENO, TOTAL JAM)
+        // REALISASI: J5:Q5 (8 kolom: PBL 1, PBL 2, JURDING, KULIAH, PRAKTIKUM, PP PBL, SEMINAR PLENO, Total Jam)
+        safeMergeCells(`C${currentRow}:I${currentRow}`); // C5:I5 - PERENCANAAN (7 kolom)
+        safeMergeCells(`J${currentRow}:Q${currentRow}`); // J5:Q5 - REALISASI (8 kolom)
+        
+        // Style header row 5 - terbagi 3 warna: NO/NAMA (abu-abu sedang), PERENCANAAN (biru muda), REALISASI (oranye pastel)
+        for (let i = 1; i <= 17; i++) {
+          const cell = headerRow5.getCell(i);
           
-          // Make columns G onwards white and empty
-          for (let i = 7; i <= 20; i++) { // Columns G to T
-            const cell = worksheet.getCell(`${String.fromCharCode(64 + i)}${currentRow}`);
+          // Tentukan warna background dan teks berdasarkan kolom
+          let bgColor = 'FF9F9E9D'; // Default: abu-abu sedang
+          let textColor = 'FF000000'; // Default: teks hitam
+          
+          if (i === 1 || i === 2) {
+            // Kolom A-B (NO, NAMA DOSEN) - abu-abu sedang
+            bgColor = 'FF9F9E9D'; // Abu-abu sedang #9f9e9d
+            textColor = 'FF000000'; // Teks hitam
+          } else if (i >= 3 && i <= 9) {
+            // Kolom C-I (PERENCANAAN) - biru muda (7 kolom: PBL, JURDING, KULIAH, PRAKTIKUM, PP PBL, SEMINAR PLENO, TOTAL JAM)
+            bgColor = 'FFBAD2E9'; // Biru muda #bad2e9
+            textColor = 'FF000000'; // Teks hitam
+          } else if (i >= 10 && i <= 17) {
+            // Kolom J-Q (REALISASI) - oranye pastel / peach muda (8 kolom: PBL 1, PBL 2, JURDING, KULIAH, PRAKTIKUM, PP PBL, SEMINAR PLENO, Total Jam)
+            bgColor = 'FFF1C6A9'; // Oranye pastel / peach muda #f1c6a9
+            textColor = 'FF000000'; // Teks hitam
+          }
+          
+          cell.font = { bold: true, color: { argb: textColor } };
             cell.fill = {
               type: 'pattern',
               pattern: 'solid',
-              fgColor: { argb: 'FFFFFFFF' } // Background putih
-            };
-            cell.value = ''; // Empty value
-          }
-          
-          currentRow += 1;
-
-          // Add header row for this semester (blok data - no CSR and Materi)
-          const headerRow = worksheet.getRow(currentRow);
-          headerRow.values = [
-            'NAMA DOSEN', 'PBL 1', 'PBL 2', 'PRAKTIKUM', 'KULIAH BESAR', 'JURNAL READING'
-          ];
-            
-        // Style header row - only for columns A-F
-        for (let i = 1; i <= 6; i++) {
-          const cell = headerRow.getCell(i);
-          cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-          cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FF2D5016' } // Hijau gelap
+            fgColor: { argb: bgColor }
           };
           cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FF000000' } },
+            left: { style: 'thin', color: { argb: 'FF000000' } },
+            bottom: { style: 'thin', color: { argb: 'FF000000' } },
+            right: { style: 'thin', color: { argb: 'FF000000' } }
+          };
         }
         
-        // Make columns G onwards white and empty
-        for (let i = 7; i <= 20; i++) { // Columns G to T
-          const cell = headerRow.getCell(i);
+        // Pastikan styling untuk PERENCANAAN dan REALISASI tetap terlihat setelah merge
+        // (styling ini penting untuk memastikan teks "PERENCANAAN" dan "REALISASI" terlihat dengan benar)
+        cellPerencanaan.alignment = { horizontal: 'center', vertical: 'middle' };
+        cellRealisasi.alignment = { horizontal: 'center', vertical: 'middle' };
+        cellPerencanaan.font = { bold: true, color: { argb: 'FF000000' } };
+        cellRealisasi.font = { bold: true, color: { argb: 'FF000000' } };
+        cellPerencanaan.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFBAD2E9' } // Biru muda #bad2e9
+        };
+        cellRealisasi.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFF1C6A9' } // Oranye pastel / peach muda #f1c6a9
+        };
+        
+          currentRow += 1;
+
+        // Merge A5 with A6 and B5 with B6 first (before setting row 6 values)
+        // Kolom 1: A dan B (NO dan NAMA DOSEN)
+        safeMergeCells(`A${currentRow - 1}:A${currentRow}`);
+        safeMergeCells(`B${currentRow - 1}:B${currentRow}`);
+        
+        // Set border and fill color for merged cells A5:A6 and B5:B6
+        const cellA5 = worksheet.getCell(`A${currentRow - 1}`);
+        const cellB5 = worksheet.getCell(`B${currentRow - 1}`);
+        // Border hitam
+        cellA5.border = {
+          top: { style: 'thin', color: { argb: 'FF000000' } },
+          left: { style: 'thin', color: { argb: 'FF000000' } },
+          bottom: { style: 'thin', color: { argb: 'FF000000' } },
+          right: { style: 'thin', color: { argb: 'FF000000' } }
+        };
+        cellB5.border = {
+          top: { style: 'thin', color: { argb: 'FF000000' } },
+          left: { style: 'thin', color: { argb: 'FF000000' } },
+          bottom: { style: 'thin', color: { argb: 'FF000000' } },
+          right: { style: 'thin', color: { argb: 'FF000000' } }
+        };
+        // Fill color abu-abu sedang untuk NO dan NAMA DOSEN (bagian 1 dari 3 warna)
+        cellA5.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+          fgColor: { argb: 'FF9F9E9D' } // Abu-abu sedang #9f9e9d
+        };
+        cellB5.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF9F9E9D' } // Abu-abu sedang #9f9e9d
+        };
+        // Font hitam dan bold
+        cellA5.font = { bold: true, color: { argb: 'FF000000' } };
+        cellB5.font = { bold: true, color: { argb: 'FF000000' } };
+        // Alignment center
+        cellA5.alignment = { horizontal: 'center', vertical: 'middle' };
+        cellB5.alignment = { horizontal: 'center', vertical: 'middle' };
+        
+        // Tidak perlu merge vertikal untuk kolom C-J dan K-R karena:
+        // 1. Row 5 sudah di-merge horizontal untuk "PERENCANAAN" (C5:J5) dan "REALISASI" (K5:R5)
+        // 2. Row 6 akan berisi sub-header untuk setiap kolom (C6, D6, ..., J6, K6, L6, ..., R6)
+        // 3. Merge vertikal akan mengganggu merge horizontal dan menghilangkan sub-header di row 6
+
+        // Create table header for Blok (Row 6) - Sub headers
+        const headerRow6 = worksheet.getRow(currentRow);
+        // Don't set A6 and B6 values as they're merged with A5 and B5
+        
+        // Set nilai untuk row 6 (sub headers) - nilai akan muncul di cell yang sudah di-merge
+        // PERENCANAAN: PBL 1 dan PBL 2 digabung jadi satu kolom "PBL"
+        headerRow6.getCell(3).value = 'PBL\n(PER 50\')'; // C6 - PERENCANAAN (gabungan PBL 1 + PBL 2)
+        headerRow6.getCell(4).value = 'JURDING\n(PER 50\')'; // D6 - PERENCANAAN
+        headerRow6.getCell(5).value = 'KULIAH\n(PER 50\')'; // E6 - PERENCANAAN
+        headerRow6.getCell(6).value = 'PRAKTIKUM\n(PER 50\')'; // F6 - PERENCANAAN
+        headerRow6.getCell(7).value = 'PP PBL\n(PER 50\')'; // G6 - PERENCANAAN
+        headerRow6.getCell(8).value = 'SEMINAR\nPLENO\n(PER 50\')'; // H6 - PERENCANAAN
+        headerRow6.getCell(9).value = 'TOTAL JAM'; // I6 - PERENCANAAN
+        // REALISASI: Tetap terpisah PBL 1 dan PBL 2
+        headerRow6.getCell(10).value = 'PBL 1\n(PER 50\')'; // J6 - REALISASI
+        headerRow6.getCell(11).value = 'PBL 2\n(PER 50\')'; // K6 - REALISASI
+        headerRow6.getCell(12).value = 'JURDING\n(PER 50\')'; // L6 - REALISASI
+        headerRow6.getCell(13).value = 'KULIAH\n(PER 50\')'; // M6 - REALISASI
+        headerRow6.getCell(14).value = 'PRAKTIKUM\n(PER 50\')'; // N6 - REALISASI
+        headerRow6.getCell(15).value = 'PP PBL\n(PER 50\')'; // O6 - REALISASI
+        headerRow6.getCell(16).value = 'SEMINAR\nPLENO\n(PER 50\')'; // P6 - REALISASI
+        headerRow6.getCell(17).value = 'Total Jam'; // Q6 - REALISASI
+        
+        // Style header row 6 - terbagi 3 warna: NO/NAMA (abu-abu sedang), PERENCANAAN (biru muda), REALISASI (oranye pastel)
+        for (let i = 1; i <= 17; i++) {
+          const cell = headerRow6.getCell(i);
+          if (i > 2) { // Skip A and B as they're merged with row 5
+            // Tentukan warna background dan teks berdasarkan kolom (sama dengan row 5)
+            let bgColor = 'FF9F9E9D'; // Default: abu-abu sedang
+            let textColor = 'FF000000'; // Default: teks hitam
+            
+            if (i >= 3 && i <= 9) {
+              // Kolom C-I (PERENCANAAN) - biru muda (7 kolom: PBL, JURDING, KULIAH, PRAKTIKUM, PP PBL, SEMINAR PLENO, TOTAL JAM)
+              bgColor = 'FFBAD2E9'; // Biru muda #bad2e9
+              textColor = 'FF000000'; // Teks hitam
+            } else if (i >= 10 && i <= 17) {
+              // Kolom J-Q (REALISASI) - oranye pastel / peach muda (8 kolom: PBL 1, PBL 2, JURDING, KULIAH, PRAKTIKUM, PP PBL, SEMINAR PLENO, Total Jam)
+              bgColor = 'FFF1C6A9'; // Oranye pastel / peach muda #f1c6a9
+              textColor = 'FF000000'; // Teks hitam
+            }
+            
+            cell.font = { bold: true, color: { argb: textColor } };
           cell.fill = {
             type: 'pattern',
             pattern: 'solid',
-            fgColor: { argb: 'FFFFFFFF' } // Background putih
-          };
-          cell.value = ''; // Empty value
+              fgColor: { argb: bgColor }
+            };
+            cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+            cell.border = {
+              top: { style: 'thin', color: { argb: 'FF000000' } },
+              left: { style: 'thin', color: { argb: 'FF000000' } },
+              bottom: { style: 'thin', color: { argb: 'FF000000' } },
+              right: { style: 'thin', color: { argb: 'FF000000' } }
+            };
+          }
+          // A and B are already styled from row 5 merged cells
         }
-            
             currentRow += 1;
             
-            // Add data rows for this specific semester and blok
-            dosenData.forEach((data: any) => {
-              console.log(`📝 Adding row for ${data.dosen_name} - Blok ${blokNumber}, Semester ${semesterNumber}:`, {
-                pbl1: data.pbl1,
-                pbl2: data.pbl2,
-                praktikum: data.praktikum,
-                kuliahBesar: data.kuliahBesar,
-                jurnalReading: data.jurnalReading
-              });
-
-              // Add data row (blok data - no CSR and Materi)
+        // Add data rows
+        if (dosenList.length > 0) {
+          dosenList.forEach((dosen: any, index: number) => {
               const dataRow = worksheet.getRow(currentRow);
-              const rowValues = [
-                data.dosen_name,
-                data.pbl1 || 0,
-                data.pbl2 || 0,
-                data.praktikum || 0,
-                data.kuliahBesar || 0,
-                data.jurnalReading || 0
-              ];
-              
-              dataRow.values = rowValues;
+            
+            // Calculate totals perencanaan
+            // Semua data dari DetailBlok masuk ke perencanaan
+            const totalPerencanaan = (dosen.pbl1_perencanaan || 0) + 
+                                     (dosen.pbl2_perencanaan || 0) + 
+                                     (dosen.jurnalReading_perencanaan || 0) +
+                                     (dosen.ppPbl_perencanaan || 0) +
+                                     (dosen.seminarPleno_perencanaan || 0) +
+                                     (dosen.kuliahBesar_perencanaan || 0) +
+                                     (dosen.praktikum_perencanaan || 0);
+            
+            // Calculate totals realisasi
+            const totalRealisasi = (dosen.pbl1_realisasi || 0) + 
+                                   (dosen.pbl2_realisasi || 0) + 
+                                   (dosen.jurnalReading_realisasi || 0) + 
+                                   (dosen.kuliahBesar_realisasi || 0) + 
+                                   (dosen.praktikum_realisasi || 0) +
+                                   (dosen.ppPbl_realisasi || 0) +
+                                   (dosen.seminarPleno_realisasi || 0);
 
-              console.log(`📊 Excel row ${currentRow} values:`, rowValues);
+            dataRow.getCell(1).value = index + 1; // NO
+            dataRow.getCell(2).value = dosen.dosen_name; // NAMA DOSEN
+            // PERENCANAAN: PBL 1 dan PBL 2 digabung jadi satu kolom
+            dataRow.getCell(3).value = (dosen.pbl1_perencanaan || 0) + (dosen.pbl2_perencanaan || 0); // PBL (PER 50') - PERENCANAAN (gabungan PBL 1 + PBL 2)
+            dataRow.getCell(4).value = dosen.jurnalReading_perencanaan || 0; // JURDING (PER 50') - PERENCANAAN
+            dataRow.getCell(5).value = dosen.kuliahBesar_perencanaan || 0; // KULIAH (PER 50') - PERENCANAAN
+            dataRow.getCell(6).value = dosen.praktikum_perencanaan || 0; // PRAKTIKUM (PER 50') - PERENCANAAN
+            dataRow.getCell(7).value = dosen.ppPbl_perencanaan || 0; // PP PBL (PER 50') - PERENCANAAN
+            dataRow.getCell(8).value = dosen.seminarPleno_perencanaan || 0; // SEMINAR PLENO (PER 50') - PERENCANAAN
+            dataRow.getCell(9).value = totalPerencanaan; // TOTAL JAM - PERENCANAAN
+            // REALISASI: Tetap terpisah PBL 1 dan PBL 2
+            dataRow.getCell(10).value = dosen.pbl1_realisasi || 0; // PBL 1 (PER 50') - REALISASI
+            dataRow.getCell(11).value = dosen.pbl2_realisasi || 0; // PBL 2 (PER 50') - REALISASI
+            dataRow.getCell(12).value = dosen.jurnalReading_realisasi || 0; // JURDING (PER 50') - REALISASI
+            dataRow.getCell(13).value = dosen.kuliahBesar_realisasi || 0; // KULIAH (PER 50') - REALISASI
+            dataRow.getCell(14).value = dosen.praktikum_realisasi || 0; // PRAKTIKUM (PER 50') - REALISASI
+            dataRow.getCell(15).value = dosen.ppPbl_realisasi || 0; // PP PBL (PER 50') - REALISASI
+            dataRow.getCell(16).value = dosen.seminarPleno_realisasi || 0; // SEMINAR PLENO (PER 50') - REALISASI
+            dataRow.getCell(17).value = totalRealisasi; // Total Jam - REALISASI
 
-              // Style data row - only columns A-F
-              for (let i = 1; i <= 6; i++) {
+            // Style data row - sesuai template: background putih, teks hitam, border hitam
+            for (let i = 1; i <= 17; i++) {
                 const cell = dataRow.getCell(i);
                 cell.fill = {
                   type: 'pattern',
@@ -1288,152 +1840,205 @@ const ReportingDosen: React.FC = () => {
                   fgColor: { argb: 'FFFFFFFF' } // Background putih
                 };
                 cell.font = { color: { argb: 'FF000000' } }; // Teks hitam
-                
-                // Set alignment for numeric columns (all except NAMA DOSEN)
-                if (i >= 2) {
-                  cell.alignment = { horizontal: 'center' };
-                }
-              }
-              
-              // Make columns G onwards white and empty
-              for (let i = 7; i <= 20; i++) { // Columns G to T
-                const cell = dataRow.getCell(i);
-                cell.fill = {
-                  type: 'pattern',
-                  pattern: 'solid',
-                  fgColor: { argb: 'FFFFFFFF' } // Background putih
-                };
-                cell.value = ''; // Empty value
-              }
-
+              cell.alignment = { 
+                horizontal: i === 2 ? 'left' : 'center', 
+                vertical: 'middle' 
+              };
+              // Border hitam tipis sesuai template
+              cell.border = {
+                top: { style: 'thin', color: { argb: 'FF000000' } },
+                left: { style: 'thin', color: { argb: 'FF000000' } },
+                bottom: { style: 'thin', color: { argb: 'FF000000' } },
+                right: { style: 'thin', color: { argb: 'FF000000' } }
+              };
+            }
               currentRow += 1;
             });
-            
-            currentRow += 1; // Add space between semesters
           } else {
-            console.log(`❌ NO DATA for Blok ${blokNumber}, Semester ${semesterNumber} - SKIPPING COMPLETELY`);
-            // Skip this semester completely if no data (don't add any title or header)
+          // Add empty row message - sesuai template: background putih, teks hitam
+          safeMergeCells(`A${currentRow}:Q${currentRow}`);
+          const emptyRow = worksheet.getRow(currentRow);
+          const emptyCell = emptyRow.getCell(1);
+          emptyCell.value = 'Tidak ada data';
+          emptyCell.font = { italic: true, color: { argb: 'FF000000' } }; // Teks hitam
+          emptyCell.alignment = { horizontal: 'center', vertical: 'middle' };
+          emptyCell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFFFFFF' } // Background putih
+          };
+          // Border hitam untuk empty row
+          emptyCell.border = {
+            top: { style: 'thin', color: { argb: 'FF000000' } },
+            left: { style: 'thin', color: { argb: 'FF000000' } },
+            bottom: { style: 'thin', color: { argb: 'FF000000' } },
+            right: { style: 'thin', color: { argb: 'FF000000' } }
+          };
+          currentRow += 1;
+        }
+      } else {
+        // Create table header for Non Blok (Row 5)
+        const headerRow5 = worksheet.getRow(currentRow);
+        headerRow5.getCell(1).value = 'NO'; // A5
+        headerRow5.getCell(2).value = 'NAMA DOSEN'; // B5
+        safeMergeCells(`C${currentRow}:F${currentRow}`); // C5:F5 - PERENCANAAN
+        headerRow5.getCell(3).value = 'PERENCANAAN';
+        safeMergeCells(`G${currentRow}:J${currentRow}`); // G5:J5 - REALISASI
+        headerRow5.getCell(7).value = 'REALISASI';
+        
+        // Style header row 5 - terbagi 3 warna: NO/NAMA (abu-abu sedang), PERENCANAAN (biru muda), REALISASI (oranye pastel)
+        for (let i = 1; i <= 10; i++) {
+          const cell = headerRow5.getCell(i);
+          
+          // Tentukan warna background dan teks berdasarkan kolom
+          let bgColor = 'FF9F9E9D'; // Default: abu-abu sedang
+          let textColor = 'FF000000'; // Default: teks hitam
+          
+          if (i === 1 || i === 2) {
+            // Kolom A-B (NO, NAMA DOSEN) - abu-abu sedang
+            bgColor = 'FF9F9E9D'; // Abu-abu sedang #9f9e9d
+            textColor = 'FF000000'; // Teks hitam
+          } else if (i >= 3 && i <= 6) {
+            // Kolom C-F (PERENCANAAN) - biru muda
+            bgColor = 'FFBAD2E9'; // Biru muda #bad2e9
+            textColor = 'FF000000'; // Teks hitam
+          } else if (i >= 7 && i <= 10) {
+            // Kolom G-J (REALISASI) - oranye pastel / peach muda
+            bgColor = 'FFF1C6A9'; // Oranye pastel / peach muda #f1c6a9
+            textColor = 'FF000000'; // Teks hitam
           }
-        }
-
-        currentRow += 1; // Add space between bloks
-      }
-
-      // Add Non Blok section after all bloks
-        // Add non blok title
-        worksheet.mergeCells(`A${currentRow}:D${currentRow}`);
-        worksheet.getCell(`A${currentRow}`).value = `Non Blok`;
-        worksheet.getCell(`A${currentRow}`).font = { size: 14, bold: true };
-        worksheet.getCell(`A${currentRow}`).alignment = { horizontal: 'left' };
-        // Clear background color for merged cells
-        worksheet.getCell(`A${currentRow}`).fill = { type: 'pattern', pattern: 'none' };
-        
-        // Make columns E onwards white and empty
-        for (let i = 5; i <= 20; i++) { // Columns E to T
-          const cell = worksheet.getCell(`${String.fromCharCode(64 + i)}${currentRow}`);
+          
+          cell.font = { bold: true, color: { argb: textColor } };
           cell.fill = {
             type: 'pattern',
             pattern: 'solid',
-            fgColor: { argb: 'FFFFFFFF' } // Background putih
-          };
-          cell.value = ''; // Empty value
-        }
-        
-        currentRow += 1;
-
-      // Process each semester (1-7) for non blok
-      for (let semesterNumber = 1; semesterNumber <= 7; semesterNumber++) {
-        // Add semester title
-        worksheet.mergeCells(`A${currentRow}:D${currentRow}`);
-        worksheet.getCell(`A${currentRow}`).value = `Semester ${semesterNumber}`;
-        worksheet.getCell(`A${currentRow}`).font = { size: 12, bold: true };
-        worksheet.getCell(`A${currentRow}`).alignment = { horizontal: 'left' };
-        // Clear background color for merged cells
-        worksheet.getCell(`A${currentRow}`).fill = { type: 'pattern', pattern: 'none' };
-        
-        // Make columns E onwards white and empty
-        for (let i = 5; i <= 20; i++) { // Columns E to T
-          const cell = worksheet.getCell(`${String.fromCharCode(64 + i)}${currentRow}`);
-          cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FFFFFFFF' } // Background putih
-          };
-          cell.value = ''; // Empty value
-        }
-        
-        currentRow += 1;
-
-        // Add header row for this semester (only CSR Reguler, CSR Responsi, Materi)
-        const headerRow = worksheet.getRow(currentRow);
-        headerRow.values = [
-          'NAMA DOSEN', 'CSR REGULER', 'CSR RESPONSI', 'MATERI'
-        ];
-        
-        // Style header row - only for columns A-D
-        for (let i = 1; i <= 4; i++) {
-          const cell = headerRow.getCell(i);
-          cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-          cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FF2D5016' } // Hijau gelap
+            fgColor: { argb: bgColor }
           };
           cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FF000000' } },
+            left: { style: 'thin', color: { argb: 'FF000000' } },
+            bottom: { style: 'thin', color: { argb: 'FF000000' } },
+            right: { style: 'thin', color: { argb: 'FF000000' } }
+          };
         }
+        currentRow += 1;
+
+        // Merge A5 with A6 and B5 with B6 first (before setting row 6 values)
+        safeMergeCells(`A${currentRow - 1}:A${currentRow}`);
+        safeMergeCells(`B${currentRow - 1}:B${currentRow}`);
         
-        // Make columns E onwards white and empty
-        for (let i = 5; i <= 20; i++) { // Columns E to T
-          const cell = headerRow.getCell(i);
+        // Set border and fill color for merged cells A5:A6 and B5:B6
+        const cellA5NonBlok = worksheet.getCell(`A${currentRow - 1}`);
+        const cellB5NonBlok = worksheet.getCell(`B${currentRow - 1}`);
+        // Border hitam
+        cellA5NonBlok.border = {
+          top: { style: 'thin', color: { argb: 'FF000000' } },
+          left: { style: 'thin', color: { argb: 'FF000000' } },
+          bottom: { style: 'thin', color: { argb: 'FF000000' } },
+          right: { style: 'thin', color: { argb: 'FF000000' } }
+        };
+        cellB5NonBlok.border = {
+          top: { style: 'thin', color: { argb: 'FF000000' } },
+          left: { style: 'thin', color: { argb: 'FF000000' } },
+          bottom: { style: 'thin', color: { argb: 'FF000000' } },
+          right: { style: 'thin', color: { argb: 'FF000000' } }
+        };
+        // Fill color abu-abu sedang untuk NO dan NAMA DOSEN (bagian 1 dari 3 warna)
+        cellA5NonBlok.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+          fgColor: { argb: 'FF9F9E9D' } // Abu-abu sedang #9f9e9d
+        };
+        cellB5NonBlok.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF9F9E9D' } // Abu-abu sedang #9f9e9d
+        };
+        // Font hitam dan bold
+        cellA5NonBlok.font = { bold: true, color: { argb: 'FF000000' } };
+        cellB5NonBlok.font = { bold: true, color: { argb: 'FF000000' } };
+        // Alignment center
+        cellA5NonBlok.alignment = { horizontal: 'center', vertical: 'middle' };
+        cellB5NonBlok.alignment = { horizontal: 'center', vertical: 'middle' };
+
+        // Create table header for Non Blok (Row 6) - Sub headers
+        const headerRow6 = worksheet.getRow(currentRow);
+        // Don't set A6 and B6 values as they're merged with A5 and B5
+        headerRow6.getCell(3).value = 'CSR REGULER\n(PER 50\')'; // C6
+        headerRow6.getCell(4).value = 'CSR RESPONSI\n(PER 50\')'; // D6
+        headerRow6.getCell(5).value = 'MATERI\n(PER 50\')'; // E6
+        headerRow6.getCell(6).value = 'TOTAL JAM'; // F6
+        headerRow6.getCell(7).value = 'CSR REGULER\n(PER 50\')'; // G6
+        headerRow6.getCell(8).value = 'CSR RESPONSI\n(PER 50\')'; // H6
+        headerRow6.getCell(9).value = 'MATERI\n(PER 50\')'; // I6
+        headerRow6.getCell(10).value = 'Total Jam'; // J6
+        
+        // Style header row 6 - terbagi 3 warna: NO/NAMA (abu-abu sedang), PERENCANAAN (biru muda), REALISASI (oranye pastel)
+        for (let i = 1; i <= 10; i++) {
+          const cell = headerRow6.getCell(i);
+          if (i > 2) { // Skip A and B as they're merged with row 5
+            // Tentukan warna background dan teks berdasarkan kolom (sama dengan row 5)
+            let bgColor = 'FF9F9E9D'; // Default: abu-abu sedang
+            let textColor = 'FF000000'; // Default: teks hitam
+            
+            if (i >= 3 && i <= 6) {
+              // Kolom C-F (PERENCANAAN) - biru muda
+              bgColor = 'FFBAD2E9'; // Biru muda #bad2e9
+              textColor = 'FF000000'; // Teks hitam
+            } else if (i >= 7 && i <= 10) {
+              // Kolom G-J (REALISASI) - oranye pastel / peach muda
+              bgColor = 'FFF1C6A9'; // Oranye pastel / peach muda #f1c6a9
+              textColor = 'FF000000'; // Teks hitam
+            }
+            
+            cell.font = { bold: true, color: { argb: textColor } };
           cell.fill = {
             type: 'pattern',
             pattern: 'solid',
-            fgColor: { argb: 'FFFFFFFF' } // Background putih
-          };
-          cell.value = ''; // Empty value
+              fgColor: { argb: bgColor }
+            };
+            cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+            cell.border = {
+              top: { style: 'thin', color: { argb: 'FF000000' } },
+              left: { style: 'thin', color: { argb: 'FF000000' } },
+              bottom: { style: 'thin', color: { argb: 'FF000000' } },
+              right: { style: 'thin', color: { argb: 'FF000000' } }
+            };
+          }
+          // A and B are already styled from row 5 merged cells
         }
-        
         currentRow += 1;
 
-        // Get data for non blok semester
-        const nonBlokData = Object.values(jadwalByDosenBlokSemester).filter((data: any) => 
-          data.blok === null && String(data.semester) === String(semesterNumber)
-        );
-
-        console.log(`=== NON BLOK SEMESTER ${semesterNumber} ===`);
-        console.log(`Non Blok Semester ${semesterNumber}:`, {
-          totalDosen: nonBlokData.length,
-          dosenNames: nonBlokData.map((d: any) => d.dosen_name)
-        });
-
-        if (nonBlokData.length > 0) {
-          console.log(`✅ FOUND NON BLOK DATA for Semester ${semesterNumber}: ${nonBlokData.length} dosen`);
-          console.log('Dosen names:', nonBlokData.map((d: any) => d.dosen_name));
-          console.log('Dosen data details:', nonBlokData);
-          
-          // Add data rows for non blok semester
-          nonBlokData.forEach((data: any) => {
-            console.log(`📝 Adding non blok row for ${data.dosen_name} - Semester ${semesterNumber}:`, {
-              csrReguler: data.csrReguler,
-              csrResponsi: data.csrResponsi,
-              materi: data.materi
-            });
-
-          // Add data row
+        // Add data rows for Non Blok
+        if (dosenList.length > 0) {
+          dosenList.forEach((dosen: any, index: number) => {
           const dataRow = worksheet.getRow(currentRow);
-          const rowValues = [
-            data.dosen_name,
-            data.csrReguler || 0,
-            data.csrResponsi || 0,
-            data.materi || 0
-          ];
             
-            dataRow.values = rowValues;
+            // Calculate totals perencanaan
+            // Semua data dari DetailBlok masuk ke perencanaan
+            const totalPerencanaan = (dosen.csrReguler_perencanaan || 0) + 
+                                     (dosen.csrResponsi_perencanaan || 0) +
+                                     (dosen.materi_perencanaan || 0);
+            
+            // Calculate totals realisasi
+            const totalRealisasi = (dosen.csrReguler_realisasi || 0) + 
+                                   (dosen.csrResponsi_realisasi || 0) + 
+                                   (dosen.materi_realisasi || 0);
 
-            console.log(`📊 Non blok Excel row ${currentRow} values:`, rowValues);
+            dataRow.getCell(1).value = index + 1; // NO
+            dataRow.getCell(2).value = dosen.dosen_name; // NAMA DOSEN
+            dataRow.getCell(3).value = dosen.csrReguler_perencanaan || 0; // CSR REGULER (PER 50') - PERENCANAAN
+            dataRow.getCell(4).value = dosen.csrResponsi_perencanaan || 0; // CSR RESPONSI (PER 50') - PERENCANAAN
+            dataRow.getCell(5).value = dosen.materi_perencanaan || 0; // MATERI (PER 50') - PERENCANAAN
+            dataRow.getCell(6).value = totalPerencanaan; // TOTAL JAM - PERENCANAAN
+            dataRow.getCell(7).value = dosen.csrReguler_realisasi || 0; // CSR REGULER (PER 50') - REALISASI
+            dataRow.getCell(8).value = dosen.csrResponsi_realisasi || 0; // CSR RESPONSI (PER 50') - REALISASI
+            dataRow.getCell(9).value = dosen.materi_realisasi || 0; // MATERI (PER 50') - REALISASI
+            dataRow.getCell(10).value = totalRealisasi; // Total Jam - REALISASI
 
-            // Style data row - only columns A-D for non-blok
-            for (let i = 1; i <= 4; i++) {
+            // Style data row - sesuai template: background putih, teks hitam, border hitam
+            for (let i = 1; i <= 10; i++) {
               const cell = dataRow.getCell(i);
               cell.fill = {
                 type: 'pattern',
@@ -1441,121 +2046,81 @@ const ReportingDosen: React.FC = () => {
                 fgColor: { argb: 'FFFFFFFF' } // Background putih
               };
               cell.font = { color: { argb: 'FF000000' } }; // Teks hitam
-              
-              // Set alignment for numeric columns (all except NAMA DOSEN)
-              if (i >= 2) {
-                cell.alignment = { horizontal: 'center' };
-              }
-            }
-            
-            // Make columns E onwards white and empty
-            for (let i = 5; i <= 20; i++) { // Columns E to T
-              const cell = dataRow.getCell(i);
-              cell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FFFFFFFF' } // Background putih
+              cell.alignment = { 
+                horizontal: i === 2 ? 'left' : 'center', 
+                vertical: 'middle' 
               };
-              cell.value = ''; // Empty value
+              // Border hitam tipis sesuai template
+              cell.border = {
+                top: { style: 'thin', color: { argb: 'FF000000' } },
+                left: { style: 'thin', color: { argb: 'FF000000' } },
+                bottom: { style: 'thin', color: { argb: 'FF000000' } },
+                right: { style: 'thin', color: { argb: 'FF000000' } }
+              };
             }
-
             currentRow += 1;
           });
         } else {
-          console.log(`❌ NO NON BLOK DATA for Semester ${semesterNumber}`);
-          
-          // Add empty row if no data for this semester
-          worksheet.mergeCells(`A${currentRow}:D${currentRow}`);
+          // Add empty row message - sesuai template: background putih, teks hitam
+          safeMergeCells(`A${currentRow}:J${currentRow}`);
           const emptyRow = worksheet.getRow(currentRow);
-          emptyRow.getCell(1).value = 'Tidak ada data untuk semester ini';
-          emptyRow.font = { italic: true };
-          
-          // Style empty row - only columns A-D
-          for (let i = 1; i <= 4; i++) {
-            const cell = emptyRow.getCell(i);
-            cell.fill = {
+          const emptyCell = emptyRow.getCell(1);
+          emptyCell.value = 'Tidak ada data';
+          emptyCell.font = { italic: true, color: { argb: 'FF000000' } }; // Teks hitam
+          emptyCell.alignment = { horizontal: 'center', vertical: 'middle' };
+          emptyCell.fill = {
               type: 'pattern',
               pattern: 'solid',
               fgColor: { argb: 'FFFFFFFF' } // Background putih
             };
-            cell.font = { italic: true, color: { argb: 'FF000000' } }; // Teks hitam italic
-          }
-          
-          // Make columns E onwards white and empty
-          for (let i = 5; i <= 20; i++) { // Columns E to T
-            const cell = emptyRow.getCell(i);
-            cell.fill = {
-              type: 'pattern',
-              pattern: 'solid',
-              fgColor: { argb: 'FFFFFFFF' } // Background putih
-            };
-            cell.value = ''; // Empty value
-          }
+          // Border hitam untuk empty row
+          emptyCell.border = {
+            top: { style: 'thin', color: { argb: 'FF000000' } },
+            left: { style: 'thin', color: { argb: 'FF000000' } },
+            bottom: { style: 'thin', color: { argb: 'FF000000' } },
+            right: { style: 'thin', color: { argb: 'FF000000' } }
+          };
           currentRow += 1;
         }
-
-        currentRow += 1; // Add space between semesters
       }
 
-      // Add borders to all cells (only for the 6 relevant columns: A-F)
-      worksheet.eachRow((row, rowNumber) => {
-        row.eachCell((cell, colNumber) => {
-          if (rowNumber > 2 && colNumber <= 6) { // Skip title rows and only apply to columns A-F
-            cell.border = {
-              top: { style: 'thin', color: { argb: 'FFCCCCCC' } },
-              left: { style: 'thin', color: { argb: 'FFCCCCCC' } },
-              bottom: { style: 'thin', color: { argb: 'FFCCCCCC' } },
-              right: { style: 'thin', color: { argb: 'FFCCCCCC' } }
-            };
-          }
-        });
-      });
+      // Borders sudah di-set di setiap cell saat membuat header dan data rows
 
       // Generate Excel file
-      console.log('=== GENERATING EXCEL FILE ===');
-      console.log('Total rows in worksheet:', worksheet.rowCount);
-      console.log('Current row:', currentRow);
-      console.log('Total data processed:', Object.keys(jadwalByDosenBlokSemester).length);
       
       // Debug: Cek apakah worksheet memiliki data
-      if (worksheet.rowCount <= 3) {
-        console.error('❌ ERROR: Worksheet tidak memiliki data!');
-        console.error('Row count:', worksheet.rowCount);
-        console.error('Current row:', currentRow);
-        return;
+      if (worksheet.rowCount <= 6) {
+        // Don't return - continue to generate Excel file
       }
       
       // Debug: Tampilkan beberapa baris Excel untuk memastikan data ada
-      console.log('=== EXCEL CONTENT PREVIEW ===');
+      const maxPreviewCol = selectedBlok === null ? 10 : 17;
       for (let i = 1; i <= Math.min(10, worksheet.rowCount); i++) {
         const row = worksheet.getRow(i);
         const rowValues = [];
-        for (let j = 1; j <= 6; j++) { // Only show 6 columns (A-F)
+        for (let j = 1; j <= maxPreviewCol; j++) {
           rowValues.push(row.getCell(j).value || '');
         }
-        console.log(`Row ${i}:`, rowValues);
       }
-      console.log('=== END EXCEL CONTENT PREVIEW ===');
-      
       const buffer = await workbook.xlsx.writeBuffer();
-      console.log('Excel buffer size:', buffer.byteLength);
       
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      console.log('Excel blob size:', blob.size);
       
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `laporan-dosen-pbl-semua-blok-${new Date().toISOString().split('T')[0]}.xlsx`;
+      const fileName = selectedBlok === null 
+        ? `DAFTAR-REKAPITULASI-SKS-NON-BLOK-${new Date().toISOString().split('T')[0]}.xlsx`
+        : `DAFTAR-REKAPITULASI-SKS-BLOK${selectedBlok}-${new Date().toISOString().split('T')[0]}.xlsx`;
+      a.download = fileName;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
       
-      console.log('✅ Excel file generated and downloaded successfully!');
+      setShowExcelDropdown(false);
 
     } catch (error) {
-      console.error('Error generating Excel All:', error);
       // Bisa ditambahkan toast notification di sini
     }
   };
@@ -1600,13 +2165,52 @@ const ReportingDosen: React.FC = () => {
         </div>
         <div className="flex flex-wrap gap-3">
           {activeTab === "pbl" && (
-            <button
-              onClick={handleExportExcelAll}
-              className="w-fit flex items-center gap-2 px-5 text-sm py-2 bg-indigo-500 text-white rounded-lg shadow hover:bg-indigo-600 transition-colors font-semibold"
-            >
-              <DownloadIcon className="w-5 h-5" />
-              Export Excel
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowExcelDropdown(!showExcelDropdown)}
+                className="w-fit flex items-center gap-2 px-5 text-sm py-2 bg-indigo-500 text-white rounded-lg shadow hover:bg-indigo-600 transition-colors font-semibold"
+              >
+                <DownloadIcon className="w-5 h-5" />
+                Export Excel
+                <FontAwesomeIcon 
+                  icon={showExcelDropdown ? faChevronUp : faChevronDown} 
+                  className="w-3 h-3 ml-1"
+                />
+              </button>
+              {showExcelDropdown && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-10" 
+                    onClick={() => setShowExcelDropdown(false)}
+                  ></div>
+                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20">
+                    <div className="py-1">
+                      {[1, 2, 3, 4].map((blok) => (
+                        <button
+                          key={blok}
+                          onClick={() => {
+                            handleExportExcelByBlok(blok);
+                            setShowExcelDropdown(false);
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          Blok {blok}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => {
+                          handleExportExcelByBlok(null);
+                          setShowExcelDropdown(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                      >
+                        Non Blok
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -2732,3 +3336,4 @@ const ReportingDosen: React.FC = () => {
 };
 
 export default ReportingDosen;
+

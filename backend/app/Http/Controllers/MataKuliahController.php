@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 
 class MataKuliahController extends Controller
 {
@@ -416,6 +417,227 @@ class MataKuliahController extends Controller
             ->log("Mata Kuliah updated: {$mataKuliah->nama}");
 
         return response()->json($mataKuliah);
+    }
+
+    /**
+     * Update kode mata kuliah dan semua data terkait
+     */
+    public function updateKode(Request $request, $oldKode)
+    {
+        $mataKuliah = MataKuliah::findOrFail($oldKode);
+
+        $validated = $request->validate([
+            'new_kode' => 'required|string|max:255|unique:mata_kuliah,kode,' . $oldKode . ',kode',
+        ]);
+
+        $newKode = $validated['new_kode'];
+
+        // Validasi kode baru tidak sama dengan kode lama
+        if ($oldKode === $newKode) {
+            return response()->json(['message' => 'Kode baru harus berbeda dengan kode lama'], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Update semua foreign key di tabel terkait
+            // PENTING: Urutan update harus benar - semua foreign key harus diupdate SEBELUM update kode di mata_kuliah
+            $tablesToUpdate = [
+                // Tabel utama yang memiliki foreign key langsung ke mata_kuliah
+                'pbls' => 'mata_kuliah_kode',
+                'csrs' => 'mata_kuliah_kode',
+                'jurnal_readings' => 'mata_kuliah_kode',
+                'dosen_peran' => 'mata_kuliah_kode',
+                'materi_pembelajaran' => 'kode_mata_kuliah',
+                'mata_kuliah_pbl_kelompok_kecil' => 'mata_kuliah_kode',
+                
+                // Tabel jadwal yang memiliki foreign key langsung ke mata_kuliah
+                'jadwal_pbl' => 'mata_kuliah_kode',
+                'jadwal_kuliah_besar' => 'mata_kuliah_kode',
+                'jadwal_praktikum' => 'mata_kuliah_kode',
+                'jadwal_csr' => 'mata_kuliah_kode',
+                'jadwal_jurnal_reading' => 'mata_kuliah_kode',
+                'jadwal_agenda_khusus' => 'mata_kuliah_kode',
+                'jadwal_non_blok_non_csr' => 'mata_kuliah_kode',
+                'jadwal_persamaan_persepsi' => 'mata_kuliah_kode',
+                'jadwal_seminar_pleno' => 'mata_kuliah_kode',
+                
+                // Tabel penilaian
+                'penilaian_pbl' => 'mata_kuliah_kode',
+                'penilaian_jurnal' => 'mata_kuliah_kode',
+                
+                // Tabel absensi yang memiliki mata_kuliah_kode langsung
+                'absensi_pbl' => 'mata_kuliah_kode',
+                
+                // Tabel riwayat
+                'riwayat_konfirmasi_dosen' => 'mata_kuliah_kode',
+                
+                // Catatan: absensi_kuliah_besar, absensi_praktikum, absensi_jurnal_reading, dll
+                // tidak memiliki mata_kuliah_kode langsung, mereka terhubung melalui jadwal
+                // Jadi tidak perlu diupdate langsung karena akan terupdate otomatis melalui jadwal
+            ];
+
+            // Nonaktifkan sementara foreign key check sebelum update semua foreign key
+            // Ini penting untuk memastikan semua update berjalan lancar
+            $driver = DB::connection()->getDriverName();
+            if ($driver === 'mysql') {
+                DB::statement('SET FOREIGN_KEY_CHECKS=0');
+            }
+            
+            try {
+                $totalUpdated = 0;
+                foreach ($tablesToUpdate as $table => $column) {
+                    try {
+                        // Cek apakah tabel dan kolom ada sebelum update
+                        if (Schema::hasTable($table) && Schema::hasColumn($table, $column)) {
+                            $affected = DB::table($table)
+                                ->where($column, $oldKode)
+                                ->update([$column => $newKode]);
+                            if ($affected > 0) {
+                                $totalUpdated += $affected;
+                                Log::info("Updated {$affected} rows in {$table}.{$column} from {$oldKode} to {$newKode}");
+                            }
+                        } else {
+                            Log::warning("Table {$table} or column {$column} does not exist, skipping...");
+                        }
+                    } catch (\Exception $e) {
+                        Log::error("Error updating {$table}.{$column}: " . $e->getMessage());
+                        // Throw error karena ini critical - semua foreign key harus terupdate
+                        throw new \Exception("Failed to update foreign key in {$table}.{$column}: " . $e->getMessage());
+                    }
+                }
+                
+                Log::info("Total {$totalUpdated} rows updated across all related tables");
+                
+                // Verifikasi bahwa semua foreign key sudah terupdate
+                // Cek beberapa tabel penting untuk memastikan update berhasil
+                $verificationTables = ['jadwal_pbl', 'jadwal_kuliah_besar', 'jadwal_praktikum', 'jadwal_csr', 'pbls', 'csrs'];
+                foreach ($verificationTables as $table) {
+                    if (Schema::hasTable($table) && Schema::hasColumn($table, 'mata_kuliah_kode')) {
+                        $remaining = DB::table($table)->where('mata_kuliah_kode', $oldKode)->count();
+                        if ($remaining > 0) {
+                            Log::warning("Warning: {$remaining} rows still have old kode in {$table}");
+                        }
+                    }
+                }
+            } finally {
+                // Aktifkan kembali foreign key check setelah semua foreign key terupdate
+                if ($driver === 'mysql') {
+                    DB::statement('SET FOREIGN_KEY_CHECKS=1');
+                }
+            }
+
+            // Update data mata kuliah (termasuk kode)
+            // Hanya ambil field yang valid dan ada di fillable
+            $fillable = ['nama', 'semester', 'periode', 'jenis', 'tipe_non_block', 'kurikulum', 
+                        'tanggal_mulai', 'tanggal_akhir', 'blok', 'durasi_minggu', 
+                        'keahlian_required', 'peran_dalam_kurikulum', 'rps_file'];
+            
+            $updateData = [];
+            foreach ($fillable as $field) {
+                if ($request->has($field)) {
+                    $value = $request->input($field);
+                    
+                    // Handle array fields (convert to JSON)
+                    if (in_array($field, ['keahlian_required', 'peran_dalam_kurikulum'])) {
+                        if (is_array($value)) {
+                            $updateData[$field] = json_encode($value);
+                        } else {
+                            $updateData[$field] = $value;
+                        }
+                    } else {
+                        $updateData[$field] = $value;
+                    }
+                }
+            }
+            
+            // Update field selain kode terlebih dahulu
+            if (!empty($updateData)) {
+                DB::table('mata_kuliah')
+                    ->where('kode', $oldKode)
+                    ->update($updateData);
+            }
+            
+            // Update kode di tabel mata_kuliah
+            // Foreign key check sudah dinonaktifkan sebelumnya dan akan diaktifkan setelah ini
+            if ($driver === 'mysql') {
+                DB::statement('SET FOREIGN_KEY_CHECKS=0');
+            }
+            
+            try {
+                // Update kode menggunakan raw SQL
+                $affected = DB::update("UPDATE mata_kuliah SET kode = ? WHERE kode = ?", [$newKode, $oldKode]);
+                
+                if ($affected === 0) {
+                    throw new \Exception("Failed to update kode from {$oldKode} to {$newKode}. No rows affected.");
+                }
+                
+                Log::info("Successfully updated mata kuliah kode from {$oldKode} to {$newKode}. Affected rows: {$affected}");
+            } finally {
+                // Aktifkan kembali foreign key check
+                if ($driver === 'mysql') {
+                    DB::statement('SET FOREIGN_KEY_CHECKS=1');
+                }
+            }
+
+            // Clear cache
+            Cache::forget('mata_kuliah_' . $oldKode);
+            Cache::forget('mata_kuliah_' . $newKode);
+
+            // Reload mata kuliah dengan kode baru
+            try {
+                $mataKuliah = MataKuliah::findOrFail($newKode);
+            } catch (\Exception $e) {
+                Log::error("Failed to reload mata kuliah with new kode: " . $e->getMessage());
+                throw new \Exception("Failed to reload mata kuliah after kode update: " . $e->getMessage());
+            }
+
+            // Log activity (jika package activity log tersedia)
+            try {
+                if (class_exists('\Spatie\Activitylog\Models\Activity')) {
+                    activity()
+                        ->performedOn($mataKuliah)
+                        ->withProperties([
+                            'old_kode' => $oldKode,
+                            'new_kode' => $newKode,
+                            'nama' => $mataKuliah->nama,
+                        ])
+                        ->log("Mata Kuliah kode updated from {$oldKode} to {$newKode}");
+                }
+            } catch (\Exception $e) {
+                // Log error tapi jangan throw, karena activity log bukan critical
+                Log::warning("Failed to log activity: " . $e->getMessage());
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Kode mata kuliah berhasil diubah dan semua data terkait telah diupdate',
+                'data' => $mataKuliah
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Validasi gagal',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error updating mata kuliah kode: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+            Log::error('Old kode: ' . $oldKode . ', New kode: ' . ($newKode ?? 'null'));
+            
+            $errorMessage = 'Gagal mengubah kode mata kuliah: ' . $e->getMessage();
+            
+            return response()->json([
+                'message' => $errorMessage,
+                'error' => config('app.debug') ? [
+                    'message' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => explode("\n", $e->getTraceAsString())
+                ] : null
+            ], 500);
+        }
     }
 
     /**

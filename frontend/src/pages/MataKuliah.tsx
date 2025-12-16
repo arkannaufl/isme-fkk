@@ -168,8 +168,29 @@ const getSemesterOptionsForActivePeriod = (
   // Ambil semua semester unik dari data
   const allSemesters = Array.from(new Set(allData.map((d) => d.semester)));
 
-  // Tampilkan semua semester tanpa filter berdasarkan periode aktif
+  // Jika tidak ada semester aktif, tampilkan semua semester
+  if (!activeSemesterJenis) {
     return allSemesters.sort((a, b) => {
+      if (a === "Antara") return -1;
+      if (b === "Antara") return 1;
+      return Number(a) - Number(b);
+    });
+  }
+
+  // Filter semester berdasarkan periode aktif
+  const filteredSemesters = allSemesters.filter((semester) => {
+    // Selalu include Semester Antara
+    if (semester === "Antara") return true;
+
+    // Cari mata kuliah dengan semester ini
+    const mataKuliah = allData.find((mk) => mk.semester === semester);
+    if (!mataKuliah) return false;
+
+    // Include jika periode sama dengan semester aktif
+    return mataKuliah.periode === activeSemesterJenis;
+  });
+
+  return filteredSemesters.sort((a, b) => {
     if (a === "Antara") return -1;
     if (b === "Antara") return 1;
     return Number(a) - Number(b);
@@ -347,6 +368,8 @@ export default function MataKuliah() {
   // State untuk menyimpan PBL asli dari backend saat edit
   const [oldPblList, setOldPblList] = useState<PBLItem[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // State untuk menyimpan kode original saat edit (untuk handle perubahan kode)
+  const [originalKode, setOriginalKode] = useState<string | null>(null);
 
   // State untuk menangani file RPS
   const [rpsFile, setRpsFile] = useState<File | null>(null);
@@ -439,15 +462,6 @@ export default function MataKuliah() {
   }, [success]);
 
   useEffect(() => {
-    if (error) {
-      const timer = setTimeout(() => {
-        setError(null);
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [error]);
-
-  useEffect(() => {
     if (importedCount > 0) {
       const timer = setTimeout(() => {
         setImportedCount(0);
@@ -515,11 +529,6 @@ export default function MataKuliah() {
         setData(mataKuliahData);
       }
     } catch (error: any) {
-      console.error("Error fetching data:", error);
-      console.error(
-        "Error details:",
-        handleApiError(error, "Memuat data mata kuliah")
-      );
       setError(handleApiError(error, "Memuat data mata kuliah"));
       setData([]);
     } finally {
@@ -600,13 +609,16 @@ export default function MataKuliah() {
         setIsSaving(false);
         return;
       }
-      // 2. Tanggal blok tidak boleh overlap
-      if (form.jenis === "Blok") {
+      // Deteksi apakah kode berubah (hanya untuk edit mode)
+      const isKodeChanged = editMode && originalKode && form.kode !== originalKode;
+      
+      // 2. Tanggal blok tidak boleh overlap (diabaikan jika hanya kode yang berubah)
+      if (form.jenis === "Blok" && !isKodeChanged) {
         const overlap = data.some(
           (mk) =>
             mk.semester === form.semester &&
             mk.jenis === "Blok" &&
-            mk.kode !== form.kode &&
+            mk.kode !== (originalKode || form.kode) &&
             isDateOverlap(
               form.tanggalMulai || form.tanggal_mulai || "",
               form.tanggalAkhir || form.tanggal_akhir || "",
@@ -660,8 +672,8 @@ export default function MataKuliah() {
             }
           );
           rpsFileName = rpsResponse.data.filename;
-        } catch (error: any) {
-          setError(handleApiError(error, "Mengupload file RPS"));
+        } catch (error) {
+          setError("Gagal mengupload file RPS");
           setIsSaving(false);
           return;
         }
@@ -692,8 +704,8 @@ export default function MataKuliah() {
           });
 
           await Promise.all(uploadPromises);
-        } catch (error: any) {
-          setError(handleApiError(error, "Mengupload file materi"));
+        } catch (error) {
+          setError("Gagal mengupload file materi");
           setIsSaving(false);
           return;
         }
@@ -711,20 +723,34 @@ export default function MataKuliah() {
               });
             })
           );
-        } catch (error: any) {
-          setError(handleApiError(error, "Mengupdate judul materi"));
+        } catch (error) {
+          setError("Gagal mengupdate judul materi");
           setIsSaving(false);
           return;
         }
       }
 
       if (editMode) {
-        await api.put(`/mata-kuliah/${form.kode}`, {
-          ...formData,
-          rps_file: rpsFileName,
-        });
-        setSuccess("Data mata kuliah berhasil diperbarui");
-        // --- Sinkronisasi PBL ---
+        // Jika kode berubah, gunakan endpoint khusus untuk update kode dengan swap logic
+        if (isKodeChanged && originalKode) {
+          const response = await api.put(`/mata-kuliah/${originalKode}/update-kode`, {
+            new_kode: form.kode,
+            ...formData,
+            rps_file: rpsFileName,
+          });
+          setSuccess("Kode mata kuliah berhasil diubah dan semua data terkait telah diupdate");
+          // Jika kode berubah, backend sudah handle semua update termasuk PBL/CSR/Jurnal
+          // Jadi kita skip sinkronisasi di frontend
+        } else {
+          // Update normal jika kode tidak berubah
+          const kodeToUse = originalKode || form.kode;
+          await api.put(`/mata-kuliah/${kodeToUse}`, {
+            ...formData,
+            rps_file: rpsFileName,
+          });
+          setSuccess("Data mata kuliah berhasil diperbarui");
+          
+          // --- Sinkronisasi PBL ---
         if (form.jenis === "Blok") {
           // 1. Hapus modul yang dihapus
           const oldIds = oldPblList.map((p) => p.id);
@@ -792,9 +818,6 @@ export default function MataKuliah() {
 
         // Sinkronisasi CSR (hanya jika bukan semester Antara)
         if (form.semester !== "Antara") {
-          console.log("Processing CSR for semester:", form.semester);
-          console.log("CSR List:", csrList);
-          console.log("CSR Keahlian:", csrKeahlian);
 
           try {
             // 1. Update/POST CSR dengan keahlian
@@ -829,17 +852,15 @@ export default function MataKuliah() {
                 try {
                   await api.delete(`/csrs/${id}`);
                 } catch (err) {
-                  console.error("Error deleting CSR:", err);
                 }
               })
             );
 
-            console.log("CSR processing completed successfully");
           } catch (err) {
-            console.error("Error in CSR processing:", err);
             // Don't throw error, just log it
           }
         }
+        } // End else untuk update normal (kode tidak berubah)
       } else {
         await api.post("/mata-kuliah", {
           ...formData,
@@ -860,7 +881,6 @@ export default function MataKuliah() {
               },
             });
           } catch (error) {
-            console.error("Gagal mengupload file RPS setelah simpan:", error);
           }
         }
 
@@ -884,10 +904,6 @@ export default function MataKuliah() {
 
             await Promise.all(uploadPromises);
           } catch (error) {
-            console.error(
-              "Gagal mengupload file materi setelah simpan:",
-              error
-            );
           }
         }
       }
@@ -930,16 +946,19 @@ export default function MataKuliah() {
         }
       }
     } catch (error: any) {
-      console.error("Error in handleSaveData:", error);
-      
-      // Handle validation errors dari Laravel
+
       if (error.response?.data?.errors) {
         const errorMessages = Object.values(error.response.data.errors).flat();
         setError(errorMessages.join(", "));
+      } else if (error.response?.data?.message) {
+        setError(error.response.data.message);
+      } else if (error.message) {
+        setError(error.message);
       } else {
-        setError(handleApiError(error, "Menyimpan data mata kuliah"));
+        setError("Gagal menyimpan data mata kuliah");
       }
     } finally {
+      // handleSaveData finished, isSaving set to false
       setIsSaving(false);
     }
   };
@@ -957,8 +976,8 @@ export default function MataKuliah() {
         await api.delete(`/mata-kuliah/${selectedDeleteKode}`);
         setSuccess("Data mata kuliah berhasil dihapus");
         fetchData();
-      } catch (error: any) {
-        setError(handleApiError(error, "Menghapus data mata kuliah"));
+      } catch (error) {
+        setError("Gagal menghapus data mata kuliah");
       } finally {
         setIsDeleting(false);
         setShowDeleteModal(false);
@@ -971,9 +990,6 @@ export default function MataKuliah() {
   };
 
   const handleEdit = async (mk: MataKuliah) => {
-    // Reset error state saat membuka modal edit
-    setError(null);
-    
     setForm({
       ...mk,
       tanggalMulai: mk.tanggal_mulai ? mk.tanggal_mulai.slice(0, 10) : "",
@@ -995,6 +1011,8 @@ export default function MataKuliah() {
           ? mk.keahlian_required
           : [],
     });
+    // Simpan kode original untuk handle perubahan kode
+    setOriginalKode(mk.kode);
     setShowModal(true);
     setEditMode(true);
 
@@ -1020,7 +1038,6 @@ export default function MataKuliah() {
               keahlianMap[csr.id.toString()] =
                 keahlianRes.data.data?.map((k: any) => k.keahlian) || [];
             } catch (err) {
-              console.log("No keahlian found for CSR", csr.id);
               keahlianMap[csr.id.toString()] = [];
             }
           }
@@ -1219,7 +1236,6 @@ export default function MataKuliah() {
         setError(importResponse.data.message || "Gagal mengimport data");
       }
     } catch (error: any) {
-      console.error("Error importing data:", error);
       setError(handleApiError(error, "Import data"));
     } finally {
       setLoading(false);
@@ -1235,7 +1251,8 @@ export default function MataKuliah() {
     if (semester === "Antara") {
       // Semester Antara
       if (jenis === "Blok" && blok) {
-        return `MKA00${blok}`;
+        // MKA001, MKA002, MKA003, MKA004
+        return `MKA${blok.toString().padStart(3, '0')}`;
       } else if (jenis === "Non Blok") {
         return "MKA005";
       }
@@ -1243,9 +1260,12 @@ export default function MataKuliah() {
       // Semester Reguler (1-7)
       const semesterNum = Number(semester);
       if (jenis === "Blok" && blok) {
-        return `MKB${semesterNum}0${blok}`;
+        // MKB101, MKB102, MKB201, MKB202, dll
+        // Format: MKB + semester (1 digit) + blok (2 digit)
+        return `MKB${semesterNum}${blok.toString().padStart(2, '0')}`;
       } else if (jenis === "Non Blok") {
-        return `MKU00${semesterNum}`;
+        // MKU001, MKU002, MKU003, dll
+        return `MKU${semesterNum.toString().padStart(3, '0')}`;
       }
     }
     return "";
@@ -1254,6 +1274,7 @@ export default function MataKuliah() {
   // Reset modal state
   const handleCloseModal = () => {
     setShowModal(false);
+    setOriginalKode(null); // Reset original kode
     setForm({
       kode: "",
       nama: "",
@@ -1290,16 +1311,10 @@ export default function MataKuliah() {
     setMateriItems([]);
     setExistingMateriItems([]);
     if (materiFileInputRef.current) materiFileInputRef.current.value = "";
-    
-    // Reset error state saat modal ditutup
-    setError(null);
   };
 
   // Handle buka modal untuk input data baru
   const handleOpenModal = () => {
-    // Reset error state saat membuka modal input baru
-    setError(null);
-    
     setShowModal(true);
     setEditMode(false);
 
@@ -1360,7 +1375,13 @@ export default function MataKuliah() {
   // Filter & Search
   const filteredData = sortDataByBlok(
     (Array.isArray(data) ? data : []).filter((mk) => {
-      // Tidak ada filter berdasarkan semester aktif - semua mata kuliah ditampilkan
+      // Filter berdasarkan semester aktif (periode) - kecuali untuk Semester Antara
+      if (
+        activeSemesterJenis &&
+        mk.periode !== activeSemesterJenis &&
+        mk.semester !== "Antara"
+      )
+        return false;
       const q = search.toLowerCase();
       const matchSearch =
         mk.kode?.toLowerCase().includes(q) ||
@@ -1430,8 +1451,8 @@ export default function MataKuliah() {
       setSuccess(`${selectedRows.length} data berhasil dihapus.`);
       setSelectedRows([]);
       fetchData();
-    } catch (err: any) {
-      setError(handleApiError(err, "Menghapus data terpilih"));
+    } catch (err) {
+      setError("Gagal menghapus data terpilih");
     } finally {
       setLoading(false);
     }
@@ -1786,7 +1807,6 @@ export default function MataKuliah() {
       // Download file
       XLSX.writeFile(wb, filename);
     } catch (error) {
-      console.error("Error exporting to Excel:", error);
     }
   };
 
@@ -2308,8 +2328,8 @@ export default function MataKuliah() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-    } catch (error: any) {
-      setError(handleApiError(error, "Mengunduh file RPS"));
+    } catch (error) {
+      setError("Gagal mengunduh file RPS");
     }
   };
 
@@ -2656,8 +2676,8 @@ export default function MataKuliah() {
       // Reset download state saat modal dibuka
       setDownloadProgress({});
       setIsZipDownloading(false);
-    } catch (error: any) {
-      setError(handleApiError(error, "Mengambil data materi"));
+    } catch (error) {
+      setError("Gagal mengambil data materi");
       // Fallback ke data yang ada
       setSelectedMateriMataKuliah(mk);
       setShowViewMateriModal(true);
@@ -2673,7 +2693,7 @@ export default function MataKuliah() {
         Daftar Mata Kuliah
       </h1>
 
-      {/* Info Semester Aktif - Diinformasikan tapi tidak memfilter data */}
+      {/* Info Semester Aktif */}
       {activeSemesterJenis && (
         <div className="mb-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
           <div className="flex items-center gap-2">
@@ -2682,7 +2702,8 @@ export default function MataKuliah() {
               Semester Aktif: {activeSemesterJenis}
             </span>
             <span className="text-xs text-blue-600 dark:text-blue-400">
-              (Semua mata kuliah ditampilkan, tidak difilter berdasarkan periode)
+              (Filter semester menampilkan mata kuliah periode{" "}
+              {activeSemesterJenis})
             </span>
           </div>
         </div>
@@ -2773,11 +2794,23 @@ export default function MataKuliah() {
             >
               <option value="all">Semua Semester</option>
               {semesterOptions.map((semester) => {
+                // Cek apakah semester ini sesuai dengan periode aktif
+                const isActivePeriod =
+                  semester === "Antara" ||
+                  (Array.isArray(data) &&
+                    data.find((mk) => mk.semester === semester)?.periode ===
+                      activeSemesterJenis);
+
                 return (
                   <option key={semester} value={semester}>
                     {semester === "Antara"
                       ? "Semester Antara"
                       : `Semester ${semester}`}
+                    {isActivePeriod &&
+                    activeSemesterJenis &&
+                    semester !== "Antara"
+                      ? ` (${activeSemesterJenis})`
+                      : ""}
                   </option>
                 );
               })}
@@ -3880,6 +3913,24 @@ export default function MataKuliah() {
                           : "Kode akan otomatis terisi berdasarkan semester, jenis, dan blok"
                       }
                     />
+                    {editMode && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const generatedKode = generateKodeMataKuliah(
+                            form.semester,
+                            form.jenis,
+                            form.blok
+                          );
+                          if (generatedKode) {
+                            setForm({ ...form, kode: generatedKode });
+                          }
+                        }}
+                        className="mt-2 px-3 py-1.5 text-xs sm:text-sm bg-brand-500 hover:bg-brand-600 text-white rounded-lg transition-colors duration-200"
+                      >
+                        Generate Kode
+                      </button>
+                    )}
                     {!editMode && (
                       <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                         Kode otomatis berdasarkan:{" "}
@@ -5138,21 +5189,6 @@ export default function MataKuliah() {
                       </div>
                     </div>
                   </div>
-
-                  {/* Error Message di dalam Modal */}
-                  <AnimatePresence>
-                    {error && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ duration: 0.2 }}
-                        className="mt-4 p-3 rounded-lg text-sm bg-red-100 text-red-700"
-                      >
-                        {error}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
 
                   <div className="flex justify-end gap-2 pt-2 relative z-20">
                     <button

@@ -175,9 +175,6 @@ export default function PetaBlok() {
   };
 
   const semester = getSemesterFromTipe(tipe);
-  console.log(
-    `🔍 Debug params: tipe=${tipe}, blok=${blok}, semester=${semester}`
-  );
 
   // Tentukan ganjil/genap: prioritaskan tipe eksplisit
   const isGanjil =
@@ -197,10 +194,6 @@ export default function PetaBlok() {
   const semesterKolom = isAntara
     ? [{ ...baseSemesterKolom[0], nama: "SEMESTER ANTARA" }]
     : baseSemesterKolom;
-
-  console.log(
-    `🔍 Semester info: semester=${semester}, isGanjil=${isGanjil}, semesterKolom=${semesterKolom.length} kolom`
-  );
 
   // Mapping semester ke kode mata kuliah yang benar
   const getDefaultKodeForSemester = (sem: string) => {
@@ -225,9 +218,6 @@ export default function PetaBlok() {
     if (blok && blok !== "all" && blok !== "NONBLOK") {
       // Cek apakah blok adalah kode mata kuliah spesifik yang perlu di-redirect
       if (blok === "MKB101" || blok === "MKB201" || blok === "MKA001") {
-        console.log(
-          `Redirecting from /peta-blok/${tipe}/${blok} to /peta-blok/${tipe}`
-        );
         navigate(`/peta-blok/${tipe}`, { replace: true });
         return; // Stop execution setelah redirect
       }
@@ -237,9 +227,6 @@ export default function PetaBlok() {
     if (blok && !isNaN(parseInt(blok)) && blok !== "all") {
       const defaultKode = getDefaultKodeForSemester(semester || "1");
       if (defaultKode) {
-        console.log(
-          `Redirecting from /peta-blok/${tipe}/${blok} to /peta-blok/${tipe}/${defaultKode}`
-        );
         navigate(`/peta-blok/${tipe}/${defaultKode}`, { replace: true });
         return; // Stop execution setelah redirect
       }
@@ -280,13 +267,7 @@ export default function PetaBlok() {
       !blok || blok === "MKB101" || blok === "MKB201" || blok === "MKA001";
 
     if (shouldUseCombinedMode) {
-      console.log(
-        `🔄 Mode gabungan untuk tipe: ${tipe}, semester: ${semester}`
-      );
     } else {
-      console.log(
-        `🔄 Fetching data untuk blok: ${blok}, semester: ${semester}, tipe: ${tipe}`
-      );
     }
 
     setLoading(true);
@@ -295,28 +276,17 @@ export default function PetaBlok() {
     try {
       // Mode SEMESTER ANTARA: gabungkan semua blok antara (MKA001-MKA004) + non blok antara (MKA005)
       if (isAntara) {
-        console.log(
-          `🔄 Mode GABUNGAN ANTARA: Mengambil semua blok antara + non blok`
-        );
-
         // 1. Ambil semua blok antara (MKA001-MKA004)
         const allBlokAntaraCodes = ["MKA001", "MKA002", "MKA003", "MKA004"];
-        console.log(
-          `🔄 Fetching data dari semua blok antara: ${allBlokAntaraCodes.join(
-            ", "
-          )}`
-        );
 
         // 2. Ambil non blok antara (MKA005)
         const nonBlokAntaraCode = "MKA005";
-        console.log(`🔄 Non blok antara code: ${nonBlokAntaraCode}`);
 
         // 3. Fetch semua data secara paralel
         const allBatchData = await Promise.all([
           // Fetch blok antara data
           ...allBlokAntaraCodes.map(async (blokCode) => {
             try {
-              console.log(`🔄 Fetching blok antara data untuk ${blokCode}...`);
               const res = await api.get(`/mata-kuliah/${blokCode}/batch-data`);
               return {
                 type: "blok-antara",
@@ -325,10 +295,6 @@ export default function PetaBlok() {
                 success: true,
               };
             } catch (error) {
-              console.warn(
-                `❌ Gagal mengambil data blok antara untuk ${blokCode}:`,
-                error
-              );
               return {
                 type: "blok-antara",
                 blokCode,
@@ -359,21 +325,7 @@ export default function PetaBlok() {
             success: true,
           };
         } catch (error) {
-          console.warn(
-            `❌ Gagal mengambil data non blok antara untuk ${nonBlokAntaraCode}:`,
-            error
-          );
         }
-
-        console.log(
-          `📊 Hasil fetch gabungan antara:`,
-          allBatchData.map((b) => ({
-            type: b.type,
-            code: (b as any).blokCode || (b as any).kode,
-            success: b.success,
-            hasData: !!b.data,
-          }))
-        );
 
         // 4. Tentukan rentang tanggal dari semua data
         const allDates: { mulai?: string; akhir?: string }[] = [];
@@ -529,14 +481,6 @@ export default function PetaBlok() {
           }
         });
 
-        console.log(`📊 Data gabungan antara yang berhasil diambil:`, {
-          pbl: allJadwalPBL.length,
-          jurnal: allJadwalJurnal.length,
-          kuliahBesar: allJadwalKuliahBesar.length,
-          agendaKhusus: allJadwalAgendaKhusus.length,
-          praktikum: allJadwalPraktikum.length,
-        });
-
         setJadwalPBL(allJadwalPBL);
         setJadwalJurnal(allJadwalJurnal);
         setJadwalKuliahBesar(allJadwalKuliahBesar);
@@ -549,12 +493,6 @@ export default function PetaBlok() {
 
       // Mode GABUNGAN GANJIL/GENAP: untuk URL yang sudah disederhanakan
       if (shouldUseCombinedMode && (isGanjil || isGenap)) {
-        console.log(
-          `🔄 Mode GABUNGAN ${
-            isGanjil ? "GANJIL" : "GENAP"
-          }: Mengambil semua blok + non blok`
-        );
-
         // 1. Ambil semua blok (1-4) untuk semester ganjil/genap
         const getAllBlokCodes = (ganjil: boolean): string[] => {
           // Ganjil: 10x/30x/50x/70x, Genap: 20x/40x/60x
@@ -563,9 +501,6 @@ export default function PetaBlok() {
             : [`MKB201`, `MKB401`, `MKB601`];
         };
         const allBlokCodes = getAllBlokCodes(isGanjil);
-        console.log(
-          `🔄 Fetching data dari semua blok: ${allBlokCodes.join(", ")}`
-        );
 
         // 2. Ambil non blok codes untuk semester ganjil/genap
         const kodePerSemesterGanjil: Record<number, string> = {
@@ -586,21 +521,15 @@ export default function PetaBlok() {
           )
           .filter(Boolean) as string[];
 
-        console.log(`🔄 Non blok codes: ${nonBlokCodes.join(", ")}`);
 
         // 3. Fetch semua data secara paralel
         const allBatchData = await Promise.all([
           // Fetch blok data
           ...allBlokCodes.map(async (blokCode) => {
             try {
-              console.log(`🔄 Fetching blok data untuk ${blokCode}...`);
               const res = await api.get(`/mata-kuliah/${blokCode}/batch-data`);
               return { type: "blok", blokCode, data: res.data, success: true };
             } catch (error) {
-              console.warn(
-                `❌ Gagal mengambil data blok untuk ${blokCode}:`,
-                error
-              );
               return {
                 type: "blok",
                 blokCode,
@@ -613,7 +542,6 @@ export default function PetaBlok() {
           // Fetch non blok non-csr data
           ...nonBlokCodes.map(async (kode) => {
             try {
-              console.log(`🔄 Fetching non blok non-csr data untuk ${kode}...`);
               const res = await api.get(`/non-blok-non-csr/${kode}/batch-data`);
               return {
                 type: "nonblok-noncsr",
@@ -622,10 +550,6 @@ export default function PetaBlok() {
                 success: true,
               };
             } catch (error) {
-              console.warn(
-                `❌ Gagal mengambil data non blok non-csr untuk ${kode}:`,
-                error
-              );
               return {
                 type: "nonblok-noncsr",
                 kode,
@@ -638,7 +562,6 @@ export default function PetaBlok() {
           // Fetch non blok csr data
           ...nonBlokCodes.map(async (kode) => {
             try {
-              console.log(`🔄 Fetching non blok csr data untuk ${kode}...`);
               const res = await api.get(`/csr/${kode}/batch-data`);
               return {
                 type: "nonblok-csr",
@@ -647,10 +570,6 @@ export default function PetaBlok() {
                 success: true,
               };
             } catch (error) {
-              console.warn(
-                `❌ Gagal mengambil data non blok csr untuk ${kode}:`,
-                error
-              );
               return {
                 type: "nonblok-csr",
                 kode,
@@ -662,15 +581,6 @@ export default function PetaBlok() {
           }),
         ]);
 
-        console.log(
-          `📊 Hasil fetch gabungan:`,
-          allBatchData.map((b) => ({
-            type: b.type,
-            code: (b as any).blokCode || (b as any).kode,
-            success: b.success,
-            hasData: !!b.data,
-          }))
-        );
 
         // 4. Tentukan rentang tanggal dari semua data
         const allDates: { mulai?: string; akhir?: string }[] = [];
@@ -865,14 +775,6 @@ export default function PetaBlok() {
           }
         });
 
-        console.log(`📊 Data gabungan yang berhasil diambil:`, {
-          pbl: allJadwalPBL.length,
-          jurnal: allJadwalJurnal.length,
-          kuliahBesar: allJadwalKuliahBesar.length,
-          agendaKhusus: allJadwalAgendaKhusus.length,
-          praktikum: allJadwalPraktikum.length,
-        });
-
         setJadwalPBL(allJadwalPBL);
         setJadwalJurnal(allJadwalJurnal);
         setJadwalKuliahBesar(allJadwalKuliahBesar);
@@ -917,7 +819,6 @@ export default function PetaBlok() {
 
         batches.forEach(({ mk, data, error }: any) => {
           if (error) {
-            console.warn(`Gagal mengambil data untuk ${mk.kode}:`, error);
             return;
           }
 
@@ -989,7 +890,6 @@ export default function PetaBlok() {
                   );
                   return { ok: true, kode, data: res.data };
                 } catch (e) {
-                  console.warn("NONBLOK Non-CSR gagal", kode, e);
                   return { ok: false, kode, data: null };
                 }
               })
@@ -1012,11 +912,6 @@ export default function PetaBlok() {
                       semester: Number(mk.semester),
                     }));
                 } catch (e) {
-                  console.warn(
-                    "Gagal ambil daftar MK CSR untuk semester",
-                    s,
-                    e
-                  );
                   return [] as Array<{ kode: string; semester: number }>;
                 }
               })
@@ -1054,7 +949,6 @@ export default function PetaBlok() {
                     data: res.data,
                   };
                 } catch (e) {
-                  console.warn("NONBLOK CSR gagal", mk.kode, e);
                   return {
                     ok: false,
                     kode: mk.kode,
@@ -1211,17 +1105,10 @@ export default function PetaBlok() {
             setMataKuliahList([]);
             return; // stop agar tidak jatuh ke logika blok reguler
           } catch (e) {
-            console.error("Gagal memuat NONBLOK:", e);
           }
         }
 
         // Mode GABUNGAN: Ambil semua blok (1-4) + non blok untuk ganjil/genap
-        console.log(
-          `🔄 Mode GABUNGAN: Mengambil semua blok + non blok untuk ${
-            isGanjil ? "ganjil" : "genap"
-          }`
-        );
-
         // 1. Ambil semua blok (1-4) untuk semester ganjil/genap
         const getAllBlokCodes = (ganjil: boolean): string[] => {
           // Ganjil: 10x/30x/50x/70x, Genap: 20x/40x/60x
@@ -1230,9 +1117,6 @@ export default function PetaBlok() {
             : [`MKB201`, `MKB401`, `MKB601`];
         };
         const allBlokCodes = getAllBlokCodes(isGanjil);
-        console.log(
-          `🔄 Fetching data dari semua blok: ${allBlokCodes.join(", ")}`
-        );
 
         // 2. Ambil non blok codes untuk semester ganjil/genap
         const kodePerSemesterGanjil: Record<number, string> = {
@@ -1253,21 +1137,15 @@ export default function PetaBlok() {
           )
           .filter(Boolean) as string[];
 
-        console.log(`🔄 Non blok codes: ${nonBlokCodes.join(", ")}`);
 
         // 3. Fetch semua data secara paralel
         const allBatchData = await Promise.all([
           // Fetch blok data
           ...allBlokCodes.map(async (blokCode) => {
             try {
-              console.log(`🔄 Fetching blok data untuk ${blokCode}...`);
               const res = await api.get(`/mata-kuliah/${blokCode}/batch-data`);
               return { type: "blok", blokCode, data: res.data, success: true };
             } catch (error) {
-              console.warn(
-                `❌ Gagal mengambil data blok untuk ${blokCode}:`,
-                error
-              );
               return {
                 type: "blok",
                 blokCode,
@@ -1280,7 +1158,6 @@ export default function PetaBlok() {
           // Fetch non blok non-csr data
           ...nonBlokCodes.map(async (kode) => {
             try {
-              console.log(`🔄 Fetching non blok non-csr data untuk ${kode}...`);
               const res = await api.get(`/non-blok-non-csr/${kode}/batch-data`);
               return {
                 type: "nonblok-noncsr",
@@ -1289,10 +1166,6 @@ export default function PetaBlok() {
                 success: true,
               };
             } catch (error) {
-              console.warn(
-                `❌ Gagal mengambil data non blok non-csr untuk ${kode}:`,
-                error
-              );
               return {
                 type: "nonblok-noncsr",
                 kode,
@@ -1305,7 +1178,6 @@ export default function PetaBlok() {
           // Fetch non blok csr data
           ...nonBlokCodes.map(async (kode) => {
             try {
-              console.log(`🔄 Fetching non blok csr data untuk ${kode}...`);
               const res = await api.get(`/csr/${kode}/batch-data`);
               return {
                 type: "nonblok-csr",
@@ -1314,10 +1186,6 @@ export default function PetaBlok() {
                 success: true,
               };
             } catch (error) {
-              console.warn(
-                `❌ Gagal mengambil data non blok csr untuk ${kode}:`,
-                error
-              );
               return {
                 type: "nonblok-csr",
                 kode,
@@ -1329,15 +1197,6 @@ export default function PetaBlok() {
           }),
         ]);
 
-        console.log(
-          `📊 Hasil fetch gabungan:`,
-          allBatchData.map((b) => ({
-            type: b.type,
-            code: (b as any).blokCode || (b as any).kode,
-            success: b.success,
-            hasData: !!b.data,
-          }))
-        );
 
         // 4. Tentukan rentang tanggal dari semua data
         const allDates: { mulai?: string; akhir?: string }[] = [];
@@ -1532,14 +1391,6 @@ export default function PetaBlok() {
           }
         });
 
-        console.log(`📊 Data gabungan yang berhasil diambil:`, {
-          pbl: allJadwalPBL.length,
-          jurnal: allJadwalJurnal.length,
-          kuliahBesar: allJadwalKuliahBesar.length,
-          agendaKhusus: allJadwalAgendaKhusus.length,
-          praktikum: allJadwalPraktikum.length,
-        });
-
         setJadwalPBL(allJadwalPBL);
         setJadwalJurnal(allJadwalJurnal);
         setJadwalKuliahBesar(allJadwalKuliahBesar);
@@ -1550,7 +1401,6 @@ export default function PetaBlok() {
         return; // Stop execution untuk mode gabungan
       }
     } catch (error: any) {
-      console.error("❌ Error fetching data:", error);
       setError(
         error.response?.data?.message ||
           error.message ||
@@ -1558,15 +1408,11 @@ export default function PetaBlok() {
       );
     } finally {
       setLoading(false);
-      console.log(`🏁 Fetch data selesai, loading: false`);
     }
   }, [blok, semester, tipe]);
 
   // Fetch data setelah redirect selesai
   useEffect(() => {
-    console.log(
-      `🔄 useEffect fetchData dipanggil: blok=${blok}, semester=${semester}, tipe=${tipe}`
-    );
 
     // Tunggu sebentar untuk memastikan redirect selesai
     const timer = setTimeout(() => {
@@ -1576,93 +1422,115 @@ export default function PetaBlok() {
     return () => clearTimeout(timer);
   }, [blok, semester, tipe, fetchData]);
 
+  // State untuk menyimpan tanggal tambahan yang dipilih user (di luar rentang jadwal)
+  // Harus dideklarasikan sebelum hariList useMemo karena digunakan di dependency array
+  const [additionalDates, setAdditionalDates] = useState<Set<string>>(new Set());
+  // State untuk menyimpan tanggal target yang ingin dinavigasi (setelah ditambahkan ke additionalDates)
+  const [pendingDateNavigation, setPendingDateNavigation] = useState<string | null>(null);
+
   // Bangun hariList dari tanggal mulai-akhir blok
   const hariList = useMemo(() => {
-    console.log(
-      `🔍 Building hariList: blok=${blok}, mataKuliah=${mataKuliah?.nama}, mataKuliahList.length=${mataKuliahList.length}`
-    );
+    const baseArr: { hari: string; tanggal: string; iso: string }[] = [];
 
     // Mode all: gunakan min(tanggal_mulai) dan max(tanggal_akhir)
     if (blok === "all") {
       if (!mataKuliahList.length) {
-        console.log(`❌ Tidak ada mataKuliahList untuk mode 'all'`);
-        return [] as { hari: string; tanggal: string; iso: string }[];
+        // Tetap proses additionalDates meskipun tidak ada base dates
+      } else {
+        // Ambil semua tanggal yang valid
+        const validDates = mataKuliahList
+          .map((mk: any) => ({
+            mulai: new Date(mk.tanggal_mulai),
+            akhir: new Date(mk.tanggal_akhir),
+          }))
+          .filter((x) => !isNaN(x.mulai.getTime()) && !isNaN(x.akhir.getTime()));
+
+        if (validDates.length) {
+          // Cari tanggal terendah dan tertinggi
+          const start = new Date(
+            Math.min(...validDates.map((d) => d.mulai.getTime()))
+          );
+          const end = new Date(
+            Math.max(...validDates.map((d) => d.akhir.getTime()))
+          );
+
+          for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            const hari = hariNames[d.getDay()].toUpperCase();
+            const day = d.getDate();
+            const month = d.getMonth() + 1;
+            const year = d.getFullYear();
+            const tanggal = `${day}/${month}/${year}`;
+            baseArr.push({ hari, tanggal, iso: toIsoDate(d) });
+          }
+        }
       }
+    } else {
+      if (mataKuliah?.tanggal_mulai && mataKuliah?.tanggal_akhir) {
+        const start = new Date(mataKuliah.tanggal_mulai);
+        const end = new Date(mataKuliah.tanggal_akhir);
 
-      // Ambil semua tanggal yang valid
-      const validDates = mataKuliahList
-        .map((mk: any) => ({
-          mulai: new Date(mk.tanggal_mulai),
-          akhir: new Date(mk.tanggal_akhir),
-        }))
-        .filter((x) => !isNaN(x.mulai.getTime()) && !isNaN(x.akhir.getTime()));
-
-      if (!validDates.length) {
-        console.log(`❌ Tidak ada tanggal valid untuk mode 'all'`);
-        return [] as { hari: string; tanggal: string; iso: string }[];
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+          for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            const hari = hariNames[d.getDay()].toUpperCase();
+            const day = d.getDate();
+            const month = d.getMonth() + 1;
+            const year = d.getFullYear();
+            const tanggal = `${day}/${month}/${year}`;
+            baseArr.push({ hari, tanggal, iso: toIsoDate(d) });
+          }
+        }
       }
+    }
 
-      // Cari tanggal terendah dan tertinggi
-      const start = new Date(
-        Math.min(...validDates.map((d) => d.mulai.getTime()))
-      );
-      const end = new Date(
-        Math.max(...validDates.map((d) => d.akhir.getTime()))
-      );
-
-      const arr: { hari: string; tanggal: string; iso: string }[] = [];
-      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        const hari = hariNames[d.getDay()].toUpperCase();
-        // Format tanggal seperti di gambar: SENIN 7/7/2025
-        const day = d.getDate();
-        const month = d.getMonth() + 1;
-        const year = d.getFullYear();
-        const tanggal = `${day}/${month}/${year}`;
-        arr.push({ hari, tanggal, iso: toIsoDate(d) });
+    // Tambahkan tanggal tambahan yang dipilih user
+    const additionalArr: { hari: string; tanggal: string; iso: string }[] = [];
+    additionalDates.forEach((isoDate) => {
+      // Cek apakah tanggal sudah ada di baseArr
+      const exists = baseArr.some((item) => item.iso === isoDate);
+      if (!exists) {
+        // Parse ISO date (YYYY-MM-DD) secara manual untuk menghindari timezone issues
+        const parts = isoDate.split('-');
+        if (parts.length === 3) {
+          const year = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
+          const day = parseInt(parts[2], 10);
+          const date = new Date(year, month, day);
+          if (!isNaN(date.getTime())) {
+            const hari = hariNames[date.getDay()].toUpperCase();
+            const dayStr = date.getDate().toString().padStart(2, '0');
+            const monthStr = (date.getMonth() + 1).toString().padStart(2, '0');
+            const yearStr = date.getFullYear();
+            const tanggal = `${dayStr}/${monthStr}/${yearStr}`;
+            additionalArr.push({ hari, tanggal, iso: isoDate });
+          }
+        }
       }
-      console.log(`✅ hariList untuk mode 'all': ${arr.length} hari`);
-      return arr;
-    }
+    });
 
-    if (!mataKuliah?.tanggal_mulai || !mataKuliah?.tanggal_akhir) {
-      console.log(
-        `❌ Tidak ada tanggal mulai/akhir untuk mataKuliah:`,
-        mataKuliah
-      );
-      return [] as { hari: string; tanggal: string; iso: string }[];
-    }
+    // Gabungkan dan urutkan berdasarkan tanggal
+    const combined = [...baseArr, ...additionalArr];
+    combined.sort((a, b) => {
+      // Parse ISO date secara manual untuk menghindari timezone issues
+      const parseIsoDate = (iso: string): number => {
+        const parts = iso.split('-');
+        if (parts.length === 3) {
+          const year = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1;
+          const day = parseInt(parts[2], 10);
+          return new Date(year, month, day).getTime();
+        }
+        return 0;
+      };
+      return parseIsoDate(a.iso) - parseIsoDate(b.iso);
+    });
 
-    const start = new Date(mataKuliah.tanggal_mulai);
-    const end = new Date(mataKuliah.tanggal_akhir);
-
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      console.log(
-        `❌ Tanggal tidak valid: mulai=${mataKuliah.tanggal_mulai}, akhir=${mataKuliah.tanggal_akhir}`
-      );
-      return [] as { hari: string; tanggal: string; iso: string }[];
-    }
-
-    const arr: { hari: string; tanggal: string; iso: string }[] = [];
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const hari = hariNames[d.getDay()].toUpperCase();
-      // Format tanggal seperti di gambar: SENIN 7/7/2025
-      const day = d.getDate();
-      const month = d.getMonth() + 1;
-      const year = d.getFullYear();
-      const tanggal = `${day}/${month}/${year}`;
-      arr.push({ hari, tanggal, iso: toIsoDate(d) });
-    }
-    console.log(
-      `✅ hariList untuk mataKuliah: ${
-        arr.length
-      } hari (${start.toDateString()} - ${end.toDateString()})`
-    );
-    return arr;
+    return combined;
   }, [
     blok,
     mataKuliah?.tanggal_mulai,
     mataKuliah?.tanggal_akhir,
     mataKuliahList,
+    additionalDates,
   ]);
 
   // Hitung menit mulai tiap sesi
@@ -1688,9 +1556,6 @@ export default function PetaBlok() {
   };
   const gridItems: CellItem[][][][] = useMemo(() => {
     const days = hariList.length;
-    console.log(
-      `🔍 Building gridItems: days=${days}, sesiHarian.length=${sesiHarian.length}, isGanjil=${isGanjil}`
-    );
 
     // Grid untuk 4 kolom blok: [blok][hari][sesi][items]
     const grid: CellItem[][][][] = Array.from({ length: 4 }, () =>
@@ -1700,18 +1565,15 @@ export default function PetaBlok() {
     );
 
     if (!days) {
-      console.log(`❌ Tidak ada hari, grid kosong`);
       return grid;
     }
 
     const targetSem = isAntara ? [1] : isGanjil ? [1, 3, 5, 7] : [2, 4, 6];
-    console.log(`🔍 Target semester: ${targetSem.join(", ")}`);
 
     const dayIndex: Record<string, number> = {};
     hariList.forEach((h, i) => {
       dayIndex[h.iso] = i;
     });
-    console.log(`🔍 Day index:`, dayIndex);
 
     const add = (
       iso: string,
@@ -1790,12 +1652,10 @@ export default function PetaBlok() {
       }
     };
 
-    console.log(`🔍 Processing jadwalPBL: ${jadwalPBL.length} items`);
     // PBL
     for (const p of jadwalPBL) {
       const date = new Date(p.tanggal || "");
       if (isNaN(date.getTime())) {
-        console.log(`❌ Tanggal tidak valid untuk PBL:`, p);
         continue;
       }
 
@@ -1817,9 +1677,6 @@ export default function PetaBlok() {
           : mataKuliah?.semester
           ? Number(mataKuliah.semester)
           : null;
-      console.log(
-        `🔍 Adding PBL: tanggal=${iso}, jam=${jam}, semester=${semEntry}, __semester=${p.__semester}`
-      );
 
       // Detail untuk popup
       const detail = {
@@ -1834,12 +1691,10 @@ export default function PetaBlok() {
       add(iso, jam, jumlah, label, "PBL", semEntry, detail);
     }
 
-    console.log(`🔍 Processing jadwalJurnal: ${jadwalJurnal.length} items`);
     // Jurnal Reading
     for (const j of jadwalJurnal) {
       const date = new Date(j.tanggal || "");
       if (isNaN(date.getTime())) {
-        console.log(`❌ Tanggal tidak valid untuk Jurnal:`, j);
         continue;
       }
 
@@ -1867,9 +1722,6 @@ export default function PetaBlok() {
           : mataKuliah?.semester
           ? Number(mataKuliah.semester)
           : null;
-      console.log(
-        `🔍 Adding Jurnal: tanggal=${iso}, jam=${jam}, semester=${semEntry}, __semester=${j.__semester}`
-      );
 
       // Detail untuk popup
       const detail = {
@@ -1884,14 +1736,10 @@ export default function PetaBlok() {
       add(iso, jam, jumlah, label, "JURNAL", semEntry, detail);
     }
 
-    console.log(
-      `🔍 Processing jadwalKuliahBesar: ${jadwalKuliahBesar.length} items`
-    );
     // Kuliah Besar
     for (const kb of jadwalKuliahBesar) {
       const date = new Date(kb.tanggal || "");
       if (isNaN(date.getTime())) {
-        console.log(`❌ Tanggal tidak valid untuk Kuliah Besar:`, kb);
         continue;
       }
 
@@ -1954,9 +1802,6 @@ export default function PetaBlok() {
           : mataKuliah?.semester
           ? Number(mataKuliah.semester)
           : null;
-      console.log(
-        `🔍 Adding ${jenis}: tanggal=${iso}, jam=${jam}, semester=${semEntry}, __semester=${kb.__semester}`
-      );
 
       // Detail untuk popup
       const detail = {
@@ -1970,32 +1815,16 @@ export default function PetaBlok() {
         tipe,
       };
 
-      // Debug untuk semester antara
-      if (kb.__semester === 8) {
-        console.log(`🔍 KULIAH_BESAR Semester Antara - Detail object:`, {
-          "kb.__semester": kb.__semester,
-          "kb.dosen_names": kb.dosen_names,
-          "dosen variable": dosen,
-          "detail.dosen": detail.dosen,
-          "full detail": detail,
-        });
-      }
-
       // Untuk Kuliah Besar, gunakan durasi yang lebih panjang (3 sesi)
       // Untuk jadwal lainnya, tetap 1 sesi
       const durasi = jenis === "KULIAH_BESAR" ? 3 : 1;
 
       add(iso, jam, durasi, label, jenis, semEntry, detail);
     }
-
-    console.log(
-      `🔍 Processing jadwalAgendaKhusus: ${jadwalAgendaKhusus.length} items`
-    );
     // Agenda Khusus
     for (const ak of jadwalAgendaKhusus) {
       const date = new Date(ak.tanggal || "");
       if (isNaN(date.getTime())) {
-        console.log(`❌ Tanggal tidak valid untuk Agenda Khusus:`, ak);
         continue;
       }
 
@@ -2016,9 +1845,6 @@ export default function PetaBlok() {
           : mataKuliah?.semester
           ? Number(mataKuliah.semester)
           : null;
-      console.log(
-        `🔍 Adding Agenda Khusus: tanggal=${iso}, jam=${jam}, semester=${semEntry}, __semester=${ak.__semester}`
-      );
 
       // Detail untuk popup
       const detail = {
@@ -2033,14 +1859,10 @@ export default function PetaBlok() {
       add(iso, jam, jumlah, label, "AGENDA_KHUSUS", semEntry, detail);
     }
 
-    console.log(
-      `🔍 Processing jadwalPraktikum: ${jadwalPraktikum.length} items`
-    );
     // Praktikum
     for (const pr of jadwalPraktikum) {
       const date = new Date(pr.tanggal || "");
       if (isNaN(date.getTime())) {
-        console.log(`❌ Tanggal tidak valid untuk Praktikum:`, pr);
         continue;
       }
 
@@ -2073,9 +1895,6 @@ export default function PetaBlok() {
           : mataKuliah?.semester
           ? Number(mataKuliah.semester)
           : null;
-      console.log(
-        `🔍 Adding Praktikum: tanggal=${iso}, jam=${jam}, semester=${semEntry}, __semester=${pr.__semester}`
-      );
 
       // Detail untuk popup
       const detail = {
@@ -2090,12 +1909,6 @@ export default function PetaBlok() {
       add(iso, jam, jumlah, label, "PRAKTIKUM", semEntry, detail);
     }
 
-    console.log(
-      `✅ Grid items built: ${
-        grid.flat(3).filter((cell) => Array.isArray(cell) && cell.length > 0)
-          .length
-      } non-empty cells`
-    );
     return grid;
   }, [
     hariList,
@@ -2113,12 +1926,30 @@ export default function PetaBlok() {
   const PAGE_SIZE_OPTIONS = [5, 7, 10, 15, 30];
   const [pageSize, setPageSize] = useState(7);
   const [page, setPage] = useState(0);
-  const [dateInput, setDateInput] = useState("");
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date | null>(null);
+  // State lokal untuk input date value (memungkinkan user mengetik tanpa gangguan)
+  const [dateInputValue, setDateInputValue] = useState<string>('');
   const totalPages = Math.ceil(hariList.length / pageSize || 1);
 
-  // Filter hariList berdasarkan search dan pagination
+  // Filter hariList berdasarkan search, pagination, dan jadwal yang ada
   const filteredHariListForSearch = useMemo(() => {
-    const filtered = search.trim()
+    // Fungsi untuk cek apakah hari memiliki jadwal
+    const hasSchedule = (hariIndex: number): boolean => {
+      // Cek semua semester dan semua sesi untuk hari ini
+      for (let semIdx = 0; semIdx < gridItems.length; semIdx++) {
+        for (let sesiIdx = 0; sesiIdx < sesiHarian.length; sesiIdx++) {
+          const items = gridItems[semIdx]?.[hariIndex]?.[sesiIdx] || [];
+          if (items.length > 0) {
+            return true; // Ada jadwal di hari ini
+          }
+        }
+      }
+      return false; // Tidak ada jadwal
+    };
+
+    // Filter berdasarkan search
+    let filtered = search.trim()
       ? hariList.filter(
           (h) =>
             h.hari.toLowerCase().includes(search.toLowerCase()) ||
@@ -2126,13 +1957,24 @@ export default function PetaBlok() {
         )
       : hariList;
 
+    // Filter hari yang memiliki jadwal ATAU yang ada di additionalDates (tanggal yang dipilih user)
+    filtered = filtered.filter((h, index) => {
+      const originalIndex = hariList.findIndex((h2) => h2.iso === h.iso);
+      // Jika tanggal ada di additionalDates, selalu tampilkan (meskipun kosong)
+      if (additionalDates.has(h.iso)) {
+        return true;
+      }
+      // Jika tidak ada di additionalDates, hanya tampilkan jika punya jadwal
+      return originalIndex !== -1 && hasSchedule(originalIndex);
+    });
+
     // Reset page jika hasil search berubah
     if (page >= Math.ceil(filtered.length / pageSize)) {
       setPage(0);
     }
 
     return filtered;
-  }, [hariList, search, pageSize, page]);
+  }, [hariList, search, pageSize, page, gridItems, sesiHarian.length, additionalDates]);
 
   const prevPage = () => {
     setPage((p) => Math.max(0, p - 1));
@@ -2152,63 +1994,249 @@ export default function PetaBlok() {
     setPage(0); // Reset ke halaman pertama
   };
 
-  // Fungsi untuk navigasi ke tanggal tertentu
-  const handleDateJump = (selectedDate: string) => {
-    if (!selectedDate) return;
-    
-    // Cari indeks tanggal yang cocok dalam hariList
-    const targetIndex = hariList.findIndex(day => 
-      day.tanggal === selectedDate || 
-      day.tanggal === formatTanggalKonsisten(selectedDate)
-    );
-    
-    if (targetIndex === -1) {
-      alert("Tanggal tidak ditemukan dalam jadwal");
-      return;
+  // Fungsi untuk konversi format tanggal DD/MM/YYYY ke ISO date
+  const parseDateFromFormat = (dateStr: string): Date | null => {
+    if (!dateStr) return null;
+    try {
+      // Format: DD/MM/YYYY
+      const parts = dateStr.split('/');
+      if (parts.length === 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
+        const year = parseInt(parts[2], 10);
+        return new Date(year, month, day);
+      }
+      return null;
+    } catch (e) {
+      return null;
     }
-    
-    // Hitung halaman berdasarkan indeks
-    const targetPage = Math.floor(targetIndex / pageSize);
-    setPage(targetPage);
   };
 
-  // Generate tanggal per 7 hari untuk dropdown
-  const getDateOptions = () => {
-    const options = [];
-    const totalPages = Math.ceil(hariList.length / pageSize);
+  // Fungsi untuk konversi Date ke format DD/MM/YYYY
+  const formatDateToDisplay = (date: Date): string => {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  // Fungsi untuk konversi Date ke format YYYY-MM-DD untuk input date
+  const formatDateToInput = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Fungsi untuk navigasi ke tanggal tertentu (menampilkan seminggu penuh)
+  const handleDateJump = (selectedDate: string | Date) => {
+    if (!selectedDate) return;
     
-    for (let i = 0; i < totalPages; i++) {
-      const startIndex = i * pageSize;
-      const endIndex = Math.min(startIndex + pageSize - 1, hariList.length - 1);
-      
-      if (hariList[startIndex] && hariList[endIndex]) {
-        const startDate = hariList[startIndex].tanggal;
-        const endDate = hariList[endIndex].tanggal;
-        const startDateFormatted = formatTanggalIndonesia(startDate);
-        const endDateFormatted = formatTanggalIndonesia(endDate);
-        
-        options.push({
-          value: startDate,
-          label: `${startDateFormatted} - ${endDateFormatted}`,
-          page: i
-        });
+    let targetDate: Date;
+    if (selectedDate instanceof Date) {
+      // Normalisasi tanggal ke local date tanpa time component
+      targetDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+    } else {
+      // Coba parse dari berbagai format
+      const parsed = parseDateFromFormat(selectedDate);
+      if (!parsed) {
+        // Coba parse sebagai ISO date (YYYY-MM-DD)
+        if (/^\d{4}-\d{2}-\d{2}/.test(selectedDate)) {
+          const [year, month, day] = selectedDate.split('-').map(Number);
+          targetDate = new Date(year, month - 1, day);
+        } else {
+          const isoDate = new Date(selectedDate);
+          if (isNaN(isoDate.getTime())) {
+            alert("Format tanggal tidak valid");
+            return;
+          }
+          // Normalisasi ke local date
+          targetDate = new Date(isoDate.getFullYear(), isoDate.getMonth(), isoDate.getDate());
+        }
+      } else {
+        targetDate = parsed;
       }
     }
     
-    return options;
+    // Pastikan tanggal valid
+    if (isNaN(targetDate.getTime())) {
+      alert("Tanggal tidak valid");
+      return;
+    }
+    
+    // Cari hari Senin dari minggu yang mencakup tanggal yang dipilih
+    // getDay() mengembalikan 0 (Minggu) sampai 6 (Sabtu)
+    const dayOfWeek = targetDate.getDay();
+    // Hitung offset ke Senin (1 = Senin)
+    // Jika Minggu (0), offset = -6 untuk ke Senin sebelumnya
+    // Jika Senin (1), offset = 0
+    // Jika Selasa (2), offset = -1, dst
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const mondayDate = new Date(targetDate);
+    mondayDate.setDate(targetDate.getDate() + mondayOffset);
+    
+    // Generate semua tanggal dari Senin sampai Minggu (7 hari)
+    const weekDates: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(mondayDate);
+      date.setDate(mondayDate.getDate() + i);
+      const isoDate = toIsoDate(date);
+      weekDates.push(isoDate);
+    }
+    
+    // Tambahkan semua tanggal minggu tersebut ke additionalDates
+    setAdditionalDates((prev) => {
+      const newSet = new Set(prev);
+      weekDates.forEach(isoDate => {
+        newSet.add(isoDate);
+      });
+      return newSet;
+    });
+    
+    // Set pending navigation ke tanggal yang dipilih (bukan Senin)
+    const targetIso = toIsoDate(targetDate);
+    setPendingDateNavigation(targetIso);
+    setShowCalendar(false);
   };
+
+  // Fungsi untuk handle date picker change (update state lokal, tidak langsung jump)
+  const handleDatePickerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const dateValue = e.target.value;
+    // Update state lokal langsung - biarkan user mengetik tanpa gangguan
+    setDateInputValue(dateValue);
+    
+    // Jika format lengkap dan valid, update selectedCalendarDate
+    if (dateValue && dateValue.length === 10) {
+      try {
+        const [year, month, day] = dateValue.split('-').map(Number);
+        if (year && month && day && year >= 1900 && year <= 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+          const selectedDate = new Date(year, month - 1, day);
+          if (!isNaN(selectedDate.getTime()) && 
+              selectedDate.getFullYear() === year && 
+              selectedDate.getMonth() === month - 1 && 
+              selectedDate.getDate() === day) {
+            setSelectedCalendarDate(selectedDate);
+          }
+        }
+      } catch (error) {
+        // Jika parsing gagal, biarkan user terus mengetik
+      }
+    } else if (!dateValue) {
+      setSelectedCalendarDate(null);
+    }
+  };
+
+  // Fungsi untuk handle date picker blur (saat user selesai memilih)
+  const handleDatePickerBlur = () => {
+    // Sync dateInputValue dengan selectedCalendarDate jika ada
+    if (selectedCalendarDate) {
+      setDateInputValue(formatDateToInput(selectedCalendarDate));
+      // Baru panggil handleDateJump saat user selesai memilih
+      handleDateJump(selectedCalendarDate);
+    } else if (!dateInputValue) {
+      // Jika kosong, reset
+      setDateInputValue('');
+    }
+  };
+
+  // Get min dan max date dari hariList (dengan rentang yang lebih luas untuk memudahkan pemilihan tahun)
+  const getDateRange = () => {
+    if (hariList.length === 0) {
+      // Jika tidak ada hariList, berikan rentang default yang luas (10 tahun ke belakang dan 10 tahun ke depan)
+      const today = new Date();
+      const minDate = new Date(today.getFullYear() - 10, 0, 1);
+      const maxDate = new Date(today.getFullYear() + 10, 11, 31);
+      return {
+        min: formatDateToInput(minDate),
+        max: formatDateToInput(maxDate)
+      };
+    }
+    
+    const dates = hariList.map(day => {
+      // Gunakan iso field jika ada, lebih reliable
+      if (day.iso) {
+        const [year, month, dayNum] = day.iso.split('-').map(Number);
+        return new Date(year, month - 1, dayNum);
+      }
+      // Fallback ke parsing dari tanggal string
+      const parts = day.tanggal.split('/');
+      if (parts.length === 3) {
+        const dayNum = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const year = parseInt(parts[2], 10);
+        return new Date(year, month, dayNum);
+      }
+      return null;
+    }).filter(d => d !== null && !isNaN(d.getTime())) as Date[];
+    
+    if (dates.length === 0) {
+      // Jika tidak ada tanggal valid, berikan rentang default yang luas
+      const today = new Date();
+      const minDate = new Date(today.getFullYear() - 10, 0, 1);
+      const maxDate = new Date(today.getFullYear() + 10, 11, 31);
+      return {
+        min: formatDateToInput(minDate),
+        max: formatDateToInput(maxDate)
+      };
+    }
+    
+    const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
+    const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+    
+    // Perluas rentang: 10 tahun sebelum tanggal minimum dan 10 tahun setelah tanggal maksimum
+    // Ini memungkinkan user memilih tahun dengan lebih mudah
+    const expandedMinDate = new Date(minDate.getFullYear() - 10, 0, 1);
+    const expandedMaxDate = new Date(maxDate.getFullYear() + 10, 11, 31);
+    
+    // Normalisasi ke local date tanpa time component
+    const minLocal = new Date(expandedMinDate.getFullYear(), expandedMinDate.getMonth(), expandedMinDate.getDate());
+    const maxLocal = new Date(expandedMaxDate.getFullYear(), expandedMaxDate.getMonth(), expandedMaxDate.getDate());
+    
+    return {
+      min: formatDateToInput(minLocal),
+      max: formatDateToInput(maxLocal)
+    };
+  };
+
+  const dateRange = getDateRange();
+
+
+  // Sync dateInputValue dengan selectedCalendarDate
+  useEffect(() => {
+    if (selectedCalendarDate) {
+      setDateInputValue(formatDateToInput(selectedCalendarDate));
+    } else {
+      setDateInputValue('');
+    }
+  }, [selectedCalendarDate]);
 
   // Reset search dan page saat blok atau semester berubah
   useEffect(() => {
     setSearch("");
     setPage(0);
-    setDateInput("");
+    setShowCalendar(false);
+    setSelectedCalendarDate(null);
+    setDateInputValue('');
   }, [blok, semester, tipe]);
 
-  // Reset dropdown saat page berubah
+  // Reset calendar saat page berubah
   useEffect(() => {
-    setDateInput("");
+    setShowCalendar(false);
   }, [page]);
+
+  // Handle navigasi ke tanggal yang baru ditambahkan ke additionalDates
+  useEffect(() => {
+    if (pendingDateNavigation && filteredHariListForSearch.length > 0) {
+      const targetIndex = filteredHariListForSearch.findIndex(
+        (day) => day.iso === pendingDateNavigation
+      );
+      if (targetIndex !== -1) {
+        const targetPage = Math.floor(targetIndex / pageSize);
+        setPage(targetPage);
+        setPendingDateNavigation(null); // Clear pending navigation
+      }
+    }
+  }, [pendingDateNavigation, filteredHariListForSearch, pageSize]);
 
   // Tidak lagi gunakan rowSpan; setiap sel berisi list item bertumpuk
 
@@ -2375,50 +2403,22 @@ export default function PetaBlok() {
         targetSemesters = [8]; // Semester antara
       }
 
-      console.log(`🔍 Filtering data untuk semester:`, targetSemesters);
-
       // Kumpulkan semua data jadwal dari state variables
       const allSchedules: any[] = [];
 
       // Helper function untuk menambahkan jadwal ke array
       const addSchedule = (item: any, jenis: string) => {
-        console.log(
-          `🔍 addSchedule called: jenis=${jenis}, __semester=${
-            item.__semester
-          }, targetSemesters=${JSON.stringify(targetSemesters)}`
-        );
-
         // Filter berdasarkan semester
         if (!targetSemesters.includes(item.__semester)) {
-          console.log(
-            `🔍 Skipping ${jenis} - semester ${
-              item.__semester
-            } not in target ${JSON.stringify(targetSemesters)}`
-          );
           return; // Skip jika tidak sesuai semester
         }
 
-        console.log(`🔍 Processing ${jenis} item for Excel export`);
-
         // Debug khusus untuk PRAKTIKUM
         if (jenis === "PRAKTIKUM") {
-          console.log(`🔍 PRAKTIKUM Excel - Raw item.dosen:`, item.dosen);
-          console.log(
-            `🔍 PRAKTIKUM Excel - Type of item.dosen:`,
-            typeof item.dosen
-          );
-          console.log(
-            `🔍 PRAKTIKUM Excel - Is Array?:`,
-            Array.isArray(item.dosen)
-          );
-          console.log(`🔍 PRAKTIKUM Excel - Full item object:`, item);
-
           if (typeof item.dosen === "string") {
             try {
               const parsed = JSON.parse(item.dosen);
-              console.log(`🔍 PRAKTIKUM Excel - Parsed JSON:`, parsed);
             } catch (e) {
-              console.log(`🔍 PRAKTIKUM Excel - Not valid JSON string`);
             }
           }
         }
@@ -2530,110 +2530,51 @@ export default function PetaBlok() {
         if (jenis === "PRAKTIKUM") {
           // PRAKTIKUM - HAPUS DOSEN (kosongkan)
           dosen = "";
-          console.log(`🔍 PRAKTIKUM Excel - DOSEN DIHAPUS (kosong)`);
         } else if (jenis === "KULIAH_BESAR") {
           // KULIAH_BESAR (Semester Antara) - Different format
-          console.log(`🔍 KULIAH_BESAR Excel - Raw item.dosen:`, item.dosen);
 
           if (item.__semester === 8 && item.dosen_names) {
             // Semester Antara - use dosen_names from backend
             dosen = item.dosen_names;
-            console.log(`🔍 KULIAH_BESAR Excel - Using dosen_names:`, dosen);
           } else if (item.dosen && Array.isArray(item.dosen)) {
             // Array format for other semesters
             const names = item.dosen.map((d) => d.name).filter(Boolean);
             dosen = names.join(", ");
-            console.log(`🔍 KULIAH_BESAR Excel - Extracted from array:`, names);
           } else if (typeof item.dosen === "string") {
             // String format
             const match = item.dosen.match(/"name":"([^"]+)"/);
             if (match) {
               dosen = match[1];
-              console.log(
-                `🔍 KULIAH_BESAR Excel - Extracted from string:`,
-                dosen
-              );
             }
           } else if (item.dosen?.name) {
             // Single object
             dosen = item.dosen.name;
-            console.log(`🔍 KULIAH_BESAR Excel - Single object:`, dosen);
           }
         } else {
           // Other types (PBL, Jurnal, etc.)
           dosen = item.dosen_nama || item.dosen_names || item.dosen?.name || "";
         }
 
-        console.log(`🔍 ${jenis} Excel - FINAL RESULT:`, `"${dosen}"`);
 
         // Final fallback for empty dosen
         if (!dosen) {
-          // Debug untuk praktikum dan kuliah besar
-          console.log(`🔍 ${jenis} dosen data FULL ITEM:`, item);
-          console.log(`🔍 ${jenis} dosen data:`, {
-            "item.dosen": item.dosen,
-            "typeof item.dosen": typeof item.dosen,
-            "Array.isArray(item.dosen)": Array.isArray(item.dosen),
-            "item.dosen_ids": item.dosen_ids,
-            "item.dosen_nama": item.dosen_nama,
-            "item.dosen_names": item.dosen_names,
-          });
-
-          // Debug semua kemungkinan field dosen
-          console.log(`🔍 ${jenis} ALL POSSIBLE DOSEN FIELDS:`, {
-            dosen: item.dosen,
-            dosen_ids: item.dosen_ids,
-            dosen_nama: item.dosen_nama,
-            dosen_names: item.dosen_names,
-            nama_dosen: item.nama_dosen,
-            pengampu: item.pengampu,
-            instructor: item.instructor,
-            teacher: item.teacher,
-            lecturer: item.lecturer,
-          });
-
           // Coba semua kemungkinan parsing dosen
           let dosenFound = false;
 
           // Method 1: Array of dosen objects
           if (Array.isArray(item.dosen) && !dosenFound) {
-            console.log(`🔍 Method 1 - Processing dosen array:`, item.dosen);
 
             const dosenNames = item.dosen
               .map((dosenObj, index) => {
-                console.log(`🔍 Method 1 - Dosen object ${index}:`, dosenObj);
-                console.log(`🔍 Method 1 - dosenObj.name:`, dosenObj.name);
-                console.log(`🔍 Method 1 - dosenObj.nama:`, dosenObj.nama);
-                console.log(
-                  `🔍 Method 1 - typeof dosenObj.name:`,
-                  typeof dosenObj.name
-                );
-                console.log(
-                  `🔍 Method 1 - dosenObj keys:`,
-                  Object.keys(dosenObj)
-                );
-
                 const name = dosenObj.name || dosenObj.nama || "";
-                console.log(`🔍 Method 1 - Extracted name:`, name);
                 return name;
               })
               .filter((name) => name.length > 0);
 
-            console.log(`🔍 Method 1 - Final dosenNames array:`, dosenNames);
-
             if (dosenNames.length > 0) {
               dosen = dosenNames.join(", ");
               dosenFound = true;
-              console.log(`✅ Method 1 (Array dosen): ${dosen}`);
-            } else {
-              console.log(`❌ Method 1 failed - no names found in dosen array`);
             }
-          } else {
-            console.log(`❌ Method 1 skipped - item.dosen is not array:`, {
-              "item.dosen": item.dosen,
-              "Array.isArray(item.dosen)": Array.isArray(item.dosen),
-              "typeof item.dosen": typeof item.dosen,
-            });
           }
 
           // Method 2: Single dosen object
@@ -2646,13 +2587,11 @@ export default function PetaBlok() {
             dosen = item.dosen.name || item.dosen.nama || "";
             if (dosen) {
               dosenFound = true;
-              console.log(`✅ Method 2 (Single dosen object): ${dosen}`);
             }
           }
 
           // Method 3: String fields (prioritas untuk semester antara)
           if (!dosenFound) {
-            console.log(`🔍 Method 3 - Checking string fields...`);
 
             const stringFields = [
               "dosen_names", // Laravel attribute method - PRIORITAS UTAMA
@@ -2674,20 +2613,11 @@ export default function PetaBlok() {
                 value = item[field] || "";
               }
 
-              console.log(
-                `🔍 Method 3 - Field '${field}': '${value}' (type: ${typeof value})`
-              );
-
               if (value && typeof value === "string") {
                 dosen = value;
                 dosenFound = true;
-                console.log(`✅ Method 3 (String field ${field}): ${dosen}`);
                 break;
               }
-            }
-
-            if (!dosenFound) {
-              console.log(`❌ Method 3 failed - no string fields found`);
             }
           }
 
@@ -2711,7 +2641,6 @@ export default function PetaBlok() {
               if (dosenNames.length > 0) {
                 dosen = dosenNames.join(", ");
                 dosenFound = true;
-                console.log(`✅ Method 4a (Resolve dosen array): ${dosen}`);
               }
             }
 
@@ -2719,9 +2648,6 @@ export default function PetaBlok() {
             if (!dosenFound && item.dosen_names) {
               dosen = item.dosen_names;
               dosenFound = true;
-              console.log(
-                `✅ Method 4b (Laravel dosen_names attribute): ${dosen}`
-              );
             }
 
             // Jika masih belum dapat, tampilkan "Agenda Khusus" sebagai fallback untuk semester antara
@@ -2732,7 +2658,6 @@ export default function PetaBlok() {
                 dosen = `IDs: ${item.dosen_ids.join(", ")}`;
               }
               dosenFound = true;
-              console.log(`⚠️ Method 4c (Fallback): ${dosen}`);
             }
           }
 
@@ -2743,23 +2668,10 @@ export default function PetaBlok() {
                 ? item.dosen
                 : JSON.stringify(item.dosen);
             dosenFound = true;
-            console.log(`✅ Method 5 (Final fallback): ${dosen}`);
           }
-
-          console.log(`📊 ${jenis} parsed dosen:`, dosen);
 
           // Extra debug untuk semester antara yang kosong
           if (jenis === "KULIAH_BESAR" && item.__semester === 8 && !dosen) {
-            console.error(`❌ KULIAH_BESAR Semester Antara DOSEN KOSONG!`, {
-              "Semua field dosen": {
-                "item.dosen": item.dosen,
-                "item.dosen_names": item.dosen_names,
-                "item.dosen_nama": item.dosen_nama,
-                "item.dosen_ids": item.dosen_ids,
-                getDosenNamesAttribute: item.dosen_names,
-              },
-              "Item lengkap": item,
-            });
           }
         } else {
           // Untuk jenis lain, gunakan parsing biasa
@@ -2799,15 +2711,6 @@ export default function PetaBlok() {
         });
       };
 
-      // Ambil data dari semua state variables
-      console.log(`🔍 Mengambil data dari state variables:`, {
-        jadwalPBL: jadwalPBL.length,
-        jadwalJurnal: jadwalJurnal.length,
-        jadwalKuliahBesar: jadwalKuliahBesar.length,
-        jadwalAgendaKhusus: jadwalAgendaKhusus.length,
-        jadwalPraktikum: jadwalPraktikum.length,
-      });
-
       // Process semua jenis jadwal
       jadwalPBL.forEach((item) => addSchedule(item, "PBL"));
       jadwalJurnal.forEach((item) => addSchedule(item, "JURNAL"));
@@ -2825,18 +2728,9 @@ export default function PetaBlok() {
       });
       jadwalAgendaKhusus.forEach((item) => addSchedule(item, "AGENDA_KHUSUS"));
 
-      console.log(
-        `🔍 Processing jadwalPraktikum for Excel:`,
-        jadwalPraktikum.length,
-        "items"
-      );
       jadwalPraktikum.forEach((item, index) => {
-        console.log(`🔍 Praktikum item ${index}:`, item);
-        console.log(`🔍 Praktikum item ${index} dosen:`, item.dosen);
         addSchedule(item, "PRAKTIKUM");
       });
-
-      console.log(`📊 Total jadwal setelah filter:`, allSchedules.length);
 
       // Sort by tanggal, then jam
       allSchedules.sort((a, b) => {
@@ -2928,7 +2822,6 @@ export default function PetaBlok() {
       link.click();
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      console.error("Error exporting to Excel:", error);
       alert("Gagal export ke Excel. Silakan coba lagi.");
     }
   };
@@ -3253,25 +3146,49 @@ export default function PetaBlok() {
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 relative">
             <span className="text-sm text-gray-600 dark:text-gray-300">
-              Lompat ke:
+              Lompat ke tanggal:
             </span>
-            <select
-              value={dateInput}
-              onChange={(e) => {
-                setDateInput(e.target.value);
-                handleDateJump(e.target.value);
-              }}
-              className="px-2 py-1 text-sm border border-gray-300 rounded dark:bg-gray-800 dark:border-gray-600 dark:text-white bg-gray-100 min-w-[200px]"
-            >
-              <option value="">Pilih periode tanggal</option>
-              {getDateOptions().map((option, index) => (
-                <option key={index} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <input
+                type="date"
+                min={dateRange.min || undefined}
+                max={dateRange.max || undefined}
+                value={dateInputValue}
+                onChange={handleDatePickerChange}
+                onBlur={handleDatePickerBlur}
+                onClick={() => setShowCalendar(true)}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg dark:bg-gray-800 dark:border-gray-600 dark:text-white bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent cursor-pointer min-w-[160px]"
+                placeholder="Pilih tanggal"
+                title="Klik untuk memilih tanggal. Gunakan dropdown tahun untuk memilih tahun yang berbeda."
+              />
+              <svg
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+              </svg>
+            </div>
+            {selectedCalendarDate && (
+              <button
+                onClick={() => {
+                  setSelectedCalendarDate(null);
+                  setShowCalendar(false);
+                }}
+                className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                title="Hapus pilihan tanggal"
+              >
+                ✕
+              </button>
+            )}
           </div>
           <button
             onClick={prevPage}
@@ -3442,8 +3359,9 @@ export default function PetaBlok() {
                               className={`px-4 py-2 border-b border-gray-200 dark:border-gray-700 text-xs text-left align-top border-r last:border-r-0 min-w-[16rem] dark:text-gray-200 bg-inherit`}
                             >
                               {(
-                                gridItems[semIdx]?.[originalIndex]?.[sesiIdx] ||
-                                []
+                                originalIndex >= 0 && originalIndex < hariList.length
+                                  ? gridItems[semIdx]?.[originalIndex]?.[sesiIdx] || []
+                                  : []
                               ).map((it: CellItem, i: number) => (
                                 <div
                                   key={i}

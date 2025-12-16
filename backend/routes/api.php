@@ -118,6 +118,7 @@ Route::middleware('auth:sanctum')->get('/ruangan/by-capacity', [RuanganControlle
 Route::middleware('auth:sanctum')->get('/ruangan/options', [RuanganController::class, 'getRuanganOptions']);
 Route::middleware('auth:sanctum')->apiResource('ruangan', RuanganController::class);
 
+Route::middleware('auth:sanctum')->put('/mata-kuliah/{kode}/update-kode', [MataKuliahController::class, 'updateKode']);
 Route::middleware('auth:sanctum')->apiResource('mata-kuliah', MataKuliahController::class);
 Route::middleware('auth:sanctum')->get('/mata-kuliah-dosen', [MataKuliahController::class, 'getMataKuliahDosen']);
 Route::middleware('auth:sanctum')->get('/mata-kuliah-dosen/{kode}/jadwal', [MataKuliahController::class, 'getJadwalDosenMataKuliah']);
