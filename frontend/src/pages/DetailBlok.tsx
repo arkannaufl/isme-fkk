@@ -6086,7 +6086,10 @@ export default function DetailBlok() {
         ["• Materi wajib diisi dan harus sesuai dengan keahlian mata kuliah"],
         ["• Topik wajib diisi"],
         ["• Kelompok kecil harus dari daftar yang tersedia"],
-        ["• Dosen harus sesuai dengan materi yang dipilih"],
+        ["• Dosen wajib diisi (minimal 1 dosen, bisa multiple)"],
+        ["• Untuk multiple dosen, pisahkan dengan backslash \\ (contoh: Dr. John Doe\\Dr. Jane Smith)"],
+        ["• Catatan: Gunakan backslash (bukan koma) karena beberapa dosen memiliki gelar dengan koma"],
+        ["• Dosen harus sesuai dengan materi yang dipilih (kecuali dosen standby)"],
         ["• Ruangan harus valid dan tersedia"],
         ["• Sesi: 1-6 (1 sesi = 50 menit)"],
         [""],
@@ -7106,7 +7109,7 @@ export default function DetailBlok() {
         }
       }
 
-      // Validasi dosen - untuk SIAKAD template, dosen HARUS diisi manual di preview table
+      // Validasi dosen - support multiple dosen dengan backslash separator
       const namaDosen = row.nama_dosen;
       if (
         !namaDosen ||
@@ -7116,55 +7119,94 @@ export default function DetailBlok() {
         cellErrors.push({
           row: rowNumber,
           field: "dosen_id",
-          message: `Dosen wajib diisi (Baris ${rowNumber}, Kolom DOSEN)`,
+          message: `Dosen wajib diisi (minimal 1 dosen) (Baris ${rowNumber}, Kolom DOSEN)`,
         });
       } else {
-        // Cari dosen berdasarkan nama yang diketik user
-        const dosen = allDosenList?.find(
-          (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
-        );
-        if (!dosen) {
+        // Parse dosen names dengan backslash separator (untuk support multiple dosen)
+        // Gunakan backslash karena beberapa dosen memiliki gelar dengan koma (contoh: Gustiwanan spd, mpd, spg)
+        const dosenNames = namaDosen
+          .split("\\")
+          .map((n: string) => n.trim())
+          .filter((n: string) => n !== "");
+        
+        if (dosenNames.length === 0) {
           cellErrors.push({
             row: rowNumber,
             field: "dosen_id",
-            message: `Dosen "${namaDosen}" tidak ditemukan (Baris ${rowNumber}, Kolom DOSEN)`,
+            message: `Dosen wajib diisi (minimal 1 dosen) (Baris ${rowNumber}, Kolom DOSEN)`,
           });
         } else {
-          // Cek apakah dosen standby
-          const isStandbyDosen =
-            dosen.name.toLowerCase().includes("standby") ||
-            (Array.isArray(dosen.keahlian)
-              ? dosen.keahlian.some((k: string) =>
-                  k.toLowerCase().includes("standby")
-                )
-              : (dosen.keahlian || "").toLowerCase().includes("standby"));
+          const invalidDosenNames: string[] = [];
+          const validDosenIds: number[] = [];
+          
+          dosenNames.forEach((namaDosenItem: string) => {
+            // Cari dosen berdasarkan nama yang diketik user
+            const dosen = allDosenList?.find(
+              (d) => d.name.toLowerCase() === namaDosenItem.toLowerCase()
+            );
+            if (!dosen) {
+              invalidDosenNames.push(namaDosenItem);
+            } else {
+              validDosenIds.push(dosen.id);
+              
+              // Cek apakah dosen standby
+              const isStandbyDosen =
+                dosen.name.toLowerCase().includes("standby") ||
+                (Array.isArray(dosen.keahlian)
+                  ? dosen.keahlian.some((k: string) =>
+                      k.toLowerCase().includes("standby")
+                    )
+                  : (dosen.keahlian || "").toLowerCase().includes("standby"));
 
-          // Jika bukan dosen standby, validasi keahlian dengan materi
-          if (
-            !isStandbyDosen &&
-            row.materi &&
-            row.materi !== "Kosong (isi manual)"
-          ) {
-            // Validasi keahlian dosen dengan materi (konsisten dengan Kuliah Besar)
-            const keahlianDosen = Array.isArray(dosen.keahlian)
-              ? dosen.keahlian
-              : (dosen.keahlian || "").split(",").map((k: string) => k.trim());
+              // Jika bukan dosen standby, validasi keahlian dengan materi
+              if (
+                !isStandbyDosen &&
+                row.materi &&
+                row.materi !== "Kosong (isi manual)"
+              ) {
+                // Validasi keahlian dosen dengan materi (konsisten dengan Kuliah Besar)
+                const keahlianDosen = Array.isArray(dosen.keahlian)
+                  ? dosen.keahlian
+                  : (dosen.keahlian || "").split(",").map((k: string) => k.trim());
 
-            if (!keahlianDosen.includes(row.materi)) {
-              cellErrors.push({
-                row: rowNumber,
-                field: "materi",
-                message: `Materi "${
-                  row.materi
-                }" tidak sesuai dengan keahlian dosen "${
-                  dosen.name
-                }". Keahlian dosen: ${keahlianDosen.join(
-                  ", "
-                )} (Baris ${rowNumber}, Kolom MATERI)`,
-              });
+                if (!keahlianDosen.includes(row.materi)) {
+                  cellErrors.push({
+                    row: rowNumber,
+                    field: "materi",
+                    message: `Materi "${
+                      row.materi
+                    }" tidak sesuai dengan keahlian dosen "${
+                      dosen.name
+                    }". Keahlian dosen: ${keahlianDosen.join(
+                      ", "
+                    )} (Baris ${rowNumber}, Kolom MATERI)`,
+                  });
+                }
+              }
             }
+          });
+          
+          // Validasi minimal 1 dosen valid
+          if (invalidDosenNames.length > 0) {
+            cellErrors.push({
+              row: rowNumber,
+              field: "dosen_id",
+              message: `Dosen tidak valid: "${invalidDosenNames.join(
+                ", "
+              )}". Pastikan semua nama dosen valid (Baris ${rowNumber}, Kolom DOSEN)`,
+            });
           }
-          // Dosen standby tidak perlu validasi keahlian
+          
+          if (validDosenIds.length === 0) {
+            cellErrors.push({
+              row: rowNumber,
+              field: "dosen_id",
+              message: `Dosen wajib diisi dengan minimal 1 dosen yang valid (Baris ${rowNumber}, Kolom DOSEN)`,
+            });
+          } else {
+            // Set dosen_ids untuk digunakan saat submit
+            (row as any).dosen_ids = validDosenIds;
+          }
         }
       }
 
@@ -7673,10 +7715,29 @@ export default function DetailBlok() {
               String(k.nama_kelompok).trim() === kelompokKecilName
           );
 
-          // Find dosen data
-          const dosenData = allDosenList?.find(
-            (d) => d.name.toLowerCase() === dosen.toLowerCase()
-          );
+          // Parse dosen names dengan backslash separator untuk support multiple dosen
+          // Gunakan backslash karena beberapa dosen memiliki gelar dengan koma (contoh: Gustiwanan spd, mpd, spg)
+          const parseDosenNames = (dosenStr: string) => {
+            if (!dosenStr || dosenStr.trim() === "") return [];
+            const dosenNames = dosenStr
+              .split("\\")
+              .map((n: string) => n.trim())
+              .filter((n: string) => n);
+            const dosenIds: number[] = [];
+            dosenNames.forEach((namaDosen: string) => {
+              const dosen = allDosenList?.find(
+                (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
+              );
+              if (dosen) {
+                dosenIds.push(dosen.id);
+              }
+            });
+            return dosenIds;
+          };
+
+          const dosenIds = parseDosenNames(dosen);
+          // Untuk backward compatibility, gunakan dosen pertama sebagai dosen_id
+          const dosenData = dosenIds.length > 0 ? allDosenList?.find((d) => d.id === dosenIds[0]) : null;
 
           // Find ruangan data
           const ruanganData = allRuanganList?.find(
@@ -7702,6 +7763,7 @@ export default function DetailBlok() {
               nama_kelompok: kelompokKecilData.nama_kelompok,
             } : null,
             dosen_id: dosenData?.id || 0,
+            dosen_ids: dosenIds,
             nama_dosen: dosen || dosenData?.name || "",
             ruangan_id: ruanganData?.id || 0,
             nama_ruangan: ruangan || ruanganData?.nama || "",
@@ -9159,15 +9221,35 @@ export default function DetailBlok() {
       // Transform data for API
       const apiData = currentData.map((row) => {
         // Untuk template SIAKAD, konversi nama ruangan/dosen ke ID
-        let dosenId = row.dosen_id;
+        let dosenIds: number[] = [];
         let ruanganId = row.ruangan_id;
 
+        // Gunakan dosen_ids jika sudah ada (dari parsing dengan backslash separator)
+        if ((row as any).dosen_ids && Array.isArray((row as any).dosen_ids) && (row as any).dosen_ids.length > 0) {
+          dosenIds = (row as any).dosen_ids;
+        } else {
+          // Fallback ke dosen_id (backward compatibility)
+          if (row.dosen_id) {
+            dosenIds = [row.dosen_id];
+          }
+        }
+
         if (selectedPraktikumTemplate === "SIAKAD") {
-          // Cari dosen berdasarkan nama
-          const dosen = pengampuPraktikumOptions.find(
-            (d) => d.name === row.nama_dosen
-          );
-          if (dosen) dosenId = dosen.id;
+          // Untuk SIAKAD, parse dosen dari nama_dosen dengan backslash separator
+          if (row.nama_dosen && row.nama_dosen.trim() !== "") {
+            const dosenNames = row.nama_dosen
+              .split("\\")
+              .map((n: string) => n.trim())
+              .filter((n: string) => n !== "");
+            
+            dosenIds = [];
+            dosenNames.forEach((namaDosen: string) => {
+              const dosen = pengampuPraktikumOptions.find(
+                (d) => d.name.toLowerCase() === namaDosen.toLowerCase()
+              );
+              if (dosen) dosenIds.push(dosen.id);
+            });
+          }
 
           // Cari ruangan berdasarkan nama
           const ruangan = ruanganList.find((r) => r.nama === row.nama_ruangan);
@@ -9193,7 +9275,8 @@ export default function DetailBlok() {
           materi: row.materi,
           topik: row.topik,
           kelompok_kecil_id: kelompokKecilId,
-          dosen_id: dosenId,
+          dosen_ids: dosenIds, // Gunakan dosen_ids (array) untuk multiple dosen
+          dosen_id: dosenIds.length > 0 ? dosenIds[0] : null, // Backward compatibility
           ruangan_id: ruanganId,
           jumlah_sesi: row.jumlah_sesi,
         };
@@ -10185,7 +10268,7 @@ export default function DetailBlok() {
       const contohDosen3 = assignedDosenPBL[2]?.name || "Dr. Bob Wilson";
       const contohKoordinator = contohDosen1; // Contoh koordinator
       const contohPengampu = contohDosen2
-        ? `${contohDosen2}, ${contohDosen3 || "Dr. Alice"}`
+        ? `${contohDosen2}\\${contohDosen3 || "Dr. Alice"}`
         : contohDosen2;
 
       // Data template - 1 dengan ruangan, 1 tanpa ruangan (online)
@@ -10286,7 +10369,7 @@ export default function DetailBlok() {
           "• Kolom Pengampu: Isi dengan nama dosen pengampu (wajib, minimal 1 dosen)",
         ],
         [
-          "• Untuk multi-select, pisahkan nama dosen dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)",
+          "• Untuk multi-select, pisahkan nama dosen dengan backslash \\(contoh: Dr. John Doe\\Dr. Jane Smith)",
         ],
         ["• Kolom Pengampu: Minimal 1 dosen harus dipilih"],
         [
@@ -10343,7 +10426,7 @@ export default function DetailBlok() {
         ["👨‍🏫 VALIDASI PENGAMPU:"],
         ["• Pengampu wajib diisi (minimal 1 dosen)"],
         [
-          "• Untuk multi-select, pisahkan dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)",
+          "• Untuk multi-select, pisahkan dengan backslash \\(contoh: Dr. John Doe\\Dr. Jane Smith)",
         ],
         [
           "• Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini",
@@ -10457,9 +10540,9 @@ export default function DetailBlok() {
           message: `Koordinator Dosen wajib diisi (Baris ${rowNumber}, Kolom Koordinator Dosen)`,
         });
       } else {
-        // Parse nama koordinator yang dipisahkan koma
+        // Parse nama koordinator yang dipisahkan dengan backslash (gunakan backslash karena beberapa dosen memiliki gelar dengan koma)
         const koordinatorNames = row.nama_koordinator
-          .split(",")
+          .split("\\")
           .map((name: string) => name.trim())
           .filter((name: string) => name.length > 0);
 
@@ -10513,9 +10596,9 @@ export default function DetailBlok() {
           message: `Pengampu wajib diisi, minimal 1 dosen (Baris ${rowNumber}, Kolom Pengampu)`,
         });
       } else {
-        // Parse nama dosen pengampu yang dipisahkan koma
+        // Parse nama dosen pengampu yang dipisahkan dengan backslash (gunakan backslash karena beberapa dosen memiliki gelar dengan koma)
         const pengampuNames = row.nama_dosen
-          .split(",")
+          .split("\\")
           .map((name: string) => name.trim())
           .filter((name: string) => name.length > 0);
 
@@ -10650,11 +10733,12 @@ export default function DetailBlok() {
         return time;
       };
 
-      // Helper function untuk parse multi-select dosen
+      // Helper function untuk parse multi-select dosen (gunakan backslash sebagai pemisah)
+      // Gunakan backslash karena beberapa dosen memiliki gelar dengan koma (contoh: Gustiwanan spd, mpd, spg)
       const parseDosenNames = (dosenStr: string) => {
         if (!dosenStr || dosenStr.trim() === "") return [];
         return dosenStr
-          .split(",")
+          .split("\\")
           .map((name) => name.trim())
           .filter((name) => name.length > 0);
       };
@@ -10770,10 +10854,10 @@ export default function DetailBlok() {
         row.use_ruangan = false; // Jika ruangan dikosongkan, berarti online
       }
     } else if (key === "koordinator_ids" || key === "nama_koordinator") {
-      // Handle edit koordinator (maksimal 1, wajib)
+      // Handle edit koordinator (maksimal 1, wajib) - gunakan backslash sebagai pemisah
       if (value && value.trim() !== "") {
         const koordinatorNames = value
-          .split(",")
+          .split("\\")
           .map((name: string) => name.trim())
           .filter((name: string) => name.length > 0);
         
@@ -10794,10 +10878,10 @@ export default function DetailBlok() {
         row.nama_koordinator = "";
       }
     } else if (key === "dosen_ids" || key === "nama_dosen") {
-      // Handle edit pengampu (multi-select, wajib)
+      // Handle edit pengampu (multi-select, wajib) - gunakan backslash sebagai pemisah
       if (value && value.trim() !== "") {
         const pengampuNames = value
-          .split(",")
+          .split("\\")
           .map((name: string) => name.trim())
           .filter((name: string) => name.length > 0);
         
@@ -11076,7 +11160,7 @@ export default function DetailBlok() {
           "• Kolom Koordinator Dosen wajib diisi (maksimal 1 orang). Isi dengan nama koordinator dosen (contoh: Dr. John Doe)",
         ],
         [
-          "• Kolom Pengampu wajib diisi (minimal 1 dosen). Untuk multi-select, pisahkan nama dosen dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)",
+          "• Kolom Pengampu wajib diisi (minimal 1 dosen). Untuk multi-select, pisahkan nama dosen dengan backslash \\(contoh: Dr. John Doe\\Dr. Jane Smith)",
         ],
         [
           "• ⚠️ PENTING: Dosen yang sama TIDAK BOLEH dipilih sebagai Koordinator Dosen dan Pengampu sekaligus",
@@ -11264,7 +11348,7 @@ export default function DetailBlok() {
           "• Kolom Pengampu: Isi dengan nama dosen pengampu (wajib, minimal 1 dosen)",
         ],
         [
-          "• Untuk multi-select, pisahkan nama dosen dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)",
+          "• Untuk multi-select, pisahkan nama dosen dengan backslash \\(contoh: Dr. John Doe\\Dr. Jane Smith)",
         ],
         ["• Kolom Pengampu: Minimal 1 dosen harus dipilih"],
         [
@@ -11321,7 +11405,7 @@ export default function DetailBlok() {
         ["👨‍🏫 VALIDASI PENGAMPU:"],
         ["• Pengampu wajib diisi (minimal 1 dosen)"],
         [
-          "• Untuk multi-select, pisahkan dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)",
+          "• Untuk multi-select, pisahkan dengan backslash \\(contoh: Dr. John Doe\\Dr. Jane Smith)",
         ],
         [
           "• Hanya boleh menggunakan dosen yang sudah di-assign untuk PBL mata kuliah ini",
@@ -11486,10 +11570,10 @@ export default function DetailBlok() {
         }
       }
 
-      // Validasi pengampu: cek apakah semua nama dosen valid
+      // Validasi pengampu: cek apakah semua nama dosen valid (gunakan backslash sebagai pemisah)
       if (row.pengampu && row.pengampu.trim() !== "") {
         const pengampuNames = row.pengampu
-          .split(",")
+          .split("\\")
           .map((n: string) => n.trim())
           .filter((n: string) => n !== "");
         const invalidPengampuNames: string[] = [];
@@ -11525,13 +11609,13 @@ export default function DetailBlok() {
         }
       }
 
-      // Validasi koordinator dan pengampu tidak boleh sama
+      // Validasi koordinator dan pengampu tidak boleh sama (gunakan backslash sebagai pemisah)
       if (row.koordinator && row.pengampu) {
         const koordinatorNames = row.koordinator
-          .split(",")
+          .split("\\")
           .map((n: string) => n.trim().toLowerCase());
         const pengampuNames = row.pengampu
-          .split(",")
+          .split("\\")
           .map((n: string) => n.trim().toLowerCase());
         const hasDuplicate = koordinatorNames.some((koord: string) =>
           pengampuNames.includes(koord)
@@ -11795,7 +11879,7 @@ export default function DetailBlok() {
           "• Kolom Koordinator Dosen wajib diisi (maksimal 1 orang). Isi dengan nama koordinator dosen (contoh: Dr. John Doe)",
         ],
         [
-          "• Kolom Pengampu wajib diisi (minimal 1 dosen). Untuk multi-select, pisahkan nama dosen dengan koma (contoh: Dr. John Doe, Dr. Jane Smith)",
+          "• Kolom Pengampu wajib diisi (minimal 1 dosen). Untuk multi-select, pisahkan nama dosen dengan backslash \\(contoh: Dr. John Doe\\Dr. Jane Smith)",
         ],
         [
           "• ⚠️ PENTING: Dosen yang sama TIDAK BOLEH dipilih sebagai Koordinator Dosen dan Pengampu sekaligus",
@@ -11937,11 +12021,11 @@ export default function DetailBlok() {
         const koordinatorStr = row[4]?.toString() || "";
         const pengampuStr = row[5]?.toString() || "";
 
-        // Helper untuk parse dosen names ke IDs
+        // Helper untuk parse dosen names ke IDs (gunakan backslash sebagai pemisah)
         const parseDosenNames = (dosenStr: string) => {
           if (!dosenStr || dosenStr.trim() === "") return [];
           const dosenNames = dosenStr
-            .split(",")
+            .split("\\")
             .map((n: string) => n.trim())
             .filter((n: string) => n);
           const dosenIds: number[] = [];
@@ -12142,11 +12226,11 @@ export default function DetailBlok() {
     const updatedData = [...seminarPlenoImportData];
     const row = updatedData[rowIndex];
 
-    // Handle mapping untuk koordinator
+    // Handle mapping untuk koordinator (gunakan backslash sebagai pemisah)
     if (key === "koordinator_ids" || key === "koordinator") {
       if (value && value.trim() !== "") {
         const koordinatorNames = value
-          .split(",")
+          .split("\\")
           .map((name: string) => name.trim())
           .filter((name: string) => name.length > 0);
         
@@ -12173,10 +12257,10 @@ export default function DetailBlok() {
         row.koordinator = "";
       }
     } else if (key === "dosen_ids" || key === "pengampu") {
-      // Handle mapping untuk pengampu
+      // Handle mapping untuk pengampu (gunakan backslash sebagai pemisah)
       if (value && value.trim() !== "") {
         const pengampuNames = value
-          .split(",")
+          .split("\\")
           .map((name: string) => name.trim())
           .filter((name: string) => name.length > 0);
         

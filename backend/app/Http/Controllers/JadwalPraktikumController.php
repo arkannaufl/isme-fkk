@@ -530,7 +530,7 @@ class JadwalPraktikumController extends Controller
 
         // Untuk praktikum, hitung mahasiswa berdasarkan kelompok kecil
         $kelompokKecil = \App\Models\KelompokKecil::find($data['kelompok_kecil_id']);
-        
+
         if (!$kelompokKecil) {
             return 'Kelompok kecil tidak ditemukan';
         }
@@ -730,7 +730,7 @@ class JadwalPraktikumController extends Controller
         $kelompokKecil = \App\Models\KelompokKecil::find($data['kelompok_kecil_id']);
         $jumlahMahasiswa = 0;
         $namaKelompok = 'Tidak diketahui';
-        
+
         if ($kelompokKecil) {
             $jumlahMahasiswa = \App\Models\KelompokKecil::where('nama_kelompok', $kelompokKecil->nama_kelompok)
                 ->where('semester', $kelompokKecil->semester)
@@ -1037,7 +1037,9 @@ class JadwalPraktikumController extends Controller
                 'data.*.materi' => 'required|string',
                 'data.*.topik' => 'required|string',
                 'data.*.kelompok_kecil_id' => 'required|exists:kelompok_kecil,id',
-                'data.*.dosen_id' => 'required|exists:users,id',
+                'data.*.dosen_id' => 'nullable|exists:users,id', // Backward compatibility
+                'data.*.dosen_ids' => 'nullable|array|min:1', // Support multiple dosen
+                'data.*.dosen_ids.*' => 'exists:users,id',
                 'data.*.ruangan_id' => 'required|exists:ruangan,id',
                 'data.*.jumlah_sesi' => 'nullable|integer|min:1|max:6',
                 // SIAKAD fields
@@ -1073,12 +1075,24 @@ class JadwalPraktikumController extends Controller
                     }
                 }
 
-                // Konversi dosen_id ke dosen_ids untuk validasi kapasitas ruangan
-                $rowForValidation = $row;
-                $rowForValidation['dosen_ids'] = [$row['dosen_id']];
+                // Handle dosen_ids: gunakan dosen_ids jika ada, jika tidak gunakan dosen_id (backward compatibility)
+                if (!isset($row['dosen_ids']) || empty($row['dosen_ids'])) {
+                    if (isset($row['dosen_id']) && $row['dosen_id']) {
+                        $row['dosen_ids'] = [$row['dosen_id']];
+                    } else {
+                        $errors[] = "Baris " . ($index + 1) . ": Dosen wajib diisi (minimal 1 dosen)";
+                        continue;
+                    }
+                }
+
+                // Validasi dosen_ids adalah array dan tidak kosong
+                if (!is_array($row['dosen_ids']) || empty($row['dosen_ids'])) {
+                    $errors[] = "Baris " . ($index + 1) . ": Dosen wajib diisi (minimal 1 dosen)";
+                    continue;
+                }
 
                 // Validasi kapasitas ruangan
-                $kapasitasMessage = $this->validateRuanganCapacity($rowForValidation);
+                $kapasitasMessage = $this->validateRuanganCapacity($row);
                 if ($kapasitasMessage) {
                     $errors[] = "Baris " . ($index + 1) . ": " . $kapasitasMessage;
                 }
@@ -1133,11 +1147,15 @@ class JadwalPraktikumController extends Controller
                     // Buat jadwal praktikum
                     $jadwal = JadwalPraktikum::create($jadwalData);
 
-                    // Attach dosen (praktikum menggunakan single dosen, bukan multiple)
-                    $jadwal->dosen()->attach($row['dosen_id']);
+                    // Sync dosen (support multiple dosen)
+                    // Gunakan dosen_ids jika ada, jika tidak gunakan dosen_id (backward compatibility)
+                    $dosenIdsForSync = $row['dosen_ids'] ?? (isset($row['dosen_id']) ? [$row['dosen_id']] : []);
+                    $jadwal->dosen()->sync($dosenIdsForSync);
 
-                    // Kirim notifikasi ke dosen
-                    $this->sendAssignmentNotification($jadwal, $row['dosen_id']);
+                    // Kirim notifikasi ke semua dosen yang di-assign
+                    foreach ($dosenIdsForSync as $dosenId) {
+                        $this->sendAssignmentNotification($jadwal, $dosenId);
+                    }
 
                     $importedData[] = $jadwal;
 
@@ -1363,7 +1381,7 @@ class JadwalPraktikumController extends Controller
                     'kelompok_kecil_id' => $jadwal->kelompok_kecil_id,
                     'mata_kuliah_kode' => $jadwal->mata_kuliah_kode
                 ]);
-                
+
                 return response()->json([
                     'message' => 'Kelompok kecil tidak ditemukan',
                     'mahasiswa' => []

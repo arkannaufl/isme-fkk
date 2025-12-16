@@ -632,15 +632,17 @@ export default function DetailNonBlokNonCSR() {
 
       // Template data untuk Seminar Proposal
       // Contoh data menggunakan nama mahasiswa untuk kemudahan membaca
+      // Komentator sekarang menggunakan 1 kolom dengan backslash separator (bukan 2 kolom terpisah)
       const templateData = [
-        ['Tanggal', 'Jam Mulai', 'Sesi', 'Pembimbing', 'Komentator 1', 'Komentator 2', 'Mahasiswa (Nama, dipisah koma)', 'Ruangan'],
+        ['Tanggal', 'Jam Mulai', 'Sesi', 'Pembimbing', 'Komentator', 'Mahasiswa (Nama, dipisah koma)', 'Ruangan'],
         [
           formatDateToISO(exampleDate1),
           '07.20',
           '2',
           dosenList[0]?.name || 'Dosen 1',
-          dosenList[1]?.name || 'Dosen 2',
-          dosenList[2]?.name || 'Dosen 3',
+          dosenList[1]?.name && dosenList[2]?.name 
+            ? `${dosenList[1].name}\\${dosenList[2].name}`
+            : dosenList[1]?.name || 'Dosen 2',
           mahasiswaList[0]?.name && mahasiswaList[1]?.name 
             ? `${mahasiswaList[0].name}, ${mahasiswaList[1].name}`
             : mahasiswaList[0]?.name 
@@ -698,14 +700,16 @@ export default function DetailNonBlokNonCSR() {
         ['• Jam Mulai: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
         ['• Sesi: 1-6 (1 sesi = 50 menit)'],
         ['• Pembimbing: Pilih 1 dosen dari daftar dosen yang tersedia'],
-        ['• Komentator: Pilih maksimal 2 dosen (Komentator 2 boleh dikosongkan)'],
+        ['• Komentator: Pilih minimal 1 dosen (bisa multiple dengan backslash separator)'],
+        ['• Untuk multiple komentator, pisahkan dengan backslash \\ (contoh: Dr. John Doe\\Dr. Jane Smith)'],
+        ['• Catatan: Gunakan backslash (bukan koma) karena beberapa dosen memiliki gelar dengan koma'],
         ['• Mahasiswa: Masukkan nama mahasiswa, dipisah koma jika lebih dari 1'],
         ['  Contoh: Nama Mahasiswa 1, Nama Mahasiswa 2'],
         ['• Ruangan: Pilih ruangan dari daftar ruangan yang tersedia (opsional)'],
         [''],
         ['⚠️ VALIDASI WAJIB:'],
         ['• Pembimbing: Wajib diisi (1 dosen)'],
-        ['• Komentator: Minimal 1, maksimal 2'],
+        ['• Komentator: Minimal 1 dosen (bisa multiple dengan backslash separator)'],
         ['• Mahasiswa: Minimal 1, tidak ada batasan maksimal'],
         ['• Ruangan: Opsional, tetapi jika diisi harus valid'],
         [''],
@@ -752,15 +756,17 @@ export default function DetailNonBlokNonCSR() {
 
       // Template data untuk Sidang Skripsi
       // Contoh data menggunakan nama mahasiswa untuk kemudahan membaca
+      // Penguji sekarang menggunakan 1 kolom dengan backslash separator (bukan 2 kolom terpisah)
       const templateData = [
-        ['Tanggal', 'Jam Mulai', 'Sesi', 'Pembimbing', 'Penguji 1', 'Penguji 2', 'Mahasiswa (Nama, dipisah koma)', 'Ruangan'],
+        ['Tanggal', 'Jam Mulai', 'Sesi', 'Pembimbing', 'Penguji', 'Mahasiswa (Nama, dipisah koma)', 'Ruangan'],
         [
           formatDateToISO(exampleDate1),
           '07.20',
           '2',
           dosenList[0]?.name || 'Dosen 1',
-          dosenList[1]?.name || 'Dosen 2',
-          dosenList[2]?.name || 'Dosen 3',
+          dosenList[1]?.name && dosenList[2]?.name 
+            ? `${dosenList[1].name}\\${dosenList[2].name}`
+            : dosenList[1]?.name || 'Dosen 2',
           mahasiswaList[0]?.name && mahasiswaList[1]?.name 
             ? `${mahasiswaList[0].name}, ${mahasiswaList[1].name}`
             : mahasiswaList[0]?.name 
@@ -818,14 +824,16 @@ export default function DetailNonBlokNonCSR() {
         ['• Jam Mulai: HH:MM atau HH.MM (contoh: 07:20 atau 07.20)'],
         ['• Sesi: 1-6 (1 sesi = 50 menit)'],
         ['• Pembimbing: Pilih 1 dosen dari daftar dosen yang tersedia'],
-        ['• Penguji: Pilih maksimal 2 dosen (Penguji 2 boleh dikosongkan)'],
+        ['• Penguji: Pilih minimal 1 dosen (bisa multiple dengan backslash separator)'],
+        ['• Untuk multiple penguji, pisahkan dengan backslash \\ (contoh: Dr. John Doe\\Dr. Jane Smith)'],
+        ['• Catatan: Gunakan backslash (bukan koma) karena beberapa dosen memiliki gelar dengan koma'],
         ['• Mahasiswa: Masukkan nama mahasiswa, dipisah koma jika lebih dari 1'],
         ['  Contoh: Nama Mahasiswa 1, Nama Mahasiswa 2'],
         ['• Ruangan: Pilih ruangan dari daftar ruangan yang tersedia (opsional)'],
         [''],
         ['⚠️ VALIDASI WAJIB:'],
         ['• Pembimbing: Wajib diisi (1 dosen)'],
-        ['• Penguji: Minimal 1, maksimal 2'],
+        ['• Penguji: Minimal 1 dosen (bisa multiple dengan backslash separator)'],
         ['• Mahasiswa: Minimal 1, tidak ada batasan maksimal'],
         ['• Ruangan: Opsional, tetapi jika diisi harus valid'],
         [''],
@@ -1097,24 +1105,24 @@ export default function DetailNonBlokNonCSR() {
         }
 
         // Validasi komentator
-        // Parse nama_komentator - bisa berupa string (setelah edit) atau array (dari parsing Excel)
-        let komentatorNames: string[] = [];
-        if (row.nama_komentator) {
-          if (typeof row.nama_komentator === 'string') {
-            komentatorNames = (row.nama_komentator as string).split(',').map((n: string) => n.trim()).filter(Boolean);
-          } else if (Array.isArray(row.nama_komentator)) {
-            komentatorNames = row.nama_komentator as string[];
-          }
-        }
-        
-        if (komentatorNames.length === 0) {
+        // Parse nama_komentator - gunakan backslash sebagai pemisah karena beberapa dosen memiliki gelar dengan koma
+        const namaKomentator = row.nama_komentator || '';
+        if (!namaKomentator || (typeof namaKomentator === 'string' && namaKomentator.trim() === '')) {
           errors.push({ row: rowNum, field: 'komentator_ids', message: `Komentator wajib diisi minimal 1 (Baris ${rowNum}, Kolom Komentator)` });
-        } else if (komentatorNames.length > 2) {
-          errors.push({ row: rowNum, field: 'komentator_ids', message: `Komentator maksimal 2 (Baris ${rowNum}, Kolom Komentator)` });
         } else {
-          const komentatorIds: number[] = [];
-          komentatorNames.forEach((nama: string, idx: number) => {
-            if (nama && nama.trim() !== '') {
+          // Parse dosen names dengan backslash separator
+          const komentatorNames = (typeof namaKomentator === 'string' ? namaKomentator : String(namaKomentator))
+            .split('\\')
+            .map((n: string) => n.trim())
+            .filter((n: string) => n !== '');
+          
+          if (komentatorNames.length === 0) {
+            errors.push({ row: rowNum, field: 'komentator_ids', message: `Komentator wajib diisi minimal 1 (Baris ${rowNum}, Kolom Komentator)` });
+          } else {
+            const komentatorIds: number[] = [];
+            const invalidKomentatorNames: string[] = [];
+            
+            komentatorNames.forEach((nama: string) => {
               const komentatorOption = dosenList.find(d => 
                 d.name.toLowerCase() === nama.toLowerCase() || 
                 `${d.name} (${d.nid})`.toLowerCase() === nama.toLowerCase() ||
@@ -1122,18 +1130,26 @@ export default function DetailNonBlokNonCSR() {
                 d.id.toString() === nama
               );
               if (!komentatorOption) {
-                errors.push({ row: rowNum, field: 'komentator_ids', message: `Komentator "${nama}" tidak ditemukan (Baris ${rowNum}, Kolom Komentator ${idx + 1})` });
+                invalidKomentatorNames.push(nama);
               } else {
                 komentatorIds.push(komentatorOption.id);
               }
+            });
+            
+            if (invalidKomentatorNames.length > 0) {
+              errors.push({ row: rowNum, field: 'komentator_ids', message: `Komentator tidak valid: "${invalidKomentatorNames.join(', ')}". Pastikan semua nama komentator valid (Baris ${rowNum}, Kolom Komentator)` });
             }
-          });
-          if (komentatorIds.length > 0 && (!row.komentator_ids || row.komentator_ids.length === 0)) {
-            (row as any).komentator_ids = komentatorIds;
-            // Validasi: Cek apakah ada dosen yang sama di pembimbing dan komentator
-            if (row.pembimbing_id && komentatorIds.includes(row.pembimbing_id)) {
-              const pembimbingName = dosenList.find(d => d.id === row.pembimbing_id)?.name || 'N/A';
-              errors.push({ row: rowNum, field: 'komentator_ids', message: `Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Komentator: ${pembimbingName} (Baris ${rowNum}, Kolom Komentator)` });
+            
+            if (komentatorIds.length === 0) {
+              errors.push({ row: rowNum, field: 'komentator_ids', message: `Komentator wajib diisi dengan minimal 1 komentator yang valid (Baris ${rowNum}, Kolom Komentator)` });
+            } else {
+              // Set komentator_ids untuk digunakan saat submit
+              (row as any).komentator_ids = komentatorIds;
+              // Validasi: Cek apakah ada dosen yang sama di pembimbing dan komentator
+              if (row.pembimbing_id && komentatorIds.includes(row.pembimbing_id)) {
+                const pembimbingName = dosenList.find(d => d.id === row.pembimbing_id)?.name || 'N/A';
+                errors.push({ row: rowNum, field: 'komentator_ids', message: `Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Komentator: ${pembimbingName} (Baris ${rowNum}, Kolom Komentator)` });
+              }
             }
           }
         }
@@ -1210,24 +1226,24 @@ export default function DetailNonBlokNonCSR() {
         }
 
         // Validasi penguji
-        // Parse nama_penguji - bisa berupa string (setelah edit) atau array (dari parsing Excel)
-        let pengujiNames: string[] = [];
-        if (row.nama_penguji) {
-          if (typeof row.nama_penguji === 'string') {
-            pengujiNames = (row.nama_penguji as string).split(',').map((n: string) => n.trim()).filter(Boolean);
-          } else if (Array.isArray(row.nama_penguji)) {
-            pengujiNames = row.nama_penguji as string[];
-          }
-        }
-        
-        if (pengujiNames.length === 0) {
+        // Parse nama_penguji - gunakan backslash sebagai pemisah karena beberapa dosen memiliki gelar dengan koma
+        const namaPenguji = row.nama_penguji || '';
+        if (!namaPenguji || (typeof namaPenguji === 'string' && namaPenguji.trim() === '')) {
           errors.push({ row: rowNum, field: 'penguji_ids', message: `Penguji wajib diisi minimal 1 (Baris ${rowNum}, Kolom Penguji)` });
-        } else if (pengujiNames.length > 2) {
-          errors.push({ row: rowNum, field: 'penguji_ids', message: `Penguji maksimal 2 (Baris ${rowNum}, Kolom Penguji)` });
         } else {
-          const pengujiIds: number[] = [];
-          pengujiNames.forEach((nama: string, idx: number) => {
-            if (nama && nama.trim() !== '') {
+          // Parse dosen names dengan backslash separator
+          const pengujiNames = (typeof namaPenguji === 'string' ? namaPenguji : String(namaPenguji))
+            .split('\\')
+            .map((n: string) => n.trim())
+            .filter((n: string) => n !== '');
+          
+          if (pengujiNames.length === 0) {
+            errors.push({ row: rowNum, field: 'penguji_ids', message: `Penguji wajib diisi minimal 1 (Baris ${rowNum}, Kolom Penguji)` });
+          } else {
+            const pengujiIds: number[] = [];
+            const invalidPengujiNames: string[] = [];
+            
+            pengujiNames.forEach((nama: string) => {
               const pengujiOption = dosenList.find(d => 
                 d.name.toLowerCase() === nama.toLowerCase() || 
                 `${d.name} (${d.nid})`.toLowerCase() === nama.toLowerCase() ||
@@ -1235,18 +1251,26 @@ export default function DetailNonBlokNonCSR() {
                 d.id.toString() === nama
               );
               if (!pengujiOption) {
-                errors.push({ row: rowNum, field: 'penguji_ids', message: `Penguji "${nama}" tidak ditemukan (Baris ${rowNum}, Kolom Penguji ${idx + 1})` });
+                invalidPengujiNames.push(nama);
               } else {
                 pengujiIds.push(pengujiOption.id);
               }
+            });
+            
+            if (invalidPengujiNames.length > 0) {
+              errors.push({ row: rowNum, field: 'penguji_ids', message: `Penguji tidak valid: "${invalidPengujiNames.join(', ')}". Pastikan semua nama penguji valid (Baris ${rowNum}, Kolom Penguji)` });
             }
-          });
-          if (pengujiIds.length > 0 && (!row.penguji_ids || row.penguji_ids.length === 0)) {
-            (row as any).penguji_ids = pengujiIds;
-            // Validasi: Cek apakah ada dosen yang sama di pembimbing dan penguji
-            if (row.pembimbing_id && pengujiIds.includes(row.pembimbing_id)) {
-              const pembimbingName = dosenList.find(d => d.id === row.pembimbing_id)?.name || 'N/A';
-              errors.push({ row: rowNum, field: 'penguji_ids', message: `Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Penguji: ${pembimbingName} (Baris ${rowNum}, Kolom Penguji)` });
+            
+            if (pengujiIds.length === 0) {
+              errors.push({ row: rowNum, field: 'penguji_ids', message: `Penguji wajib diisi dengan minimal 1 penguji yang valid (Baris ${rowNum}, Kolom Penguji)` });
+            } else {
+              // Set penguji_ids untuk digunakan saat submit
+              (row as any).penguji_ids = pengujiIds;
+              // Validasi: Cek apakah ada dosen yang sama di pembimbing dan penguji
+              if (row.pembimbing_id && pengujiIds.includes(row.pembimbing_id)) {
+                const pembimbingName = dosenList.find(d => d.id === row.pembimbing_id)?.name || 'N/A';
+                errors.push({ row: rowNum, field: 'penguji_ids', message: `Dosen yang sama tidak boleh dipilih sebagai Pembimbing dan Penguji: ${pembimbingName} (Baris ${rowNum}, Kolom Penguji)` });
+              }
             }
           }
         }
@@ -1753,7 +1777,8 @@ export default function DetailNonBlokNonCSR() {
       const { headers, data: excelData } = await readNonBlokExcelFile(file);
       
       // Validate headers untuk Seminar Proposal (menerima header dengan NIM atau Nama)
-      const expectedHeaders = ['Tanggal', 'Jam Mulai', 'Sesi', 'Pembimbing', 'Komentator 1', 'Komentator 2', 'Ruangan'];
+      // Komentator sekarang menggunakan 1 kolom saja (bukan 2 kolom terpisah)
+      const expectedHeaders = ['Tanggal', 'Jam Mulai', 'Sesi', 'Pembimbing', 'Komentator', 'Ruangan'];
       const mahasiswaHeader = headers.find(h => h.toLowerCase().includes('mahasiswa'));
       const headerMatch = expectedHeaders.every(header => headers.includes(header)) && mahasiswaHeader !== undefined;
       
@@ -1771,10 +1796,9 @@ export default function DetailNonBlokNonCSR() {
         const jumlahSesi = parseInt(row[2]) || 0;
         const jamSelesai = hitungJamSelesai(jamMulai, jumlahSesi);
         const namaPembimbing = row[3] || '';
-        const namaKomentator1 = row[4] || '';
-        const namaKomentator2 = row[5] || '';
-        const mahasiswaNims = row[6] || '';
-        const namaRuangan = row[7] || '';
+        const namaKomentator = row[4] || ''; // Sekarang 1 kolom saja (bukan 2 kolom terpisah)
+        const mahasiswaNims = row[5] || ''; // Index bergeser karena komentator jadi 1 kolom
+        const namaRuangan = row[6] || ''; // Index bergeser
 
         // Find pembimbing
         const pembimbing = dosenList.find(d => 
@@ -1783,22 +1807,29 @@ export default function DetailNonBlokNonCSR() {
         );
         const pembimbingId = pembimbing?.id || null;
 
-        // Find komentator
-        const komentatorIds: number[] = [];
-        if (namaKomentator1) {
-          const komentator1 = dosenList.find(d => 
-            d.name.toLowerCase() === namaKomentator1.toLowerCase() || 
-            d.id.toString() === namaKomentator1
-          );
-          if (komentator1) komentatorIds.push(komentator1.id);
-        }
-        if (namaKomentator2) {
-          const komentator2 = dosenList.find(d => 
-            d.name.toLowerCase() === namaKomentator2.toLowerCase() || 
-            d.id.toString() === namaKomentator2
-          );
-          if (komentator2) komentatorIds.push(komentator2.id);
-        }
+        // Helper untuk parse dosen names ke IDs (gunakan backslash sebagai pemisah)
+        // Gunakan backslash karena beberapa dosen memiliki gelar dengan koma (contoh: Gustiwanan spd, mpd, spg)
+        const parseDosenNames = (dosenStr: string) => {
+          if (!dosenStr || dosenStr.trim() === "") return [];
+          const dosenNames = dosenStr
+            .split("\\")
+            .map((n: string) => n.trim())
+            .filter((n: string) => n);
+          const dosenIds: number[] = [];
+          dosenNames.forEach((namaDosen: string) => {
+            const dosen = dosenList.find(
+              (d) => d.name.toLowerCase() === namaDosen.toLowerCase() || 
+                     d.id.toString() === namaDosen
+            );
+            if (dosen) {
+              dosenIds.push(dosen.id);
+            }
+          });
+          return dosenIds;
+        };
+
+        // Parse komentator (bisa multiple dengan backslash separator)
+        const komentatorIds = parseDosenNames(namaKomentator);
 
         // Parse mahasiswa - bisa berupa nama atau NIM (dipisah koma)
         // Coba cari berdasarkan nama dulu, jika tidak ditemukan coba sebagai NIM
@@ -1835,7 +1866,7 @@ export default function DetailNonBlokNonCSR() {
           pembimbing_id: pembimbingId,
           nama_pembimbing: namaPembimbing,
           komentator_ids: komentatorIds,
-          nama_komentator: [namaKomentator1, namaKomentator2].filter(Boolean),
+          nama_komentator: namaKomentator, // Sekarang string saja, bukan array
           mahasiswa_nims: mahasiswaNimsArray,
           nama_mahasiswa: mahasiswaNimsArray,
           ruangan_id: ruanganId,
@@ -1988,7 +2019,8 @@ export default function DetailNonBlokNonCSR() {
       const { headers, data: excelData } = await readNonBlokExcelFile(file);
       
       // Validate headers untuk Sidang Skripsi (menerima header dengan NIM atau Nama)
-      const expectedHeaders = ['Tanggal', 'Jam Mulai', 'Sesi', 'Pembimbing', 'Penguji 1', 'Penguji 2', 'Ruangan'];
+      // Penguji sekarang menggunakan 1 kolom saja (bukan 2 kolom terpisah)
+      const expectedHeaders = ['Tanggal', 'Jam Mulai', 'Sesi', 'Pembimbing', 'Penguji', 'Ruangan'];
       const mahasiswaHeader = headers.find(h => h.toLowerCase().includes('mahasiswa'));
       const headerMatch = expectedHeaders.every(header => headers.includes(header)) && mahasiswaHeader !== undefined;
       
@@ -2006,10 +2038,9 @@ export default function DetailNonBlokNonCSR() {
         const jumlahSesi = parseInt(row[2]) || 0;
         const jamSelesai = hitungJamSelesai(jamMulai, jumlahSesi);
         const namaPembimbing = row[3] || '';
-        const namaPenguji1 = row[4] || '';
-        const namaPenguji2 = row[5] || '';
-        const mahasiswaNims = row[6] || '';
-        const namaRuangan = row[7] || '';
+        const namaPenguji = row[4] || ''; // Sekarang 1 kolom saja (bukan 2 kolom terpisah)
+        const mahasiswaNims = row[5] || ''; // Index bergeser karena penguji jadi 1 kolom
+        const namaRuangan = row[6] || ''; // Index bergeser
 
         // Find pembimbing
         const pembimbing = dosenList.find(d => 
@@ -2018,22 +2049,29 @@ export default function DetailNonBlokNonCSR() {
         );
         const pembimbingId = pembimbing?.id || null;
 
-        // Find penguji
-        const pengujiIds: number[] = [];
-        if (namaPenguji1) {
-          const penguji1 = dosenList.find(d => 
-            d.name.toLowerCase() === namaPenguji1.toLowerCase() || 
-            d.id.toString() === namaPenguji1
-          );
-          if (penguji1) pengujiIds.push(penguji1.id);
-        }
-        if (namaPenguji2) {
-          const penguji2 = dosenList.find(d => 
-            d.name.toLowerCase() === namaPenguji2.toLowerCase() || 
-            d.id.toString() === namaPenguji2
-          );
-          if (penguji2) pengujiIds.push(penguji2.id);
-        }
+        // Helper untuk parse dosen names ke IDs (gunakan backslash sebagai pemisah)
+        // Gunakan backslash karena beberapa dosen memiliki gelar dengan koma (contoh: Gustiwanan spd, mpd, spg)
+        const parseDosenNames = (dosenStr: string) => {
+          if (!dosenStr || dosenStr.trim() === "") return [];
+          const dosenNames = dosenStr
+            .split("\\")
+            .map((n: string) => n.trim())
+            .filter((n: string) => n);
+          const dosenIds: number[] = [];
+          dosenNames.forEach((namaDosen: string) => {
+            const dosen = dosenList.find(
+              (d) => d.name.toLowerCase() === namaDosen.toLowerCase() || 
+                     d.id.toString() === namaDosen
+            );
+            if (dosen) {
+              dosenIds.push(dosen.id);
+            }
+          });
+          return dosenIds;
+        };
+
+        // Parse penguji (bisa multiple dengan backslash separator)
+        const pengujiIds = parseDosenNames(namaPenguji);
 
         // Parse mahasiswa - bisa berupa nama atau NIM (dipisah koma)
         // Coba cari berdasarkan nama dulu, jika tidak ditemukan coba sebagai NIM
@@ -2070,7 +2108,7 @@ export default function DetailNonBlokNonCSR() {
           pembimbing_id: pembimbingId,
           nama_pembimbing: namaPembimbing,
           penguji_ids: pengujiIds,
-          nama_penguji: [namaPenguji1, namaPenguji2].filter(Boolean),
+          nama_penguji: namaPenguji, // Sekarang string saja, bukan array
           mahasiswa_nims: mahasiswaNimsArray,
           nama_mahasiswa: mahasiswaNimsArray,
           ruangan_id: ruanganId,
@@ -2813,9 +2851,9 @@ export default function DetailNonBlokNonCSR() {
         }
       }
     } else if (field === 'nama_penguji') {
-      // Parse string menjadi array untuk validasi
+      // Parse string dengan backslash separator (gunakan backslash karena beberapa dosen memiliki gelar dengan koma)
       const pengujiNames = typeof value === 'string' 
-        ? value.split(',').map((n: string) => n.trim()).filter(Boolean)
+        ? value.split('\\').map((n: string) => n.trim()).filter(Boolean)
         : (Array.isArray(value) ? value : []);
       
       // Update penguji_ids berdasarkan nama yang valid
@@ -9854,12 +9892,15 @@ export default function DetailNonBlokNonCSR() {
                                         const field = 'nama_komentator';
                                         const isEditing = seminarEditingCell?.row === actualIndex && seminarEditingCell?.key === field;
                                         const cellError = seminarCellErrors.find(err => err.row === actualIndex + 1 && err.field === 'komentator_ids');
-                                        const komentatorNames = row.komentator_ids && row.komentator_ids.length > 0
-                                          ? row.komentator_ids.map((id: number) => {
-                                              const dosen = dosenList.find(d => d.id === id);
-                                              return dosen?.name || '';
-                                            }).filter(Boolean).join(', ')
-                                          : '';
+                                        // Tampilkan komentator dengan backslash separator (konsisten dengan format edit)
+                                        const komentatorNames = row.nama_komentator 
+                                          ? (typeof row.nama_komentator === 'string' ? row.nama_komentator : '')
+                                          : (row.komentator_ids && row.komentator_ids.length > 0
+                                              ? row.komentator_ids.map((id: number) => {
+                                                  const dosen = dosenList.find(d => d.id === id);
+                                                  return dosen?.name || '';
+                                                }).filter(Boolean).join('\\')
+                                              : '');
                                         
                                         return (
                                           <td
@@ -9871,7 +9912,7 @@ export default function DetailNonBlokNonCSR() {
                                               <input
                                                 className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
                                                 type="text"
-                                                value={typeof row.nama_komentator === 'string' ? row.nama_komentator : (Array.isArray(row.nama_komentator) ? row.nama_komentator.join(', ') : "")}
+                                                value={typeof row.nama_komentator === 'string' ? row.nama_komentator : (komentatorNames || "")}
                                                 onChange={e => handleSeminarEditCell(actualIndex, field, e.target.value)}
                                                 onBlur={handleSeminarFinishEdit}
                                                 onKeyDown={e => {
@@ -9886,7 +9927,7 @@ export default function DetailNonBlokNonCSR() {
                                               />
                                             ) : (
                                               <span className={cellError ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
-                                                {komentatorNames || (typeof row.nama_komentator === 'string' ? row.nama_komentator : (Array.isArray(row.nama_komentator) ? row.nama_komentator.join(', ') : 'Tidak ditemukan'))}
+                                                {komentatorNames || 'Tidak ditemukan'}
                                               </span>
                                             )}
                                           </td>
@@ -10629,12 +10670,18 @@ export default function DetailNonBlokNonCSR() {
                                         const field = 'nama_penguji';
                                         const isEditing = sidangEditingCell?.row === actualIndex && sidangEditingCell?.key === field;
                                         const cellError = sidangCellErrors.find(err => err.row === actualIndex + 1 && err.field === 'penguji_ids');
-                                        const pengujiNames = row.penguji_ids && row.penguji_ids.length > 0
-                                          ? row.penguji_ids.map((id: number) => {
-                                              const dosen = dosenList.find(d => d.id === id);
-                                              return dosen?.name || '';
-                                            }).filter(Boolean).join(', ')
-                                          : '';
+                                        
+                                        // Tampilkan penguji names dengan backslash separator (bukan koma)
+                                        // Jika ada nama_penguji (string), gunakan itu. Jika tidak, buat dari penguji_ids
+                                        let pengujiNames = '';
+                                        if (row.nama_penguji && typeof row.nama_penguji === 'string') {
+                                          pengujiNames = row.nama_penguji;
+                                        } else if (row.penguji_ids && row.penguji_ids.length > 0) {
+                                          pengujiNames = row.penguji_ids.map((id: number) => {
+                                            const dosen = dosenList.find(d => d.id === id);
+                                            return dosen?.name || '';
+                                          }).filter(Boolean).join('\\');
+                                        }
                                         
                                         return (
                                           <td
@@ -10646,7 +10693,7 @@ export default function DetailNonBlokNonCSR() {
                                               <input
                                                 className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
                                                 type="text"
-                                                value={typeof row.nama_penguji === 'string' ? row.nama_penguji : (Array.isArray(row.nama_penguji) ? row.nama_penguji.join(', ') : "")}
+                                                value={typeof row.nama_penguji === 'string' ? row.nama_penguji : (pengujiNames || "")}
                                                 onChange={e => handleSidangEditCell(actualIndex, field, e.target.value)}
                                                 onBlur={handleSidangFinishEdit}
                                                 onKeyDown={e => {
@@ -10661,7 +10708,7 @@ export default function DetailNonBlokNonCSR() {
                                               />
                                             ) : (
                                               <span className={cellError ? 'text-red-500' : 'text-gray-800 dark:text-white/90'}>
-                                                {pengujiNames || (typeof row.nama_penguji === 'string' ? row.nama_penguji : (Array.isArray(row.nama_penguji) ? row.nama_penguji.join(', ') : 'Tidak ditemukan'))}
+                                                {pengujiNames || 'Tidak ditemukan'}
                                               </span>
                                             )}
                                           </td>
