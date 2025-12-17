@@ -1806,8 +1806,35 @@ export default function DetailBlok() {
 
       const namaKelompok = row.kelompok_kecil?.nama_kelompok || "";
 
+      // Format tanggal ke YYYY-MM-DD untuk input date
+      let tanggalFormatted = "";
+      if (row.tanggal) {
+        // Jika sudah format YYYY-MM-DD, gunakan langsung
+        if (/^\d{4}-\d{2}-\d{2}$/.test(row.tanggal)) {
+          tanggalFormatted = row.tanggal;
+        } else {
+          // Coba parse tanggal dari berbagai format
+          try {
+            const dateObj = new Date(row.tanggal);
+            if (!isNaN(dateObj.getTime())) {
+              tanggalFormatted = dateObj.toISOString().split("T")[0];
+            }
+          } catch (e) {
+            // Jika gagal parse, coba format dari string "Hari, DD/MM/YYYY"
+            const tglStr = row.tanggal.split(", ")[1] || row.tanggal;
+            if (tglStr && /^\d{4}-\d{2}-\d{2}$/.test(tglStr)) {
+              tanggalFormatted = tglStr;
+            } else if (tglStr && /^\d{2}\/\d{2}\/\d{4}$/.test(tglStr)) {
+              // Format DD/MM/YYYY
+              const [day, month, year] = tglStr.split("/");
+              tanggalFormatted = `${year}-${month}-${day}`;
+            }
+          }
+        }
+      }
+
       setForm({
-        hariTanggal: row.tanggal, // Gunakan tanggal langsung dari backend
+        hariTanggal: tanggalFormatted, // Gunakan tanggal yang sudah diformat
 
         jamMulai: String(row.jam_mulai || ""),
 

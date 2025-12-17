@@ -13,6 +13,7 @@ use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 
 class JadwalPBLController extends Controller
 {
@@ -46,7 +47,7 @@ class JadwalPBLController extends Controller
     public function store(Request $request, $kode)
     {
         // Debug logging untuk data yang diterima
-        \Log::info("Jadwal PBL store request data:", $request->all());
+        Log::info("Jadwal PBL store request data:", $request->all());
 
         $data = $request->validate([
             'modul_pbl_id' => 'required|exists:pbls,id',
@@ -131,7 +132,7 @@ class JadwalPBLController extends Controller
             ->log("Jadwal PBL created: {$jadwal->modulPBL->nama}");
 
         // Debug logging
-        \Log::info("Jadwal PBL created with pbl_tipe: {$jadwal->pbl_tipe}, modul: {$jadwal->modulPBL->nama_modul}");
+        Log::info("Jadwal PBL created with pbl_tipe: {$jadwal->pbl_tipe}, modul: {$jadwal->modulPBL->nama_modul}");
 
         // Load relasi dan tambahkan modul_pbl_id
         $jadwal->load(['modulPBL', 'kelompokKecil', 'kelompokKecilAntara', 'dosen', 'ruangan']);
@@ -179,10 +180,10 @@ class JadwalPBLController extends Controller
                             'dosen_id' => $dosen->id,
                             'dosen_name' => $dosen->name,
                             'dosen_role' => $dosen->role,
-                            'created_by' => auth()->user()->name ?? 'Admin',
-                            'created_by_role' => auth()->user()->role ?? 'admin',
-                            'sender_name' => auth()->user()->name ?? 'Admin',
-                            'sender_role' => auth()->user()->role ?? 'admin'
+                            'created_by' => Auth::user()?->name ?? 'Admin',
+                            'created_by_role' => Auth::user()?->role ?? 'admin',
+                            'sender_name' => Auth::user()?->name ?? 'Admin',
+                            'sender_role' => Auth::user()?->role ?? 'admin'
                         ]
                     ]);
                 }
@@ -211,10 +212,10 @@ class JadwalPBLController extends Controller
                         'dosen_id' => $dosen->id,
                         'dosen_name' => $dosen->name,
                         'dosen_role' => $dosen->role,
-                        'created_by' => auth()->user()->name ?? 'Admin',
-                        'created_by_role' => auth()->user()->role ?? 'admin',
-                        'sender_name' => auth()->user()->name ?? 'Admin',
-                        'sender_role' => auth()->user()->role ?? 'admin'
+                        'created_by' => Auth::user()?->name ?? 'Admin',
+                        'created_by_role' => Auth::user()?->role ?? 'admin',
+                        'sender_name' => Auth::user()?->name ?? 'Admin',
+                        'sender_role' => Auth::user()?->role ?? 'admin'
                     ]
                 ]);
             }
@@ -279,9 +280,9 @@ class JadwalPBLController extends Controller
         if (!isset($data['kelompok_kecil_id']) && !isset($data['kelompok_kecil_antara_id'])) {
             $data['kelompok_kecil_id'] = null;
         }
-        
+
         // Log untuk debugging
-        \Log::info('Jadwal PBL Update - Request data:', [
+        Log::info('Jadwal PBL Update - Request data:', [
             'kelompok_kecil_id' => $data['kelompok_kecil_id'] ?? 'not set',
             'kelompok_kecil_antara_id' => $data['kelompok_kecil_antara_id'] ?? 'not set',
         ]);
@@ -311,10 +312,10 @@ class JadwalPBLController extends Controller
         $jadwal->resetPenilaianSubmitted();
 
         $jadwal->update($data);
-        
+
         // Log untuk debugging - pastikan data tersimpan dengan benar
         $jadwal->refresh();
-        \Log::info('Jadwal PBL Update - After save:', [
+        Log::info('Jadwal PBL Update - After save:', [
             'id' => $jadwal->id,
             'kelompok_kecil_id' => $jadwal->kelompok_kecil_id,
             'kelompok_kecil_antara_id' => $jadwal->kelompok_kecil_antara_id,
@@ -429,11 +430,23 @@ class JadwalPBLController extends Controller
                     $errors[] = "Baris " . ($index + 1) . ": " . $kapasitasMessage;
                 }
 
-                // Validasi bentrok
+                // Validasi bentrok dengan data yang sudah ada di database
                 $row['mata_kuliah_kode'] = $kode;
                 $bentrokMessage = $this->checkBentrokWithDetail($row, null);
                 if ($bentrokMessage) {
                     $errors[] = "Baris " . ($index + 1) . ": " . $bentrokMessage;
+                }
+
+                // Validasi bentrok antar data yang sedang di-import
+                for ($j = 0; $j < $index; $j++) {
+                    $previousData = $data['data'][$j];
+                    if ($this->isDataBentrok($row, $previousData)) {
+                        $dosenName = isset($row['dosen_id']) ? (\App\Models\User::find($row['dosen_id'])->name ?? 'N/A') : 'N/A';
+                        $ruanganName = isset($row['ruangan_id']) ? (\App\Models\Ruangan::find($row['ruangan_id'])->nama ?? 'N/A') : 'N/A';
+                        $kelompokName = isset($row['kelompok_kecil_id']) ? (\App\Models\KelompokKecil::find($row['kelompok_kecil_id'])->nama_kelompok ?? 'N/A') : 'N/A';
+                        $errors[] = "Baris " . ($index + 1) . ": Jadwal bentrok dengan data pada baris " . ($j + 1) . " (Dosen: {$dosenName}, Ruangan: {$ruanganName}, Kelompok: {$kelompokName})";
+                        break;
+                    }
                 }
 
                 // Validasi tanggal dalam rentang mata kuliah
@@ -563,7 +576,7 @@ class JadwalPBLController extends Controller
             // 1. dosen_id = $dosenId (dosen aktif saat ini)
             // 2. ATAU $dosenId ada di dosen_ids (dosen lama/history)
             // Filter semester_type harus diterapkan ke kedua kondisi
-            
+
             // Gunakan Eloquent untuk query yang lebih reliable
             $jadwalQuery = JadwalPBL::with([
                 'modulPBL.mataKuliah',
@@ -575,7 +588,7 @@ class JadwalPBLController extends Controller
             ->where(function ($query) use ($dosenId, $semesterType) {
                 // Kondisi 1: Dosen aktif (dosen_id = $dosenId)
                     $query->where('dosen_id', $dosenId);
-                
+
                 // Filter semester_type untuk kondisi 1
                 if ($semesterType && $semesterType !== 'all') {
                     if ($semesterType === 'reguler') {
@@ -598,7 +611,7 @@ class JadwalPBLController extends Controller
                             ->orWhereRaw('CAST(dosen_ids AS CHAR) LIKE ?', ['%"' . $dosenId . '"%'])
                             ->orWhereRaw('CAST(dosen_ids AS CHAR) LIKE ?', ['%' . $dosenId . '%']);
                     });
-                
+
                 // Filter semester_type untuk kondisi 2
             if ($semesterType && $semesterType !== 'all') {
                 if ($semesterType === 'reguler') {
@@ -613,7 +626,7 @@ class JadwalPBLController extends Controller
 
             // Get all jadwal
             $jadwal = $jadwalQuery->get();
-            
+
             // Fallback: Jika tidak ada hasil, coba ambil semua jadwal dan filter di PHP
             if ($jadwal->isEmpty()) {
                 Log::warning("No jadwal found with query, trying fallback method for dosen ID: {$dosenId}");
@@ -624,21 +637,21 @@ class JadwalPBLController extends Controller
                 'dosen',
                 'ruangan'
                 ])->get();
-                
+
                 $jadwal = $allJadwal->filter(function ($item) use ($dosenId, $semesterType) {
                     // Cek apakah dosen_id atau dosen_ids cocok
                     $isDosenActive = ($item->dosen_id == $dosenId);
                     $isDosenInHistory = false;
-                    
+
                     if ($item->dosen_ids) {
                         $dosenIds = is_array($item->dosen_ids) ? $item->dosen_ids : json_decode($item->dosen_ids, true);
                         $isDosenInHistory = is_array($dosenIds) && in_array($dosenId, $dosenIds);
                     }
-                    
+
                     if (!$isDosenActive && !$isDosenInHistory) {
                         return false;
                     }
-                    
+
                     // Filter semester_type
                     if ($semesterType && $semesterType !== 'all') {
                         if ($semesterType === 'reguler' && $item->kelompok_kecil_antara_id) {
@@ -647,7 +660,7 @@ class JadwalPBLController extends Controller
                             return false;
                         }
                     }
-                    
+
                     return true;
                 })->sortBy([
                     ['tanggal', 'asc'],
@@ -774,7 +787,7 @@ class JadwalPBLController extends Controller
             }
 
             // Debug logging
-            \Log::info("PBL getJadwalForMahasiswa - Mahasiswa ID: {$mahasiswaId}, Kelompok Kecil ID: {$kelompokKecil->id}, Nama Kelompok: {$kelompokKecil->nama_kelompok}, Semester: {$kelompokKecil->semester}");
+            Log::info("PBL getJadwalForMahasiswa - Mahasiswa ID: {$mahasiswaId}, Kelompok Kecil ID: {$kelompokKecil->id}, Nama Kelompok: {$kelompokKecil->nama_kelompok}, Semester: {$kelompokKecil->semester}");
 
             $semesterType = $request->query('semester_type');
 
@@ -795,7 +808,7 @@ class JadwalPBLController extends Controller
                 ->get();
 
             // Debug logging
-            \Log::info("PBL getJadwalForMahasiswa - Found {$jadwal->count()} jadwal PBL for kelompok: {$kelompokKecil->nama_kelompok} semester: {$kelompokKecil->semester}");
+            Log::info("PBL getJadwalForMahasiswa - Found {$jadwal->count()} jadwal PBL for kelompok: {$kelompokKecil->nama_kelompok} semester: {$kelompokKecil->semester}");
 
             $mappedJadwal = $jadwal->map(function ($item) {
                 // Buat modul name yang sesuai dengan pbl_tipe
@@ -830,8 +843,8 @@ class JadwalPBLController extends Controller
             });
 
             // Debug logging untuk response
-            \Log::info("PBL getJadwalForMahasiswa - Response data count: " . $mappedJadwal->count());
-            \Log::info("PBL getJadwalForMahasiswa - First item: " . json_encode($mappedJadwal->first()));
+            Log::info("PBL getJadwalForMahasiswa - Response data count: " . $mappedJadwal->count());
+            Log::info("PBL getJadwalForMahasiswa - First item: " . json_encode($mappedJadwal->first()));
 
             return response()->json([
                 'message' => 'Data jadwal PBL berhasil diambil',
@@ -945,9 +958,9 @@ class JadwalPBLController extends Controller
                 ]);
             }
 
-            \Log::info("Reschedule notification sent for PBL jadwal ID: {$jadwal->id}");
+            Log::info("Reschedule notification sent for PBL jadwal ID: {$jadwal->id}");
         } catch (\Exception $e) {
-            \Log::error("Error sending reschedule notification for PBL jadwal ID: {$jadwal->id}: " . $e->getMessage());
+            Log::error("Error sending reschedule notification for PBL jadwal ID: {$jadwal->id}: " . $e->getMessage());
         }
     }
 
@@ -964,13 +977,13 @@ class JadwalPBLController extends Controller
                 // Add dosen to dosen_ids if not already present
                 if (!in_array($dosenId, $currentDosenIds)) {
                     $currentDosenIds[] = $dosenId;
-                    \Illuminate\Support\Facades\Log::info("Adding dosen {$dosenId} to dosen_ids for jadwal {$jadwal->id}");
+                    Log::info("Adding dosen {$dosenId} to dosen_ids for jadwal {$jadwal->id}");
                 }
             } elseif ($status === 'tidak_bisa') {
                 // PENTING: Jangan hapus dosen dari dosen_ids saat status "tidak_bisa"
                 // dosen_ids tetap menyimpan history (dosen pengampu awal di index 0, dosen pengganti di index selanjutnya)
                 // Hanya update status_konfirmasi, jangan ubah dosen_ids
-                \Illuminate\Support\Facades\Log::info("Dosen {$dosenId} status changed to tidak_bisa for jadwal {$jadwal->id}, but keeping in dosen_ids for history");
+                Log::info("Dosen {$dosenId} status changed to tidak_bisa for jadwal {$jadwal->id}, but keeping in dosen_ids for history");
             }
 
             // Update jadwal with new dosen_ids (hanya jika ada perubahan untuk status 'bisa')
@@ -978,9 +991,9 @@ class JadwalPBLController extends Controller
             $jadwal->update(['dosen_ids' => $currentDosenIds]);
             }
 
-            \Illuminate\Support\Facades\Log::info("Updated dosen_ids for jadwal {$jadwal->id}: " . json_encode($currentDosenIds));
+            Log::info("Updated dosen_ids for jadwal {$jadwal->id}: " . json_encode($currentDosenIds));
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error("Error updating dosen_ids for jadwal {$jadwal->id}: " . $e->getMessage());
+            Log::error("Error updating dosen_ids for jadwal {$jadwal->id}: " . $e->getMessage());
         }
     }
 
@@ -1024,6 +1037,40 @@ class JadwalPBLController extends Controller
         }
     }
 
+    /**
+     * Helper function untuk normalisasi format waktu ke format yang konsisten (HH:MM:SS)
+     * Menerima format HH:MM, HH:MM:SS, atau HH.MM
+     * Memastikan format waktu konsisten untuk perbandingan yang akurat
+     */
+    private function normalizeTime($time)
+    {
+        if (empty($time)) {
+            return null;
+        }
+
+        // Trim whitespace
+        $time = trim($time);
+
+        // Jika sudah format HH:MM:SS, return as is
+        if (preg_match('/^\d{2}:\d{2}:\d{2}$/', $time)) {
+            return $time;
+        }
+
+        // Jika format HH:MM, tambahkan :00
+        if (preg_match('/^(\d{2}):(\d{2})$/', $time, $matches)) {
+            return $matches[1] . ':' . $matches[2] . ':00';
+        }
+
+        // Jika format HH.MM, konversi ke HH:MM:SS
+        if (preg_match('/^(\d{2})\.(\d{2})$/', $time, $matches)) {
+            return $matches[1] . ':' . $matches[2] . ':00';
+        }
+
+        // Jika format tidak valid, log warning dan return as is (akan gagal di database)
+        Log::warning("Invalid time format detected: {$time}");
+        return $time;
+    }
+
     // Helper validasi bentrok antar jenis baris
     private function isBentrok($data, $ignoreId = null)
     {
@@ -1038,6 +1085,10 @@ class JadwalPBLController extends Controller
         } elseif (isset($data['kelompok_kecil_antara_id']) && $data['kelompok_kecil_antara_id']) {
             $kelompokKecilId = $data['kelompok_kecil_antara_id'];
         }
+
+        // Normalisasi waktu untuk perbandingan yang akurat
+        $jamMulaiBaru = $this->normalizeTime($data['jam_mulai']);
+        $jamSelesaiBaru = $this->normalizeTime($data['jam_selesai']);
 
         // Cek bentrok dengan jadwal PBL (dengan filter semester)
         $pblQuery = JadwalPBL::where('tanggal', $data['tanggal'])
@@ -1066,9 +1117,24 @@ class JadwalPBLController extends Controller
                     $q->orWhereIn('dosen_id', $data['dosen_ids']);
                 }
             })
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
+            ->where(function ($q) use ($jamMulaiBaru, $jamSelesaiBaru) {
+                // Logika overlap: jadwal bentrok jika ada overlap waktu yang sebenarnya
+                // Formula overlap interval: (start1 < end2) AND (end1 > start2)
+                //
+                // Skenario yang dicek:
+                // 1. Jadwal berbatasan (07.20-09.00 dan 09.00-10.40):
+                //    - 07.20 < 10.40 = TRUE, 09.00 > 09.00 = FALSE → TIDAK BENTROK ✓
+                // 2. Jadwal overlap (07.20-09.00 dan 08.00-10.40):
+                //    - 07.20 < 10.40 = TRUE, 09.00 > 08.00 = TRUE → BENTROK ✓
+                // 3. Jadwal sama persis (07.20-09.00 dan 07.20-09.00):
+                //    - 07.20 < 09.00 = TRUE, 09.00 > 07.20 = TRUE → BENTROK ✓
+                // 4. Jadwal tidak overlap (07.20-09.00 dan 10.00-11.00):
+                //    - 07.20 < 11.00 = TRUE, 09.00 > 10.00 = FALSE → TIDAK BENTROK ✓
+                //
+                // Menggunakan TIME() function MySQL untuk perbandingan waktu yang akurat
+                // dan normalisasi format waktu untuk menghindari masalah format berbeda
+                $q->whereRaw('TIME(jam_mulai) < TIME(?)', [$jamSelesaiBaru])
+                    ->whereRaw('TIME(jam_selesai) > TIME(?)', [$jamMulaiBaru]);
             });
         if ($ignoreId) {
             $pblQuery->where('id', '!=', $ignoreId);
@@ -1094,9 +1160,10 @@ class JadwalPBLController extends Controller
                     $q->orWhereIn('dosen_id', $data['dosen_ids']);
                 }
             })
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
+            ->where(function ($q) use ($jamMulaiBaru, $jamSelesaiBaru) {
+                // Logika overlap: jadwal bentrok jika ada overlap waktu yang sebenarnya
+                $q->whereRaw('TIME(jam_mulai) < TIME(?)', [$jamSelesaiBaru])
+                    ->whereRaw('TIME(jam_selesai) > TIME(?)', [$jamMulaiBaru]);
             });
 
         // Cek bentrok dengan jadwal Agenda Khusus (dengan filter semester)
@@ -1107,9 +1174,10 @@ class JadwalPBLController extends Controller
                 }
             })
             ->where('ruangan_id', $data['ruangan_id'])
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
+            ->where(function ($q) use ($jamMulaiBaru, $jamSelesaiBaru) {
+                // Logika overlap: jadwal bentrok jika ada overlap waktu yang sebenarnya
+                $q->whereRaw('TIME(jam_mulai) < TIME(?)', [$jamSelesaiBaru])
+                    ->whereRaw('TIME(jam_selesai) > TIME(?)', [$jamMulaiBaru]);
             });
 
         // Cek bentrok dengan jadwal Praktikum (dengan filter semester)
@@ -1122,9 +1190,10 @@ class JadwalPBLController extends Controller
             ->where(function ($q) use ($data) {
                 $q->where('ruangan_id', $data['ruangan_id']);
             })
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
+            ->where(function ($q) use ($jamMulaiBaru, $jamSelesaiBaru) {
+                // Logika overlap: jadwal bentrok jika ada overlap waktu yang sebenarnya
+                $q->whereRaw('TIME(jam_mulai) < TIME(?)', [$jamSelesaiBaru])
+                    ->whereRaw('TIME(jam_selesai) > TIME(?)', [$jamMulaiBaru]);
             });
 
         // Cek bentrok dengan jadwal Jurnal Reading (dengan filter semester)
@@ -1152,9 +1221,10 @@ class JadwalPBLController extends Controller
                     $q->orWhereIn('dosen_id', $data['dosen_ids']);
                 }
             })
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
+            ->where(function ($q) use ($jamMulaiBaru, $jamSelesaiBaru) {
+                // Logika overlap: jadwal bentrok jika ada overlap waktu yang sebenarnya
+                $q->whereRaw('TIME(jam_mulai) < TIME(?)', [$jamSelesaiBaru])
+                    ->whereRaw('TIME(jam_selesai) > TIME(?)', [$jamMulaiBaru]);
             });
 
         // Cek bentrok dengan kelompok besar (jika ada kelompok_besar_id di jadwal lain)
@@ -1178,6 +1248,10 @@ class JadwalPBLController extends Controller
         } elseif (isset($data['kelompok_kecil_antara_id']) && $data['kelompok_kecil_antara_id']) {
             $kelompokKecilId = $data['kelompok_kecil_antara_id'];
         }
+
+        // Normalisasi waktu untuk perbandingan yang akurat
+        $jamMulaiBaru = $this->normalizeTime($data['jam_mulai']);
+        $jamSelesaiBaru = $this->normalizeTime($data['jam_selesai']);
 
         // Cek bentrok dengan jadwal PBL (dengan filter semester)
         $pblQuery = JadwalPBL::where('tanggal', $data['tanggal'])
@@ -1206,9 +1280,10 @@ class JadwalPBLController extends Controller
                     $q->orWhereIn('dosen_id', $data['dosen_ids']);
                 }
             })
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
+            ->where(function ($q) use ($jamMulaiBaru, $jamSelesaiBaru) {
+                // Logika overlap: jadwal bentrok jika ada overlap waktu yang sebenarnya
+                $q->whereRaw('TIME(jam_mulai) < TIME(?)', [$jamSelesaiBaru])
+                    ->whereRaw('TIME(jam_selesai) > TIME(?)', [$jamMulaiBaru]);
             });
 
         if ($ignoreId) {
@@ -1247,9 +1322,10 @@ class JadwalPBLController extends Controller
                     $q->orWhereIn('dosen_id', $data['dosen_ids']);
                 }
             })
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
+            ->where(function ($q) use ($jamMulaiBaru, $jamSelesaiBaru) {
+                // Logika overlap: jadwal bentrok jika ada overlap waktu yang sebenarnya
+                $q->whereRaw('TIME(jam_mulai) < TIME(?)', [$jamSelesaiBaru])
+                    ->whereRaw('TIME(jam_selesai) > TIME(?)', [$jamMulaiBaru]);
             });
 
         $kuliahBesarBentrok = $kuliahBesarQuery->first();
@@ -1271,9 +1347,10 @@ class JadwalPBLController extends Controller
                 }
             })
             ->where('ruangan_id', $data['ruangan_id'])
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
+            ->where(function ($q) use ($jamMulaiBaru, $jamSelesaiBaru) {
+                // Logika overlap: jadwal bentrok jika ada overlap waktu yang sebenarnya
+                $q->whereRaw('TIME(jam_mulai) < TIME(?)', [$jamSelesaiBaru])
+                    ->whereRaw('TIME(jam_selesai) > TIME(?)', [$jamMulaiBaru]);
             })
             ->first();
 
@@ -1294,9 +1371,10 @@ class JadwalPBLController extends Controller
                 }
             })
             ->where('ruangan_id', $data['ruangan_id'])
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
+            ->where(function ($q) use ($jamMulaiBaru, $jamSelesaiBaru) {
+                // Logika overlap: jadwal bentrok jika ada overlap waktu yang sebenarnya
+                $q->whereRaw('TIME(jam_mulai) < TIME(?)', [$jamSelesaiBaru])
+                    ->whereRaw('TIME(jam_selesai) > TIME(?)', [$jamMulaiBaru]);
             })
             ->first();
 
@@ -1334,9 +1412,10 @@ class JadwalPBLController extends Controller
                     $q->orWhereIn('dosen_id', $data['dosen_ids']);
                 }
             })
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
+            ->where(function ($q) use ($jamMulaiBaru, $jamSelesaiBaru) {
+                // Logika overlap: jadwal bentrok jika ada overlap waktu yang sebenarnya
+                $q->whereRaw('TIME(jam_mulai) < TIME(?)', [$jamSelesaiBaru])
+                    ->whereRaw('TIME(jam_selesai) > TIME(?)', [$jamMulaiBaru]);
             });
 
         $jurnalBentrok = $jurnalQuery->first();
@@ -1444,7 +1523,7 @@ class JadwalPBLController extends Controller
 
         return implode(', ', $reasons);
     }
-    
+
     /**
      * Send notification to mahasiswa in the kelompok
      */
@@ -1504,18 +1583,117 @@ class JadwalPBLController extends Controller
                         'jam_selesai' => $jadwal->jam_selesai,
                         'ruangan' => $jadwal->ruangan->nama,
                         'dosen' => $jadwal->dosen ? $jadwal->dosen->name : 'N/A',
-                        'created_by' => auth()->user()->name ?? 'Admin',
-                        'created_by_role' => auth()->user()->role ?? 'admin',
-                        'sender_name' => auth()->user()->name ?? 'Admin',
-                        'sender_role' => auth()->user()->role ?? 'admin'
+                        'created_by' => Auth::user()?->name ?? 'Admin',
+                        'created_by_role' => Auth::user()?->role ?? 'admin',
+                        'sender_name' => Auth::user()?->name ?? 'Admin',
+                        'sender_role' => Auth::user()?->role ?? 'admin'
                     ]
                 ]);
             }
 
-            \Log::info("PBL notifications sent to " . count($mahasiswaList) . " mahasiswa for jadwal ID: {$jadwal->id}");
+            Log::info("PBL notifications sent to " . count($mahasiswaList) . " mahasiswa for jadwal ID: {$jadwal->id}");
         } catch (\Exception $e) {
-            \Log::error("Error sending PBL notifications to mahasiswa: " . $e->getMessage());
+            Log::error("Error sending PBL notifications to mahasiswa: " . $e->getMessage());
         }
+    }
+
+    /**
+     * Helper function untuk membandingkan waktu dalam format TIME (HH:MM:SS)
+     * Mengembalikan: -1 jika time1 < time2, 0 jika sama, 1 jika time1 > time2
+     */
+    private function compareTime($time1, $time2): int
+    {
+        $time1Normalized = $this->normalizeTime($time1);
+        $time2Normalized = $this->normalizeTime($time2);
+
+        if (!$time1Normalized || !$time2Normalized) {
+            return 0;
+        }
+
+        // Konversi ke timestamp untuk perbandingan yang akurat
+        $timestamp1 = strtotime($time1Normalized);
+        $timestamp2 = strtotime($time2Normalized);
+
+        if ($timestamp1 < $timestamp2) {
+            return -1;
+        } elseif ($timestamp1 > $timestamp2) {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    /**
+     * Cek apakah dua data jadwal PBL bentrok (untuk validasi import Excel)
+     * Digunakan untuk mengecek bentrok antar data yang sedang di-import
+     */
+    private function isDataBentrok($data1, $data2): bool
+    {
+        // Cek apakah tanggal sama
+        if ($data1['tanggal'] !== $data2['tanggal']) {
+            return false;
+        }
+
+        // Normalisasi waktu untuk perbandingan yang akurat
+        $jamMulai1 = $this->normalizeTime($data1['jam_mulai']);
+        $jamSelesai1 = $this->normalizeTime($data1['jam_selesai']);
+        $jamMulai2 = $this->normalizeTime($data2['jam_mulai']);
+        $jamSelesai2 = $this->normalizeTime($data2['jam_selesai']);
+
+        // Cek apakah jam overlap (menggunakan logika yang sama dengan isBentrok)
+        // Overlap terjadi jika: jam_mulai1 < jam_selesai2 AND jam_selesai1 > jam_mulai2
+        // Menggunakan perbandingan waktu yang akurat
+        $jamBentrok = ($this->compareTime($jamMulai1, $jamSelesai2) < 0 && $this->compareTime($jamSelesai1, $jamMulai2) > 0);
+
+        if (!$jamBentrok) {
+            return false;
+        }
+
+        // Cek bentrok dosen (single dosen_id)
+        $dosenBentrok = false;
+        if (isset($data1['dosen_id']) && isset($data2['dosen_id']) && $data1['dosen_id'] == $data2['dosen_id']) {
+            $dosenBentrok = true;
+        }
+
+        // Cek bentrok dosen (multiple dosen_ids)
+        if (!$dosenBentrok && isset($data1['dosen_ids']) && is_array($data1['dosen_ids']) && !empty($data1['dosen_ids'])) {
+            if (isset($data2['dosen_id']) && in_array($data2['dosen_id'], $data1['dosen_ids'])) {
+                $dosenBentrok = true;
+            }
+            if (isset($data2['dosen_ids']) && is_array($data2['dosen_ids']) && !empty($data2['dosen_ids'])) {
+                $intersectingDosen = array_intersect($data1['dosen_ids'], $data2['dosen_ids']);
+                if (!empty($intersectingDosen)) {
+                    $dosenBentrok = true;
+                }
+            }
+        }
+        if (!$dosenBentrok && isset($data2['dosen_ids']) && is_array($data2['dosen_ids']) && !empty($data2['dosen_ids'])) {
+            if (isset($data1['dosen_id']) && in_array($data1['dosen_id'], $data2['dosen_ids'])) {
+                $dosenBentrok = true;
+            }
+        }
+
+        // Cek bentrok ruangan
+        $ruanganBentrok = false;
+        if (isset($data1['ruangan_id']) && isset($data2['ruangan_id']) && $data1['ruangan_id'] == $data2['ruangan_id']) {
+            $ruanganBentrok = true;
+        }
+
+        // Cek bentrok kelompok kecil (reguler)
+        $kelompokBentrok = false;
+        if (isset($data1['kelompok_kecil_id']) && isset($data2['kelompok_kecil_id']) &&
+            $data1['kelompok_kecil_id'] == $data2['kelompok_kecil_id']) {
+            $kelompokBentrok = true;
+        }
+
+        // Cek bentrok kelompok kecil antara
+        if (!$kelompokBentrok && isset($data1['kelompok_kecil_antara_id']) && isset($data2['kelompok_kecil_antara_id']) &&
+            $data1['kelompok_kecil_antara_id'] == $data2['kelompok_kecil_antara_id']) {
+            $kelompokBentrok = true;
+        }
+
+        // Jadwal bentrok jika ada overlap waktu DAN (bentrok dosen ATAU bentrok ruangan ATAU bentrok kelompok kecil)
+        return $jamBentrok && ($dosenBentrok || $ruanganBentrok || $kelompokBentrok);
     }
 
     /**
@@ -1532,11 +1710,16 @@ class JadwalPBLController extends Controller
             return false;
         }
 
+        // Normalisasi waktu untuk perbandingan yang akurat
+        $jamMulaiBaru = $this->normalizeTime($data['jam_mulai']);
+        $jamSelesaiBaru = $this->normalizeTime($data['jam_selesai']);
+
         // Cek bentrok dengan jadwal Kuliah Besar yang menggunakan kelompok besar dari mahasiswa yang sama
         $kuliahBesarBentrok = \App\Models\JadwalKuliahBesar::where('tanggal', $data['tanggal'])
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
+            ->where(function ($q) use ($jamMulaiBaru, $jamSelesaiBaru) {
+                // Logika overlap: jadwal bentrok jika ada overlap waktu yang sebenarnya
+                $q->whereRaw('TIME(jam_mulai) < TIME(?)', [$jamSelesaiBaru])
+                    ->whereRaw('TIME(jam_selesai) > TIME(?)', [$jamMulaiBaru]);
             })
             ->whereHas('kelompokBesar', function ($q) use ($mahasiswaIds) {
                 $q->whereIn('mahasiswa_id', $mahasiswaIds);
@@ -1545,9 +1728,10 @@ class JadwalPBLController extends Controller
 
         // Cek bentrok dengan jadwal Agenda Khusus yang menggunakan kelompok besar dari mahasiswa yang sama
         $agendaKhususBentrok = \App\Models\JadwalAgendaKhusus::where('tanggal', $data['tanggal'])
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
+            ->where(function ($q) use ($jamMulaiBaru, $jamSelesaiBaru) {
+                // Logika overlap: jadwal bentrok jika ada overlap waktu yang sebenarnya
+                $q->whereRaw('TIME(jam_mulai) < TIME(?)', [$jamSelesaiBaru])
+                    ->whereRaw('TIME(jam_selesai) > TIME(?)', [$jamMulaiBaru]);
             })
             ->whereHas('kelompokBesar', function ($q) use ($mahasiswaIds) {
                 $q->whereIn('mahasiswa_id', $mahasiswaIds);
@@ -1582,11 +1766,16 @@ class JadwalPBLController extends Controller
             return null;
         }
 
+        // Normalisasi waktu untuk perbandingan yang akurat
+        $jamMulaiBaru = $this->normalizeTime($data['jam_mulai']);
+        $jamSelesaiBaru = $this->normalizeTime($data['jam_selesai']);
+
         // Cek bentrok dengan jadwal Kuliah Besar yang menggunakan kelompok besar dari mahasiswa yang sama
         $kuliahBesarBentrok = \App\Models\JadwalKuliahBesar::where('tanggal', $data['tanggal'])
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
+            ->where(function ($q) use ($jamMulaiBaru, $jamSelesaiBaru) {
+                // Logika overlap: jadwal bentrok jika ada overlap waktu yang sebenarnya
+                $q->whereRaw('TIME(jam_mulai) < TIME(?)', [$jamSelesaiBaru])
+                    ->whereRaw('TIME(jam_selesai) > TIME(?)', [$jamMulaiBaru]);
             })
             ->whereHas('kelompokBesar', function ($q) use ($mahasiswaIds) {
                 $q->whereIn('mahasiswa_id', $mahasiswaIds);
@@ -1615,9 +1804,10 @@ class JadwalPBLController extends Controller
 
         // Cek bentrok dengan jadwal Agenda Khusus yang menggunakan kelompok besar dari mahasiswa yang sama
         $agendaKhususBentrok = \App\Models\JadwalAgendaKhusus::where('tanggal', $data['tanggal'])
-            ->where(function ($q) use ($data) {
-                $q->where('jam_mulai', '<', $data['jam_selesai'])
-                    ->where('jam_selesai', '>', $data['jam_mulai']);
+            ->where(function ($q) use ($jamMulaiBaru, $jamSelesaiBaru) {
+                // Logika overlap: jadwal bentrok jika ada overlap waktu yang sebenarnya
+                $q->whereRaw('TIME(jam_mulai) < TIME(?)', [$jamSelesaiBaru])
+                    ->whereRaw('TIME(jam_selesai) > TIME(?)', [$jamMulaiBaru]);
             })
             ->whereHas('kelompokBesar', function ($q) use ($mahasiswaIds) {
                 $q->whereIn('mahasiswa_id', $mahasiswaIds);
