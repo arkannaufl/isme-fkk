@@ -46,6 +46,14 @@ use App\Http\Controllers\RekapIKDController;
 // Masih aman karena brute force protection tetap ada (150 attempts per minute masih reasonable)
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:150,1');
 
+// Forgot password dengan OTP - publik, dibatasi rate limit
+Route::post('/forgot-password/request-otp', [AuthController::class, 'requestPasswordResetOtp'])
+    ->middleware('throttle:10,1');
+Route::post('/forgot-password/verify-otp', [AuthController::class, 'verifyPasswordResetOtp'])
+    ->middleware('throttle:10,1');
+Route::post('/forgot-password/reset-with-otp', [AuthController::class, 'resetPasswordWithOtp'])
+    ->middleware('throttle:10,1');
+
 // Global rate limiting untuk semua API routes
 // Ditingkatkan ke 300 requests per minute per user/IP untuk support 300+ concurrent users
 // Dengan asumsi setiap user melakukan ~1 request per detik, 300 req/min cukup untuk 300 user aktif

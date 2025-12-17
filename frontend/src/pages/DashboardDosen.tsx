@@ -1402,19 +1402,13 @@ export default function DashboardDosen() {
         setShowEmailWarning(false);
         setShowWhatsAppWarning(false);
 
-        // Show success modal
-        if (response.data.wablas_synced) {
-          localStorage.setItem("last_success_action", "whatsapp_sync");
-          setShowSuccessModal(true);
-        } else {
-          // Jika wablas_synced false, berarti sync gagal dan data tidak tersimpan
-          // Tampilkan error message
-          setErrorMessage(
-            response.data.message || 
-            "Gagal menyinkronkan data ke Wablas. Data tidak tersimpan. Silakan coba lagi."
+        // Tampilkan success modal tanpa tergantung pada status sync Wablas.
+        // Jika perlu, kita bisa baca flag wablas_synced untuk informasi tambahan.
+        localStorage.setItem(
+          "last_success_action",
+          response.data.wablas_synced ? "whatsapp_sync" : "email_verify"
           );
-          setShowErrorModal(true);
-        }
+        setShowSuccessModal(true);
 
         // Dispatch event untuk refresh data
         window.dispatchEvent(new Event("user-updated"));
@@ -3251,14 +3245,13 @@ export default function DashboardDosen() {
                           !whatsAppData.whatsapp_address ||
                           !whatsAppData.whatsapp_address.trim() ||
                           !whatsAppData.whatsapp_birth_day ||
-                          !whatsAppData.whatsapp_birth_day.trim() ||
-                          (!showEmailWarning && !emailStatus?.email) // Jika email sudah verified, pastikan ada emailStatus
+                          !whatsAppData.whatsapp_birth_day.trim()
                         }
                         className="px-4 py-2 text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
                       >
                         {updatingEmail || updatingWhatsApp
                           ? "Menyimpan..."
-                          : "Simpan & Sync ke Wablas"}
+                          : "Simpan"}
                       </button>
                     </div>
                   </div>

@@ -10,11 +10,13 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Mail;
 use App\Models\User;
 use App\Models\Notification;
 use App\Services\WablasService;
 use Laravel\Sanctum\PersonalAccessToken;
 use Illuminate\Validation\Rule;
+use Carbon\Carbon;
 
 class AuthController extends Controller
 {
@@ -123,6 +125,222 @@ class AuthController extends Controller
                 'user'         => $lockedUser->only(['id', 'name', 'username', 'email', 'role']),
             ]);
         });
+    }
+
+    /**
+     * Request OTP for password reset.
+     * Accepts username / email / NIP / NID / NIM in "login" field.
+     * Only works if the account has verified email.
+     */
+    public function requestPasswordResetOtp(Request $request)
+    {
+        $request->validate([
+            'login' => 'required|string|max:255',
+        ]);
+
+        $login = $request->login;
+
+        $user = User::where(function($query) use ($login) {
+                $query->where('username', $login)
+                      ->orWhere('email', $login)
+                      ->orWhere('nip', $login)
+                      ->orWhere('nid', $login)
+                      ->orWhere('nim', $login);
+            })
+            ->select('id', 'name', 'username', 'email', 'role', 'email_verified')
+            ->first();
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'Akun tidak ditemukan. Periksa kembali username atau email Anda.',
+            ], 404);
+        }
+
+        // Pastikan user punya email yang valid dan sudah diverifikasi
+        $hasValidEmail = $user->email && filter_var($user->email, FILTER_VALIDATE_EMAIL);
+        if (!$hasValidEmail || !($user->email_verified ?? false)) {
+            return response()->json([
+                'message' => 'Anda belum memiliki email verifikasi. Silakan hubungi Admin atau Tim Akademik untuk mengganti password Anda.',
+                'requires_admin' => true,
+            ], 422);
+        }
+
+        // Generate 6-digit numeric OTP
+        $otp = random_int(100000, 999999);
+        $hashedOtp = Hash::make($otp);
+
+        // Simpan ke tabel password_resets (standar Laravel) menggunakan email sebagai key
+        DB::table('password_resets')->updateOrInsert(
+            ['email' => $user->email],
+            [
+                'token' => $hashedOtp,
+                'created_at' => Carbon::now(),
+            ]
+        );
+
+        // Kirim email OTP dengan template HTML profesional
+        try {
+            $appName = config('app.name', 'ISME-FKK');
+            $subject = '[' . $appName . '] Kode OTP Reset Password';
+
+            Mail::send('emails.forgot-password-otp', [
+                'name' => $user->name,
+                'otp' => $otp,
+            ], function ($message) use ($user, $subject) {
+                $message->to($user->email, $user->name)
+                        ->subject($subject);
+            });
+        } catch (\Exception $e) {
+            Log::error('Gagal mengirim email OTP reset password', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Gagal mengirim email reset password. Silakan coba lagi beberapa saat lagi.',
+            ], 500);
+        }
+
+        return response()->json([
+            'message' => 'Kode OTP telah dikirim ke email terverifikasi Anda.',
+            'masked_email' => $this->maskEmail($user->email),
+        ]);
+    }
+
+    /**
+     * Reset password menggunakan OTP yang dikirim ke email.
+     */
+    public function resetPasswordWithOtp(Request $request)
+    {
+        $request->validate([
+            'login' => 'required|string|max:255',
+            'otp' => 'required|string|min:4|max:10',
+            'password' => 'required|string|min:6|confirmed',
+        ], [
+            'password.confirmed' => 'Konfirmasi password tidak sama.',
+        ]);
+
+        $login = $request->login;
+
+        $user = User::where(function($query) use ($login) {
+                $query->where('username', $login)
+                      ->orWhere('email', $login)
+                      ->orWhere('nip', $login)
+                      ->orWhere('nid', $login)
+                      ->orWhere('nim', $login);
+            })
+            ->first();
+
+        if (!$user || !$user->email) {
+            return response()->json([
+                'message' => 'Akun tidak ditemukan.',
+            ], 404);
+        }
+
+        $reset = DB::table('password_resets')
+            ->where('email', $user->email)
+            ->orderByDesc('created_at')
+            ->first();
+
+        if (!$reset) {
+            return response()->json([
+                'message' => 'Kode OTP tidak ditemukan. Silakan minta kode baru.',
+            ], 404);
+        }
+
+        // Cek masa berlaku OTP (10 menit)
+        $createdAt = Carbon::parse($reset->created_at);
+        if ($createdAt->lt(Carbon::now()->subMinutes(10))) {
+            DB::table('password_resets')->where('email', $user->email)->delete();
+
+            return response()->json([
+                'message' => 'Kode OTP sudah kedaluwarsa. Silakan minta kode baru.',
+            ], 410);
+        }
+
+        // Validasi OTP
+        if (!Hash::check($request->otp, $reset->token)) {
+            return response()->json([
+                'message' => 'Kode OTP yang Anda masukkan tidak valid.',
+            ], 422);
+        }
+
+        // Update password user
+        $user->password = Hash::make($request->password);
+        $user->save();
+
+        // Hapus semua entri reset untuk email ini
+        DB::table('password_resets')->where('email', $user->email)->delete();
+
+        // Pastikan semua token login invalid (force logout semua perangkat)
+        $user->is_logged_in = 0;
+        $user->current_token = null;
+        $user->tokens()->delete();
+        $user->save();
+
+        return response()->json([
+            'message' => 'Password berhasil direset. Silakan login dengan password baru Anda.',
+        ]);
+    }
+
+    /**
+     * Verifikasi OTP reset password tanpa mengubah password.
+     * Dipakai untuk step awal sebelum user mengisi password baru.
+     */
+    public function verifyPasswordResetOtp(Request $request)
+    {
+        $request->validate([
+            'login' => 'required|string|max:255',
+            'otp' => 'required|string|min:4|max:10',
+        ]);
+
+        $login = $request->login;
+
+        $user = User::where(function($query) use ($login) {
+                $query->where('username', $login)
+                      ->orWhere('email', $login)
+                      ->orWhere('nip', $login)
+                      ->orWhere('nid', $login)
+                      ->orWhere('nim', $login);
+            })
+            ->first();
+
+        if (!$user || !$user->email) {
+            return response()->json([
+                'message' => 'Akun tidak ditemukan.',
+            ], 404);
+        }
+
+        $reset = DB::table('password_resets')
+            ->where('email', $user->email)
+            ->orderByDesc('created_at')
+            ->first();
+
+        if (!$reset) {
+            return response()->json([
+                'message' => 'Kode OTP tidak ditemukan. Silakan minta kode baru.',
+            ], 404);
+        }
+
+        $createdAt = Carbon::parse($reset->created_at);
+        if ($createdAt->lt(Carbon::now()->subMinutes(10))) {
+            DB::table('password_resets')->where('email', $user->email)->delete();
+
+            return response()->json([
+                'message' => 'Kode OTP sudah kedaluwarsa. Silakan minta kode baru.',
+            ], 410);
+        }
+
+        if (!Hash::check($request->otp, $reset->token)) {
+            return response()->json([
+                'message' => 'Kode OTP yang Anda masukkan tidak valid.',
+            ], 422);
+        }
+
+        return response()->json([
+            'message' => 'Kode OTP valid. Silakan lanjutkan untuk mengatur ulang password Anda.',
+        ]);
     }
 
     public function logout(Request $request)
@@ -460,53 +678,30 @@ class AuthController extends Controller
                     $user->wablas_synced_at = now();
                     $user->save();
                 } else {
-                    // Sync gagal, rollback WhatsApp fields ke nilai lama
-                    $user->whatsapp_phone = $oldWhatsAppPhone;
-                    $user->whatsapp_email = $oldWhatsAppEmail;
-                    $user->whatsapp_address = $oldWhatsAppAddress;
-                    $user->whatsapp_birth_day = $oldWhatsAppBirthDay;
-                    $user->telp = $oldTelp;
-                    $user->wablas_sync_status = null; // Reset status
+                    // Sync gagal, tetapi data user tetap disimpan
+                    $user->wablas_sync_status = 'failed';
+                    $user->wablas_synced_at = null;
                     $user->save();
 
-                    Log::warning('Wablas sync failed for user - data rolled back', [
+                    Log::warning('Wablas sync failed for user - data kept', [
                         'user_id' => $user->id,
                         'error' => $syncResult['error'] ?? 'Unknown error',
                     ]);
-
-                    // Kembalikan error response
-                    return response()->json([
-                        'message' => 'Gagal menyinkronkan data ke Wablas. Data tidak tersimpan.',
-                        'error' => $syncResult['error'] ?? 'Sync ke Wablas gagal',
-                        'wablas_synced' => false,
-                    ], 422);
                 }
             } catch (\Exception $e) {
-                // Exception saat sync, rollback WhatsApp fields
-                $user->whatsapp_phone = $oldWhatsAppPhone;
-                $user->whatsapp_email = $oldWhatsAppEmail;
-                $user->whatsapp_address = $oldWhatsAppAddress;
-                $user->whatsapp_birth_day = $oldWhatsAppBirthDay;
-                $user->telp = $oldTelp;
-                $user->wablas_sync_status = null; // Reset status
+                // Exception saat sync, tetap simpan data user dan tandai status gagal
+                $user->wablas_sync_status = 'failed';
+                $user->wablas_synced_at = null;
                 $user->save();
 
-                Log::error('Wablas sync exception - data rolled back', [
+                Log::error('Wablas sync exception - data kept', [
                     'user_id' => $user->id,
                     'error' => $e->getMessage(),
                 ]);
-
-                // Kembalikan error response
-                return response()->json([
-                    'message' => 'Terjadi kesalahan saat menyinkronkan data ke Wablas. Data tidak tersimpan.',
-                    'error' => $e->getMessage(),
-                    'wablas_synced' => false,
-                ], 500);
             }
         } elseif ($isDosen && !$hasWhatsAppChanges && $user->whatsapp_phone && $user->name) {
             // Jika tidak ada perubahan WhatsApp fields tapi user sudah punya data WhatsApp,
-            // update status sync jika diperlukan (untuk retry sync)
-            // Tapi untuk sekarang, skip karena tidak ada perubahan
+            // untuk saat ini tidak ada aksi khusus yang perlu dilakukan
         }
 
         return response()->json([
@@ -620,6 +815,34 @@ class AuthController extends Controller
         }
 
         return response()->json($result);
+    }
+
+    /**
+     * Masking email untuk ditampilkan ke user (beberapa karakter disensor dengan "*").
+     */
+    private function maskEmail(string $email): string
+    {
+        if (strpos($email, '@') === false) {
+            return $email;
+        }
+
+        [$local, $domain] = explode('@', $email, 2);
+
+        // Mask bagian local
+        $localVisible = mb_substr($local, 0, min(2, mb_strlen($local)));
+        $localMaskedLength = max(1, mb_strlen($local) - mb_strlen($localVisible));
+        $localMasked = $localVisible . str_repeat('*', $localMaskedLength);
+
+        // Mask bagian domain (hanya nama sebelum titik pertama)
+        $domainParts = explode('.', $domain);
+        $domainName = $domainParts[0] ?? '';
+        $domainVisible = mb_substr($domainName, 0, 1);
+        $domainMaskedLength = max(1, mb_strlen($domainName) - mb_strlen($domainVisible));
+        $domainParts[0] = $domainVisible . str_repeat('*', $domainMaskedLength);
+
+        $maskedDomain = implode('.', $domainParts);
+
+        return $localMasked . '@' . $maskedDomain;
     }
 
 }

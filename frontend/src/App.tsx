@@ -11,6 +11,9 @@ import TahunAjaran from "./pages/TahunAjaran";
 import Ruangan from "./pages/Ruangan";
 import Profile from "./pages/Profile";
 import SignIn from "./pages/AuthPages/SignIn";
+import ForgotPassword from "./pages/AuthPages/ForgotPassword";
+import ForgotPasswordOtp from "./pages/AuthPages/ForgotPasswordOtp";
+import ForgotPasswordNew from "./pages/AuthPages/ForgotPasswordNew";
 import RequireAuth from "./components/common/RequireAuth";
 import RequireDosenRole from "./components/common/RequireDosenRole";
 import RoleBasedRedirect from "./components/common/RoleBasedRedirect";
@@ -930,6 +933,30 @@ function AppContent() {
             element={
               <RedirectIfAuth>
                 <SignIn />
+              </RedirectIfAuth>
+            }
+          />
+          <Route
+            path="/forgot-password"
+            element={
+              <RedirectIfAuth>
+                <ForgotPassword />
+              </RedirectIfAuth>
+            }
+          />
+          <Route
+            path="/forgot-password/otp"
+            element={
+              <RedirectIfAuth>
+                <ForgotPasswordOtp />
+              </RedirectIfAuth>
+            }
+          />
+          <Route
+            path="/forgot-password/new-password"
+            element={
+              <RedirectIfAuth>
+                <ForgotPasswordNew />
               </RedirectIfAuth>
             }
           />

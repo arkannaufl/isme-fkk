@@ -142,8 +142,15 @@ export default function SignIn() {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                    {/* Checklist 'Keep me logged in' dihapus */}
+                  <div className="flex items-center justify-between text-sm">
+                    <span />
+                    <button
+                      type="button"
+                      onClick={() => navigate("/forgot-password")}
+                      className="text-brand-600 hover:text-brand-700"
+                    >
+                      Lupa password?
+                    </button>
                   </div>
 
                   <div>
