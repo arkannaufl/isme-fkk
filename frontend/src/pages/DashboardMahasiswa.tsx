@@ -770,6 +770,59 @@ export default function DashboardMahasiswa() {
   };
 
   // Handle gabungan: Email Verification + WhatsApp Contact (ADD contact pertama kali)
+  // Helper function to check if data is incomplete
+  const isDataIncomplete = useCallback(() => {
+    const hasEmailIssue = showEmailWarning && !newEmail.trim();
+    const hasNameIssue = !whatsAppData.name || !whatsAppData.name.trim();
+    const hasPhoneIssue =
+      !whatsAppData.whatsapp_phone ||
+      !whatsAppData.whatsapp_phone.match(/^62\d+$/);
+    const hasAddressIssue =
+      !whatsAppData.whatsapp_address ||
+      !whatsAppData.whatsapp_address.trim();
+    const hasBirthDayIssue =
+      !whatsAppData.whatsapp_birth_day ||
+      !whatsAppData.whatsapp_birth_day.trim();
+    const hasEmailStatusIssue =
+      !showEmailWarning && !emailStatus?.email;
+
+    return (
+      hasEmailIssue ||
+      hasNameIssue ||
+      hasPhoneIssue ||
+      hasAddressIssue ||
+      hasBirthDayIssue ||
+      hasEmailStatusIssue
+    );
+  }, [
+    showEmailWarning,
+    newEmail,
+    whatsAppData,
+    emailStatus,
+  ]);
+
+  // Handle close modal with confirmation
+  const handleCloseEmailWhatsAppModal = useCallback(() => {
+    if (isDataIncomplete()) {
+      const confirmed = window.confirm(
+        "Data belum lengkap. Apakah Anda yakin ingin menutup modal? Data yang sudah diisi tidak akan disimpan."
+      );
+      if (confirmed) {
+        setShowEmailWarning(false);
+        setShowWhatsAppWarning(false);
+      }
+    } else {
+      setShowEmailWarning(false);
+      setShowWhatsAppWarning(false);
+    }
+  }, [
+    isDataIncomplete,
+    showEmailWarning,
+    newEmail,
+    whatsAppData,
+    emailStatus,
+  ]);
+
   const handleSaveEmailAndWhatsApp = async () => {
     const userData = getUser();
     if (!userData) return;
@@ -2270,9 +2323,7 @@ export default function DashboardMahasiswa() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
-              onClick={() => {
-                // Don't allow closing by clicking overlay
-              }}
+              onClick={handleCloseEmailWhatsAppModal}
             />
 
             {/* Modal Content */}
@@ -2285,11 +2336,8 @@ export default function DashboardMahasiswa() {
             >
               {/* Close Button */}
               <button
-                onClick={() => {
-                  // Don't allow closing
-                }}
-                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11 opacity-50 cursor-not-allowed"
-                disabled
+                onClick={handleCloseEmailWhatsAppModal}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11 transition-colors"
               >
                 <svg
                   width="20"
@@ -2466,7 +2514,13 @@ export default function DashboardMahasiswa() {
                     </p>
                   </div>
 
-                  <div className="flex gap-2 pt-2">
+                  <div className="flex gap-2 pt-2 justify-end">
+                    <button
+                      onClick={handleCloseEmailWhatsAppModal}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                    >
+                      Batal
+                    </button>
                     <button
                       onClick={handleSaveEmailAndWhatsApp}
                       disabled={
