@@ -21,6 +21,7 @@ class IKDBuktiFisik extends Model
         'file_type',
         'file_size',
         'skor',
+        'status_verifikasi',
     ];
 
     protected $casts = [

@@ -35,6 +35,7 @@ export default function Ruangan() {
   const [editMode, setEditMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [modalError, setModalError] = useState(""); // Error untuk modal
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedRows, setSelectedRows] = useState<number[]>([]);
@@ -117,7 +118,7 @@ export default function Ruangan() {
 
   const handleAdd = async () => {
     setIsSaving(true);
-    setError("");
+    setModalError(""); // Reset modal error
     try {
       if (editMode && selectedDeleteId) {
         await api.put(`/ruangan/${selectedDeleteId}`, form);
@@ -130,14 +131,20 @@ export default function Ruangan() {
       setShowModal(false);
       setEditMode(false);
       setForm({ id_ruangan: "", nama: "", kapasitas: 0, gedung: "", keterangan: "" });
+      setModalError(""); // Reset error saat modal ditutup
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Gagal simpan data");
+      // Ambil error message dari backend dengan prioritas
+      const errorMessage = err?.response?.data?.error || 
+                           err?.response?.data?.message || 
+                           "Gagal simpan data";
+      setModalError(errorMessage); // Tampilkan di modal, bukan di atas table
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleEdit = (r: RuanganType) => {
+    setModalError(""); // Reset modal error
     setForm({
       id_ruangan: r.id_ruangan,
       nama: r.nama,
@@ -181,6 +188,7 @@ export default function Ruangan() {
     setShowModal(false);
     setForm({ id_ruangan: "", nama: "", kapasitas: 0, gedung: "", keterangan: "" });
     setEditMode(false);
+    setModalError(""); // Reset modal error
   };
 
   const handleImport = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -1247,6 +1255,31 @@ export default function Ruangan() {
                 <div className="flex items-center justify-between pb-6">
                   <h2 className="text-xl font-bold text-gray-800 dark:text-white">{editMode ? 'Edit Ruangan' : 'Add Ruangan'}</h2>
                 </div>
+                
+                {/* Error Message di Modal */}
+                {modalError && (
+                  <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <svg
+                        className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      <p className="text-sm text-red-600 dark:text-red-400">
+                        {modalError}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
                 <div>
                   <div className="space-y-4">
                     <div>

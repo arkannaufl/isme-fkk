@@ -492,11 +492,11 @@ function AppContent() {
                   </RequireDosenRole>
                 }
               />
-              {/* User IKD - Super Admin Only */}
+              {/* User IKD - Super Admin & Ketua IKD */}
               <Route
                 path="/rekap-ikd/user-ikd"
                 element={
-                  <RequireDosenRole allowedRoles={["super_admin"]}>
+                  <RequireDosenRole allowedRoles={["super_admin", "ketua_ikd"]}>
                     <UserIKD />
                   </RequireDosenRole>
                 }
@@ -622,7 +622,7 @@ function AppContent() {
                 path="/peta-akademik"
                 element={
                   <RequireDosenRole
-                    allowedRoles={["super_admin", "dosen", "tim_akademik"]}
+                    allowedRoles={["super_admin", "dosen", "tim_akademik", "mahasiswa"]}
                   >
                     <PetaAkademikPage />
                   </RequireDosenRole>
@@ -632,7 +632,7 @@ function AppContent() {
                 path="/peta-blok"
                 element={
                   <RequireDosenRole
-                    allowedRoles={["super_admin", "dosen", "tim_akademik"]}
+                    allowedRoles={["super_admin", "dosen", "tim_akademik", "mahasiswa"]}
                   >
                     <PilihPetaBlok />
                   </RequireDosenRole>
@@ -642,7 +642,7 @@ function AppContent() {
                 path="/peta-blok/:semester"
                 element={
                   <RequireDosenRole
-                    allowedRoles={["super_admin", "dosen", "tim_akademik"]}
+                    allowedRoles={["super_admin", "dosen", "tim_akademik", "mahasiswa"]}
                   >
                     <PetaBlok />
                   </RequireDosenRole>
@@ -652,7 +652,7 @@ function AppContent() {
                 path="/peta-blok/:semester/:blok"
                 element={
                   <RequireDosenRole
-                    allowedRoles={["super_admin", "dosen", "tim_akademik"]}
+                    allowedRoles={["super_admin", "dosen", "tim_akademik", "mahasiswa"]}
                   >
                     <PetaBlok />
                   </RequireDosenRole>

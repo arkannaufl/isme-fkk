@@ -10,6 +10,9 @@ import {
   faSpinner,
   faTimes,
   faInfoCircle,
+  faCheckCircle,
+  faExclamationTriangle,
+  faFile,
 } from "@fortawesome/free-solid-svg-icons";
 
 interface DosenData {
@@ -45,6 +48,7 @@ interface IKDBuktiFisik {
   file_size?: number;
   file_url?: string;
   skor?: number | null;
+  status_verifikasi?: 'salah' | 'benar' | 'perbaiki' | null;
   pedoman?: IKDPedoman;
 }
 
@@ -94,12 +98,13 @@ const DosenIKD: React.FC = () => {
   const userRole = user?.role || "";
   const isVerifikator = userRole === "verifikator";
   const isSuperAdmin = userRole === "super_admin";
+  const isKetuaIKD = userRole === "ketua_ikd";
   const isDosen = userRole === "dosen";
 
-  // State untuk bukti fisik (realtime)
+  // State untuk bukti fisik (realtime) - sekarang support multiple files
   const [buktiFisikMap, setBuktiFisikMap] = useState<{
-    [key: string]: IKDBuktiFisik;
-  }>({}); // Key: `${user_id}_${ikd_pedoman_id}`
+    [key: string]: IKDBuktiFisik[];
+  }>({}); // Key: `${user_id}_${ikd_pedoman_id}`, Value: array of files
 
   // State untuk upload file
   const [uploadingFiles, setUploadingFiles] = useState<{
@@ -116,6 +121,14 @@ const DosenIKD: React.FC = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [fileToDelete, setFileToDelete] = useState<{
     id: number;
+    fileName: string;
+  } | null>(null);
+
+  // State untuk aksi confirmation modal
+  const [showAksiModal, setShowAksiModal] = useState(false);
+  const [aksiToConfirm, setAksiToConfirm] = useState<{
+    buktiFisikId: number;
+    status: 'salah' | 'benar' | 'perbaiki';
     fileName: string;
   } | null>(null);
 
@@ -185,6 +198,11 @@ const DosenIKD: React.FC = () => {
   const fileInputRefs = useRef<{
     [key: string]: HTMLInputElement | null;
   }>({});
+
+  // State untuk show more files (expand/collapse)
+  const [expandedFiles, setExpandedFiles] = useState<{
+    [key: string]: boolean;
+  }>({}); // Key: `${user_id}_${ikd_pedoman_id}`
 
   // State untuk menyimpan parent items (level 0) untuk indicators
   const [parentItemsMap, setParentItemsMap] = useState<Map<number, IKDPedoman>>(
@@ -279,7 +297,7 @@ const DosenIKD: React.FC = () => {
   const fetchBuktiFisik = useCallback(async () => {
     try {
       // Jika dosen, hanya fetch untuk dirinya sendiri
-      // Jika verifikator atau super_admin, fetch semua (tanpa user_id filter)
+      // Jika verifikator, super_admin, atau ketua_ikd, fetch semua (tanpa user_id filter)
       const userId = isDosen && user?.id ? user.id : undefined;
       const url = `/rekap-ikd/bukti-fisik?unit=${unitKerja}${
         userId ? `&user_id=${userId}` : ""
@@ -287,19 +305,23 @@ const DosenIKD: React.FC = () => {
       const res = await api.get(url);
       if (res.data?.success && res.data?.data) {
         const buktiFisikArray: IKDBuktiFisik[] = res.data.data;
-        const newMap: { [key: string]: IKDBuktiFisik } = {};
+        const newMap: { [key: string]: IKDBuktiFisik[] } = {};
+        
+        // Group by user_id and ikd_pedoman_id (support multiple files)
         buktiFisikArray.forEach((bf) => {
           const key = `${bf.user_id}_${bf.ikd_pedoman_id}`;
-          newMap[key] = bf;
+          if (!newMap[key]) {
+            newMap[key] = [];
+          }
+          newMap[key].push(bf);
         });
 
         const currentDeletedKeys = deletedKeysRef.current;
-        const filteredMap: { [key: string]: IKDBuktiFisik } = {};
+        const filteredMap: { [key: string]: IKDBuktiFisik[] } = {};
 
         Object.keys(newMap).forEach((key) => {
-          const bf = newMap[key];
           if (!currentDeletedKeys.has(key)) {
-            filteredMap[key] = bf;
+            filteredMap[key] = newMap[key];
           }
         });
         setBuktiFisikMap(filteredMap);
@@ -324,8 +346,21 @@ const DosenIKD: React.FC = () => {
               return;
             }
 
-            const bf = filteredMap[key];
-            const currentSkor = bf.skor?.toString() || "0";
+            // Untuk multiple files, ambil skor dari file terbaru atau yang status_verifikasi = 'benar'
+            const files = filteredMap[key];
+            let currentSkor = "0";
+            if (files && files.length > 0) {
+              // Prioritaskan file dengan status_verifikasi = 'benar'
+              const benarFile = files.find(f => f.status_verifikasi === 'benar');
+              if (benarFile && benarFile.skor !== null && benarFile.skor !== undefined) {
+                currentSkor = benarFile.skor.toString();
+              } else {
+                // Jika tidak ada yang 'benar', ambil dari file terbaru (id terbesar)
+                const latestFile = files.sort((a, b) => b.id - a.id)[0];
+                currentSkor = latestFile.skor?.toString() || "0";
+              }
+            }
+            
             if (
               !(key in prev) ||
               prev[key] === undefined ||
@@ -382,7 +417,7 @@ const DosenIKD: React.FC = () => {
         }
 
         // Jika dosen, hanya tampilkan dirinya sendiri
-        // Jika verifikator atau super_admin, tampilkan semua dosen
+        // Jika verifikator, super_admin, atau ketua_ikd, tampilkan semua dosen
         if (isDosen && user?.id) {
           const res = await api.get(`/users/${user.id}`);
           if (res.data) {
@@ -392,21 +427,23 @@ const DosenIKD: React.FC = () => {
             // Cache data ke sessionStorage
             sessionStorage.setItem(cacheKey, JSON.stringify(data));
           }
-        } else if (isVerifikator || isSuperAdmin) {
-          const res = await api.get("/users?role=dosen");
+        } else if (isVerifikator || isSuperAdmin || isKetuaIKD) {
+          const res = await api.get("/users?role=dosen&per_page=1000");
           // Handle pagination response
           let data: DosenData[] = [];
           if (Array.isArray(res.data)) {
             data = res.data;
           } else if (res.data?.data && Array.isArray(res.data.data)) {
             data = res.data.data;
+          } else if (res.data?.data?.data && Array.isArray(res.data.data.data)) {
+            data = res.data.data.data;
           }
           setDosenList(data);
           setFilteredDosen(data);
           // Cache data ke sessionStorage
           sessionStorage.setItem(cacheKey, JSON.stringify(data));
         } else {
-          // Fallback: jika bukan dosen atau verifikator, tidak ada data
+          // Fallback: jika bukan dosen, verifikator, super_admin, atau ketua_ikd, tidak ada data
           setDosenList([]);
           setFilteredDosen([]);
         }
@@ -435,6 +472,7 @@ const DosenIKD: React.FC = () => {
     isDosen,
     isVerifikator,
     isSuperAdmin,
+    isKetuaIKD,
     user?.id,
   ]);
 
@@ -466,6 +504,119 @@ const DosenIKD: React.FC = () => {
     setFilteredDosen(filtered);
     setCurrentPage(1);
   }, [searchQuery, dosenList]);
+
+  // Handle klik tombol aksi (buka modal konfirmasi)
+  const handleAksiClick = (buktiFisikId: number, status: 'salah' | 'benar' | 'perbaiki', fileName: string) => {
+    // Find file untuk mendapatkan nama file
+    let foundFileName = fileName;
+    for (const files of Object.values(buktiFisikMap)) {
+      const file = files.find((f) => f.id === buktiFisikId);
+      if (file) {
+        foundFileName = file.file_name;
+        break;
+      }
+    }
+    
+    setAksiToConfirm({
+      buktiFisikId,
+      status,
+      fileName: foundFileName,
+    });
+    setShowAksiModal(true);
+  };
+
+  // Handle update status verifikasi
+  const handleUpdateStatusVerifikasi = useCallback(
+    async (buktiFisikId: number, status: 'salah' | 'benar' | 'perbaiki') => {
+      try {
+        // Find the file to get user_id and ikd_pedoman_id before deletion
+        let fileKey = "";
+        let fileToDelete: IKDBuktiFisik | null = null;
+        for (const [key, files] of Object.entries(buktiFisikMap)) {
+          const file = files.find((f) => f.id === buktiFisikId);
+          if (file) {
+            fileToDelete = file;
+            fileKey = key;
+            break;
+          }
+        }
+
+        const res = await api.post("/rekap-ikd/bukti-fisik/update-status-verifikasi", {
+          bukti_fisik_id: buktiFisikId,
+          status_verifikasi: status,
+        });
+
+        if (res.data?.success) {
+          // Jika status = 'perbaiki', hapus semua file dari state
+          if (status === 'perbaiki') {
+            if (fileKey) {
+              setBuktiFisikMap((prev) => {
+                const newMap = { ...prev };
+                delete newMap[fileKey];
+                return newMap;
+              });
+              
+              // Reset skor
+              setSkorValues((prev) => ({
+                ...prev,
+                [fileKey]: "0",
+              }));
+            }
+            
+            setSuccessMessage("Semua file telah dihapus. Dosen harus upload ulang.");
+            setTimeout(() => setSuccessMessage(null), 5000);
+          } else {
+            // Update local state untuk SEMUA file dengan key yang sama (status 'salah' atau 'benar')
+            if (fileKey) {
+              setBuktiFisikMap((prev) => {
+                const newMap = { ...prev };
+                if (newMap[fileKey]) {
+                  // Update semua file di key ini dengan status yang sama
+                  newMap[fileKey] = newMap[fileKey].map((file) => ({
+                    ...file,
+                    status_verifikasi: status,
+                    skor: status === 'salah' ? 0 : file.skor,
+                  }));
+                }
+                return newMap;
+              });
+
+              // Jika status = 'salah', update skor ke 0
+              if (status === 'salah') {
+                setSkorValues((prev) => ({
+                  ...prev,
+                  [fileKey]: "0",
+                }));
+              }
+            }
+
+            setSuccessMessage(`Status verifikasi berhasil diupdate menjadi "${status}" untuk semua file`);
+            setTimeout(() => setSuccessMessage(null), 3000);
+          }
+          
+          // Refresh data
+          await fetchBuktiFisik();
+        }
+      } catch (error) {
+        console.error("Error updating status verifikasi:", error);
+        alert("Gagal mengupdate status verifikasi. Silakan coba lagi.");
+      }
+    },
+    [buktiFisikMap, fetchBuktiFisik]
+  );
+
+  // Handle konfirmasi aksi (setelah user konfirmasi di modal)
+  const handleConfirmAksi = async () => {
+    if (!aksiToConfirm) return;
+
+    const { buktiFisikId, status } = aksiToConfirm;
+    setShowAksiModal(false);
+    const currentAksi = aksiToConfirm;
+    setAksiToConfirm(null);
+    
+    // Panggil handleUpdateStatusVerifikasi yang sudah ada
+    await handleUpdateStatusVerifikasi(currentAksi.buktiFisikId, currentAksi.status);
+  };
 
   // Handle skor change dengan debounce
   const handleSkorChange = useCallback(
@@ -502,13 +653,29 @@ const DosenIKD: React.FC = () => {
           }));
 
           // Update buktiFisikMap dengan nilai skor yang baru
+          // Update file yang status_verifikasi = 'benar' atau file terbaru jika tidak ada yang 'benar'
           setBuktiFisikMap((prev) => {
             const updated = { ...prev };
-            if (updated[key]) {
-              updated[key] = {
-                ...updated[key],
+            if (updated[key] && updated[key].length > 0) {
+              const files = [...updated[key]];
+              // Cari file dengan status_verifikasi = 'benar'
+              const benarFileIndex = files.findIndex(f => f.status_verifikasi === 'benar');
+              if (benarFileIndex !== -1) {
+                files[benarFileIndex] = {
+                  ...files[benarFileIndex],
+                  skor: skorValue,
+                };
+              } else {
+                // Jika tidak ada yang 'benar', update file terbaru (id terbesar)
+                const latestIndex = files.reduce((maxIdx, file, idx) => 
+                  file.id > files[maxIdx].id ? idx : maxIdx, 0
+                );
+                files[latestIndex] = {
+                  ...files[latestIndex],
                 skor: skorValue,
               };
+              }
+              updated[key] = files;
             }
             return updated;
           });
@@ -521,11 +688,13 @@ const DosenIKD: React.FC = () => {
         } catch (error) {
           console.error("Error updating skor:", error);
           // Revert to original value on error
-          const currentBuktiFisik = buktiFisikMap[key];
-          if (currentBuktiFisik) {
+          const currentFiles = buktiFisikMap[key];
+          if (currentFiles && currentFiles.length > 0) {
+            const benarFile = currentFiles.find(f => f.status_verifikasi === 'benar');
+            const fileToUse = benarFile || currentFiles.sort((a, b) => b.id - a.id)[0];
             setSkorValues((prev) => ({
               ...prev,
-              [key]: currentBuktiFisik.skor?.toString() || "",
+              [key]: fileToUse.skor?.toString() || "",
             }));
           }
         }
@@ -534,7 +703,144 @@ const DosenIKD: React.FC = () => {
     [buktiFisikMap, unitKerja]
   );
 
-  // Handle file upload
+  // Handle multiple files upload
+  const handleMultipleFileUpload = async (
+    userId: number,
+    pedomanId: number,
+    files: FileList | File[]
+  ) => {
+    const fileArray = Array.from(files);
+    if (fileArray.length === 0) return;
+
+    const key = `${userId}_${pedomanId}`;
+    setUploadingFiles((prev) => ({ ...prev, [key]: true }));
+
+    try {
+      // Upload semua file secara sequential untuk menghindari overload
+      let successCount = 0;
+      let errorCount = 0;
+      const errors: string[] = [];
+
+      for (const file of fileArray) {
+        try {
+          await handleFileUploadInternal(userId, pedomanId, file);
+          successCount++;
+        } catch (error) {
+          console.error(`Error uploading file ${file.name}:`, error);
+          errorCount++;
+          const errorMessage = (
+            error as { response?: { data?: { message?: string } } }
+          )?.response?.data?.message;
+          errors.push(`${file.name}: ${errorMessage || "Gagal upload"}`);
+        }
+      }
+
+      // Refresh bukti fisik setelah semua upload selesai
+      await fetchBuktiFisik();
+
+      if (successCount > 0) {
+        if (errorCount > 0) {
+          setSuccessMessage(
+            `${successCount} file berhasil diupload, ${errorCount} file gagal.`
+          );
+          if (errors.length > 0) {
+            console.error("Upload errors:", errors);
+          }
+        } else {
+          setSuccessMessage(
+            `${successCount} file berhasil diupload sekaligus!`
+          );
+        }
+        setTimeout(() => setSuccessMessage(null), 5000);
+      } else {
+        alert("Semua file gagal diupload. Silakan coba lagi.");
+      }
+    } catch (error) {
+      console.error("Error in multiple file upload:", error);
+      alert("Terjadi kesalahan saat mengupload file. Silakan coba lagi.");
+    } finally {
+      setUploadingFiles((prev) => ({ ...prev, [key]: false }));
+    }
+  };
+
+  // Internal function untuk upload single file (tanpa feedback, untuk digunakan oleh handleMultipleFileUpload)
+  const handleFileUploadInternal = async (
+    userId: number,
+    pedomanId: number,
+    file: File
+  ) => {
+    const key = `${userId}_${pedomanId}`;
+
+    const formData = new FormData();
+    formData.append("user_id", userId.toString());
+    formData.append("ikd_pedoman_id", pedomanId.toString());
+    formData.append("unit", unitKerja);
+    formData.append("file", file);
+
+    const res = await api.post("/rekap-ikd/bukti-fisik/upload", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+
+    if (res.data?.success) {
+      // Hapus key dari deletedKeysRef karena ada file baru
+      if (deletedKeysRef.current.has(key)) {
+        const newDeletedKeysSet = new Set(deletedKeysRef.current);
+        newDeletedKeysSet.delete(key);
+        deletedKeysRef.current = newDeletedKeysSet;
+        await removeDeletedKey(key);
+      }
+
+      // Update state langsung dari response untuk immediate UI update
+      const uploadedBuktiFisik = res.data?.data;
+      if (uploadedBuktiFisik) {
+        setBuktiFisikMap((prev) => {
+          const existingFiles = prev[key] || [];
+          return {
+            ...prev,
+            [key]: [
+              ...existingFiles,
+              {
+                id: uploadedBuktiFisik.id,
+                user_id: uploadedBuktiFisik.user_id,
+                ikd_pedoman_id: uploadedBuktiFisik.ikd_pedoman_id,
+                file_path: uploadedBuktiFisik.file_path,
+                file_name: uploadedBuktiFisik.file_name,
+                file_type: uploadedBuktiFisik.file_type,
+                file_size: uploadedBuktiFisik.file_size,
+                file_url: uploadedBuktiFisik.file_url,
+                skor: uploadedBuktiFisik.skor || 0,
+                status_verifikasi: uploadedBuktiFisik.status_verifikasi || null,
+                pedoman: uploadedBuktiFisik.pedoman,
+              },
+            ],
+          };
+        });
+
+        // Update skor value jika ada
+        if (
+          uploadedBuktiFisik.skor !== null &&
+          uploadedBuktiFisik.skor !== undefined
+        ) {
+          setSkorValues((prev) => ({
+            ...prev,
+            [key]: uploadedBuktiFisik.skor.toString(),
+          }));
+        } else {
+          // Set ke 0 jika skor null/undefined
+          setSkorValues((prev) => ({
+            ...prev,
+            [key]: "0",
+          }));
+        }
+      }
+    } else {
+      throw new Error("Upload failed");
+    }
+  };
+
+  // Handle file upload (single file)
   const handleFileUpload = async (
     userId: number,
     pedomanId: number,
@@ -568,9 +874,13 @@ const DosenIKD: React.FC = () => {
         // Update state langsung dari response untuk immediate UI update
         const uploadedBuktiFisik = res.data?.data;
         if (uploadedBuktiFisik) {
-          setBuktiFisikMap((prev) => ({
+          setBuktiFisikMap((prev) => {
+            const existingFiles = prev[key] || [];
+            return {
             ...prev,
-            [key]: {
+              [key]: [
+                ...existingFiles,
+                {
               id: uploadedBuktiFisik.id,
               user_id: uploadedBuktiFisik.user_id,
               ikd_pedoman_id: uploadedBuktiFisik.ikd_pedoman_id,
@@ -580,9 +890,12 @@ const DosenIKD: React.FC = () => {
               file_size: uploadedBuktiFisik.file_size,
               file_url: uploadedBuktiFisik.file_url,
               skor: uploadedBuktiFisik.skor || 0,
+                  status_verifikasi: uploadedBuktiFisik.status_verifikasi || null,
               pedoman: uploadedBuktiFisik.pedoman,
             },
-          }));
+              ],
+            };
+          });
 
           // Update skor value jika ada
           if (
@@ -629,50 +942,53 @@ const DosenIKD: React.FC = () => {
     if (!fileToDelete) return;
 
     try {
-      const deletedBuktiFisik = Object.values(buktiFisikMap).find(
-        (bf) => bf.id === fileToDelete.id
-      );
+      // Find the file in buktiFisikMap
+      let deletedBuktiFisik: IKDBuktiFisik | null = null;
+      let fileKey = "";
+      
+      for (const [key, files] of Object.entries(buktiFisikMap)) {
+        const file = files.find((bf) => bf.id === fileToDelete.id);
+        if (file) {
+          deletedBuktiFisik = file;
+          fileKey = key;
+          break;
+        }
+      }
 
       if (!deletedBuktiFisik) {
         console.error("BuktiFisik not found for deletion");
         return;
       }
 
-      const key = `${deletedBuktiFisik.user_id}_${deletedBuktiFisik.ikd_pedoman_id}`;
-
-      // Tandai KEY sebagai dihapus untuk mencegah file baru muncul untuk key yang sama
-      const newDeletedKeysSet = new Set(deletedKeysRef.current);
-      newDeletedKeysSet.add(key);
-      deletedKeysRef.current = newDeletedKeysSet;
-      await saveDeletedKey(key);
-
-      // Reset skor ke 0 di backend dulu
-      try {
-        await api.post("/rekap-ikd/bukti-fisik/update-skor", {
-          user_id: deletedBuktiFisik.user_id,
-          ikd_pedoman_id: deletedBuktiFisik.ikd_pedoman_id,
-          unit: unitKerja,
-          skor: 0,
-        });
-      } catch (skorError) {
-        console.error("Error resetting skor:", skorError);
-      }
-
       // Hapus file dari backend
       const res = await api.delete(`/rekap-ikd/bukti-fisik/${fileToDelete.id}`);
       if (res.data?.success) {
-        // Langsung update local state: hapus dari buktiFisikMap dan reset skor
+        // Langsung update local state: hapus file spesifik dari array
         setBuktiFisikMap((prev) => {
           const newMap = { ...prev };
-          delete newMap[key];
-          return newMap;
-        });
+          if (newMap[fileKey]) {
+            const filteredFiles = newMap[fileKey].filter(
+              (bf) => bf.id !== fileToDelete.id
+            );
+            if (filteredFiles.length === 0) {
+              // Jika tidak ada file lagi, hapus key dan tandai sebagai deleted
+              delete newMap[fileKey];
+              const newDeletedKeysSet = new Set(deletedKeysRef.current);
+              newDeletedKeysSet.add(fileKey);
+              deletedKeysRef.current = newDeletedKeysSet;
+              saveDeletedKey(fileKey);
 
         // Reset skor ke 0 di local state
         setSkorValues((prev) => ({
           ...prev,
-          [key]: "0",
+                [fileKey]: "0",
         }));
+            } else {
+              newMap[fileKey] = filteredFiles;
+            }
+          }
+          return newMap;
+        });
 
         // Tutup modal
         setShowDeleteModal(false);
@@ -970,7 +1286,7 @@ const DosenIKD: React.FC = () => {
         </AnimatePresence>
 
         {/* Search Bar - hanya tampilkan jika verifikator atau super_admin */}
-        {(isVerifikator || isSuperAdmin) && (
+        {(isVerifikator || isSuperAdmin || isKetuaIKD) && (
           <div className="flex items-center gap-4">
             <div className="relative flex-1 max-w-md">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -1091,6 +1407,9 @@ const DosenIKD: React.FC = () => {
                               />
                             </div>
                           </th>
+                          <th className="px-2 pr-4 py-4 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-24">
+                            Aksi
+                          </th>
                           <th className="px-2 pr-4 py-4 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20">
                             Skor
                           </th>
@@ -1102,7 +1421,7 @@ const DosenIKD: React.FC = () => {
                     {paginatedDosen.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={2 + pedomanList.length * 2}
+                          colSpan={2 + pedomanList.length * 3}
                           className="px-6 py-16 text-center"
                         >
                           <div className="flex flex-col items-center gap-3 text-gray-400 dark:text-gray-500">
@@ -1148,14 +1467,39 @@ const DosenIKD: React.FC = () => {
                           </td>
                           {pedomanList.map((pedoman, index) => {
                             const key = `${dosen.id}_${pedoman.id}`;
-                            const buktiFisik = buktiFisikMap[key];
+                            const buktiFisikFiles = buktiFisikMap[key] || [];
                             const isUploading = uploadingFiles[key] || false;
                             const fileInputKey = `file_${key}`;
-                            const skorValue = buktiFisik
-                              ? skorValues[key] ??
-                                buktiFisik.skor?.toString() ??
-                                "0"
-                              : "0";
+                            
+                            // Get skor value (prioritize file with status_verifikasi = 'benar')
+                            let skorValue = "0";
+                            if (buktiFisikFiles.length > 0) {
+                              const benarFile = buktiFisikFiles.find(f => f.status_verifikasi === 'benar');
+                              if (benarFile && benarFile.skor !== null && benarFile.skor !== undefined) {
+                                skorValue = benarFile.skor.toString();
+                              } else {
+                                const latestFile = buktiFisikFiles.sort((a, b) => b.id - a.id)[0];
+                                skorValue = skorValues[key] ?? latestFile.skor?.toString() ?? "0";
+                              }
+                            }
+
+                            // Check status untuk menentukan apakah bisa upload
+                            const hasSalahStatus = buktiFisikFiles.some(f => f.status_verifikasi === 'salah');
+                            const hasBenarStatus = buktiFisikFiles.some(f => f.status_verifikasi === 'benar');
+                            const hasPerbaikiStatus = buktiFisikFiles.some(f => f.status_verifikasi === 'perbaiki');
+                            // Dosen tidak bisa upload jika ada status 'salah' atau 'benar'
+                            const canUpload = isDosen && dosen.id === user?.id && !hasSalahStatus && !hasBenarStatus;
+
+                            // Check apakah ada file dengan status verifikasi
+                            const hasStatusVerifikasi = buktiFisikFiles.some(f => f.status_verifikasi !== null && f.status_verifikasi !== undefined);
+                            // Check apakah ada file dengan status 'benar' (bisa isi skor)
+                            const hasBenarFile = buktiFisikFiles.some(f => f.status_verifikasi === 'benar');
+                            
+                            // Limit files untuk display (max 3, sisanya bisa expand)
+                            const maxVisibleFiles = 3;
+                            const isExpanded = expandedFiles[key] || false;
+                            const visibleFiles = isExpanded ? buktiFisikFiles : buktiFisikFiles.slice(0, maxVisibleFiles);
+                            const hasMoreFiles = buktiFisikFiles.length > maxVisibleFiles;
 
                             return (
                               <React.Fragment key={pedoman.id}>
@@ -1165,7 +1509,11 @@ const DosenIKD: React.FC = () => {
                                   } pr-2 py-4 text-sm text-gray-900 dark:text-gray-100`}
                                 >
                                   <div className="flex flex-col gap-2">
-                                    {buktiFisik ? (
+                                    {buktiFisikFiles.length > 0 ? (
+                                      <>
+                                        {/* Multiple files display */}
+                                        {visibleFiles.map((buktiFisik) => (
+                                          <div key={buktiFisik.id} className="flex flex-col gap-1">
                                       <div className="flex items-center gap-2">
                                         {/* Download button - semua role bisa download */}
                                         <button
@@ -1199,8 +1547,43 @@ const DosenIKD: React.FC = () => {
                                           </button>
                                         )}
                                       </div>
-                                    ) : /* Upload button - hanya dosen yang bisa upload untuk dirinya sendiri */
-                                    isDosen && dosen.id === user?.id ? (
+                                            
+                                            {/* Status badge */}
+                                            {buktiFisik.status_verifikasi && (
+                                              <span className={`text-xs px-2 py-0.5 rounded ${
+                                                buktiFisik.status_verifikasi === 'benar' 
+                                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                                  : buktiFisik.status_verifikasi === 'salah'
+                                                  ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                                                  : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                              }`}>
+                                                {buktiFisik.status_verifikasi === 'benar' ? '✓ Benar' :
+                                                 buktiFisik.status_verifikasi === 'salah' ? '✗ Salah' :
+                                                 '⚠ Perbaiki'}
+                                              </span>
+                                            )}
+                                          </div>
+                                        ))}
+                                        
+                                        {/* Show more/less button jika file lebih dari 3 */}
+                                        {hasMoreFiles && (
+                                          <button
+                                            onClick={() => setExpandedFiles(prev => ({
+                                              ...prev,
+                                              [key]: !prev[key]
+                                            }))}
+                                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1"
+                                          >
+                                            {isExpanded ? 'Lihat lebih sedikit' : `Lihat ${buktiFisikFiles.length - maxVisibleFiles} file lagi`}
+                                          </button>
+                                        )}
+                                        
+                                      </>
+                                    ) : null}
+                                    
+                                    {/* Upload button - hanya dosen yang bisa upload untuk dirinya sendiri */}
+                                    {/* Bisa upload jika: belum ada file, atau semua file status-nya null */}
+                                    {canUpload ? (
                                       <div className="flex items-center gap-2">
                                         <input
                                           ref={(el) => {
@@ -1210,14 +1593,15 @@ const DosenIKD: React.FC = () => {
                                           }}
                                           type="file"
                                           accept=".pdf,.xlsx,.xls,.docx,.doc,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.zip,.rar"
+                                          multiple
                                           className="hidden"
                                           onChange={(e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) {
-                                              handleFileUpload(
+                                            const files = e.target.files;
+                                            if (files && files.length > 0) {
+                                              handleMultipleFileUpload(
                                                 dosen.id,
                                                 pedoman.id,
-                                                file
+                                                files
                                               );
                                             }
                                             if (
@@ -1259,16 +1643,80 @@ const DosenIKD: React.FC = () => {
                                         </button>
                                       </div>
                                     ) : (
+                                      /* Tampilkan pesan sesuai kondisi */
+                                      <>
+                                        {isDosen && dosen.id === user?.id ? (
+                                          /* Untuk dosen: tampilkan informasi mengapa tidak bisa upload */
+                                          hasSalahStatus || hasBenarStatus ? (
+                                            <div className="p-2 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded text-xs text-gray-600 dark:text-gray-400">
+                                              {hasSalahStatus ? '✗ File telah ditandai sebagai salah. Tidak dapat upload lagi.' : 
+                                               hasBenarStatus ? '✓ File telah ditandai sebagai benar. Tidak dapat upload lagi.' : ''}
+                                            </div>
+                                          ) : (
+                                            <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                                              Belum ada file
+                                            </span>
+                                          )
+                                    ) : (
                                       /* Untuk verifikator/superadmin, tampilkan pesan jika belum ada file */
                                       <span className="text-xs text-gray-400 dark:text-gray-500 italic">
                                         Belum ada file
                                       </span>
+                                        )}
+                                      </>
                                     )}
                                   </div>
                                 </td>
+                                <td className="px-2 pr-4 py-4 text-center align-middle">
+                                  {/* Aksi buttons untuk verifikator/superadmin - hanya muncul sekali per pedoman (aksi diterapkan ke semua file) */}
+                                  {(isVerifikator || isSuperAdmin || isKetuaIKD) && buktiFisikFiles.length > 0 ? (
+                                    <div className="flex flex-col gap-1 items-center justify-center w-full">
+                                      {/* Cek apakah semua file sudah memiliki status_verifikasi */}
+                                      {!hasStatusVerifikasi ? (
+                                        /* Ambil file pertama untuk mendapatkan info (aksi akan diterapkan ke semua file) */
+                                        (() => {
+                                          const firstFile = buktiFisikFiles[0];
+                                          return (
+                                            <div className="flex items-center justify-center gap-1">
+                                              <button
+                                                onClick={() => handleAksiClick(firstFile.id, 'salah', `Semua file (${buktiFisikFiles.length} file)`)}
+                                                className="px-2 py-0.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition-colors"
+                                                title="Tandai semua file sebagai salah (skor = 0)"
+                                              >
+                                                Salah
+                                              </button>
+                                              <button
+                                                onClick={() => handleAksiClick(firstFile.id, 'benar', `Semua file (${buktiFisikFiles.length} file)`)}
+                                                className="px-2 py-0.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition-colors"
+                                                title="Tandai semua file sebagai benar (bisa dinilai)"
+                                              >
+                                                Benar
+                                              </button>
+                                              <button
+                                                onClick={() => handleAksiClick(firstFile.id, 'perbaiki', `Semua file (${buktiFisikFiles.length} file)`)}
+                                                className="px-2 py-0.5 text-xs font-medium text-white bg-yellow-600 hover:bg-yellow-700 rounded transition-colors"
+                                                title="Minta dosen untuk memperbaiki semua file"
+                                              >
+                                                Perbaiki
+                                              </button>
+                                            </div>
+                                          );
+                                        })()
+                                      ) : (
+                                        <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                                          Sudah dipilih
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                                      -
+                                    </span>
+                                  )}
+                                </td>
                                 <td className="px-2 pr-4 py-4 text-center">
                                   {/* Skor input - hanya verifikator/superadmin yang bisa isi skor */}
-                                  {isVerifikator || isSuperAdmin ? (
+                                  {isVerifikator || isSuperAdmin || isKetuaIKD ? (
                                     <input
                                       type="number"
                                       step="0.01"
@@ -1281,23 +1729,27 @@ const DosenIKD: React.FC = () => {
                                           e.target.value
                                         )
                                       }
-                                      disabled={!buktiFisik}
+                                      disabled={!hasStatusVerifikasi || hasSalahStatus || !hasBenarFile}
                                       className={`w-16 px-1.5 py-1 text-sm text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                        !buktiFisik
+                                        !hasStatusVerifikasi || hasSalahStatus || !hasBenarFile
                                           ? "opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-700"
                                           : ""
                                       }`}
                                       placeholder="0"
                                       title={
-                                        !buktiFisik
-                                          ? "File belum diupload oleh dosen. Skor dapat diisi setelah dosen mengupload file."
+                                        !hasStatusVerifikasi
+                                          ? "Pilih aksi terlebih dahulu (Salah/Benar/Perbaiki)"
+                                          : hasSalahStatus
+                                          ? "Status salah, skor otomatis 0 dan tidak bisa diubah"
+                                          : !hasBenarFile
+                                          ? "Pilih aksi 'Benar' terlebih dahulu untuk bisa mengisi skor"
                                           : "Isi skor untuk dosen ini"
                                       }
                                     />
                                   ) : (
                                     /* Untuk dosen, tampilkan skor sebagai read-only */
                                     <span className="text-sm text-gray-600 dark:text-gray-400">
-                                      {buktiFisik?.skor || 0}
+                                      {skorValue}
                                     </span>
                                   )}
                                 </td>
@@ -1596,6 +2048,155 @@ const DosenIKD: React.FC = () => {
                 </div>
               </motion.div>
             </>
+          )}
+        </AnimatePresence>
+
+        {/* Modal Konfirmasi Aksi */}
+        <AnimatePresence>
+          {showAksiModal && aksiToConfirm && (
+            <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+              {/* Overlay */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+                onClick={() => {
+                  setShowAksiModal(false);
+                  setAksiToConfirm(null);
+                }}
+              />
+              {/* Modal Content */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Close Button */}
+                <button
+                  onClick={() => {
+                    setShowAksiModal(false);
+                    setAksiToConfirm(null);
+                  }}
+                  className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+                >
+                  <FontAwesomeIcon icon={faTimes} className="w-5 h-5" />
+                </button>
+
+                <div>
+                  {/* Header */}
+                  <div className="flex items-center justify-between pb-4 sm:pb-6">
+                    <div className="flex items-center space-x-4">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg ${
+                        aksiToConfirm.status === 'salah' 
+                          ? 'bg-red-100 dark:bg-red-900/30'
+                          : aksiToConfirm.status === 'benar'
+                          ? 'bg-green-100 dark:bg-green-900/30'
+                          : 'bg-yellow-100 dark:bg-yellow-900/30'
+                      }`}>
+                        <FontAwesomeIcon
+                          icon={aksiToConfirm.status === 'salah' ? faTimes : aksiToConfirm.status === 'benar' ? faCheckCircle : faExclamationTriangle}
+                          className={`w-6 h-6 ${
+                            aksiToConfirm.status === 'salah' 
+                              ? 'text-red-600 dark:text-red-400'
+                              : aksiToConfirm.status === 'benar'
+                              ? 'text-green-600 dark:text-green-400'
+                              : 'text-yellow-600 dark:text-yellow-400'
+                          }`}
+                        />
+                      </div>
+                      <div>
+                        <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
+                          Konfirmasi Aksi
+                        </h2>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {aksiToConfirm.status === 'salah' 
+                            ? 'Tandai file sebagai salah'
+                            : aksiToConfirm.status === 'benar'
+                            ? 'Tandai file sebagai benar'
+                            : 'Minta dosen untuk memperbaiki file'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* File Info Card */}
+                  <div className={`mb-6 p-6 border rounded-2xl ${
+                    aksiToConfirm.status === 'salah' 
+                      ? 'bg-gradient-to-r from-red-50 to-pink-50 dark:from-red-900/20 dark:to-pink-900/20 border-red-200 dark:border-red-700'
+                      : aksiToConfirm.status === 'benar'
+                      ? 'bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-700'
+                      : 'bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border-yellow-200 dark:border-yellow-700'
+                  }`}>
+                    <div className="flex items-center space-x-3 mb-4">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                        aksiToConfirm.status === 'salah' 
+                          ? 'bg-red-500'
+                          : aksiToConfirm.status === 'benar'
+                          ? 'bg-green-500'
+                          : 'bg-yellow-500'
+                      }`}>
+                        <FontAwesomeIcon
+                          icon={faFile}
+                          className="w-5 h-5 text-white"
+                        />
+                      </div>
+                      <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        File
+                      </h4>
+                    </div>
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-3">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white break-words">
+                        {aksiToConfirm.fileName}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Keterangan */}
+                  <div className="mb-6">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {aksiToConfirm.status === 'salah' 
+                        ? 'Semua file akan ditandai sebagai salah. Skor akan otomatis menjadi 0 dan tidak dapat diubah. Dosen tidak dapat upload file lagi untuk kegiatan ini.'
+                        : aksiToConfirm.status === 'benar'
+                        ? 'Semua file akan ditandai sebagai benar. Anda dapat memberikan skor untuk file-file ini. Dosen tidak dapat upload file lagi untuk kegiatan ini.'
+                        : 'Semua file akan dihapus dan dosen harus upload ulang. Dosen akan mendapat notifikasi untuk memperbaiki file.'}
+                    </p>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3 justify-end">
+                    <button
+                      onClick={() => {
+                        setShowAksiModal(false);
+                        setAksiToConfirm(null);
+                      }}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      onClick={handleConfirmAksi}
+                      className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${
+                        aksiToConfirm.status === 'salah' 
+                          ? 'bg-red-600 hover:bg-red-700'
+                          : aksiToConfirm.status === 'benar'
+                          ? 'bg-green-600 hover:bg-green-700'
+                          : 'bg-yellow-600 hover:bg-yellow-700'
+                      }`}
+                    >
+                      {aksiToConfirm.status === 'salah' 
+                        ? 'Tandai sebagai Salah'
+                        : aksiToConfirm.status === 'benar'
+                        ? 'Tandai sebagai Benar'
+                        : 'Minta Perbaiki'}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
           )}
         </AnimatePresence>
       </div>

@@ -616,50 +616,24 @@ class RekapIKDController extends Controller
             $fileType = $extension;
             $fileSize = $file->getSize();
             
-            // Check if bukti fisik already exists for this user, pedoman, and unit
-            $existingBuktiFisik = IKDBuktiFisik::where('user_id', $requestedUserId)
-                ->where('ikd_pedoman_id', $ikdPedomanId)
-                ->where('unit', $unit)
-                ->first();
+            // Always create new record (support multiple files)
+            // Reset status_verifikasi to null when new file is uploaded
+            $buktiFisik = IKDBuktiFisik::create([
+                'user_id' => $requestedUserId,
+                'ikd_pedoman_id' => $ikdPedomanId,
+                'unit' => $unit,
+                'file_path' => $path,
+                'file_name' => $originalName,
+                'file_type' => $fileType,
+                'file_size' => $fileSize,
+                'status_verifikasi' => null, // Reset status saat upload baru
+            ]);
             
-            if ($existingBuktiFisik) {
-                // Delete old file
-                if (Storage::disk('public')->exists($existingBuktiFisik->file_path)) {
-                    Storage::disk('public')->delete($existingBuktiFisik->file_path);
-                }
-                
-                // Update existing record
-                $existingBuktiFisik->update([
-                    'unit' => $unit,
-                    'file_path' => $path,
-                    'file_name' => $originalName,
-                    'file_type' => $fileType,
-                    'file_size' => $fileSize,
-                ]);
-                
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Bukti fisik berhasil diupdate',
-                    'data' => $existingBuktiFisik->load(['user', 'pedoman'])
-                ]);
-            } else {
-                // Create new record
-                $buktiFisik = IKDBuktiFisik::create([
-                    'user_id' => $requestedUserId,
-                    'ikd_pedoman_id' => $ikdPedomanId,
-                    'unit' => $unit,
-                    'file_path' => $path,
-                    'file_name' => $originalName,
-                    'file_type' => $fileType,
-                    'file_size' => $fileSize,
-                ]);
-                
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Bukti fisik berhasil diupload',
-                    'data' => $buktiFisik->load(['user', 'pedoman'])
-                ], 201);
-            }
+            return response()->json([
+                'success' => true,
+                'message' => 'Bukti fisik berhasil diupload',
+                'data' => $buktiFisik->load(['user', 'pedoman'])
+            ], 201);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -992,6 +966,99 @@ class RekapIKDController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error updating skor: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update status verifikasi bukti fisik
+     */
+    public function updateStatusVerifikasi(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            $validator = Validator::make($request->all(), [
+                'bukti_fisik_id' => 'required|exists:ikd_bukti_fisik,id',
+                'status_verifikasi' => 'required|in:salah,benar,perbaiki',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation error',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Check authorization: hanya verifikator dan super_admin yang bisa update status
+            if (!in_array($user->role, ['super_admin', 'ketua_ikd', 'verifikator'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized: Hanya verifikator dan super admin yang dapat mengupdate status verifikasi'
+                ], 403);
+            }
+
+            $buktiFisikId = $request->input('bukti_fisik_id');
+            $statusVerifikasi = $request->input('status_verifikasi');
+            
+            $buktiFisik = IKDBuktiFisik::findOrFail($buktiFisikId);
+            
+            // Ambil semua file untuk kombinasi user_id + ikd_pedoman_id + unit yang sama
+            $allFiles = IKDBuktiFisik::where('user_id', $buktiFisik->user_id)
+                ->where('ikd_pedoman_id', $buktiFisik->ikd_pedoman_id)
+                ->where('unit', $buktiFisik->unit)
+                ->get();
+            
+            // Jika status = 'perbaiki', hapus semua file untuk user_id + ikd_pedoman_id + unit ini
+            if ($statusVerifikasi === 'perbaiki') {
+                // Hapus file fisik dari storage dan record dari database
+                foreach ($allFiles as $file) {
+                    if (Storage::disk('public')->exists($file->file_path)) {
+                        Storage::disk('public')->delete($file->file_path);
+                    }
+                    $file->delete();
+                }
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Semua file telah dihapus. Dosen harus upload ulang.',
+                    'data' => null
+                ]);
+            }
+            
+            // Update status verifikasi untuk SEMUA file dengan status 'salah' atau 'benar'
+            $updateData = [
+                'status_verifikasi' => $statusVerifikasi,
+            ];
+            
+            // Jika status = 'salah', set skor = 0 untuk semua file
+            if ($statusVerifikasi === 'salah') {
+                $updateData['skor'] = 0;
+            }
+            
+            // Update semua file sekaligus
+            IKDBuktiFisik::where('user_id', $buktiFisik->user_id)
+                ->where('ikd_pedoman_id', $buktiFisik->ikd_pedoman_id)
+                ->where('unit', $buktiFisik->unit)
+                ->update($updateData);
+
+            // Reload untuk mendapatkan data terbaru
+            $updatedFiles = IKDBuktiFisik::where('user_id', $buktiFisik->user_id)
+                ->where('ikd_pedoman_id', $buktiFisik->ikd_pedoman_id)
+                ->where('unit', $buktiFisik->unit)
+                ->with(['user', 'pedoman'])
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Status verifikasi berhasil diupdate untuk semua file',
+                'data' => $updatedFiles
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error updating status verifikasi: ' . $e->getMessage()
             ], 500);
         }
     }

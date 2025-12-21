@@ -32,6 +32,7 @@ export default function TimAkademik() {
   const [editMode, setEditMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [modalError, setModalError] = useState(""); // Error untuk modal
   const [showPassword, setShowPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -129,7 +130,7 @@ export default function TimAkademik() {
 
   const handleAdd = async () => {
     setIsSaving(true);
-    setError("");
+    setModalError(""); // Reset modal error
     try {
       let payload = { ...form };
       if (editMode) {
@@ -138,7 +139,7 @@ export default function TimAkademik() {
         setSuccess("Data tim akademik berhasil diupdate.");
       } else {
         if (!payload.password) {
-          setError("Password wajib diisi.");
+          setModalError("Password wajib diisi."); // Tampilkan di modal
           setIsSaving(false);
           return;
         }
@@ -157,9 +158,13 @@ export default function TimAkademik() {
       setForm({ nip: "", name: "", username: "", email: "", telp: "", ket: "", password: "", role: "tim_akademik" });
       setShowPassword(false);
       // Reset error saat modal ditutup
-      setError("");
+      setModalError("");
     } catch (err: any) {
-      setError(handleApiError(err, "Menyimpan data tim akademik"));
+      // Ambil error message dari backend dengan prioritas
+      const errorMessage = err.response?.data?.error || 
+                           err.response?.data?.message || 
+                           handleApiError(err, "Menyimpan data tim akademik");
+      setModalError(errorMessage); // Tampilkan di modal, bukan di atas table
     } finally {
       setIsSaving(false);
     }
@@ -167,7 +172,7 @@ export default function TimAkademik() {
 
   const handleEdit = (t: UserTimAkademik) => {
     // Reset error saat membuka modal edit
-    setError("");
+    setModalError("");
     setForm({ ...t, password: t.password || "" });
     setShowModal(true);
     setEditMode(true);
@@ -207,7 +212,7 @@ export default function TimAkademik() {
     setForm({ nip: "", name: "", username: "", email: "", telp: "", ket: "", password: "", role: "tim_akademik" });
     setEditMode(false);
     // Reset error saat modal ditutup
-    setError("");
+    setModalError("");
   };
 
   const userToDelete = Array.isArray(data) ? data.find((u) => String(u.id) === String(selectedDeleteNip)) : undefined;
@@ -1269,6 +1274,31 @@ export default function TimAkademik() {
                     {editMode ? 'Edit Tim Akademik' : 'Tambah Tim Akademik'}
                   </h2>
                 </div>
+                
+                {/* Error Message di Modal */}
+                {modalError && (
+                  <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <svg
+                        className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      <p className="text-sm text-red-600 dark:text-red-400">
+                        {modalError}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
                 <div>
                   <div className="space-y-4">
                     <div>

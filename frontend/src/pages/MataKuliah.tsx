@@ -368,6 +368,8 @@ export default function MataKuliah() {
   // State untuk menyimpan PBL asli dari backend saat edit
   const [oldPblList, setOldPblList] = useState<PBLItem[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // State untuk error di modal (ditampilkan di dalam modal, bukan di atas table)
+  const [modalError, setModalError] = useState<string | null>(null);
   // State untuk menyimpan kode original saat edit (untuk handle perubahan kode)
   const [originalKode, setOriginalKode] = useState<string | null>(null);
 
@@ -584,6 +586,7 @@ export default function MataKuliah() {
 
   const handleSaveData = async () => {
     setIsSaving(true);
+    setModalError(null); // Reset modal error saat mulai save
     try {
       setSuccess(null);
       // Validasi custom sebelum submit
@@ -672,8 +675,13 @@ export default function MataKuliah() {
             }
           );
           rpsFileName = rpsResponse.data.filename;
-        } catch (error) {
-          setError("Gagal mengupload file RPS");
+        } catch (error: any) {
+          // Ambil error message dari backend
+          const errorMessage = error.response?.data?.error || 
+                               error.response?.data?.message || 
+                               error.message || 
+                               "Gagal mengupload file RPS";
+          setModalError(errorMessage); // Tampilkan error di modal, bukan di atas table
           setIsSaving(false);
           return;
         }
@@ -704,8 +712,13 @@ export default function MataKuliah() {
           });
 
           await Promise.all(uploadPromises);
-        } catch (error) {
-          setError("Gagal mengupload file materi");
+        } catch (error: any) {
+          // Ambil error message dari backend
+          const errorMessage = error.response?.data?.error || 
+                               error.response?.data?.message || 
+                               error.message || 
+                               "Gagal mengupload file materi";
+          setModalError(errorMessage); // Tampilkan error di modal, bukan di atas table
           setIsSaving(false);
           return;
         }
@@ -880,7 +893,14 @@ export default function MataKuliah() {
                 "Content-Type": "multipart/form-data",
               },
             });
-          } catch (error) {
+          } catch (error: any) {
+            // Ambil error message dari backend
+            const errorMessage = error.response?.data?.error || 
+                                 error.response?.data?.message || 
+                                 error.message || 
+                                 "Gagal mengupload file RPS";
+            setModalError(errorMessage); // Tampilkan error di modal
+            console.error("Error uploading RPS:", error);
           }
         }
 
@@ -903,7 +923,14 @@ export default function MataKuliah() {
             });
 
             await Promise.all(uploadPromises);
-          } catch (error) {
+          } catch (error: any) {
+            // Ambil error message dari backend
+            const errorMessage = error.response?.data?.error || 
+                                 error.response?.data?.message || 
+                                 error.message || 
+                                 "Gagal mengupload file materi";
+            setModalError(errorMessage); // Tampilkan error di modal
+            console.error("Error uploading materi:", error);
           }
         }
       }
@@ -946,16 +973,19 @@ export default function MataKuliah() {
         }
       }
     } catch (error: any) {
-
+      // Tampilkan error di modal, bukan di atas table
       if (error.response?.data?.errors) {
         const errorMessages = Object.values(error.response.data.errors).flat();
-        setError(errorMessages.join(", "));
+        setModalError(errorMessages.join(", "));
+      } else if (error.response?.data?.error) {
+        // Prioritas untuk error dari backend
+        setModalError(error.response.data.error);
       } else if (error.response?.data?.message) {
-        setError(error.response.data.message);
+        setModalError(error.response.data.message);
       } else if (error.message) {
-        setError(error.message);
+        setModalError(error.message);
       } else {
-        setError("Gagal menyimpan data mata kuliah");
+        setModalError("Gagal menyimpan data mata kuliah");
       }
     } finally {
       // handleSaveData finished, isSaving set to false
@@ -1275,6 +1305,7 @@ export default function MataKuliah() {
   const handleCloseModal = () => {
     setShowModal(false);
     setOriginalKode(null); // Reset original kode
+    setModalError(null); // Reset modal error
     setForm({
       kode: "",
       nama: "",
@@ -3878,6 +3909,31 @@ export default function MataKuliah() {
                     {editMode ? "Edit Mata Kuliah" : "Tambah Mata Kuliah"}
                   </h2>
                 </div>
+                
+                {/* Error Message di Modal */}
+                {modalError && (
+                  <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <svg
+                        className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      <p className="text-sm text-red-600 dark:text-red-400">
+                        {modalError}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
                 <div>
                   <div className="mb-3 sm:mb-4">
                     <label

@@ -547,14 +547,28 @@ const ForumDiskusi: React.FC = () => {
 
       const response = await api.get("/users");
 
+      // Handle different response structures (pagination atau langsung array)
+      let users = [];
+      if (Array.isArray(response.data)) {
+        users = response.data;
+      } else if (response.data?.data && Array.isArray(response.data.data)) {
+        users = response.data.data;
+      } else if (response.data?.data?.data && Array.isArray(response.data.data.data)) {
+        users = response.data.data.data;
+      } else {
+        console.warn("⚠️ WARNING: Unexpected response structure:", response.data);
+        users = [];
+      }
+
       // Filter out current user (author) dari all users
-      const filteredUsers = (response.data || []).filter(
+      const filteredUsers = users.filter(
         (userItem: User) => userItem.id !== (user?.id || 0)
       );
 
       setSearchableUsers(filteredUsers);
     } catch (error) {
       console.error("Error loading all users:", error);
+      console.error("Error details:", error);
       setSearchableUsers([]);
     } finally {
       setSearchingUsers(false);

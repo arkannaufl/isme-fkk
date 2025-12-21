@@ -340,10 +340,16 @@ export default function DashboardMahasiswa() {
             const userData = getUser();
             if (!userData) return;
 
-            // Hanya phone dan name yang required (sesuai API Wablas)
+            // Cek semua field yang required untuk WhatsApp
             const needsWhatsApp =
               !userData.whatsapp_phone ||
-              !userData.whatsapp_phone.match(/^62\d+$/);
+              !userData.whatsapp_phone.match(/^62\d+$/) ||
+              !userData.name ||
+              !userData.name.trim() ||
+              !userData.whatsapp_address ||
+              !userData.whatsapp_address.trim() ||
+              !userData.whatsapp_birth_day ||
+              !userData.whatsapp_birth_day.trim();
 
             setShowWhatsAppWarning(needsWhatsApp);
             // Update WhatsApp data dengan email dari emailStatus jika ada, dan pre-fill nomor dari telp jika ada
@@ -380,7 +386,13 @@ export default function DashboardMahasiswa() {
         if (userData) {
           const needsWhatsApp =
             !userData.whatsapp_phone ||
-            !userData.whatsapp_phone.match(/^62\d+$/);
+            !userData.whatsapp_phone.match(/^62\d+$/) ||
+            !userData.name ||
+            !userData.name.trim() ||
+            !userData.whatsapp_address ||
+            !userData.whatsapp_address.trim() ||
+            !userData.whatsapp_birth_day ||
+            !userData.whatsapp_birth_day.trim();
           setShowWhatsAppWarning(needsWhatsApp);
           const prefillPhone =
             userData.whatsapp_phone ||
@@ -437,8 +449,16 @@ export default function DashboardMahasiswa() {
       // Refresh WhatsApp status
       const userData = getUser();
       if (userData) {
+        // Cek semua field yang required untuk WhatsApp
         const needsWhatsApp =
-          !userData.whatsapp_phone || !userData.whatsapp_phone.match(/^62\d+$/);
+          !userData.whatsapp_phone ||
+          !userData.whatsapp_phone.match(/^62\d+$/) ||
+          !userData.name ||
+          !userData.name.trim() ||
+          !userData.whatsapp_address ||
+          !userData.whatsapp_address.trim() ||
+          !userData.whatsapp_birth_day ||
+          !userData.whatsapp_birth_day.trim();
         setShowWhatsAppWarning(needsWhatsApp);
         const prefillPhone =
           userData.whatsapp_phone ||
@@ -801,27 +821,11 @@ export default function DashboardMahasiswa() {
     emailStatus,
   ]);
 
-  // Handle close modal with confirmation
+  // Handle close modal - langsung close tanpa konfirmasi
   const handleCloseEmailWhatsAppModal = useCallback(() => {
-    if (isDataIncomplete()) {
-      const confirmed = window.confirm(
-        "Data belum lengkap. Apakah Anda yakin ingin menutup modal? Data yang sudah diisi tidak akan disimpan."
-      );
-      if (confirmed) {
-        setShowEmailWarning(false);
-        setShowWhatsAppWarning(false);
-      }
-    } else {
-      setShowEmailWarning(false);
-      setShowWhatsAppWarning(false);
-    }
-  }, [
-    isDataIncomplete,
-    showEmailWarning,
-    newEmail,
-    whatsAppData,
-    emailStatus,
-  ]);
+    setShowEmailWarning(false);
+    setShowWhatsAppWarning(false);
+  }, []);
 
   const handleSaveEmailAndWhatsApp = async () => {
     const userData = getUser();
@@ -922,7 +926,17 @@ export default function DashboardMahasiswa() {
         const updatedUser = response.data.user;
         localStorage.setItem("user", JSON.stringify(updatedUser));
 
-        // Update state
+        // Update emailStatus jika email sudah terverifikasi
+        if (finalEmail && emailStatus) {
+          setEmailStatus({
+            ...emailStatus,
+            isEmailValid: true,
+            needsEmailUpdate: false,
+            email: finalEmail,
+          });
+        }
+
+        // Update state - modal akan otomatis tidak muncul lagi karena data sudah lengkap
         setShowEmailWarning(false);
         setShowWhatsAppWarning(false);
 
@@ -938,7 +952,8 @@ export default function DashboardMahasiswa() {
           setShowErrorModal(true);
         }
 
-        // Dispatch event untuk refresh data
+        // Dispatch event untuk refresh data - ini akan trigger pengecekan ulang
+        // Jika data sudah lengkap, modal tidak akan muncul lagi
         window.dispatchEvent(new Event("user-updated"));
       }
     } catch (error: any) {
@@ -2197,7 +2212,7 @@ export default function DashboardMahasiswa() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 z-[100000] bg-gray-500/20 dark:bg-gray-500/30 backdrop-blur-sm"
               onClick={() => setShowPraktikumPengampuModal(false)}
             />
 
@@ -2207,12 +2222,17 @@ export default function DashboardMahasiswa() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
+              onClick={(e) => e.stopPropagation()}
               className="relative w-full max-w-2xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
               <button
-                onClick={() => setShowPraktikumPengampuModal(false)}
-                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowPraktikumPengampuModal(false);
+                }}
+                className="absolute z-[100002] flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11 cursor-pointer"
+                type="button"
               >
                 <svg
                   width="20"
@@ -2322,7 +2342,7 @@ export default function DashboardMahasiswa() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 bg-gray-500/20 dark:bg-gray-500/30 backdrop-blur-sm"
               onClick={handleCloseEmailWhatsAppModal}
             />
 
@@ -2332,12 +2352,17 @@ export default function DashboardMahasiswa() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2 }}
+              onClick={(e) => e.stopPropagation()}
               className="relative w-full max-w-2xl mx-4 bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
             >
               {/* Close Button */}
               <button
-                onClick={handleCloseEmailWhatsAppModal}
-                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11 transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCloseEmailWhatsAppModal();
+                }}
+                className="absolute z-[100002] flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11 transition-colors cursor-pointer"
+                type="button"
               >
                 <svg
                   width="20"
@@ -2563,7 +2588,7 @@ export default function DashboardMahasiswa() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 bg-gray-500/20 dark:bg-gray-500/30 backdrop-blur-sm"
               onClick={() => setShowSuccessModal(false)}
             />
             <motion.div
@@ -2612,7 +2637,7 @@ export default function DashboardMahasiswa() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              className="fixed inset-0 bg-gray-500/20 dark:bg-gray-500/30 backdrop-blur-sm"
               onClick={() => setShowErrorModal(false)}
             />
             <motion.div

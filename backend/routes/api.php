@@ -97,7 +97,7 @@ Route::middleware('throttle:300,1')->group(function () {
         ]);
     });
 
-    Route::middleware(['auth:sanctum', 'validate.token', 'role:super_admin,tim_akademik,dosen'])->apiResource('users', \App\Http\Controllers\UserController::class);
+    Route::middleware(['auth:sanctum', 'validate.token', 'role:super_admin,tim_akademik,dosen,verifikator,ketua_ikd,akademik,aik,meu,profesi,kemahasiswaan,sdm,upt_jurnal,upt_ppm'])->apiResource('users', \App\Http\Controllers\UserController::class);
 
 Route::middleware(['auth:sanctum', 'validate.token', 'role:super_admin'])->post('/users/import-dosen', [UserController::class, 'importDosen']);
 
@@ -768,6 +768,7 @@ Route::middleware(['auth:sanctum', 'validate.token'])->prefix('rekap-ikd')->grou
     Route::get('/bukti-fisik/{id}/download', [RekapIKDController::class, 'downloadBuktiFisik']);
     Route::delete('/bukti-fisik/{id}', [RekapIKDController::class, 'deleteBuktiFisik']);
     Route::post('/bukti-fisik/update-skor', [RekapIKDController::class, 'updateSkor']);
+    Route::post('/bukti-fisik/update-status-verifikasi', [RekapIKDController::class, 'updateStatusVerifikasi']);
     Route::post('/bukti-fisik/mark-key-deleted', [RekapIKDController::class, 'markKeyAsDeleted']);
     Route::get('/bukti-fisik/deleted-keys', [RekapIKDController::class, 'getDeletedKeys']);
     Route::post('/bukti-fisik/remove-deleted-key', [RekapIKDController::class, 'removeDeletedKey']);

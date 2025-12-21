@@ -253,28 +253,31 @@ const getNavItems = (userRole?: string): NavItem[] => {
       roles: ["super_admin", "tim_akademik"],
     },
     {
-      icon: <GroupIcon />,
-      name: "Tim Akademik",
-      path: "/tim-akademik",
-      roles: ["super_admin"],
-    },
-    {
       icon: <UserIcon />,
-      name: "Dosen",
-      path: "/dosen",
-      roles: ["super_admin", "tim_akademik"],
-    },
-    {
-      icon: <UserIcon />,
-      name: "Mahasiswa",
-      path: "/mahasiswa",
-      roles: ["super_admin", "tim_akademik"],
-    },
-    {
-      icon: <UserIcon />,
-      name: "User IKD",
-      path: "/rekap-ikd/user-ikd",
-      roles: ["super_admin"],
+      name: "Manajemen Pengguna",
+      subItems: [
+        {
+          name: "Tim Akademik",
+          path: "/tim-akademik",
+          roles: ["super_admin"],
+        },
+        {
+          name: "Dosen",
+          path: "/dosen",
+          roles: ["super_admin", "tim_akademik"],
+        },
+        {
+          name: "Mahasiswa",
+          path: "/mahasiswa",
+          roles: ["super_admin", "tim_akademik"],
+        },
+        {
+          name: "User IKD",
+          path: "/rekap-ikd/user-ikd",
+          roles: ["super_admin", "ketua_ikd"],
+        },
+      ],
+      roles: ["super_admin", "tim_akademik", "ketua_ikd"],
     },
     {
       icon: <BoxCubeIcon />,
@@ -374,7 +377,7 @@ const getNavItems = (userRole?: string): NavItem[] => {
           roles: ["super_admin", "tim_akademik"],
         },
         {
-          name: "History Aplikasi",
+          name: "Log Aktivitas",
           path: "/reporting/histori",
           roles: ["super_admin"],
         },
