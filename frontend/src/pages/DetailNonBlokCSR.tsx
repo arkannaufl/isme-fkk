@@ -2958,17 +2958,6 @@ export default function DetailNonBlokCSR() {
                 <input type="text" name="jam_selesai" value={form.jam_selesai} readOnly className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm cursor-not-allowed" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Topik/Mata Kuliah</label>
-                <input 
-                  type="text" 
-                  name="topik" 
-                  value={form.topik} 
-                  onChange={handleFormChange}
-                  placeholder="Masukkan topik atau mata kuliah"
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                />
-              </div>
-              <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mata Kuliah</label>
                 {(() => {
                   const validOptions = (kategoriList || [])

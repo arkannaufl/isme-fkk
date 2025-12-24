@@ -635,7 +635,7 @@ const CSRDetail: React.FC = () => {
         Kembali
       </button>
 
-      {/* Main Header and Kode Info */}
+      {/* Main Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-1">
           Detail CSR:{" "}
@@ -644,12 +644,6 @@ const CSRDetail: React.FC = () => {
             ({csr.nomor_csr})
           </span>
         </h1>
-        <div className="text-gray-500 dark:text-gray-300 text-sm">
-          Kode MK:{" "}
-          <span className="font-semibold text-gray-700 dark:text-white">
-            {csr.mata_kuliah_kode}
-          </span>
-        </div>
       </div>
 
       {/* Summary Cards */}
