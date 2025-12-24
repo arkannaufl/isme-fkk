@@ -105,7 +105,8 @@ const KelompokBesar: React.FC = () => {
         search: undefined
       });
       
-      const allVeterans = response.data;
+      // PENTING: Pastikan response.data adalah array, jika null/undefined gunakan array kosong
+      const allVeterans = Array.isArray(response?.data) ? response.data : [];
       
       // TAMPILKAN SEMUA VETERAN (tidak filter berdasarkan semester)
       // Veteran yang sudah dipilih di semester lain akan ditampilkan dengan deskripsi
@@ -116,6 +117,8 @@ const KelompokBesar: React.FC = () => {
         // Check if veteran is already selected in kelompok besar for this semester
         const isAlreadySelected = kelompokBesarData.some(kb => kb.mahasiswa_id === veteran.id);
         
+        // PENTING: Pastikan veteran_semesters selalu array, tidak null
+        const veteranSemesters = Array.isArray(veteran.veteran_semesters) ? veteran.veteran_semesters : [];
         
         return {
           id: veteran.id.toString(),
@@ -127,12 +130,12 @@ const KelompokBesar: React.FC = () => {
           status: veteran.status || 'active',
           role: veteran.role || 'mahasiswa',
           semester: veteran.semester, // Simpan semester asli untuk referensi
-          veteran_semesters: veteran.veteran_semesters || [], // Store veteran semesters array
-          veteran_history: veteran.veteran_history || [], // Store veteran history
+          veteran_semesters: veteranSemesters, // Store veteran semesters array (sudah dijamin array)
+          veteran_history: Array.isArray(veteran.veteran_history) ? veteran.veteran_history : [], // Store veteran history
           is_veteran: true,
           is_multi_veteran: veteran.is_multi_veteran || false, // Store multi-veteran status
-          is_locked: !veteran.is_multi_veteran && veteran.veteran_semesters && veteran.veteran_semesters.length > 0 && !veteran.veteran_semesters.includes(semester), // Lock veteran biasa jika sudah terdaftar di semester lain
-          is_available: veteran.is_multi_veteran || (veteran.veteran_semesters.length === 0 || veteran.veteran_semesters.includes(semester)) && !isAlreadySelected // Multi-veteran selalu available, veteran biasa hanya jika belum terdaftar atau di semester yang sama
+          is_locked: !veteran.is_multi_veteran && veteranSemesters.length > 0 && !veteranSemesters.includes(semester), // Lock veteran biasa jika sudah terdaftar di semester lain
+          is_available: veteran.is_multi_veteran || (veteranSemesters.length === 0 || veteranSemesters.includes(semester)) && !isAlreadySelected // Multi-veteran selalu available, veteran biasa hanya jika belum terdaftar atau di semester yang sama
         };
       });
       

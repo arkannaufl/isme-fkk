@@ -230,7 +230,8 @@ const KelompokKecil: React.FC = () => {
         search: undefined
       });
       
-      const allVeterans = response.data;
+      // PENTING: Pastikan response.data adalah array, jika null/undefined gunakan array kosong
+      const allVeterans = Array.isArray(response?.data) ? response.data : [];
       
       // TAMPILKAN SEMUA VETERAN (tidak filter berdasarkan semester)
       // Veteran yang sudah dipilih di semester lain akan ditampilkan dengan deskripsi
@@ -249,8 +250,8 @@ const KelompokKecil: React.FC = () => {
         gender: veteran.gender,
         role: veteran.role || 'mahasiswa', // Tambahkan property role
         semester_asli: veteran.semester, // Simpan semester asli untuk referensi
-        veteran_semesters: veteran.veteran_semesters || [], // Store veteran semesters array
-        veteran_history: veteran.veteran_history || [], // Store veteran history
+        veteran_semesters: Array.isArray(veteran.veteran_semesters) ? veteran.veteran_semesters : [], // Store veteran semesters array (sudah dijamin array)
+        veteran_history: Array.isArray(veteran.veteran_history) ? veteran.veteran_history : [], // Store veteran history (sudah dijamin array)
         is_veteran: true,
         is_multi_veteran: veteran.is_multi_veteran || false, // Store multi-veteran status
         is_locked: false, // Veteran tidak pernah di-lock, bisa dipindahkan antar semester
