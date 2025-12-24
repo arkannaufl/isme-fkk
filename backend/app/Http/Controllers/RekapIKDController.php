@@ -276,7 +276,9 @@ class RekapIKDController extends Controller
                 ], 403);
             }
 
-            $query = IKDRekap::with(['user', 'pedoman'])
+            // Query dengan global scope aktif (otomatis filter semester aktif)
+            // Jika ingin melihat semua semester, gunakan withoutSemesterFilter()
+            $query = IKDRekap::with(['user', 'pedoman', 'semester'])
                 ->where('unit', $unit);
 
             // Filter by tahun if provided
@@ -284,9 +286,14 @@ class RekapIKDController extends Controller
                 $query->where('tahun', $request->tahun);
             }
 
-            // Filter by semester if provided
+            // Filter by semester (1/2) if provided - untuk backward compatibility
             if ($request->has('semester')) {
                 $query->where('semester', $request->semester);
+            }
+
+            // Filter by semester_id if provided (untuk melihat semester tertentu)
+            if ($request->has('semester_id')) {
+                $query->withoutSemesterFilter()->where('semester_id', $request->semester_id);
             }
 
             $rekap = $query->orderBy('tahun', 'desc')

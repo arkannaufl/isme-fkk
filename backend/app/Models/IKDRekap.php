@@ -2,22 +2,24 @@
 
 namespace App\Models;
 
+use App\Traits\HasSemesterScope;
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
 
 class IKDRekap extends Model
 {
-    use LogsActivity;
+    use LogsActivity, HasSemesterScope;
 
     protected $table = 'ikd_rekap';
     
     protected $fillable = [
+        'semester_id',
         'user_id',
         'ikd_pedoman_id',
         'unit',
         'tahun',
-        'semester',
+        'semester', // Tetap dipertahankan untuk backward compatibility
         'poin',
         'keterangan',
         'status',

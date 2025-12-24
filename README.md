@@ -29,7 +29,7 @@ The platform addresses the complex requirements of Problem-Based Learning (PBL) 
 
 Medical education programs require sophisticated management systems capable of handling:
 
-- **Complex Scheduling**: Multiple concurrent schedule types (lectures, practicums, PBL sessions, seminars, community service) with conflict resolution
+- **Complex Scheduling**: Multiple concurrent schedule types (lectures, practicums, PBL sessions, seminars, Clinical Skills and Reasoning) with conflict resolution
 - **Automated Assignment**: Optimal distribution of students, faculty, and resources across PBL groups using algorithmic approaches
 - **Multi-Modal Attendance**: QR code-based and manual attendance tracking across diverse session types
 - **Integrated Assessment**: Coordinated grading systems for PBL, journal readings, seminars, and thesis defenses

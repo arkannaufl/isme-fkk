@@ -1132,7 +1132,7 @@ export default function MataKuliahDosenDetail() {
                     <div className="w-8 h-8 rounded-2xl bg-orange-500 flex items-center justify-center shadow-lg">
                       <FontAwesomeIcon icon={faBookOpen} className="text-white text-sm" />
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Jadwal CSR (Community Service Learning)</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Jadwal CSR (Clinical Skills and Reasoning)</h3>
                   </div>
                 </div>
 

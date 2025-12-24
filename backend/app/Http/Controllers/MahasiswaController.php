@@ -5,8 +5,18 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\KelompokKecil;
 use App\Models\KelompokBesar;
+use App\Models\PenilaianPBL;
+use App\Models\PenilaianJurnal;
+use App\Models\PenilaianSeminarProposal;
+use App\Models\PenilaianSidangSkripsi;
+use App\Models\AbsensiPBL;
+use App\Models\AbsensiJurnal;
+use App\Models\AbsensiCSR;
+use App\Models\AbsensiPraktikum;
+use App\Models\MataKuliah;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class MahasiswaController extends Controller
 {
@@ -105,22 +115,138 @@ class MahasiswaController extends Controller
     }
 
     /**
-     * Get attendance summary
+     * Get attendance summary per mata kuliah
      */
     public function getAttendanceSummary($id)
     {
         try {
-            // This is placeholder - will implement later
+            $mahasiswa = User::where('id', $id)
+                ->where('role', 'mahasiswa')
+                ->first();
+
+            if (!$mahasiswa) {
+                return response()->json([
+                    'message' => 'Mahasiswa tidak ditemukan'
+                ], 404);
+            }
+
+            // Get kelompok kecil
+            $kelompokKecil = KelompokKecil::where('mahasiswa_id', $id)->first();
+            
+            if (!$kelompokKecil) {
+                return response()->json([
+                    'message' => 'Ringkasan kehadiran berhasil diambil',
+                    'data' => []
+                ]);
+            }
+
+            $attendanceByMatkul = [];
+
+            // Get PBL attendance
+            $pblAttendance = AbsensiPBL::where('mahasiswa_npm', $mahasiswa->nim)
+                ->get()
+                ->groupBy('mata_kuliah_kode');
+
+            foreach ($pblAttendance as $kode => $absensi) {
+                if (!isset($attendanceByMatkul[$kode])) {
+                    $attendanceByMatkul[$kode] = [
+                        'mata_kuliah_kode' => $kode,
+                        'total_pertemuan' => 0,
+                        'hadir' => 0,
+                        'tidak_hadir' => 0,
+                        'persentase' => 0
+                    ];
+                }
+                $attendanceByMatkul[$kode]['total_pertemuan'] += $absensi->count();
+                $attendanceByMatkul[$kode]['hadir'] += $absensi->where('hadir', true)->count();
+                $attendanceByMatkul[$kode]['tidak_hadir'] += $absensi->where('hadir', false)->count();
+            }
+
+            // Get Jurnal attendance
+            $jurnalAttendance = AbsensiJurnal::where('mahasiswa_nim', $mahasiswa->nim)
+                ->with('jadwalJurnalReading')
+                ->get()
+                ->groupBy(function($item) {
+                    return $item->jadwalJurnalReading->mata_kuliah_kode ?? 'unknown';
+                });
+
+            foreach ($jurnalAttendance as $kode => $absensi) {
+                if ($kode === 'unknown') continue;
+                
+                if (!isset($attendanceByMatkul[$kode])) {
+                    $attendanceByMatkul[$kode] = [
+                        'mata_kuliah_kode' => $kode,
+                        'total_pertemuan' => 0,
+                        'hadir' => 0,
+                        'tidak_hadir' => 0,
+                        'persentase' => 0
+                    ];
+                }
+                $attendanceByMatkul[$kode]['total_pertemuan'] += $absensi->count();
+                $attendanceByMatkul[$kode]['hadir'] += $absensi->where('hadir', true)->count();
+                $attendanceByMatkul[$kode]['tidak_hadir'] += $absensi->where('hadir', false)->count();
+            }
+
+            // Get CSR attendance
+            $csrAttendance = AbsensiCSR::where('mahasiswa_npm', $mahasiswa->nim)
+                ->with('jadwalCSR')
+                ->get()
+                ->groupBy(function($item) {
+                    return $item->jadwalCSR->mata_kuliah_kode ?? 'unknown';
+                });
+
+            foreach ($csrAttendance as $kode => $absensi) {
+                if ($kode === 'unknown') continue;
+                
+                if (!isset($attendanceByMatkul[$kode])) {
+                    $attendanceByMatkul[$kode] = [
+                        'mata_kuliah_kode' => $kode,
+                        'total_pertemuan' => 0,
+                        'hadir' => 0,
+                        'tidak_hadir' => 0,
+                        'persentase' => 0
+                    ];
+                }
+                $attendanceByMatkul[$kode]['total_pertemuan'] += $absensi->count();
+                $attendanceByMatkul[$kode]['hadir'] += $absensi->where('hadir', true)->count();
+                $attendanceByMatkul[$kode]['tidak_hadir'] += $absensi->where('hadir', false)->count();
+            }
+
+            // Get Praktikum attendance
+            $praktikumAttendance = AbsensiPraktikum::where('mahasiswa_nim', $mahasiswa->nim)
+                ->with('jadwalPraktikum')
+                ->get()
+                ->groupBy(function($item) {
+                    return $item->jadwalPraktikum->mata_kuliah_kode ?? 'unknown';
+                });
+
+            foreach ($praktikumAttendance as $kode => $absensi) {
+                if ($kode === 'unknown') continue;
+                
+                if (!isset($attendanceByMatkul[$kode])) {
+                    $attendanceByMatkul[$kode] = [
+                        'mata_kuliah_kode' => $kode,
+                        'total_pertemuan' => 0,
+                        'hadir' => 0,
+                        'tidak_hadir' => 0,
+                        'persentase' => 0
+                    ];
+                }
+                $attendanceByMatkul[$kode]['total_pertemuan'] += $absensi->count();
+                $attendanceByMatkul[$kode]['hadir'] += $absensi->where('hadir', true)->count();
+                $attendanceByMatkul[$kode]['tidak_hadir'] += $absensi->where('hadir', false)->count();
+            }
+
+            // Calculate percentage for each mata kuliah
+            foreach ($attendanceByMatkul as $kode => &$data) {
+                if ($data['total_pertemuan'] > 0) {
+                    $data['persentase'] = round(($data['hadir'] / $data['total_pertemuan']) * 100, 1);
+                }
+            }
+
             return response()->json([
                 'message' => 'Ringkasan kehadiran berhasil diambil',
-                'data' => [
-                    'total_pertemuan' => 0,
-                    'hadir' => 0,
-                    'izin' => 0,
-                    'sakit' => 0,
-                    'alpha' => 0,
-                    'persentase_kehadiran' => 0
-                ]
+                'data' => array_values($attendanceByMatkul)
             ]);
         } catch (\Exception $e) {
             Log::error('Error fetching attendance summary: ' . $e->getMessage());
@@ -132,19 +258,220 @@ class MahasiswaController extends Controller
     }
 
     /**
-     * Get score summary
+     * Get score summary with all grades per mata kuliah
      */
     public function getScoreSummary($id)
     {
         try {
-            // This is placeholder - will implement later
+            $mahasiswa = User::where('id', $id)
+                ->where('role', 'mahasiswa')
+                ->first();
+
+            if (!$mahasiswa) {
+                return response()->json([
+                    'message' => 'Mahasiswa tidak ditemukan'
+                ], 404);
+            }
+
+            $nilaiByMatkul = [];
+            $totalSKS = 0;
+            $totalBobotNilai = 0;
+            $totalBobotSKS = 0;
+
+            // Get PBL scores
+            $pblScores = PenilaianPBL::where('mahasiswa_npm', $mahasiswa->nim)
+                ->get()
+                ->groupBy('mata_kuliah_kode');
+
+            foreach ($pblScores as $kode => $scores) {
+                $mataKuliah = MataKuliah::where('kode', $kode)->first();
+                if (!$mataKuliah) continue;
+
+                if (!isset($nilaiByMatkul[$kode])) {
+                    $nilaiByMatkul[$kode] = [
+                        'mata_kuliah_kode' => $kode,
+                        'mata_kuliah_nama' => $mataKuliah->nama,
+                        'sks' => $mataKuliah->sks,
+                        'semester' => $mataKuliah->semester,
+                        'jenis' => $mataKuliah->jenis,
+                        'nilai_detail' => [],
+                        'nilai_akhir' => null,
+                        'nilai_huruf' => null,
+                        'status' => 'belum_dinilai'
+                    ];
+                }
+
+                // Calculate average PBL score
+                $nilaiPBL = $scores->avg(function($score) {
+                    $total = $score->nilai_a + $score->nilai_b + $score->nilai_c + 
+                             $score->nilai_d + $score->nilai_e + $score->nilai_f + 
+                             $score->nilai_g;
+                    if ($score->peta_konsep) {
+                        $total += $score->peta_konsep;
+                        return $total / 8;
+                    }
+                    return $total / 7;
+                });
+
+                $nilaiByMatkul[$kode]['nilai_detail'][] = [
+                    'jenis' => 'PBL',
+                    'nilai' => round($nilaiPBL, 2),
+                    'tanggal' => $scores->first()->created_at
+                ];
+            }
+
+            // Get Jurnal scores
+            $jurnalScores = PenilaianJurnal::where('mahasiswa_nim', $mahasiswa->nim)
+                ->get()
+                ->groupBy('mata_kuliah_kode');
+
+            foreach ($jurnalScores as $kode => $scores) {
+                $mataKuliah = MataKuliah::where('kode', $kode)->first();
+                if (!$mataKuliah) continue;
+
+                if (!isset($nilaiByMatkul[$kode])) {
+                    $nilaiByMatkul[$kode] = [
+                        'mata_kuliah_kode' => $kode,
+                        'mata_kuliah_nama' => $mataKuliah->nama,
+                        'sks' => $mataKuliah->sks,
+                        'semester' => $mataKuliah->semester,
+                        'jenis' => $mataKuliah->jenis,
+                        'nilai_detail' => [],
+                        'nilai_akhir' => null,
+                        'nilai_huruf' => null,
+                        'status' => 'belum_dinilai'
+                    ];
+                }
+
+                // Calculate average Jurnal score
+                $nilaiJurnal = $scores->avg(function($score) {
+                    return ($score->nilai_keaktifan + $score->nilai_laporan) / 2;
+                });
+
+                $nilaiByMatkul[$kode]['nilai_detail'][] = [
+                    'jenis' => 'Jurnal',
+                    'nilai' => round($nilaiJurnal, 2),
+                    'tanggal' => $scores->first()->created_at
+                ];
+            }
+
+            // Get Seminar Proposal scores
+            $seminarScores = PenilaianSeminarProposal::where('mahasiswa_id', $id)
+                ->with('jadwal')
+                ->get()
+                ->groupBy(function($item) {
+                    return $item->jadwal->mata_kuliah_kode ?? 'unknown';
+                });
+
+            foreach ($seminarScores as $kode => $scores) {
+                if ($kode === 'unknown') continue;
+                
+                $mataKuliah = MataKuliah::where('kode', $kode)->first();
+                if (!$mataKuliah) continue;
+
+                if (!isset($nilaiByMatkul[$kode])) {
+                    $nilaiByMatkul[$kode] = [
+                        'mata_kuliah_kode' => $kode,
+                        'mata_kuliah_nama' => $mataKuliah->nama,
+                        'sks' => $mataKuliah->sks,
+                        'semester' => $mataKuliah->semester,
+                        'jenis' => $mataKuliah->jenis,
+                        'nilai_detail' => [],
+                        'nilai_akhir' => null,
+                        'nilai_huruf' => null,
+                        'status' => 'belum_dinilai'
+                    ];
+                }
+
+                // Calculate average Seminar score
+                $nilaiSeminar = $scores->avg('nilai_akhir');
+
+                $nilaiByMatkul[$kode]['nilai_detail'][] = [
+                    'jenis' => 'Seminar Proposal',
+                    'nilai' => round($nilaiSeminar, 2),
+                    'tanggal' => $scores->first()->created_at
+                ];
+            }
+
+            // Get Sidang Skripsi scores
+            $sidangScores = PenilaianSidangSkripsi::where('mahasiswa_id', $id)
+                ->with('jadwal')
+                ->get()
+                ->groupBy(function($item) {
+                    return $item->jadwal->mata_kuliah_kode ?? 'unknown';
+                });
+
+            foreach ($sidangScores as $kode => $scores) {
+                if ($kode === 'unknown') continue;
+                
+                $mataKuliah = MataKuliah::where('kode', $kode)->first();
+                if (!$mataKuliah) continue;
+
+                if (!isset($nilaiByMatkul[$kode])) {
+                    $nilaiByMatkul[$kode] = [
+                        'mata_kuliah_kode' => $kode,
+                        'mata_kuliah_nama' => $mataKuliah->nama,
+                        'sks' => $mataKuliah->sks,
+                        'semester' => $mataKuliah->semester,
+                        'jenis' => $mataKuliah->jenis,
+                        'nilai_detail' => [],
+                        'nilai_akhir' => null,
+                        'nilai_huruf' => null,
+                        'status' => 'belum_dinilai'
+                    ];
+                }
+
+                // Calculate average Sidang score
+                $nilaiSidang = $scores->avg('nilai_akhir');
+
+                $nilaiByMatkul[$kode]['nilai_detail'][] = [
+                    'jenis' => 'Sidang Skripsi',
+                    'nilai' => round($nilaiSidang, 2),
+                    'tanggal' => $scores->first()->created_at
+                ];
+            }
+
+            // Calculate final score for each mata kuliah
+            $matkulLulus = 0;
+            $matkulTidakLulus = 0;
+
+            foreach ($nilaiByMatkul as $kode => &$data) {
+                if (count($data['nilai_detail']) > 0) {
+                    // Calculate average of all scores
+                    $nilaiAkhir = collect($data['nilai_detail'])->avg('nilai');
+                    $data['nilai_akhir'] = round($nilaiAkhir, 2);
+                    
+                    // Convert to letter grade
+                    $data['nilai_huruf'] = $this->konversiNilaiHuruf($nilaiAkhir);
+                    
+                    // Determine status
+                    if ($nilaiAkhir >= 55) {
+                        $data['status'] = 'lulus';
+                        $matkulLulus++;
+                    } else {
+                        $data['status'] = 'tidak_lulus';
+                        $matkulTidakLulus++;
+                    }
+
+                    // Calculate IPK
+                    $totalSKS += $data['sks'];
+                    $totalBobotNilai += ($nilaiAkhir / 25) * $data['sks']; // Convert to 4.0 scale
+                    $totalBobotSKS += $data['sks'];
+                }
+            }
+
+            // Calculate IPK
+            $ipk = $totalBobotSKS > 0 ? ($totalBobotNilai / $totalBobotSKS) : 0;
+
             return response()->json([
                 'message' => 'Ringkasan nilai berhasil diambil',
                 'data' => [
-                    'ipk' => 0,
-                    'total_sks' => 0,
-                    'matkul_lulus' => 0,
-                    'matkul_tidak_lulus' => 0
+                    'ipk' => round($ipk, 2),
+                    'total_sks' => $totalSKS,
+                    'matkul_lulus' => $matkulLulus,
+                    'matkul_tidak_lulus' => $matkulTidakLulus,
+                    'total_matkul' => count($nilaiByMatkul),
+                    'nilai_per_matkul' => array_values($nilaiByMatkul)
                 ]
             ]);
         } catch (\Exception $e) {
@@ -154,5 +481,22 @@ class MahasiswaController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Convert numeric score to letter grade
+     */
+    private function konversiNilaiHuruf($nilai)
+    {
+        if ($nilai >= 85) return 'A';
+        if ($nilai >= 80) return 'A-';
+        if ($nilai >= 75) return 'B+';
+        if ($nilai >= 70) return 'B';
+        if ($nilai >= 65) return 'B-';
+        if ($nilai >= 60) return 'C+';
+        if ($nilai >= 55) return 'C';
+        if ($nilai >= 50) return 'C-';
+        if ($nilai >= 45) return 'D';
+        return 'E';
     }
 }

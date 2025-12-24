@@ -509,7 +509,7 @@ const isDosen = ["super_admin", "tim_akademik", "dosen"].includes(user.role);
 - CSR, PBL, Jurnal Reading management
 - Keahlian (expertise) assignment
 
-**CSR (Community Service):**
+**CSR (Clinical Skills and Reasoning):**
 - CSR activity management
 - Dosen-mata kuliah mapping
 - Keahlian requirements

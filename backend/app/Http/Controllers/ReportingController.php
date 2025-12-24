@@ -358,9 +358,17 @@ class ReportingController extends Controller
             \Log::info('No PBL mappings found, trying jadwal_pbl...');
             
             // Ambil data dari jadwal_pbl sebagai fallback
-            $jadwalPbl = \App\Models\JadwalPBL::with(['modulPBL.mataKuliah', 'dosen'])
-                ->whereNotNull('dosen_id')
-                ->get();
+            // Untuk reporting, ambil semua semester atau filter berdasarkan request
+            $semesterId = $request->input('semester_id');
+            $jadwalPblQuery = \App\Models\JadwalPBL::withoutSemesterFilter()
+                ->with(['modulPBL.mataKuliah', 'dosen'])
+                ->whereNotNull('dosen_id');
+            
+            if ($semesterId) {
+                $jadwalPblQuery->where('semester_id', $semesterId);
+            }
+            
+            $jadwalPbl = $jadwalPblQuery->get();
             
             \Log::info('Total jadwal_pbl found: ' . $jadwalPbl->count());
             
@@ -702,30 +710,53 @@ class ReportingController extends Controller
     {
         \Log::info('=== JADWAL ALL DEBUG ===');
         
+        // Filter semester jika ada
+        $semesterId = $request->input('semester_id');
+        $semesterJenis = $request->input('semester_jenis'); // 'Ganjil' atau 'Genap'
+        
         // Ambil data dari semua tabel jadwal
         $result = [];
         
-        // Jadwal Praktikum
-        $praktikum = \DB::table('jadwal_praktikum')
-            ->select('materi as jenis', 'jumlah_sesi', 'tanggal', 'mata_kuliah_kode')
-            ->get();
+        // Jadwal Praktikum - gunakan model untuk auto-filter atau tanpa filter untuk reporting
+        $praktikumQuery = \App\Models\JadwalPraktikum::withoutSemesterFilter()
+            ->select('materi', 'jumlah_sesi', 'tanggal', 'mata_kuliah_kode');
+        
+        if ($semesterId) {
+            $praktikumQuery->where('semester_id', $semesterId);
+        } elseif ($semesterJenis) {
+            $praktikumQuery->whereHas('semester', function($q) use ($semesterJenis) {
+                $q->where('jenis', $semesterJenis);
+            });
+        }
+        
+        $praktikum = $praktikumQuery->get();
         \Log::info('Total jadwal praktikum: ' . $praktikum->count());
         
         foreach($praktikum as $j) {
             $result[] = [
                 'jenis' => 'Praktikum',
-                'materi' => $j->jenis,
+                'materi' => $j->materi,
                 'jumlah_sesi' => $j->jumlah_sesi,
                 'tanggal' => $j->tanggal,
                 'mata_kuliah_kode' => $j->mata_kuliah_kode,
                 'dosen_id' => null, // Praktikum tidak ada dosen_id
+                'semester_id' => $j->semester_id ?? null,
             ];
         }
         
         // Jadwal Kuliah Besar
-        $kuliahBesar = \DB::table('jadwal_kuliah_besar')
-            ->select('materi', 'jumlah_sesi', 'tanggal', 'mata_kuliah_kode', 'dosen_id')
-            ->get();
+        $kuliahBesarQuery = \App\Models\JadwalKuliahBesar::withoutSemesterFilter()
+            ->select('materi', 'jumlah_sesi', 'tanggal', 'mata_kuliah_kode', 'dosen_id');
+        
+        if ($semesterId) {
+            $kuliahBesarQuery->where('semester_id', $semesterId);
+        } elseif ($semesterJenis) {
+            $kuliahBesarQuery->whereHas('semester', function($q) use ($semesterJenis) {
+                $q->where('jenis', $semesterJenis);
+            });
+        }
+        
+        $kuliahBesar = $kuliahBesarQuery->get();
         \Log::info('Total jadwal kuliah besar: ' . $kuliahBesar->count());
         
         foreach($kuliahBesar as $j) {
@@ -736,13 +767,23 @@ class ReportingController extends Controller
                 'tanggal' => $j->tanggal,
                 'mata_kuliah_kode' => $j->mata_kuliah_kode,
                 'dosen_id' => $j->dosen_id,
+                'semester_id' => $j->semester_id ?? null,
             ];
         }
         
         // Jadwal CSR
-        $csr = \DB::table('jadwal_csr')
-            ->select('jenis_csr', 'jumlah_sesi', 'tanggal', 'mata_kuliah_kode', 'dosen_id')
-            ->get();
+        $csrQuery = \App\Models\JadwalCSR::withoutSemesterFilter()
+            ->select('jenis_csr', 'jumlah_sesi', 'tanggal', 'mata_kuliah_kode', 'dosen_id');
+        
+        if ($semesterId) {
+            $csrQuery->where('semester_id', $semesterId);
+        } elseif ($semesterJenis) {
+            $csrQuery->whereHas('semester', function($q) use ($semesterJenis) {
+                $q->where('jenis', $semesterJenis);
+            });
+        }
+        
+        $csr = $csrQuery->get();
         \Log::info('Total jadwal CSR: ' . $csr->count());
         
         foreach($csr as $j) {
@@ -753,23 +794,34 @@ class ReportingController extends Controller
                 'tanggal' => $j->tanggal,
                 'mata_kuliah_kode' => $j->mata_kuliah_kode,
                 'dosen_id' => $j->dosen_id,
+                'semester_id' => $j->semester_id ?? null,
             ];
         }
         
         // Jadwal Jurnal Reading
-        $jurnal = \DB::table('jadwal_jurnal_reading')
-            ->select('topik as materi', 'jumlah_sesi', 'tanggal', 'mata_kuliah_kode', 'dosen_id')
-            ->get();
+        $jurnalQuery = \App\Models\JadwalJurnalReading::withoutSemesterFilter()
+            ->select('topik', 'jumlah_sesi', 'tanggal', 'mata_kuliah_kode', 'dosen_id');
+        
+        if ($semesterId) {
+            $jurnalQuery->where('semester_id', $semesterId);
+        } elseif ($semesterJenis) {
+            $jurnalQuery->whereHas('semester', function($q) use ($semesterJenis) {
+                $q->where('jenis', $semesterJenis);
+            });
+        }
+        
+        $jurnal = $jurnalQuery->get();
         \Log::info('Total jadwal jurnal reading: ' . $jurnal->count());
         
         foreach($jurnal as $j) {
             $result[] = [
                 'jenis' => 'Jurnal Reading',
-                'materi' => $j->materi,
+                'materi' => $j->topik,
                 'jumlah_sesi' => $j->jumlah_sesi,
                 'tanggal' => $j->tanggal,
                 'mata_kuliah_kode' => $j->mata_kuliah_kode,
                 'dosen_id' => $j->dosen_id,
+                'semester_id' => $j->semester_id ?? null,
             ];
         }
         

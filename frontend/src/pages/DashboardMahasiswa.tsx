@@ -20,6 +20,7 @@ import api, { getUser } from "../utils/api";
 import { motion, AnimatePresence } from "framer-motion";
 import PetaAkademikPage from "./PetaAkademikPage";
 import PetaBlok from "./PetaBlok";
+import SemesterInfo from "../components/SemesterInfo";
 
 interface JadwalPBL {
   id: number;
@@ -1577,7 +1578,9 @@ export default function DashboardMahasiswa() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* Semester Info */}
+                <SemesterInfo showFilter={false} />
                 <div className="inline-flex items-center px-4 py-2 rounded-xl text-xs font-medium bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800">
                   <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
                   <div className="text-left">

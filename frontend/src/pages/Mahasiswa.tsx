@@ -132,13 +132,16 @@ export default function Mahasiswa() {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      api.get("/users?role=mahasiswa"),
+      api.get("/users?role=mahasiswa&per_page=1000"), // Request lebih banyak data untuk pagination client-side
       api.get("/tahun-ajaran/active")
     ]).then(([mahasiswaRes, semesterRes]) => {
       // Handle pagination response - similar to Dosen.tsx
       if (Array.isArray(mahasiswaRes.data)) {
       setData(mahasiswaRes.data);
       } else if (mahasiswaRes.data?.data && Array.isArray(mahasiswaRes.data.data)) {
+        setData(mahasiswaRes.data.data);
+      } else if (mahasiswaRes.data?.data && Array.isArray(mahasiswaRes.data.data)) {
+        // Handle Laravel pagination response
         setData(mahasiswaRes.data.data);
       } else {
         setData([]);

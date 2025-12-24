@@ -35,6 +35,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import api, { handleApiError, getUser } from "../utils/api";
 import { motion, AnimatePresence } from "framer-motion";
+import SemesterInfo from "../components/SemesterInfo";
 
 interface JadwalItem {
   id: number;
@@ -3019,6 +3020,8 @@ export default function DashboardDosen() {
 
                 {/* Right side - Time */}
                 <div className="flex items-center gap-3 flex-wrap">
+                  {/* Semester Info */}
+                  <SemesterInfo showFilter={false} />
                   {/* Real-time Clock with Date */}
                   <span className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800">
                     <svg
@@ -4551,7 +4554,7 @@ export default function DashboardDosen() {
                   className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
                 >
                   {renderJadwalTable(
-                    "CSR (Community Service Learning)",
+                    "CSR (Clinical Skills and Reasoning)",
                     faUsers,
                     jadwalCSR,
                     [

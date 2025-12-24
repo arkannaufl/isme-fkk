@@ -391,6 +391,12 @@ const getNavItems = (userRole?: string): NavItem[] => {
       roles: ["mahasiswa"],
     },
     {
+      icon: <PieChartIcon />,
+      name: "Nilai Akademik",
+      path: "/nilai-mahasiswa",
+      roles: ["mahasiswa"],
+    },
+    {
       icon: <PetaAkademikIcon />,
       name: "Peta Akademik",
       path: "/peta-akademik",

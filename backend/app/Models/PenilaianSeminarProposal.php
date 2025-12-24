@@ -2,16 +2,18 @@
 
 namespace App\Models;
 
+use App\Traits\HasSemesterScope;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class PenilaianSeminarProposal extends Model
 {
-    use HasFactory;
+    use HasFactory, HasSemesterScope;
 
     protected $table = 'penilaian_seminar_proposal';
 
     protected $fillable = [
+        'semester_id',
         'jadwal_id',
         'mahasiswa_id',
         'penguji_id',

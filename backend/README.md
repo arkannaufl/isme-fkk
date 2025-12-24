@@ -281,7 +281,7 @@ Route::middleware(['auth:sanctum', 'validate.token', 'role:super_admin,tim_akade
 - `DELETE /api/jadwal-pbl/{id}` - Delete schedule
 - `GET /api/pbls/{pblId}/jadwal` - Get schedules by PBL ID
 
-**Jadwal CSR (Community Service Schedules):**
+**Jadwal CSR (Clinical Skills and Reasoning Schedules):**
 - `GET /api/jadwal-csr` - List CSR schedules
 - `POST /api/jadwal-csr` - Create CSR schedule
 - `GET /api/jadwal-csr/{id}` - Get schedule details

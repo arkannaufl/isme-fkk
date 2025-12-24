@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\HasSemesterScope;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -9,11 +10,12 @@ use Spatie\Activitylog\LogOptions;
 
 class AbsensiPersamaanPersepsi extends Model
 {
-    use HasFactory, LogsActivity;
+    use HasFactory, LogsActivity, HasSemesterScope;
 
     protected $table = 'absensi_persamaan_persepsi';
 
     protected $fillable = [
+        'semester_id',
         'jadwal_persamaan_persepsi_id',
         'dosen_id',
         'hadir',

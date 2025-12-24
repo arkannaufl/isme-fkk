@@ -2,16 +2,18 @@
 
 namespace App\Models;
 
+use App\Traits\HasSemesterScope;
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
 
 class PenilaianJurnal extends Model
 {
-    use LogsActivity;
+    use LogsActivity, HasSemesterScope;
     protected $table = 'penilaian_jurnal';
 
     protected $fillable = [
+        'semester_id',
         'mata_kuliah_kode',
         'kelompok_kecil_nama',
         'jurnal_reading_id',

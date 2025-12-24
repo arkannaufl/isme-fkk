@@ -8,6 +8,7 @@ use App\Services\SemesterService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 
 class TahunAjaranController extends Controller
 {
@@ -95,6 +96,10 @@ class TahunAjaranController extends Controller
         $newSemester = $this->semesterService->getActiveSemester();
         $this->semesterService->updateAllStudentSemesters($oldSemester, $newSemester);
 
+        // PENTING: Clear cache users saat pergantian tahun ajaran
+        // Ini memastikan data mahasiswa ter-refresh setelah pergantian tahun ajaran
+        Cache::flush(); // Clear semua cache, atau bisa lebih spesifik: Cache::forget('users_list_*')
+
         activity()
             ->causedBy(Auth::user())
             ->performedOn($tahunAjaran)
@@ -123,6 +128,10 @@ class TahunAjaranController extends Controller
 
         // Update semester semua mahasiswa
         $this->semesterService->updateAllStudentSemesters($oldSemester, $semester);
+
+        // PENTING: Clear cache users saat pergantian semester
+        // Ini memastikan data mahasiswa ter-refresh setelah pergantian semester
+        Cache::flush(); // Clear semua cache, atau bisa lebih spesifik: Cache::forget('users_list_*')
 
         activity()
             ->causedBy(Auth::user())

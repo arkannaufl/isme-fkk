@@ -65,13 +65,23 @@ class UserController extends Controller
         
         // Optimize: Gunakan pagination dengan caching untuk data yang jarang berubah
         $perPage = $request->get('per_page', 50); // Default 50 items per page
+        
+        // PENTING: Untuk mahasiswa, disable cache atau gunakan cache yang lebih pendek
+        // karena data mahasiswa bisa berubah saat pergantian semester
+        // Tambahkan semester aktif ke cache key untuk memastikan data fresh saat pergantian semester
+        $activeSemester = \App\Models\Semester::where('aktif', true)->first();
+        $semesterId = $activeSemester ? $activeSemester->id : 'none';
+        
         // Build normalized query string untuk cache key konsistensi
         $queryParams = $request->only(['role', 'semester', 'keahlian', 'per_page']);
         ksort($queryParams); // Sort untuk konsistensi urutan
         $normalizedQueryString = http_build_query($queryParams);
-        $cacheKey = 'users_list_' . md5($normalizedQueryString . '_' . $perPage);
+        $cacheKey = 'users_list_' . md5($normalizedQueryString . '_' . $perPage . '_semester_' . $semesterId);
         
-        $users = Cache::remember($cacheKey, 300, function () use ($query, $perPage) {
+        // Untuk mahasiswa, cache lebih pendek (60 detik) atau disable cache
+        $cacheTime = ($request->role === 'mahasiswa') ? 60 : 300;
+        
+        $users = Cache::remember($cacheKey, $cacheTime, function () use ($query, $perPage) {
             return $query->paginate($perPage);
         });
         

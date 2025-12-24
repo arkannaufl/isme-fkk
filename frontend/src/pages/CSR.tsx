@@ -450,7 +450,7 @@ const CSR: React.FC = () => {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90 mb-2">
-          Community Service Responsibility (CSR)
+          Clinical Skills and Reasoning (CSR)
         </h1>
         <p className="text-gray-600 dark:text-gray-400">
           Pengelolaan mata kuliah CSR dan penugasan dosen berdasarkan keahlian

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\HasSemesterScope;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -9,12 +10,13 @@ use Spatie\Activitylog\LogOptions;
 
 class KelompokBesar extends Model
 {
-    use HasFactory, LogsActivity;
+    use HasFactory, LogsActivity, HasSemesterScope;
 
     protected $table = 'kelompok_besar';
 
     protected $fillable = [
-        'semester',
+        'semester_id',
+        'semester', // Tetap dipertahankan untuk backward compatibility
         'mahasiswa_id'
     ];
 

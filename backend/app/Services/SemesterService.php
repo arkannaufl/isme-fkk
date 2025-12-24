@@ -109,6 +109,13 @@ class SemesterService
                 // Pastikan semester tidak kurang dari 1 dan tidak lebih dari 8
                 $finalSemesterNumber = max(1, min($newSemesterNumber, 8));
                 
+                // PENTING: Mencegah penurunan semester (mahasiswa tidak bisa mundur)
+                // Jika semester baru lebih kecil dari semester saat ini, tetap gunakan semester saat ini
+                // Ini mencegah mahasiswa turun semester saat kembali ke semester sebelumnya
+                if ($finalSemesterNumber < $oldSemesterNumber) {
+                    $finalSemesterNumber = $oldSemesterNumber;
+                }
+                
                 // Jika semester baru melebihi 8, mahasiswa lulus
                 if ($newSemesterNumber > 8) {
                     $student->update([
@@ -118,6 +125,7 @@ class SemesterService
                     $graduatedCount++;
                     $graduatedStudents[] = $student;
                 } else {
+                    // Update semester (hanya akan naik atau tetap, tidak akan turun)
                     $student->update(['semester' => $finalSemesterNumber]);
                     $updatedCount++;
                 }
@@ -248,6 +256,8 @@ class SemesterService
 
     /**
      * Update pengelompokan mahasiswa saat pergantian semester
+     * PENTING: Hanya update kelompok yang sesuai dengan semester aktif (semester_id)
+     * Kelompok dari semester berbeda (Ganjil vs Genap) tidak akan diubah
      */
     private function updateStudentGroupings($oldSemester = null, $newSemester = null)
     {
@@ -258,22 +268,48 @@ class SemesterService
             ->whereNotIn('status', ['lulus', 'keluar'])
             ->get();
 
+        $updatedKelompokBesar = 0;
+        $updatedKelompokKecil = 0;
+
         foreach ($students as $student) {
+            $oldSemesterNumber = $student->semester ?? 1;
             $newSemesterNumber = $this->calculateStudentSemester($student, $newSemester);
             
             // Pastikan semester tidak kurang dari 1 dan tidak lebih dari 8
             $finalSemesterNumber = max(1, min($newSemesterNumber, 8));
             
-            // Update kelompok besar jika ada
-            $kelompokBesar = \App\Models\KelompokBesar::where('mahasiswa_id', $student->id)->first();
+            // PENTING: Mencegah penurunan semester (mahasiswa tidak bisa mundur)
+            if ($finalSemesterNumber < $oldSemesterNumber) {
+                $finalSemesterNumber = $oldSemesterNumber;
+            }
+            
+            // Hanya update kelompok yang sesuai dengan semester aktif (semester_id)
+            // Ini memastikan kelompok dari semester Ganjil tidak tercampur dengan Genap
+            $kelompokBesar = \App\Models\KelompokBesar::withoutSemesterFilter()
+                ->where('mahasiswa_id', $student->id)
+                ->where('semester_id', $newSemester->id)
+                ->first();
+            
             if ($kelompokBesar) {
-                $kelompokBesar->update(['semester' => $finalSemesterNumber]);
+                $kelompokBesar->update([
+                    'semester' => $finalSemesterNumber,
+                    'semester_id' => $newSemester->id // Pastikan semester_id sesuai
+                ]);
+                $updatedKelompokBesar++;
             }
 
-            // Update kelompok kecil jika ada
-            $kelompokKecil = \App\Models\KelompokKecil::where('mahasiswa_id', $student->id)->first();
+            // Update kelompok kecil yang sesuai dengan semester aktif
+            $kelompokKecil = \App\Models\KelompokKecil::withoutSemesterFilter()
+                ->where('mahasiswa_id', $student->id)
+                ->where('semester_id', $newSemester->id)
+                ->first();
+            
             if ($kelompokKecil) {
-                $kelompokKecil->update(['semester' => $finalSemesterNumber]);
+                $kelompokKecil->update([
+                    'semester' => $finalSemesterNumber,
+                    'semester_id' => $newSemester->id // Pastikan semester_id sesuai
+                ]);
+                $updatedKelompokKecil++;
             }
         }
 
@@ -283,7 +319,9 @@ class SemesterService
             ->withProperties([
                 'old_semester' => $oldSemester ? "{$oldSemester->jenis} ({$oldSemester->tahunAjaran->tahun})" : 'Tidak ada semester aktif',
                 'new_semester' => "{$newSemester->jenis} ({$newSemester->tahunAjaran->tahun})",
-                'updated_students' => $students->count()
+                'updated_students' => $students->count(),
+                'updated_kelompok_besar' => $updatedKelompokBesar,
+                'updated_kelompok_kecil' => $updatedKelompokKecil
             ])
             ->log("Pengelompokan mahasiswa telah diupdate untuk semester {$newSemester->jenis} ({$newSemester->tahunAjaran->tahun})");
     }

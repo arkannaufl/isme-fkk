@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\HasSemesterScope;
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
@@ -9,7 +10,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class UserForumBookmark extends Model
 {
-    protected $fillable = ['user_id', 'forum_id'];
+    use HasSemesterScope;
+
+    protected $fillable = ['semester_id', 'user_id', 'forum_id'];
 
     public function user(): BelongsTo
     {

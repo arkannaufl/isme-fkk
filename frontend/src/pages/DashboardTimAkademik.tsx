@@ -17,6 +17,7 @@ import {
   BoltIcon,
 } from "../icons";
 import api, { handleApiError } from "../utils/api";
+import SemesterInfo from "../components/SemesterInfo";
 
 // Interfaces
 
@@ -589,6 +590,8 @@ const DashboardTimAkademik: React.FC = () => {
 
                   {/* Right side - Time & Academic Info */}
                   <div className="flex items-center gap-3 flex-wrap">
+                    {/* Semester Info */}
+                    <SemesterInfo showFilter={false} />
                     {/* Real-time Clock with Date */}
                     <span className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800">
                       <TimeIcon className="w-3 h-3 mr-2" />

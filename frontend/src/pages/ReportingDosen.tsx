@@ -12,6 +12,7 @@ import {
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import ExcelJS from "exceljs";
+import SemesterInfo from "../components/SemesterInfo";
 
 // Extend jsPDF type to include autoTable
 declare module "jspdf" {
@@ -94,9 +95,11 @@ const ReportingDosen: React.FC = () => {
   const [filters, setFilters] = useState({
     search: "",
     semester: "",
+    semester_jenis: "", // Filter per semester Ganjil/Genap
     start_date: "",
     end_date: "",
   });
+  const [availableSemesters, setAvailableSemesters] = useState<Array<{id: number, jenis: string}>>([]);
   const [pagination, setPagination] = useState({
     current_page: 1,
     last_page: 1,
@@ -114,6 +117,21 @@ const ReportingDosen: React.FC = () => {
   };
   const [showExcelDropdown, setShowExcelDropdown] = useState(false);
 
+  // Fetch available semesters
+  useEffect(() => {
+    const fetchAvailableSemesters = async () => {
+      try {
+        const res = await api.get("/tahun-ajaran/active");
+        if (res.data?.semesters) {
+          setAvailableSemesters(res.data.semesters);
+        }
+      } catch (error) {
+        console.error("Error fetching available semesters:", error);
+      }
+    };
+    fetchAvailableSemesters();
+  }, []);
+
   // Pindahkan ke luar agar bisa dipanggil event listener
   const fetchDosenReport = async () => {
     try {
@@ -122,6 +140,16 @@ const ReportingDosen: React.FC = () => {
         page: pagination.current_page.toString(),
         per_page: pagination.per_page.toString(),
       });
+      
+      // Tambahkan filter semester jika ada
+      if (filters.semester_jenis) {
+        // Cari semester_id berdasarkan jenis
+        const semester = availableSemesters.find(s => s.jenis === filters.semester_jenis);
+        if (semester) {
+          params.append('semester_id', semester.id.toString());
+        }
+      }
+      
       let response;
       if (activeTab === "csr") {
         response = await api.get(`/reporting/dosen-csr?${params}`);
@@ -198,7 +226,7 @@ const ReportingDosen: React.FC = () => {
   useEffect(() => {
     fetchDosenReport();
     // eslint-disable-next-line
-  }, [activeTab, pagination.current_page, pagination.per_page]);
+  }, [activeTab, pagination.current_page, pagination.per_page, filters.semester_jenis]);
 
   // Tambahkan event listener untuk real-time sync dengan PBL-detail.tsx dan PBLGenerate.tsx
   useEffect(() => {
@@ -2163,6 +2191,7 @@ const ReportingDosen: React.FC = () => {
             {getDescription()}
           </p>
         </div>
+        <SemesterInfo showFilter={false} />
         <div className="flex flex-wrap gap-3">
           {activeTab === "pbl" && (
             <div className="relative">
@@ -2288,11 +2317,23 @@ const ReportingDosen: React.FC = () => {
           {/* Filter Group */}
           <div className="flex flex-col md:flex-row md:items-center gap-2 w-full md:w-auto justify-end">
             <select
+              value={filters.semester_jenis}
+              onChange={(e) => handleFilterChange("semester_jenis", e.target.value)}
+              className="w-full md:w-44 h-11 text-sm px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              <option value="">Semua Semester (Ganjil/Genap)</option>
+              {availableSemesters.map((sem) => (
+                <option key={sem.id} value={sem.jenis}>
+                  Semester {sem.jenis}
+                </option>
+              ))}
+            </select>
+            <select
               value={filters.semester}
               onChange={(e) => handleFilterChange("semester", e.target.value)}
               className="w-full md:w-44 h-11 text-sm px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white font-normal focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
-              <option value="">Semua Semester</option>
+              <option value="">Semua Semester (1-8)</option>
               {Array.from(
                 new Set(
                   getCurrentAllReportData().flatMap((d) =>

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\HasSemesterScope;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -9,11 +10,12 @@ use Spatie\Activitylog\LogOptions;
 
 class AbsensiNonBlokNonCSR extends Model
 {
-    use HasFactory, LogsActivity;
+    use HasFactory, LogsActivity, HasSemesterScope;
 
     protected $table = 'absensi_non_blok_non_csr';
 
     protected $fillable = [
+        'semester_id',
         'jadwal_non_blok_non_csr_id',
         'mahasiswa_nim',
         'hadir',
