@@ -92,13 +92,12 @@ class TahunAjaranController extends Controller
             }
         });
 
-        // Update semester semua mahasiswa
-        $newSemester = $this->semesterService->getActiveSemester();
-        $this->semesterService->updateAllStudentSemesters($oldSemester, $newSemester);
-
-        // PENTING: Clear cache users saat pergantian tahun ajaran
-        // Ini memastikan data mahasiswa ter-refresh setelah pergantian tahun ajaran
-        Cache::flush(); // Clear semua cache, atau bisa lebih spesifik: Cache::forget('users_list_*')
+        // PENTING: Data master mahasiswa TIDAK diubah saat pergantian tahun ajaran
+        // Field semester (1-8) di tabel users tetap seperti semula
+        // Kelompok sudah terpisah per semester_id (Ganjil/Genap berbeda)
+        
+        // Clear cache users saat pergantian tahun ajaran untuk refresh data
+        Cache::flush();
 
         activity()
             ->causedBy(Auth::user())
@@ -126,12 +125,13 @@ class TahunAjaranController extends Controller
             $semester->update(['aktif' => true]);
         });
 
-        // Update semester semua mahasiswa
-        $this->semesterService->updateAllStudentSemesters($oldSemester, $semester);
-
-        // PENTING: Clear cache users saat pergantian semester
-        // Ini memastikan data mahasiswa ter-refresh setelah pergantian semester
-        Cache::flush(); // Clear semua cache, atau bisa lebih spesifik: Cache::forget('users_list_*')
+        // PENTING: Data master mahasiswa TIDAK diubah saat pergantian semester
+        // Field semester (1-8) di tabel users tetap seperti semula
+        // Kelompok sudah terpisah per semester_id (Ganjil/Genap berbeda)
+        // Kelompok hanya dibuat saat Generate, tidak diupdate otomatis
+        
+        // Clear cache users saat pergantian semester untuk refresh data
+        Cache::flush();
 
         activity()
             ->causedBy(Auth::user())
