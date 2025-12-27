@@ -1159,6 +1159,43 @@ const KelompokKecil: React.FC = () => {
     });
   };
 
+  // Handle auto-fix: perbaiki data yang bisa diperbaiki secara otomatis
+  const handleAutoFix = () => {
+    setPreviewData((prev) => {
+      const newData = [...prev];
+      let fixedCount = 0;
+
+      newData.forEach((row, index) => {
+        const nim = String(row.NIM || "").trim();
+        const nama = String(row.NAMA || "").trim();
+
+        // Jika NIM ada tapi NAMA tidak sesuai, replace dengan NAMA yang benar
+        if (nim) {
+          const mahasiswaExists = mahasiswa.find((m) => m.nim === nim);
+          if (mahasiswaExists) {
+            // Jika NAMA tidak sesuai atau kosong, replace dengan NAMA yang benar
+            if (!nama || mahasiswaExists.nama !== nama) {
+              newData[index].NAMA = mahasiswaExists.nama;
+              fixedCount++;
+            }
+          }
+        }
+      });
+
+      // Re-validate setelah auto-fix
+      const validationResult = validateExcelData(newData, mahasiswa);
+      setValidationErrors(validationResult.errors);
+      setCellErrors(validationResult.cellErrors);
+
+      if (fixedCount > 0) {
+        setSuccess(`${fixedCount} data berhasil diperbaiki secara otomatis.`);
+        setTimeout(() => setSuccess(null), 5000);
+      }
+
+      return newData;
+    });
+  };
+
   // Handle submit import
   const handleSubmitImport = async () => {
     if (!previewData || previewData.length === 0 || !semester) return;
@@ -3653,7 +3690,7 @@ const KelompokKecil: React.FC = () => {
                       {/* Validation Errors */}
                       {validationErrors.length > 0 && (
                         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                          <div className="flex items-start gap-2 mb-2">
+                          <div className="flex items-start gap-2 mb-3">
                             <svg
                               className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0"
                               fill="none"
@@ -3668,9 +3705,31 @@ const KelompokKecil: React.FC = () => {
                               />
                             </svg>
                             <div className="flex-1">
-                              <p className="font-medium text-red-800 dark:text-red-300 mb-2">
-                                Terdapat {validationErrors.length} error validasi:
-                              </p>
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="font-medium text-red-800 dark:text-red-300">
+                                  Terdapat {validationErrors.length} error validasi:
+                                </p>
+                                <button
+                                  onClick={handleAutoFix}
+                                  className="px-3 py-1.5 text-sm bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2"
+                                  title="Perbaiki data yang bisa diperbaiki secara otomatis (misalnya nama yang tidak sesuai dengan NIM)"
+                                >
+                                  <svg
+                                    className="w-4 h-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                    />
+                                  </svg>
+                                  Auto-Fix
+                                </button>
+                              </div>
                               <ul className="space-y-1 max-h-40 overflow-y-auto">
                                 {validationErrors
                                   .slice(0, 10)
@@ -3706,7 +3765,7 @@ const KelompokKecil: React.FC = () => {
 
                       {/* Preview Table */}
                       {previewData.length > 0 && (
-                        <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
+                        <div className="overflow-x-auto">
                           <table className="w-full border-collapse border border-gray-300 dark:border-gray-700 text-sm">
                             <thead className="sticky top-0 bg-gray-100 dark:bg-gray-700 z-10">
                               <tr className="bg-gray-100 dark:bg-gray-700">
@@ -3848,6 +3907,30 @@ const KelompokKecil: React.FC = () => {
                   >
                     {importedCount > 0 ? "Tutup" : "Batal"}
                   </button>
+                  {previewData.length > 0 &&
+                    validationErrors.length > 0 &&
+                    importedCount === 0 && (
+                      <button
+                        onClick={handleAutoFix}
+                        className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2"
+                        title="Perbaiki data yang bisa diperbaiki secara otomatis (misalnya nama yang tidak sesuai dengan NIM)"
+                      >
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                        Auto-Fix
+                      </button>
+                    )}
                   {previewData.length > 0 &&
                     validationErrors.length === 0 &&
                     importedCount === 0 && (
