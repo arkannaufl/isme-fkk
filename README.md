@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="frontend/public/images/logo/logo-isme-light.svg" alt="ISME Logo" width="120" height="120">
+  <img src="frontend/public/images/logo/logo-isme-light.svg" alt="ISME Logo" width="320" height="320">
 </p>
 
 # ISME - Integrated System Medical Education
