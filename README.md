@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="frontend/public/images/logo/logo-isme-light.svg" alt="ISME Logo" width="120" height="120">
+</p>
+
 # ISME - Integrated System Medical Education
 
 **Enterprise Academic Management System for Medical Education**
@@ -568,5 +572,5 @@ For technical inquiries, feature requests, or support:
 
 ---
 
-**Last Updated**: December 13, 2025  
+**Last Updated**: December 30, 2025  
 **Maintained By**: Development Team - Fakultas Kedokteran dan Kesehatan UMJ
