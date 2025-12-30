@@ -11,6 +11,13 @@ import {
 import type { KelompokKecil } from "../api/generateApi";
 import { handleApiError } from "../utils/api";
 import * as XLSX from "xlsx";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faFileExcel,
+  faDownload,
+  faUpload,
+  faExclamationTriangle,
+} from "@fortawesome/free-solid-svg-icons";
 
 interface Mahasiswa extends Omit<ApiMahasiswa, 'id'> {
   id: string; // Override id to be string for local use
@@ -114,7 +121,22 @@ const KelompokKecil: React.FC = () => {
   const [cellErrors, setCellErrors] = useState<{ [key: string]: string }>({});
   const [isImporting, setIsImporting] = useState(false);
   const [importedCount, setImportedCount] = useState(0);
+  const [editingCell, setEditingCell] = useState<{ row: number; key: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // State untuk pagination
+  const [importPage, setImportPage] = useState(1);
+  const [importPageSize, setImportPageSize] = useState(10);
+
+  // Pagination constants
+  const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
+
+  // Pagination logic
+  const importTotalPages = Math.ceil(previewData.length / importPageSize);
+  const importPaginatedData = previewData.slice(
+    (importPage - 1) * importPageSize,
+    importPage * importPageSize
+  );
 
   // Fungsi untuk mengambil data dari semua semester
   const loadAllSemesterData = async () => {
@@ -140,7 +162,7 @@ const KelompokKecil: React.FC = () => {
     if (!semester) return;
     try {
       setLoading(true);
-      // Ambil mahasiswa dari kelompok besar menggunakan batchBySemester seperti di Kelompok Besar
+      // Ambil mahasiswa dari kelompok besar menggunakan batchBySemester
       const kelompokBesarResponse = await kelompokBesarApi.batchBySemester({ 
         semesters: [String(mapSemesterToNumber(semester))] 
       });
@@ -148,11 +170,9 @@ const KelompokKecil: React.FC = () => {
       // Ambil data mahasiswa dari response batchBySemester
       const kelompokBesarData = kelompokBesarResponse.data[String(mapSemesterToNumber(semester))] || [];
       
-      // BERSIHKAN VETERAN YANG SALAH SEMESTER di awal load (kecuali multi-veteran)
       const allVeteransInKelompokBesar = kelompokBesarData.filter((kb: any) => kb.mahasiswa.is_veteran);
       for (const kb of allVeteransInKelompokBesar) {
         const veteran = kb.mahasiswa;
-        // Jika veteran_semesters tidak sesuai dengan semester ini DAN bukan multi-veteran, hapus
         if (veteran.veteran_semesters && veteran.veteran_semesters.length > 0 && !veteran.veteran_semesters.includes(semester) && !veteran.is_multi_veteran) {
           try {
             await kelompokBesarApi.deleteByMahasiswaId(veteran.id, String(mapSemesterToNumber(semester)));
@@ -160,7 +180,6 @@ const KelompokKecil: React.FC = () => {
             console.error(`Error cleaning up veteran ${veteran.id} from KelompokBesar:`, error);
           }
         } else if (veteran.is_multi_veteran) {
-          // Multi-veteran bisa di multiple semester, jadi tidak perlu dihapus
         }
       }
       
@@ -168,16 +187,10 @@ const KelompokKecil: React.FC = () => {
         id: kb.mahasiswa.id.toString(),
         nama: kb.mahasiswa.name,
         nim: kb.mahasiswa.nim,
-        kelompok: undefined, // akan diisi jika sudah dikelompokkan
         status: kb.mahasiswa.status,
         angkatan: kb.mahasiswa.angkatan,
         ipk: kb.mahasiswa.ipk,
         gender: kb.mahasiswa.gender,
-        is_veteran: kb.mahasiswa.is_veteran || false, // Tambahkan field is_veteran
-        is_multi_veteran: kb.mahasiswa.is_multi_veteran || false, // Tambahkan field is_multi_veteran
-        veteran_semesters: kb.mahasiswa.veteran_semesters || [], // Tambahkan veteran_semesters
-        veteran_history: kb.mahasiswa.veteran_history || [], // Tambahkan veteran_history
-        semester_asli: kb.mahasiswa.semester, // Tambahkan semester asli
       }));
       
       // Ambil kelompok kecil
@@ -187,9 +200,7 @@ const KelompokKecil: React.FC = () => {
           String(mapSemesterToNumber(semester))
         );
         kelompokKecilData = kelompokResponse.data;
-        // Tandai mahasiswa yang sudah dikelompokkan
-        const updatedMahasiswa = mahasiswaKelompokBesar.map((m) => {
-          // Debug log: show both IDs being compared
+          const updatedMahasiswa = mahasiswaKelompokBesar.map((m) => {
           const kelompokData = kelompokKecilData.find((kk) => {
             const kkId = String(kk.mahasiswa_id);
             const mId = String(m.id);
@@ -256,29 +267,20 @@ const KelompokKecil: React.FC = () => {
       const veteranFormatted = availableVeterans.map((veteran: any) => ({
         id: veteran.id.toString(),
         nama: veteran.name,
-        name: veteran.name, // Tambahkan property name untuk kompatibilitas dengan ApiMahasiswa
+        name: veteran.name,
         nim: veteran.nim,
         kelompok: undefined,
         status: veteran.status,
         angkatan: veteran.angkatan,
         ipk: veteran.ipk,
         gender: veteran.gender,
-        role: veteran.role || 'mahasiswa', // Tambahkan property role
-        semester_asli: veteran.semester, // Simpan semester asli untuk referensi
-        veteran_semesters: Array.isArray(veteran.veteran_semesters) ? veteran.veteran_semesters : [], // Store veteran semesters array (sudah dijamin array)
-        veteran_history: Array.isArray(veteran.veteran_history) ? veteran.veteran_history : [], // Store veteran history (sudah dijamin array)
-        is_veteran: true,
-        is_multi_veteran: veteran.is_multi_veteran || false, // Store multi-veteran status
-        is_locked: false, // Veteran tidak pernah di-lock, bisa dipindahkan antar semester
-        is_available: true // Veteran selalu available untuk dipilih
+        role: veteran.role || 'mahasiswa',
       }));
       
       setVeteranStudents(veteranFormatted);
       setVeteranSemester(semester);
       setShowVeteranSection(veteranFormatted.length > 0);
       
-      // HAPUS AUTO-SELECT VETERAN
-      // Veteran tidak boleh otomatis ter-select ketika masuk ke halaman
       setSelectedVeterans([]);
       
     } catch (error) {
@@ -687,30 +689,7 @@ const KelompokKecil: React.FC = () => {
     try {
       const jumlahBaru = jumlahKelompok + jumlahKelompokTambah;
       
-      // Update jumlah_kelompok di semua data kelompok kecil yang ada
-      // Karena API batchUpdate tidak mendukung jumlah_kelompok, kita perlu update satu per satu
-      // Tapi sebenarnya, jumlah_kelompok disimpan per record, jadi kita perlu update semua record
-      // Pendekatan: Update state lokal dulu, kemudian ketika save, semua record baru akan memiliki jumlah_kelompok yang benar
-      // Untuk record yang sudah ada, jumlah_kelompok akan tetap sama sampai user save ulang
-      
-      // Update state lokal
       setJumlahKelompok(jumlahBaru);
-      
-      // Update jumlah_kelompok di semua record yang ada dengan cara:
-      // 1. Hapus semua record lama
-      // 2. Buat ulang dengan jumlah_kelompok baru
-      // Tapi ini terlalu kompleks. Pendekatan lebih baik:
-      // Update semua record yang ada dengan jumlah_kelompok baru menggunakan update individual
-      // Tapi karena API update tidak mendukung jumlah_kelompok, kita perlu pendekatan lain
-      
-      // Solusi: Update state lokal saja, dan ketika user save data baru atau update data,
-      // jumlah_kelompok akan otomatis terupdate melalui insert/update
-      
-      // Untuk sekarang, kita hanya update state lokal
-      // Record yang sudah ada akan tetap memiliki jumlah_kelompok lama sampai di-update
-      // Record baru yang dibuat akan memiliki jumlah_kelompok baru
-      
-      setHasUnsavedChanges(false); // Tidak ada perubahan struktur data yang perlu disimpan
       setSuccess(`${jumlahKelompokTambah} kelompok baru berhasil ditambahkan. Total sekarang: ${jumlahBaru} kelompok.`);
       
       // Reset input
@@ -726,47 +705,109 @@ const KelompokKecil: React.FC = () => {
 
   // Download template Excel untuk import
   const downloadTemplate = async () => {
-    // Data contoh untuk template
-    const templateData = [
-      {
-        NIM: "24070100001",
-        NAMA: "Contoh Mahasiswa 1",
-        KELOMPOK: "1",
-      },
-      {
-        NIM: "24070100002",
-        NAMA: "Contoh Mahasiswa 2",
-        KELOMPOK: "1",
-      },
-      {
-        NIM: "24070100003",
-        NAMA: "Contoh Mahasiswa 3",
-        KELOMPOK: "2",
-      },
-      {
-        NIM: "24070100004",
-        NAMA: "Contoh Mahasiswa 4",
-        KELOMPOK: "2",
-      },
-    ];
+    try {
+      // Data contoh untuk template
+      const templateData = [
+        {
+          NIM: "24070100001",
+          NAMA: "Contoh Mahasiswa 1",
+          KELOMPOK: "1",
+        },
+        {
+          NIM: "24070100002",
+          NAMA: "Contoh Mahasiswa 2",
+          KELOMPOK: "1",
+        },
+        {
+          NIM: "24070100003",
+          NAMA: "Contoh Mahasiswa 3",
+          KELOMPOK: "2",
+        },
+        {
+          NIM: "24070100004",
+          NAMA: "Contoh Mahasiswa 4",
+          KELOMPOK: "2",
+        },
+      ];
 
-    // Buat worksheet
-    const ws = XLSX.utils.json_to_sheet(templateData);
+      // Buat worksheet untuk data
+      const ws = XLSX.utils.json_to_sheet(templateData);
 
-    // Set lebar kolom
-    const colWidths = [
-      { wch: 15 }, // NIM
-      { wch: 40 }, // NAMA
-      { wch: 12 }, // KELOMPOK
-    ];
-    ws["!cols"] = colWidths;
+      // Set lebar kolom
+      const colWidths = [
+        { wch: 15 }, // NIM
+        { wch: 40 }, // NAMA
+        { wch: 12 }, // KELOMPOK
+      ];
+      ws["!cols"] = colWidths;
 
-    // Buat workbook
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Kelompok Kecil");
+      // Buat worksheet untuk tips dan informasi
+      const infoData = [
+        ["TIPS DAN INFORMASI IMPORT KELOMPOK KECIL"],
+        [""],
+        ["📋 CARA UPLOAD FILE:"],
+        ["1. Download template ini dan isi dengan data kelompok kecil"],
+        ["2. Pastikan semua kolom wajib diisi dengan benar"],
+        ["3. Upload file Excel yang sudah diisi ke sistem"],
+        ["4. Periksa preview data dan perbaiki error jika ada"],
+        ['5. Klik "Import Data" untuk menyimpan data'],
+        [""],
+        ["✏️ CARA EDIT DATA:"],
+        ["1. Klik pada kolom yang ingin diedit di tabel preview"],
+        ["2. Ketik atau paste data yang benar"],
+        ["3. Sistem akan otomatis validasi dan update error"],
+        ["4. Pastikan tidak ada error sebelum import"],
+        [""],
+        ["📊 KETERSEDIAAN DATA:"],
+        [""],
+        ["👥 MAHASISWA YANG TERSEDIA (dari Kelompok Besar):"],
+        ...mahasiswa.slice(0, 20).map((m) => [
+          `• ${m.nim} - ${m.nama}`,
+        ]),
+        ...(mahasiswa.length > 20 ? [[`... dan ${mahasiswa.length - 20} mahasiswa lainnya`]] : []),
+        [""],
+        ["🏷️ FORMAT KELOMPOK:"],
+        ["• Gunakan angka (1, 2, 3, dst) untuk nomor kelompok"],
+        ["• Pastikan setiap kelompok memiliki minimal 1 mahasiswa"],
+        ["• Maksimal mahasiswa per kelompok: 10-15 orang"],
+        [""],
+        ["⚠️ VALIDASI SISTEM:"],
+        [""],
+        ["📋 VALIDASI NIM:"],
+        ["• NIM harus ada di data Kelompok Besar semester ini"],
+        ["• NIM harus 11 digit angka"],
+        ["• NIM tidak boleh kosong atau duplikat"],
+        [""],
+        ["📋 VALIDASI NAMA:"],
+        ["• Nama akan otomatis disesuaikan dengan data Kelompok Besar"],
+        ["• Nama tidak boleh kosong"],
+        [""],
+        ["📋 VALIDASI KELOMPOK:"],
+        ["• Nomor kelompok harus berupa angka positif"],
+        ["• Tidak boleh kosong"],
+        [""],
+        ["💡 TIPS TAMBAHAN:"],
+        ["• Gunakan fitur Auto-Fix untuk memperbaiki error otomatis"],
+        ["• Periksa preview data sebelum import"],
+        ["• Edit langsung di tabel preview jika ada error"],
+        ["• Sistem akan highlight error dengan warna merah"],
+        ["• Tooltip akan menampilkan pesan error detail"],
+      ];
 
-    // Generate file dan download
-    XLSX.writeFile(wb, "Template_Import_Kelompok_Kecil.xlsx");
+      const infoWs = XLSX.utils.aoa_to_sheet(infoData);
+      infoWs["!cols"] = [{ wch: 50 }];
+
+      // Buat workbook dan tambahkan sheets
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Data Kelompok Kecil");
+      XLSX.utils.book_append_sheet(wb, infoWs, "Tips dan Info");
+
+      // Download file
+      XLSX.writeFile(wb, "Template_Import_Kelompok_Kecil.xlsx");
+    } catch (error) {
+      console.error("Error downloading Kelompok Kecil template:", error);
+      alert("Gagal mendownload template Kelompok Kecil. Silakan coba lagi.");
+    }
   };
 
   // Export data ke Excel
@@ -806,9 +847,8 @@ const KelompokKecil: React.FC = () => {
         const mahasiswaInKelompok = groupedByKelompok[kelompok].sort((a, b) =>
           a.nama.localeCompare(b.nama)
         );
-        mahasiswaInKelompok.forEach((m, index) => {
+        mahasiswaInKelompok.forEach((m) => {
           dataToExport.push({
-            NO: index + 1,
             NIM: m.nim,
             NAMA: m.nama,
             KELOMPOK: kelompok,
@@ -824,7 +864,6 @@ const KelompokKecil: React.FC = () => {
 
       // Set lebar kolom
       const colWidths = [
-        { wch: 8 }, // NO
         { wch: 15 }, // NIM
         { wch: 40 }, // NAMA
         { wch: 12 }, // KELOMPOK
@@ -1099,6 +1138,27 @@ const KelompokKecil: React.FC = () => {
     return { errors, cellErrors };
   };
 
+  // Handle close import modal with persistence
+  const handleCloseImportModal = () => {
+    setShowImportModal(false);
+    // Don't reset data - preserve file and edited data for next time modal opens
+  };
+
+  // Fungsi untuk mereset data import
+  const resetImportData = () => {
+    setImportedFile(null);
+    setPreviewData([]);
+    setValidationErrors([]);
+    setCellErrors({});
+    setEditingCell(null);
+    setImportPage(1);
+    setImportedCount(0);
+    setErrorMsg("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   // Handle import file
   const handleImport = async (e: ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
@@ -1305,7 +1365,7 @@ const KelompokKecil: React.FC = () => {
       setPreviewData([]);
       setValidationErrors([]);
       setCellErrors({});
-      setShowImportModal(false);
+      resetImportData();
     } catch (err: any) {
       setImportedCount(0);
       setErrorMsg(err.message || "Gagal mengimpor data");
@@ -1323,31 +1383,22 @@ const KelompokKecil: React.FC = () => {
         await kelompokKecilApi.delete(kk.id);
       }
       
-      // Reset SEMUA veteran dari KelompokBesar (tidak peduli di semester mana mereka terdaftar)
-      // Hapus SEMUA veteran dari KelompokBesar di semester ini
       const allVeterans = veteranStudents.filter(v => v.is_veteran);
       
       if (allVeterans.length > 0) {
-        console.log('Debug: Removing all veterans from KelompokBesar:', allVeterans.map(v => ({ id: v.id, nama: v.nama, veteran_semesters: v.veteran_semesters })));
         
         for (const veteran of allVeterans) {
           try {
-            // Hapus veteran dari Kelompok Besar di semester ini (tidak peduli di semester mana mereka terdaftar)
             await kelompokBesarApi.deleteByMahasiswaId(parseInt(veteran.id), String(mapSemesterToNumber(semester)));
-            console.log(`Successfully removed veteran ${veteran.id} (${veteran.nama}) from KelompokBesar`);
             
-            // KOSONGKAN veteran_semesters untuk veteran biasa (bukan multi-veteran)
             if (!veteran.is_multi_veteran) {
               try {
                 await mahasiswaVeteranApi.toggleVeteran({
                   user_id: parseInt(veteran.id),
                   is_veteran: true,
-                  veteran_semester: null // Kosongkan veteran_semesters
                 });
-                console.log(`Successfully cleared veteran_semesters for ${veteran.id} (${veteran.nama})`);
               } catch (veteranError) {
                 console.error(`Error clearing veteran_semesters for ${veteran.id}:`, veteranError);
-                // Lanjutkan meskipun ada error
               }
             }
           } catch (kelompokBesarError) {
@@ -1520,7 +1571,6 @@ const KelompokKecil: React.FC = () => {
     setDropIndex(null);
     setDragOverMahasiswaId(null);
 
-    // Hapus styling drag
     if (e.currentTarget) {
       (e.currentTarget as HTMLElement).style.opacity = "1";
     }
@@ -1596,70 +1646,96 @@ const KelompokKecil: React.FC = () => {
     }
   }, [success]);
 
-  // Auto-refresh data setiap 30 detik untuk mendeteksi veteran baru yang ditambahkan ke kelompok besar
-  useEffect(() => {
-    if (!semester) return;
-    
-    const interval = setInterval(async () => {
-      try {
-        await loadData();
-      } catch (error) {
-        console.error('Error auto-refreshing data:', error);
-      }
-    }, 30000); // Refresh setiap 30 detik
-
-    return () => clearInterval(interval);
-  }, [semester]);
+  // Removed auto-refresh to prevent unwanted data reloading while user is working
+  // User can manually refresh using the refresh button if needed
 
   if (loading) {
     return (
-      <div className="w-full mx-auto mt-5">
+      <div className="w-full mx-auto">
         {/* Skeleton Header */}
-        <div className="mb-8">
-          <div className="h-8 w-80 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse"></div>
-          <div className="h-4 w-96 bg-gray-200 dark:bg-gray-700 rounded mb-6 animate-pulse"></div>
-        </div>
-        {/* Skeleton Info Box 📊 */}
-        <div className="mb-4 p-3 border border-gray-200 dark:border-gray-700 rounded-lg animate-pulse">
-          <div className="h-4 w-64 bg-gray-200 dark:bg-gray-700 rounded mb-1"></div>
-          <div className="h-3 w-40 bg-gray-200 dark:bg-gray-700 rounded"></div>
-        </div>
-        <div className="mb-4 p-3 border border-gray-200 dark:border-gray-700 rounded-lg animate-pulse">
-          <div className="h-4 w-64 bg-gray-200 dark:bg-gray-700 rounded mb-1"></div>
-          <div className="h-3 w-40 bg-gray-200 dark:bg-gray-700 rounded"></div>
-        </div>
-        {/* Skeleton Statistik Pengelompokan */}
-        <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg">
-          <div className="flex flex-wrap justify-center gap-4 text-center">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="w-32">
-                <div className="h-8 w-16 mx-auto bg-gray-200 dark:bg-gray-700 rounded mb-1 animate-pulse"></div>
-                <div className="h-4 w-20 mx-auto bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-              </div>
-            ))}
+        <div className="mt-5">
+          {/* Skeleton Tombol Kembali & Refresh */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="h-8 w-20 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
+            <div className="h-9 w-20 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
           </div>
-        </div>
-        {/* Skeleton Hasil Pengelompokan */}
-        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl p-6 mb-6">
-          <div className="h-6 w-48 bg-gray-200 dark:bg-gray-700 rounded mb-4 animate-pulse"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div
-                key={i}
-                className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 animate-pulse"
-              >
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700"></div>
-                  <div>
-                    <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded mb-1"></div>
-                    <div className="h-3 w-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
+          
+          {/* Skeleton Judul */}
+          <div className="mb-8">
+            <div className="h-8 w-64 bg-gray-200 dark:bg-gray-700 rounded mb-2 animate-pulse"></div>
+            <div className="h-5 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+          </div>
+
+          {/* Skeleton Info Boxes */}
+          <div className="space-y-3">
+            {/* Skeleton Info Data Tersimpan */}
+            <div className="p-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg animate-pulse">
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
+                <div className="flex-1">
+                  <div className="h-4 w-72 bg-gray-200 dark:bg-gray-700 rounded mb-1 animate-pulse"></div>
+                  <div className="h-3 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Skeleton Notifikasi Data Tersimpan */}
+            <div className="p-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg animate-pulse">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
+                  <div className="flex-1">
+                    <div className="h-4 w-64 bg-gray-200 dark:bg-gray-700 rounded mb-1 animate-pulse"></div>
+                    <div className="h-3 w-56 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
                   </div>
                 </div>
-                <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-1"></div>
-                <div className="h-3 w-24 bg-gray-200 dark:bg-gray-700 rounded mb-1"></div>
-                <div className="h-3 w-24 bg-gray-200 dark:bg-gray-700 rounded"></div>
               </div>
-            ))}
+            </div>
+          </div>
+
+          {/* Skeleton Filter Section */}
+          <div className="mt-6 p-4 bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl">
+            <div className="h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-4 animate-pulse"></div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
+              <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
+              <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
+            </div>
+          </div>
+
+          {/* Skeleton Controls */}
+          <div className="mt-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="h-10 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
+              <div className="h-10 w-40 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
+            </div>
+            <div className="flex gap-2">
+              <div className="h-10 w-28 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
+              <div className="h-10 w-28 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
+              <div className="h-10 w-32 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
+            </div>
+          </div>
+
+          {/* Skeleton Mahasiswa List */}
+          <div className="mt-6">
+            <div className="h-6 w-40 bg-gray-200 dark:bg-gray-700 rounded mb-4 animate-pulse"></div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div key={i} className="p-3 bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-xl animate-pulse">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
+                    <div className="flex-1">
+                      <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded mb-1 animate-pulse"></div>
+                      <div className="h-3 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    <div className="h-5 w-16 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse"></div>
+                    <div className="h-5 w-20 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -1681,40 +1757,6 @@ const KelompokKecil: React.FC = () => {
           </button>
           
           <div className="flex items-center gap-2">
-            {showKelompok && (
-              <>
-                <button
-                  onClick={downloadTemplate}
-                  className="flex items-center gap-2 text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 transition-all duration-300 ease-out hover:scale-105 transform px-3 py-2 rounded-lg bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30"
-                  title="Download Template Excel"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <span className="text-sm font-medium">Template</span>
-                </button>
-                <button
-                  onClick={() => setShowImportModal(true)}
-                  className="flex items-center gap-2 text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 transition-all duration-300 ease-out hover:scale-105 transform px-3 py-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30"
-                  title="Import Excel"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
-                  <span className="text-sm font-medium">Import</span>
-                </button>
-                <button
-                  onClick={exportToExcel}
-                  className="flex items-center gap-2 text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 transition-all duration-300 ease-out hover:scale-105 transform px-3 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/30"
-                  title="Export Excel"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <span className="text-sm font-medium">Export</span>
-                </button>
-              </>
-            )}
             <button
               onClick={loadData}
               className="flex items-center gap-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-all duration-300 ease-out hover:scale-105 transform px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700"
@@ -1878,6 +1920,95 @@ const KelompokKecil: React.FC = () => {
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 Total Mahasiswa
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Section Aksi Utama */}
+      {showKelompok && (
+        <div className="mb-6 p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex-1">
+              <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                Aksi Utama
+              </h4>
+              <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
+                <div className="flex items-start gap-2">
+                  <FontAwesomeIcon
+                    icon={faFileExcel}
+                    className="w-4 h-4 text-brand-600 dark:text-brand-400 mt-0.5"
+                  />
+                  <div>
+                    <span className="font-medium text-gray-700 dark:text-gray-300">
+                      Import Excel:
+                    </span>{" "}
+                    Import data kelompok kecil dari file Excel sesuai template.
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <FontAwesomeIcon
+                    icon={faDownload}
+                    className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5"
+                  />
+                  <div>
+                    <span className="font-medium text-gray-700 dark:text-gray-300">
+                      Download Template:
+                    </span>{" "}
+                    Unduh template Excel untuk format import data kelompok kecil.
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <FontAwesomeIcon
+                    icon={faFileExcel}
+                    className="w-4 h-4 text-purple-600 dark:text-purple-400 mt-0.5"
+                  />
+                  <div>
+                    <span className="font-medium text-gray-700 dark:text-gray-300">
+                      Export Excel:
+                    </span>{" "}
+                    Export data kelompok kecil ke file Excel dengan format terstruktur.
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 flex-shrink-0">
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform"
+                title="Import Excel"
+              >
+                <FontAwesomeIcon
+                  icon={faFileExcel}
+                  className="w-5 h-5 text-brand-700 dark:text-brand-200"
+                />
+                Import Excel
+              </button>
+              <button
+                onClick={downloadTemplate}
+                className="px-4 py-2 rounded-lg bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 text-sm font-medium shadow-theme-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition flex items-center gap-2"
+                title="Download Template Excel"
+              >
+                <FontAwesomeIcon icon={faDownload} className="w-5 h-5" />
+                Download Template Excel
+              </button>
+              <button
+                onClick={exportToExcel}
+                className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
+                  mahasiswa.length === 0
+                    ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
+                    : "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
+                }`}
+                disabled={mahasiswa.length === 0}
+                title={
+                  mahasiswa.length === 0
+                    ? "Tidak ada data. Silakan tambahkan data terlebih dahulu untuk melakukan export."
+                    : "Export data ke Excel"
+                }
+              >
+                <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5" />
+                Export ke Excel
+              </button>
             </div>
           </div>
         </div>
@@ -2481,7 +2612,7 @@ const KelompokKecil: React.FC = () => {
               <h3 className="text-lg font-semibold text-gray-800 dark:text-white/90">
                 Hasil Pengelompokan
               </h3>
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-2 md:mt-0">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mt-2 md:mt-0">
                 {showKelompok && hasUnsavedChanges && (
                   <div className="px-4 py-2 text-xs text-red-500 rounded-lg">
                     *Belum disimpan, silahkan update*
@@ -2489,7 +2620,7 @@ const KelompokKecil: React.FC = () => {
                 )}
                 
                 {/* Tambah Kelompok Section */}
-                <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                <div className="flex items-center gap-3">
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
                     Tambah:
                   </label>
@@ -2502,17 +2633,18 @@ const KelompokKecil: React.FC = () => {
                       const val = parseInt(e.target.value, 10);
                       setJumlahKelompokTambah(isNaN(val) || val < 1 ? 1 : val > 10 ? 10 : val);
                     }}
-                    className="w-16 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                    className="w-16 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-inset focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white transition-all outline-none"
+                    style={{ boxShadow: 'none' }}
                   />
                   <button
                     onClick={tambahKelompok}
                     disabled={isAddingKelompok || jumlahKelompokTambah < 1}
-                    className="px-3 py-1 text-sm bg-blue-500 text-white rounded-md font-medium hover:bg-blue-600 transition-all duration-300 ease-out flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 py-2 text-sm bg-blue-500 text-white rounded-lg font-medium shadow-theme-xs hover:bg-blue-600 transition-all duration-300 ease-out flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isAddingKelompok ? (
                       <>
                         <svg
-                          className="w-4 h-4 animate-spin text-white"
+                          className="w-5 h-5 animate-spin text-white"
                           xmlns="http://www.w3.org/2000/svg"
                           fill="none"
                           viewBox="0 0 24 24"
@@ -2539,72 +2671,74 @@ const KelompokKecil: React.FC = () => {
                   </button>
                 </div>
                 
-                <button
-                  onClick={saveKelompokData}
-                  disabled={isSaving || !hasUnsavedChanges}
-                  className="px-4 py-2 text-sm bg-brand-500 text-white rounded-lg font-medium shadow-theme-xs hover:bg-brand-600 transition-all duration-300 ease-out flex items-center gap-2 disabled:opacity-50 disabled:cursor-wait"
-                >
-                  {isSaving ? (
-                    <>
-                      <svg
-                        className="w-5 h-5 mr-2 animate-spin text-white"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                        ></path>
-                      </svg>
-                      Menyimpan...
-                    </>
-                  ) : (
-                    "Simpan"
-                  )}
-                </button>
-                <button
-                  onClick={handleResetConfirmation}
-                  className="px-4 py-2 text-sm bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-out"
-                  disabled={isResetting}
-                >
-                  {isResetting ? (
-                    <>
-                      <svg
-                        className="w-5 h-5 mr-2 animate-spin text-gray-700 dark:text-gray-200 inline-block align-middle"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                        ></path>
-                      </svg>
-                      Mereset...
-                    </>
-                  ) : (
-                    "Reset"
-                  )}
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={saveKelompokData}
+                    disabled={isSaving || !hasUnsavedChanges}
+                    className="px-4 py-2 text-sm bg-brand-500 text-white rounded-lg font-medium shadow-theme-xs hover:bg-brand-600 transition-all duration-300 ease-out flex items-center gap-2 disabled:opacity-50 disabled:cursor-wait"
+                  >
+                    {isSaving ? (
+                      <>
+                        <svg
+                          className="w-5 h-5 mr-2 animate-spin text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                          ></path>
+                        </svg>
+                        Menyimpan...
+                      </>
+                    ) : (
+                      "Simpan"
+                    )}
+                  </button>
+                  <button
+                    onClick={handleResetConfirmation}
+                    className="px-4 py-2 text-sm bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-out"
+                    disabled={isResetting}
+                  >
+                    {isResetting ? (
+                      <>
+                        <svg
+                          className="w-5 h-5 mr-2 animate-spin text-gray-700 dark:text-gray-200 inline-block align-middle"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                          ></path>
+                        </svg>
+                        Mereset...
+                      </>
+                    ) : (
+                      "Reset"
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -3300,8 +3434,7 @@ const KelompokKecil: React.FC = () => {
                     const key = `kelompok_${showDeleteModal.semester}`;
                     localStorage.removeItem(key);
                     setShowDeleteModal(null);
-                    // Cek apakah masih ada data kelompok lain setelah hapus
-                    setTimeout(() => {
+                                  setTimeout(() => {
                       const sisaData = [];
                       for (let i = 0; i < localStorage.length; i++) {
                         const key = localStorage.key(i);
@@ -3525,467 +3658,567 @@ const KelompokKecil: React.FC = () => {
       {/* Modal Import Excel */}
       <AnimatePresence>
         {showImportModal && (
-          <>
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed top-0 left-0 right-0 bottom-0 z-[100000] bg-black/40 dark:bg-black/60 backdrop-blur-sm"
-              style={{ width: "100vw", height: "100vh", minHeight: "100vh" }}
-              onClick={() => {
-                if (!isImporting) {
-                  setShowImportModal(false);
-                  setPreviewData([]);
-                  setValidationErrors([]);
-                  setCellErrors({});
-                  setImportedFile(null);
-                }
-              }}
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+              onClick={handleCloseImportModal}
             />
+
+            {/* Modal Content */}
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="fixed inset-0 z-[100001] flex items-center justify-center p-4"
-              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
             >
-              <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
-                {/* Header */}
-                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Import Data dari Excel
-                  </h3>
-                  <button
-                    onClick={() => {
-                      if (!isImporting) {
-                        setShowImportModal(false);
-                        setPreviewData([]);
-                        setValidationErrors([]);
-                        setCellErrors({});
-                        setImportedFile(null);
-                      }
-                    }}
-                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                    disabled={isImporting}
-                  >
+              {/* Close Button */}
+              <button
+                onClick={handleCloseImportModal}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+                disabled={isImporting}
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
+
+              {/* Header */}
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                  Import Data Kelompok Kecil
+                </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Preview dan validasi data sebelum import
+                </p>
+              </div>
+
+              {/* Info Box */}
+              <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-5 h-5 mt-0.5">
                     <svg
-                      className="w-6 h-6"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                      className="w-5 h-5 text-green-600 dark:text-green-400"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
                     >
                       <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
+                        fillRule="evenodd"
+                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                        clipRule="evenodd"
                       />
                     </svg>
-                  </button>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">
+                      Informasi Template Import Kelompok Kecil
+                    </h3>
+                    <div className="text-sm text-green-700 dark:text-green-300 space-y-2">
+                      <div>
+                        <strong>Kolom yang diperlukan:</strong>
+                        <ul className="list-disc list-inside ml-2 mt-1 space-y-1">
+                          <li>NIM - Nomor Induk Mahasiswa</li>
+                          <li>NAMA - Nama lengkap mahasiswa</li>
+                          <li>KELOMPOK - Nomor kelompok (1, 2, 3, dst)</li>
+                        </ul>
+                      </div>
+                      <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                        💡 <strong>Tips:</strong> Pastikan data mahasiswa sudah terdaftar di sistem. Download template terlebih dahulu untuk format yang benar.
+                      </div>
+                    </div>
+                  </div>
                 </div>
+              </div>
 
-                {/* Content */}
-                <div className="flex-1 overflow-y-auto p-6">
-                  {!importedFile ? (
+              {/* Upload Section */}
+              {!importedFile && (
+                <div className="mb-6">
+                  <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
                     <div className="space-y-4">
-                      <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
+                      <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
+                        <FontAwesomeIcon
+                          icon={faFileExcel}
+                          className="w-8 h-8 text-brand-600 dark:text-brand-400"
+                        />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                          Upload File Excel
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          Pilih file Excel dengan format template aplikasi (.xlsx, .xls)
+                        </p>
+                      </div>
+                      <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
+                        <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                        Pilih File
                         <input
                           ref={fileInputRef}
                           type="file"
                           accept=".xlsx,.xls"
                           onChange={handleImport}
                           className="hidden"
-                          id="import-file-input"
                         />
-                        <label
-                          htmlFor="import-file-input"
-                          className="cursor-pointer flex flex-col items-center gap-4"
-                        >
-                          <svg
-                            className="w-16 h-16 text-gray-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                            />
-                          </svg>
-                          <div>
-                            <p className="text-lg font-medium text-gray-700 dark:text-gray-300">
-                              Klik untuk memilih file Excel
-                            </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                              Format: .xlsx atau .xls
-                            </p>
-                          </div>
-                        </label>
-                      </div>
-                      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                        <p className="text-sm text-blue-800 dark:text-blue-300">
-                          <strong>Catatan:</strong> Pastikan file Excel mengikuti
-                          format template. Download template terlebih dahulu jika
-                          belum punya. Kolom yang diperlukan: NIM, NAMA, KELOMPOK.
-                        </p>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* File Info */}
+              {importedFile && (
+                <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <FontAwesomeIcon
+                      icon={faFileExcel}
+                      className="w-5 h-5 text-blue-500"
+                    />
+                    <div className="flex-1">
+                      <p className="font-medium text-blue-800 dark:text-blue-200">
+                        {importedFile.name}
+                      </p>
+                      <p className="text-sm text-blue-600 dark:text-blue-300">
+                        {(importedFile.size / 1024).toFixed(2)} KB
+                      </p>
+                    </div>
+                    <button
+                      onClick={resetImportData}
+                      className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                      title="Hapus file"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Validation Errors */}
+              {validationErrors.length > 0 && (
+                <div className="mb-6">
+                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <FontAwesomeIcon
+                        icon={faExclamationTriangle}
+                        className="w-5 h-5 text-red-500"
+                      />
+                      <h3 className="font-semibold text-red-800 dark:text-red-200">
+                        Terdapat {validationErrors.length} error validasi
+                      </h3>
+                    </div>
+                    
+                    {/* Auto-Fix Info */}
+                    <div className="mb-4 p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg">
+                      <div className="flex items-start gap-2">
+                        <svg className="w-5 h-5 text-indigo-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div className="flex-1">
+                          <h4 className="font-medium text-indigo-800 dark:text-indigo-200 mb-1">Fitur Auto-Fix</h4>
+                          <p className="text-sm text-indigo-700 dark:text-indigo-300">
+                            Tombol <span className="font-semibold">Auto-Fix</span> akan otomatis memperbaiki 1 jenis error:
+                          </p>
+                          <ul className="text-sm text-indigo-700 dark:text-indigo-300 mt-2 space-y-1">
+                            <li className="flex items-center gap-1">
+                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                              <strong>Hanya:</strong> Menyesuaikan nama mahasiswa dengan data Kelompok Besar (berdasarkan NIM)
+                            </li>
+                          </ul>
+                          <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-2">
+                            💡 <strong>Limitation:</strong> Auto-Fix <strong>hanya</strong> bisa fix nama. Error lainnya (NIM invalid, KELOMPOK kosong, dll) harus diperbaiki manual.
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {/* File Info */}
-                      <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <svg
-                            className="w-8 h-8 text-green-500"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
+                    
+                    {/* Error List */}
+                    <div>
+                      <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-3">
+                        Error Validasi ({validationErrors.length} error)
+                      </h3>
+                      <div className="max-h-40 overflow-y-auto">
+                        {/* Error dari API response */}
+                        {validationErrors.map((err, idx) => (
+                          <p
+                            key={idx}
+                            className="text-sm text-red-600 dark:text-red-400 mb-1"
                           >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                            />
-                          </svg>
-                          <div>
-                            <p className="font-medium text-gray-900 dark:text-white">
-                              {importedFile.name}
-                            </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {(importedFile.size / 1024).toFixed(2)} KB
-                            </p>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => {
-                            setImportedFile(null);
-                            setPreviewData([]);
-                            setValidationErrors([]);
-                            setCellErrors({});
-                            if (fileInputRef.current)
-                              fileInputRef.current.value = "";
+                            • {err.message} (Baris {err.row}, Kolom{" "}
+                            {err.field.toUpperCase()})
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Success Message */}
+              {importedCount > 0 && (
+                <div className="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                  <p className="text-green-800 dark:text-green-300">
+                    <strong>Berhasil!</strong> {importedCount} data berhasil diimpor.
+                  </p>
+                </div>
+              )}
+
+              {/* Preview Table */}
+              {previewData.length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                      Preview Data ({previewData.length} data)
+                    </h3>
+                    <div className="flex items-center gap-3">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        File: {importedFile?.name}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                    <div className="max-w-full overflow-x-auto hide-scroll">
+                      <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                        <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                          <tr>
+                            <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                              No
+                            </th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                              NIM
+                            </th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                              NAMA
+                            </th>
+                            <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                              KELOMPOK
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {importPaginatedData.map((row, idx) => {
+                            const actualIndex = (importPage - 1) * importPageSize + idx;
+                            const rowNum = actualIndex + 2;
+                            const hasError = validationErrors.some(
+                              (err) => err.row === rowNum
+                            );
+                            return (
+                              <tr
+                                key={idx}
+                                className={
+                                  actualIndex % 2 === 1
+                                    ? "bg-gray-50 dark:bg-white/[0.02]"
+                                    : ""
+                                }
+                              >
+                                <td className="px-4 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap">
+                                  {actualIndex + 1}
+                                </td>
+                                <td
+                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
+                                    editingCell?.row === actualIndex && editingCell?.key === "NIM"
+                                      ? "border-2 border-brand-500"
+                                      : ""
+                                  } ${
+                                    cellErrors[`${rowNum}-NIM`]
+                                      ? "bg-red-100 dark:bg-red-900/30"
+                                      : ""
+                                  }`}
+                                  onClick={() => setEditingCell({ row: actualIndex, key: "NIM" })}
+                                  title={cellErrors[`${rowNum}-NIM`] || ""}
+                                >
+                                  {editingCell?.row === actualIndex && editingCell?.key === "NIM" ? (
+                                    <input
+                                      className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                      type="text"
+                                      value={row.NIM}
+                                      onChange={(e) =>
+                                        handleCellEdit(
+                                          actualIndex,
+                                          "NIM",
+                                          e.target.value
+                                        )
+                                      }
+                                      onBlur={() => setEditingCell(null)}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <span className={cellErrors[`${rowNum}-NIM`] ? "text-red-500" : "text-gray-800 dark:text-gray-100"}>
+                                      {row.NIM || "-"}
+                                    </span>
+                                  )}
+                                </td>
+                                <td
+                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
+                                    editingCell?.row === actualIndex && editingCell?.key === "NAMA"
+                                      ? "border-2 border-brand-500"
+                                      : ""
+                                  } ${
+                                    cellErrors[`${rowNum}-NAMA`]
+                                      ? "bg-red-100 dark:bg-red-900/30"
+                                      : ""
+                                  }`}
+                                  onClick={() => setEditingCell({ row: actualIndex, key: "NAMA" })}
+                                  title={cellErrors[`${rowNum}-NAMA`] || ""}
+                                >
+                                  {editingCell?.row === actualIndex && editingCell?.key === "NAMA" ? (
+                                    <input
+                                      className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                      type="text"
+                                      value={row.NAMA}
+                                      onChange={(e) =>
+                                        handleCellEdit(
+                                          actualIndex,
+                                          "NAMA",
+                                          e.target.value
+                                        )
+                                      }
+                                      onBlur={() => setEditingCell(null)}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <span className={cellErrors[`${rowNum}-NAMA`] ? "text-red-500" : "text-gray-800 dark:text-gray-100"}>
+                                      {row.NAMA || "-"}
+                                    </span>
+                                  )}
+                                </td>
+                                <td
+                                  className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
+                                    editingCell?.row === actualIndex && editingCell?.key === "KELOMPOK"
+                                      ? "border-2 border-brand-500"
+                                      : ""
+                                  } ${
+                                    cellErrors[`${rowNum}-KELOMPOK`]
+                                      ? "bg-red-100 dark:bg-red-900/30"
+                                      : ""
+                                  }`}
+                                  onClick={() => setEditingCell({ row: actualIndex, key: "KELOMPOK" })}
+                                  title={cellErrors[`${rowNum}-KELOMPOK`] || ""}
+                                >
+                                  {editingCell?.row === actualIndex && editingCell?.key === "KELOMPOK" ? (
+                                    <input
+                                      className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                      type="text"
+                                      value={row.KELOMPOK}
+                                      onChange={(e) =>
+                                        handleCellEdit(
+                                          actualIndex,
+                                          "KELOMPOK",
+                                          e.target.value
+                                        )
+                                      }
+                                      onBlur={() => setEditingCell(null)}
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <span className={cellErrors[`${rowNum}-KELOMPOK`] ? "text-red-500" : "text-gray-800 dark:text-gray-100"}>
+                                      {row.KELOMPOK || "-"}
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  
+                  {/* Pagination untuk Import Preview */}
+                  {previewData.length > importPageSize && (
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center gap-4">
+                        <select
+                          value={importPageSize}
+                          onChange={(e) => {
+                            setImportPageSize(Number(e.target.value));
+                            setImportPage(1);
                           }}
-                          className="text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors"
-                          disabled={isImporting}
+                          className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
                         >
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
+                          <option value={5}>5 per halaman</option>
+                          <option value={10}>10 per halaman</option>
+                          <option value={20}>20 per halaman</option>
+                          <option value={50}>50 per halaman</option>
+                        </select>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          Menampilkan {(importPage - 1) * importPageSize + 1} - {Math.min(importPage * importPageSize, previewData.length)} dari {previewData.length} data
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setImportPage((p) => Math.max(1, p - 1))}
+                          disabled={importPage === 1}
+                          className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </button>
+                        
+                        {importTotalPages > 1 && (
+                          <button
+                            onClick={() => setImportPage(1)}
+                            className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                              importPage === 1
+                                ? "bg-brand-500 text-white"
+                                : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            }`}
                           >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M6 18L18 6M6 6l12 12"
-                            />
+                            1
+                          </button>
+                        )}
+                        
+                        {importPage > 4 && (
+                          <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
+                        )}
+                        
+                        {Array.from({ length: importTotalPages }, (_, i) => {
+                          const pageNum = i + 1;
+                          const shouldShow =
+                            pageNum > 1 &&
+                            pageNum < importTotalPages &&
+                            pageNum >= importPage - 2 &&
+                            pageNum <= importPage + 2;
+                          
+                          if (!shouldShow) return null;
+                          
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => setImportPage(pageNum)}
+                              className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                                importPage === pageNum
+                                  ? "bg-brand-500 text-white"
+                                  : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+                        
+                        {importPage < importTotalPages - 3 && (
+                          <span className="px-2 text-gray-500 dark:text-gray-400">...</span>
+                        )}
+                        
+                        {importTotalPages > 1 && (
+                          <button
+                            onClick={() => setImportPage(importTotalPages)}
+                            className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                              importPage === importTotalPages
+                                ? "bg-brand-500 text-white"
+                                : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            }`}
+                          >
+                            {importTotalPages}
+                          </button>
+                        )}
+                        
+                        <button
+                          onClick={() => setImportPage((p) => Math.min(importTotalPages, p + 1))}
+                          disabled={importPage === importTotalPages}
+                          className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>
                         </button>
                       </div>
-
-                      {/* Validation Errors */}
-                      {validationErrors.length > 0 && (
-                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                          <div className="flex items-start gap-2 mb-3">
-                            <svg
-                              className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                              />
-                            </svg>
-                            <div className="flex-1">
-                              <div className="flex items-center justify-between mb-2">
-                                <p className="font-medium text-red-800 dark:text-red-300">
-                                  Terdapat {validationErrors.length} error validasi:
-                                </p>
-                                <button
-                                  onClick={handleAutoFix}
-                                  className="px-3 py-1.5 text-sm bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2"
-                                  title="Perbaiki data yang bisa diperbaiki secara otomatis (misalnya nama yang tidak sesuai dengan NIM)"
-                                >
-                                  <svg
-                                    className="w-4 h-4"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                  >
-                                    <path
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth={2}
-                                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                                    />
-                                  </svg>
-                                  Auto-Fix
-                                </button>
-                              </div>
-                              <ul className="space-y-1 max-h-40 overflow-y-auto">
-                                {validationErrors
-                                  .slice(0, 10)
-                                  .map((err, idx) => (
-                                    <li
-                                      key={idx}
-                                      className="text-sm text-red-700 dark:text-red-400"
-                                    >
-                                      Baris {err.row}: {err.field} - {err.message}
-                                    </li>
-                                  ))}
-                                {validationErrors.length > 10 && (
-                                  <li className="text-sm text-red-700 dark:text-red-400 font-medium">
-                                    ... dan {validationErrors.length - 10} error
-                                    lainnya
-                                  </li>
-                                )}
-                              </ul>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Success Message */}
-                      {importedCount > 0 && (
-                        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-                          <p className="text-green-800 dark:text-green-300">
-                            <strong>Berhasil!</strong> {importedCount} data
-                            berhasil diimpor.
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Preview Table */}
-                      {previewData.length > 0 && (
-                        <div className="overflow-x-auto">
-                          <table className="w-full border-collapse border border-gray-300 dark:border-gray-700 text-sm">
-                            <thead className="sticky top-0 bg-gray-100 dark:bg-gray-700 z-10">
-                              <tr className="bg-gray-100 dark:bg-gray-700">
-                                <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">
-                                  NIM
-                                </th>
-                                <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">
-                                  NAMA
-                                </th>
-                                <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">
-                                  KELOMPOK
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {previewData.map((row, idx) => {
-                                const rowNum = idx + 2;
-                                const hasError = validationErrors.some(
-                                  (err) => err.row === rowNum
-                                );
-                                return (
-                                  <tr
-                                    key={idx}
-                                    className={
-                                      hasError
-                                        ? "bg-red-50 dark:bg-red-900/10"
-                                        : idx % 2 === 0
-                                        ? "bg-white dark:bg-gray-800"
-                                        : "bg-gray-50 dark:bg-gray-700/50"
-                                    }
-                                  >
-                                    <td
-                                      className={`border border-gray-300 dark:border-gray-700 px-3 py-2 ${
-                                        cellErrors[`${rowNum}-NIM`]
-                                          ? "bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700"
-                                          : ""
-                                      }`}
-                                    >
-                                      <input
-                                        type="text"
-                                        value={row.NIM}
-                                        onChange={(e) =>
-                                          handleCellEdit(
-                                            idx,
-                                            "NIM",
-                                            e.target.value
-                                          )
-                                        }
-                                        className={`w-full px-2 py-1 border rounded text-sm bg-transparent ${
-                                          cellErrors[`${rowNum}-NIM`]
-                                            ? "border-red-500 dark:border-red-600 text-red-900 dark:text-red-200"
-                                            : "border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
-                                        }`}
-                                        title={cellErrors[`${rowNum}-NIM`] || ""}
-                                      />
-                                    </td>
-                                    <td
-                                      className={`border border-gray-300 dark:border-gray-700 px-3 py-2 ${
-                                        cellErrors[`${rowNum}-NAMA`]
-                                          ? "bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700"
-                                          : ""
-                                      }`}
-                                    >
-                                      <input
-                                        type="text"
-                                        value={row.NAMA}
-                                        onChange={(e) =>
-                                          handleCellEdit(
-                                            idx,
-                                            "NAMA",
-                                            e.target.value
-                                          )
-                                        }
-                                        className={`w-full px-2 py-1 border rounded text-sm bg-transparent ${
-                                          cellErrors[`${rowNum}-NAMA`]
-                                            ? "border-red-500 dark:border-red-600 text-red-900 dark:text-red-200"
-                                            : "border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
-                                        }`}
-                                        title={
-                                          cellErrors[`${rowNum}-NAMA`] || ""
-                                        }
-                                      />
-                                    </td>
-                                    <td
-                                      className={`border border-gray-300 dark:border-gray-700 px-3 py-2 ${
-                                        cellErrors[`${rowNum}-KELOMPOK`]
-                                          ? "bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700"
-                                          : ""
-                                      }`}
-                                    >
-                                      <input
-                                        type="text"
-                                        value={row.KELOMPOK}
-                                        onChange={(e) =>
-                                          handleCellEdit(
-                                            idx,
-                                            "KELOMPOK",
-                                            e.target.value
-                                          )
-                                        }
-                                        className={`w-full px-2 py-1 border rounded text-sm bg-transparent ${
-                                          cellErrors[`${rowNum}-KELOMPOK`]
-                                            ? "border-red-500 dark:border-red-600 text-red-900 dark:text-red-200"
-                                            : "border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
-                                        }`}
-                                        title={
-                                          cellErrors[`${rowNum}-KELOMPOK`] || ""
-                                        }
-                                      />
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 text-center sticky bottom-0 bg-gray-50 dark:bg-gray-800 py-2">
-                            Menampilkan semua {previewData.length} baris
-                          </p>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
+              )}
 
-                {/* Footer */}
-                <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end gap-3">
-                  <button
-                    onClick={() => {
-                      if (!isImporting) {
-                        setShowImportModal(false);
-                        setPreviewData([]);
-                        setValidationErrors([]);
-                        setCellErrors({});
-                        setImportedFile(null);
-                      }
-                    }}
-                    className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-                    disabled={isImporting}
-                  >
-                    {importedCount > 0 ? "Tutup" : "Batal"}
-                  </button>
-                  {previewData.length > 0 &&
-                    validationErrors.length > 0 &&
-                    importedCount === 0 && (
-                      <button
-                        onClick={handleAutoFix}
-                        className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2"
-                        title="Perbaiki data yang bisa diperbaiki secara otomatis (misalnya nama yang tidak sesuai dengan NIM)"
+              {/* Footer */}
+              <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={handleCloseImportModal}
+                  className="px-6 py-3 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                  disabled={isImporting}
+                >
+                  {importedCount > 0 ? "Tutup" : "Batal"}
+                </button>
+                {previewData.length > 0 &&
+                  validationErrors.length > 0 &&
+                  importedCount === 0 && (
+                    <button
+                      onClick={handleAutoFix}
+                      className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      title="Perbaiki data yang bisa diperbaiki secara otomatis (misalnya nama yang tidak sesuai dengan NIM)"
+                    >
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
                       >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      Auto-Fix
+                    </button>
+                  )}
+                {previewData.length > 0 &&
+                  validationErrors.length === 0 &&
+                  importedCount === 0 && (
+                    <button
+                      onClick={handleSubmitImport}
+                      disabled={isImporting}
+                      className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    >
+                      {isImporting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Mengimpor...
+                        </>
+                      ) : (
+                        <>
+                          <FontAwesomeIcon
+                            icon={faUpload}
+                            className="w-4 h-4"
                           />
-                        </svg>
-                        Auto-Fix
-                      </button>
-                    )}
-                  {previewData.length > 0 &&
-                    validationErrors.length === 0 &&
-                    importedCount === 0 && (
-                      <button
-                        onClick={handleSubmitImport}
-                        disabled={isImporting}
-                        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                      >
-                        {isImporting ? (
-                          <>
-                            <svg
-                              className="animate-spin h-5 w-5"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                            >
-                              <circle
-                                className="opacity-25"
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                              />
-                              <path
-                                className="opacity-75"
-                                fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                              />
-                            </svg>
-                            Mengimpor...
-                          </>
-                        ) : (
-                          <>
-                            <svg
-                              className="w-5 h-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M5 13l4 4L19 7"
-                              />
-                            </svg>
-                            Import Data
-                          </>
-                        )}
-                      </button>
-                    )}
+                          Import Data
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
-              </div>
             </motion.div>
-          </>
+          </div>
         )}
       </AnimatePresence>
     </div>

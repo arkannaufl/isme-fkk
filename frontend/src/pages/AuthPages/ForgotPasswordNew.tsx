@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ThemeToggleButton } from "../../components/common/ThemeToggleButton";
 import api, { handleApiError } from "../../utils/api";
+import { useTheme } from "../../context/ThemeContext";
 
 interface LocationState {
   login?: string;
@@ -12,6 +13,7 @@ interface LocationState {
 export default function ForgotPasswordNew() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { theme } = useTheme();
 
   const state = (location.state as LocationState) || {};
   const login = state.login || "";
@@ -98,8 +100,8 @@ export default function ForgotPasswordNew() {
     <div className="relative min-h-screen">
       <div className="fixed inset-0 z-0">
         <img
-          src="/images/background/background-umj.jpg"
-          alt="Background UMJ"
+          src="/images/background/bg-login.png"
+          alt="Background"
           className="object-cover w-full h-full blur-sm opacity-50"
         />
       </div>
@@ -200,29 +202,29 @@ export default function ForgotPasswordNew() {
           </div>
 
           {/* Right: Logo & Grid (sama seperti halaman Login) */}
-          <div className="hidden w-1/2 md:flex flex-col justify-center">
-            <div className="relative flex items-center justify-center z-1">
+          <div className="hidden w-1/2 md:flex flex-col justify-center relative min-h-full">
+            {/* Grid di pojok kanan atas */}
+            <div className="absolute right-0 top-0 z-0 opacity-30 w-full max-w-[250px] xl:max-w-[450px]">
+              <img src="/images/shape/grid-01.svg" alt="grid" />
+            </div>
+            {/* Grid di pojok kiri bawah */}
+            <div className="absolute bottom-0 left-0 z-0 opacity-30 w-full max-w-[250px] xl:max-w-[450px] rotate-180">
+              <img src="/images/shape/grid-01.svg" alt="grid" />
+            </div>
+            <div className="relative flex items-center justify-center z-10">
               <div className="flex flex-col items-center max-w-md">
-                <Link to="/" className="block mb-4">
+                <Link to="/" className="block mb-6 md:mb-7">
                   <img
-                    width={151}
-                    height={48}
-                    src="/images/logo/logo.svg"
+                    className="w-52 h-auto md:w-56 lg:w-60 xl:w-72 max-w-full"
+                    src={theme === "dark" ? "/images/logo/logo-isme-dark.svg" : "/images/logo/logo-isme-light.svg"}
                     alt="Logo"
                   />
                 </Link>
-                <div className="absolute right-0 top-0 -z-1 w-full max-w-[250px] xl:max-w-[450px]">
-                  <img src="/images/shape/grid-01.svg" alt="grid" />
-                </div>
-                <div className="absolute bottom-0 left-0 -z-1 w-full max-w-[250px] rotate-180 xl:max-w-[450px]">
-                  <img src="/images/shape/grid-01.svg" alt="grid" />
-                </div>
-                <p className="text-center text-gray-800 dark:text-white text-xl leading-relaxed mb-3 px-4">
-                  Integrated System Medical Education Fakultas Kedokteran dan
-                  Kesehatan Universitas Muhammadiyah Jakarta
+                <p className="text-center text-gray-800 dark:text-white text-lg md:text-xl leading-relaxed mb-2 px-4 font-semibold">
+                  Integrated System Medical Education (ISME)
                 </p>
-                <p className="text-center text-gray-400 dark:text-white/60">
-                  Platform Terintegrasi untuk Presensi, Jadwal dan Evaluasi
+                <p className="text-center text-gray-400 dark:text-white/60 text-sm md:text-base leading-relaxed px-4 max-w-sm">
+                  Sistem Terpadu Untuk Manajemen Akademik Pendidikan Kedokteran
                 </p>
               </div>
             </div>

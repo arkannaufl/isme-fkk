@@ -17,6 +17,7 @@ return new class extends Migration
             $table->unsignedBigInteger('dosen_id');
             $table->boolean('hadir')->default(false);
             $table->text('catatan')->nullable();
+            $table->text('tanda_tangan')->nullable();
             $table->timestamps();
 
             // Foreign key constraints

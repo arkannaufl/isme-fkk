@@ -16,11 +16,13 @@ return new class extends Migration
             $table->text('judul_skripsi');
             $table->enum('keputusan', ['tidak_lulus', 'lulus_tanpa_perbaikan', 'lulus_dengan_perbaikan']);
             $table->text('catatan_perbaikan')->nullable();
+            $table->boolean('is_finalized')->default(false);
+            $table->timestamp('finalized_at')->nullable();
+            $table->unsignedBigInteger('finalized_by')->nullable();
             $table->timestamps();
 
             $table->unique(['jadwal_id', 'mahasiswa_id'], 'unique_hasil_sempro');
-            $table->foreign('jadwal_id')->references('id')->on('jadwal_non_blok_non_csr')->onDelete('cascade');
-            $table->foreign('moderator_id')->references('id')->on('users')->onDelete('cascade');
+            // No foreign key constraints - handled at application level
         });
     }
 

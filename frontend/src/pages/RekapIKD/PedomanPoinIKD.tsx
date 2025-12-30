@@ -3,6 +3,13 @@ import RekapIKDBase from "./RekapIKDBase";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "../../utils/api";
 import * as XLSX from "xlsx";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faFileExcel,
+  faDownload,
+  faUpload,
+  faExclamationTriangle,
+} from "@fortawesome/free-solid-svg-icons";
 
 interface IKDPedomanItem {
   id?: number;
@@ -58,7 +65,6 @@ const PedomanPoinIKD: React.FC = () => {
   const [showBidangModal, setShowBidangModal] = useState(false);
   const [newBidang, setNewBidang] = useState({ kode: "", nama: "" });
   const [editingBidang, setEditingBidang] = useState<IKDBidang | null>(null);
-  const [showDeleteBidangModal, setShowDeleteBidangModal] = useState(false);
   const [bidangToDelete, setBidangToDelete] = useState<IKDBidang | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -105,15 +111,6 @@ const PedomanPoinIKD: React.FC = () => {
   const [deletedSubItems, setDeletedSubItems] = useState<number[]>([]); // Track sub items yang dihapus untuk dihapus dari database saat save
   const [deletedMainForm, setDeletedMainForm] = useState<number | null>(null); // Track form utama yang dihapus
 
-  // State untuk modal konfirmasi hapus
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteType, setDeleteType] = useState<
-    "item" | "subItem" | "mainFormSubItem" | "mainForm" | null
-  >(null);
-  const [deleteItemIndex, setDeleteItemIndex] = useState<number | null>(null);
-  const [deleteSubItemIndex, setDeleteSubItemIndex] = useState<number | null>(
-    null
-  );
 
   // State untuk import/export Excel
   const [showImportModal, setShowImportModal] = useState(false);
@@ -122,7 +119,13 @@ const PedomanPoinIKD: React.FC = () => {
   const [validationErrors, setValidationErrors] = useState<
     Array<{ row: number; field: string; message: string }>
   >([]);
-  const [cellErrors, setCellErrors] = useState<{ [key: string]: string }>({});
+  const [cellErrors, setCellErrors] = useState<
+    Array<{ row: number; field: string; message: string }>
+  >([]);
+  const [editingCell, setEditingCell] = useState<{
+    row: number;
+    key: string;
+  } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [importedCount, setImportedCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -628,17 +631,10 @@ const PedomanPoinIKD: React.FC = () => {
   };
 
   const handleDeleteItem = (index: number) => {
-    // Buka modal konfirmasi hapus
-    setDeleteType("item");
-    setDeleteItemIndex(index);
-    setShowDeleteModal(true);
-  };
-
-  const confirmDeleteItem = () => {
-    if (deleteItemIndex === null) return;
-
-    const itemToDelete = items[deleteItemIndex];
-
+    const itemToDelete = items[index];
+    const confirmMessage = `Apakah Anda yakin ingin menghapus item ini?\n\nItem dengan NO "${itemToDelete.no}" dan kegiatan "${itemToDelete.kegiatan || "(kosong)"}"\n\n⚠️ Peringatan: Data yang dihapus tidak dapat dikembalikan. Semua data terkait seperti file yang sudah diupload oleh dosen, skor, dan data lainnya akan ikut hilang.`;
+    
+    if (window.confirm(confirmMessage)) {
     // Jika item punya id, berarti sudah ada di database, track untuk dihapus saat save
     if (itemToDelete?.id) {
       setDeletedItems((prev) => [...prev, itemToDelete.id!]);
@@ -658,29 +654,17 @@ const PedomanPoinIKD: React.FC = () => {
     }
 
     // Hapus dari state
-    const newItems = items.filter((_, i) => i !== deleteItemIndex);
+      const newItems = items.filter((_, i) => i !== index);
     setItems(newItems);
-
-    // Tutup modal
-    setShowDeleteModal(false);
-    setDeleteType(null);
-    setDeleteItemIndex(null);
+    }
   };
 
   const handleDeleteSubItem = (itemIndex: number, subItemIndex: number) => {
-    // Buka modal konfirmasi hapus
-    setDeleteType("subItem");
-    setDeleteItemIndex(itemIndex);
-    setDeleteSubItemIndex(subItemIndex);
-    setShowDeleteModal(true);
-  };
-
-  const confirmDeleteSubItem = () => {
-    if (deleteItemIndex === null || deleteSubItemIndex === null) return;
-
-    const item = items[deleteItemIndex];
-    const subItemToDelete = item.subItems[deleteSubItemIndex];
-
+    const item = items[itemIndex];
+    const subItemToDelete = item.subItems[subItemIndex];
+    const confirmMessage = `Apakah Anda yakin ingin menghapus sub item ini?\n\nSub Item dengan kegiatan "${subItemToDelete.kegiatan || "(kosong)"}" dari Item "${item.no}"\n\n⚠️ Peringatan: Data yang dihapus tidak dapat dikembalikan. Semua data terkait seperti file yang sudah diupload oleh dosen, skor, dan data lainnya akan ikut hilang.`;
+    
+    if (window.confirm(confirmMessage)) {
     // Jika sub item punya id, berarti sudah ada di database, track untuk dihapus saat save
     if (subItemToDelete?.id) {
       const subItemId =
@@ -694,30 +678,18 @@ const PedomanPoinIKD: React.FC = () => {
 
     // Hapus dari state
     const updatedItems = [...items];
-    updatedItems[deleteItemIndex].subItems = updatedItems[
-      deleteItemIndex
-    ].subItems.filter((_, i) => i !== deleteSubItemIndex);
+      updatedItems[itemIndex].subItems = updatedItems[
+        itemIndex
+      ].subItems.filter((_, i) => i !== subItemIndex);
     setItems(updatedItems);
-
-    // Tutup modal
-    setShowDeleteModal(false);
-    setDeleteType(null);
-    setDeleteItemIndex(null);
-    setDeleteSubItemIndex(null);
+    }
   };
 
   const handleDeleteMainFormSubItem = (subItemIndex: number) => {
-    // Buka modal konfirmasi hapus
-    setDeleteType("mainFormSubItem");
-    setDeleteSubItemIndex(subItemIndex);
-    setShowDeleteModal(true);
-  };
-
-  const confirmDeleteMainFormSubItem = () => {
-    if (deleteSubItemIndex === null) return;
-
-    const subItemToDelete = subItems[deleteSubItemIndex];
-
+    const subItemToDelete = subItems[subItemIndex];
+    const confirmMessage = `Apakah Anda yakin ingin menghapus sub item ini?\n\nSub Item dengan kegiatan "${subItemToDelete.kegiatan || "(kosong)"}" dari Form Utama\n\n⚠️ Peringatan: Data yang dihapus tidak dapat dikembalikan. Semua data terkait seperti file yang sudah diupload oleh dosen, skor, dan data lainnya akan ikut hilang.`;
+    
+    if (window.confirm(confirmMessage)) {
     // Jika sub item punya id, berarti sudah ada di database, track untuk dihapus saat save
     if (subItemToDelete?.id) {
       const subItemId =
@@ -730,22 +702,15 @@ const PedomanPoinIKD: React.FC = () => {
     }
 
     // Hapus dari state
-    const newSubItems = subItems.filter((_, i) => i !== deleteSubItemIndex);
+      const newSubItems = subItems.filter((_, i) => i !== subItemIndex);
     setSubItems(newSubItems);
-
-    // Tutup modal
-    setShowDeleteModal(false);
-    setDeleteType(null);
-    setDeleteSubItemIndex(null);
+    }
   };
 
   const handleDeleteMainForm = () => {
-    // Buka modal konfirmasi hapus
-    setDeleteType("mainForm");
-    setShowDeleteModal(true);
-  };
+    const confirmMessage = `Apakah Anda yakin ingin menghapus form utama ini?\n\nForm Utama dengan NO "${form.no}" dan kegiatan "${form.kegiatan || "(kosong)"}"\n\n⚠️ Peringatan: Data yang dihapus tidak dapat dikembalikan. Semua data terkait seperti file yang sudah diupload oleh dosen, skor, dan data lainnya akan ikut hilang.`;
 
-  const confirmDeleteMainForm = () => {
+    if (window.confirm(confirmMessage)) {
     // Jika form utama punya id (dari editingItem), track untuk dihapus saat save
     if (editingItem?.id) {
       setDeletedMainForm(editingItem.id);
@@ -765,62 +730,9 @@ const PedomanPoinIKD: React.FC = () => {
     setSubItems([]);
     setEditingItem(null);
     setEditMode(false);
-
-    // Tutup modal
-    setShowDeleteModal(false);
-    setDeleteType(null);
-  };
-
-  const handleCancelDelete = () => {
-    setShowDeleteModal(false);
-    setDeleteType(null);
-    setDeleteItemIndex(null);
-    setDeleteSubItemIndex(null);
-  };
-
-  const handleConfirmDelete = () => {
-    if (deleteType === "item") {
-      confirmDeleteItem();
-    } else if (deleteType === "subItem") {
-      confirmDeleteSubItem();
-    } else if (deleteType === "mainFormSubItem") {
-      confirmDeleteMainFormSubItem();
-    } else if (deleteType === "mainForm") {
-      confirmDeleteMainForm();
     }
   };
 
-  const getDeleteMessage = () => {
-    if (deleteType === "item" && deleteItemIndex !== null) {
-      const item = items[deleteItemIndex];
-      return `Item dengan NO "${item.no}" dan kegiatan "${
-        item.kegiatan || "(kosong)"
-      }"`;
-    } else if (
-      deleteType === "subItem" &&
-      deleteItemIndex !== null &&
-      deleteSubItemIndex !== null
-    ) {
-      const item = items[deleteItemIndex];
-      const subItem = item.subItems[deleteSubItemIndex];
-      return `Sub Item dengan kegiatan "${
-        subItem.kegiatan || "(kosong)"
-      }" dari Item "${item.no}"`;
-    } else if (
-      deleteType === "mainFormSubItem" &&
-      deleteSubItemIndex !== null
-    ) {
-      const subItem = subItems[deleteSubItemIndex];
-      return `Sub Item dengan kegiatan "${
-        subItem.kegiatan || "(kosong)"
-      }" dari Form Utama`;
-    } else if (deleteType === "mainForm") {
-      return `Form Utama dengan NO "${form.no}" dan kegiatan "${
-        form.kegiatan || "(kosong)"
-      }"`;
-    }
-    return "item ini";
-  };
 
   const handleEdit = (item: IKDPedomanItem) => {
     setEditingItem(item);
@@ -1036,9 +948,11 @@ const PedomanPoinIKD: React.FC = () => {
   };
 
   const handleSave = async () => {
+    setIsSaving(true);
     try {
       if (!selectedBidang) {
         setError("Pilih Bidang terlebih dahulu");
+        setIsSaving(false);
         return;
       }
 
@@ -1456,6 +1370,8 @@ const PedomanPoinIKD: React.FC = () => {
         error?.response?.data?.message ||
           "Gagal menyimpan data. Silakan coba lagi."
       );
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1597,8 +1513,7 @@ const PedomanPoinIKD: React.FC = () => {
       const deletedBidangKode = bidangToDelete.kode;
       const deletedBidangNama = bidangToDelete.nama;
 
-      // Tutup modal penghapusan terlebih dahulu
-      setShowDeleteBidangModal(false);
+      // Reset bidangToDelete
       setBidangToDelete(null);
 
       // Reload data setelah penghapusan - ini akan update pedomanData dan bidangList
@@ -1921,50 +1836,55 @@ const PedomanPoinIKD: React.FC = () => {
     existingData: IKDPedomanItem[]
   ): {
     errors: Array<{ row: number; field: string; message: string }>;
-    cellErrors: { [key: string]: string };
+    cellErrors: Array<{ row: number; field: string; message: string }>;
   } => {
     const errors: Array<{ row: number; field: string; message: string }> = [];
-    const cellErrors: { [key: string]: string } = {};
+    const cellErrors: Array<{ row: number; field: string; message: string }> =
+      [];
 
     excelData.forEach((row, index) => {
       const rowNum = index + 2; // +2 karena row 1 adalah header, dan index dimulai dari 0
 
       // Validasi bidang
       if (!row.bidang || String(row.bidang).trim() === "") {
-        errors.push({
+        const error = {
           row: rowNum,
           field: "bidang",
           message: "Bidang harus diisi",
-        });
-        cellErrors[`${rowNum}-bidang`] = "Bidang harus diisi";
+        };
+        errors.push(error);
+        cellErrors.push(error);
       }
 
       // Validasi no
       if (!row.no || String(row.no).trim() === "") {
-        errors.push({ row: rowNum, field: "no", message: "NO harus diisi" });
-        cellErrors[`${rowNum}-no`] = "NO harus diisi";
+        const error = { row: rowNum, field: "no", message: "NO harus diisi" };
+        errors.push(error);
+        cellErrors.push(error);
       }
 
       // Validasi kegiatan
       if (!row.kegiatan || String(row.kegiatan).trim() === "") {
-        errors.push({
+        const error = {
           row: rowNum,
           field: "kegiatan",
           message: "Kegiatan harus diisi",
-        });
-        cellErrors[`${rowNum}-kegiatan`] = "Kegiatan harus diisi";
+        };
+        errors.push(error);
+        cellErrors.push(error);
       } else {
         const kegiatan = String(row.kegiatan).trim();
         // Validasi format menggunakan helper function
         const kegiatanValidation = validateKegiatanFormat(kegiatan);
         if (!kegiatanValidation.isValid) {
-          errors.push({
+          const error = {
             row: rowNum,
             field: "kegiatan",
             message:
               kegiatanValidation.errorMessage || "Format kegiatan tidak valid",
-          });
-          cellErrors[`${rowNum}-kegiatan`] = "Harus ada spasi setelah nomor";
+          };
+          errors.push(error);
+          cellErrors.push(error);
         }
       }
 
@@ -1977,13 +1897,13 @@ const PedomanPoinIKD: React.FC = () => {
       ) {
         const numPoin = Number(indeksPoin);
         if (isNaN(numPoin) || numPoin < 0) {
-          errors.push({
+          const error = {
             row: rowNum,
             field: "indeks_poin",
             message: "Indeks Poin harus berupa angka >= 0",
-          });
-          cellErrors[`${rowNum}-indeks_poin`] =
-            "Indeks Poin harus berupa angka >= 0";
+          };
+          errors.push(error);
+          cellErrors.push(error);
         }
       }
 
@@ -2007,12 +1927,13 @@ const PedomanPoinIKD: React.FC = () => {
         isSubItem !== "1" &&
         isSubItem !== "0"
       ) {
-        errors.push({
+        const error = {
           row: rowNum,
           field: "is_sub_item",
           message: "Is Sub Item harus Y/N, Yes/No, True/False, atau 1/0",
-        });
-        cellErrors[`${rowNum}-is_sub_item`] = "Is Sub Item harus Y/N";
+        };
+        errors.push(error);
+        cellErrors.push(error);
       }
 
       // Validasi parent_no jika is_sub_item = Y
@@ -2026,12 +1947,13 @@ const PedomanPoinIKD: React.FC = () => {
         isSubItemBool &&
         (!row.parent_no || String(row.parent_no).trim() === "")
       ) {
-        errors.push({
+        const error = {
           row: rowNum,
           field: "parent_no",
           message: "Parent NO harus diisi jika Is Sub Item = Y",
-        });
-        cellErrors[`${rowNum}-parent_no`] = "Parent NO harus diisi";
+        };
+        errors.push(error);
+        cellErrors.push(error);
       }
 
       // Validasi duplikasi/konflik dalam data yang di-import
@@ -2063,20 +1985,31 @@ const PedomanPoinIKD: React.FC = () => {
       });
 
       if (duplicateRows.length > 0) {
-        errors.push({
+        const errorKegiatan = {
           row: rowNum,
           field: "kegiatan",
           message: "Data duplikat ditemukan dalam file import",
-        });
-        if (!cellErrors[`${rowNum}-kegiatan`]) {
-          cellErrors[`${rowNum}-kegiatan`] = "Data duplikat";
+        };
+        errors.push(errorKegiatan);
+        if (!cellErrors.find((e) => e.row === rowNum && e.field === "kegiatan")) {
+          cellErrors.push(errorKegiatan);
         }
         // Also mark bidang and no as duplicate
-        if (!cellErrors[`${rowNum}-bidang`]) {
-          cellErrors[`${rowNum}-bidang`] = "Data duplikat";
+        const errorBidang = {
+          row: rowNum,
+          field: "bidang",
+          message: "Data duplikat",
+        };
+        if (!cellErrors.find((e) => e.row === rowNum && e.field === "bidang")) {
+          cellErrors.push(errorBidang);
         }
-        if (!cellErrors[`${rowNum}-no`]) {
-          cellErrors[`${rowNum}-no`] = "Data duplikat";
+        const errorNo = {
+          row: rowNum,
+          field: "no",
+          message: "Data duplikat",
+        };
+        if (!cellErrors.find((e) => e.row === rowNum && e.field === "no")) {
+          cellErrors.push(errorNo);
         }
       }
 
@@ -2167,9 +2100,24 @@ const PedomanPoinIKD: React.FC = () => {
       setError(err.message || "Gagal membaca file Excel");
       setPreviewData([]);
       setValidationErrors([]);
-      setCellErrors({});
+      setCellErrors([]);
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // Handle close import modal
+  const handleCloseImportModal = () => {
+    if (!isSaving) {
+      setShowImportModal(false);
+      setPreviewData([]);
+      setValidationErrors([]);
+      setCellErrors([]);
+      setEditingCell(null);
+      setImportedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
@@ -2245,7 +2193,7 @@ const PedomanPoinIKD: React.FC = () => {
     setError("");
     setLoading(true);
     setImportedCount(0);
-    setCellErrors({});
+    setCellErrors([]);
 
     const validationResult = validateExcelData(previewData, pedomanData);
     if (validationResult.errors.length > 0) {
@@ -2548,12 +2496,12 @@ const PedomanPoinIKD: React.FC = () => {
       setImportedFile(null);
       setPreviewData([]);
       setValidationErrors([]);
-      setCellErrors({});
+      setCellErrors([]);
       setShowImportModal(false);
     } catch (err: any) {
       setImportedCount(0);
       setError(err.message || "Gagal mengimpor data");
-      setCellErrors({});
+      setCellErrors([]);
     } finally {
       setIsSaving(false);
       setLoading(false);
@@ -2777,75 +2725,51 @@ const PedomanPoinIKD: React.FC = () => {
       title="Pedoman Poin IKD"
       description="Panduan dan aturan poin Indikator Kinerja Dosen (IKD)"
     >
-      <div className="space-y-6">
+      <div className="w-full mx-auto space-y-6">
         {/* Header with Button */}
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-xl font-bold text-gray-800 dark:text-white/90 mb-1">
             Tabel Pedoman Poin IKD
           </h2>
-          <div className="flex gap-2">
-            <button
-              onClick={downloadTemplate}
-              className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center gap-2"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-              Download Template
-            </button>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Kelola pedoman poin IKD untuk semua bidang
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setShowImportModal(true)}
-              className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors flex items-center gap-2"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform"
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+              <FontAwesomeIcon
+                icon={faFileExcel}
+                className="w-5 h-5 text-brand-700 dark:text-brand-200"
                 />
-              </svg>
               Import Excel
+            </button>
+            <button
+              onClick={downloadTemplate}
+              className="px-4 py-2 rounded-lg bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 text-sm font-medium shadow-theme-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition flex items-center gap-2"
+            >
+              <FontAwesomeIcon icon={faDownload} className="w-5 h-5" />
+              Download Template Excel
             </button>
             {hasData && (
               <button
                 onClick={exportToExcel}
-                className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors flex items-center gap-2"
+                className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
+                  hasData
+                    ? "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
+                    : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
+                }`}
               >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  />
-                </svg>
-                Export Excel
+                <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5" />
+                Export ke Excel
               </button>
             )}
             <button
               onClick={handleEditTableClick}
-              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition"
             >
               {hasData ? "Edit Table IKD" : "Buat Table IKD"}
             </button>
@@ -2856,26 +2780,29 @@ const PedomanPoinIKD: React.FC = () => {
         <AnimatePresence>
           {showBidangModal && (
             <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+              {/* Overlay */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-gray-500/30 dark:bg-gray-700/50 backdrop-blur-sm"
-                onClick={() => setShowBidangModal(false)}
+                className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+                onClick={() => {
+                  setShowBidangModal(false);
+                  setBidangModalError(null);
+                  setNewBidang({ kode: "", nama: "" });
+                  setEditingBidang(null);
+                }}
               />
+              {/* Modal Content */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="relative w-full max-w-3xl mx-auto bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg z-[100001]"
+                transition={{ duration: 0.2 }}
+                className="relative w-full max-w-3xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {hasData
-                      ? "Pilih Bidang untuk Menambah Item"
-                      : "Pilih Bidang untuk Memulai"}
-                  </h3>
+                {/* Close Button */}
                   <button
                     onClick={() => {
                       setShowBidangModal(false);
@@ -2883,24 +2810,39 @@ const PedomanPoinIKD: React.FC = () => {
                       setNewBidang({ kode: "", nama: "" });
                       setEditingBidang(null);
                     }}
-                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
                   >
                     <svg
-                      className="w-6 h-6"
+                    width="20"
+                    height="20"
                       fill="none"
-                      stroke="currentColor"
                       viewBox="0 0 24 24"
+                    className="w-6 h-6"
                     >
                       <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
+                      fillRule="evenodd"
+                      clipRule="evenodd"
+                      d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                      fill="currentColor"
                       />
                     </svg>
                   </button>
+                <div>
+                  <div className="flex items-center justify-between pb-0 sm:pb-2">
+                    <div>
+                      <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
+                        {hasData
+                          ? "Pilih Bidang untuk Menambah Item"
+                          : "Pilih Bidang untuk Memulai"}
+                      </h2>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Pilih bidang yang ingin Anda gunakan atau tambahkan bidang baru
+                      </p>
                 </div>
-                <div className="space-y-3 mb-4">
+                  </div>
+                  <div>
+                    <div className="mb-3 sm:mb-4">
+                      <div className="space-y-3 mb-6">
                   {bidangList.map((bidang) => {
                     const bidangItems = pedomanData.filter(
                       (item) => item.bidang === bidang.kode
@@ -2908,7 +2850,7 @@ const PedomanPoinIKD: React.FC = () => {
                     return (
                       <div
                         key={bidang.kode}
-                        className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                              className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors border border-gray-200 dark:border-gray-700"
                       >
                         <div className="flex justify-between items-center">
                           <button
@@ -2954,10 +2896,13 @@ const PedomanPoinIKD: React.FC = () => {
                               </svg>
                             </button>
                             <button
-                              onClick={(e) => {
+                                    onClick={async (e) => {
                                 e.stopPropagation();
+                                      const confirmMessage = `Apakah Anda yakin ingin menghapus bidang ini?\n\nBidang ${bidang.kode} - ${bidang.nama}\n\n⚠️ Peringatan: Semua item pedoman poin dengan bidang ini akan ikut terhapus, termasuk file dan skor yang terkait.`;
+                                      if (window.confirm(confirmMessage)) {
                                 setBidangToDelete(bidang);
-                                setShowDeleteBidangModal(true);
+                                        await handleDeleteBidang();
+                                      }
                               }}
                               className="p-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                               title="Hapus Bidang"
@@ -2995,15 +2940,42 @@ const PedomanPoinIKD: React.FC = () => {
                     );
                   })}
                 </div>
-                <div className="border-t pt-4">
-                  <h4 className="text-sm font-medium mb-3 text-gray-900 dark:text-white">
+                    </div>
+                  </div>
+                  
+                  <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <div className="flex items-center space-x-3 mb-4">
+                      <div className="w-12 h-12 bg-brand-100 dark:bg-brand-900/20 rounded-lg flex items-center justify-center">
+                        <svg
+                          className="w-6 h-6 text-brand-600 dark:text-brand-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                          />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-900 dark:text-white">
                     {editingBidang ? "Edit Bidang" : "Tambah Bidang Baru"}
-                  </h4>
+                        </h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {editingBidang
+                            ? "Ubah informasi bidang yang dipilih"
+                            : "Isi form di bawah ini untuk menambahkan bidang baru"}
+                        </p>
+                      </div>
+                    </div>
 
                   {/* Error Message */}
                   {bidangModalError && (
-                    <div className="mb-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                      <div className="flex items-start gap-2">
+                      <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                        <div className="flex items-start space-x-3">
                         <svg
                           className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0"
                           fill="none"
@@ -3017,16 +2989,21 @@ const PedomanPoinIKD: React.FC = () => {
                             d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                           />
                         </svg>
-                        <p className="text-sm text-red-600 dark:text-red-400">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-red-800 dark:text-red-200">
+                              Error
+                            </p>
+                            <p className="text-sm text-red-600 dark:text-red-400 mt-1">
                           {bidangModalError}
                         </p>
+                          </div>
                       </div>
                     </div>
                   )}
 
-                  <div className="space-y-3">
+                    <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Kode Bidang <span className="text-red-500">*</span>
                       </label>
                       <input
@@ -3037,14 +3014,14 @@ const PedomanPoinIKD: React.FC = () => {
                           setNewBidang({ ...newBidang, kode: e.target.value });
                           setBidangModalError(null);
                         }}
-                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                       />
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                         Masukkan kode bidang (huruf tunggal atau kombinasi)
                       </p>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Nama Bidang <span className="text-red-500">*</span>
                       </label>
                       <input
@@ -3055,18 +3032,13 @@ const PedomanPoinIKD: React.FC = () => {
                           setNewBidang({ ...newBidang, nama: e.target.value });
                           setBidangModalError(null);
                         }}
-                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                       />
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                         Masukkan nama lengkap bidang
                       </p>
                     </div>
-                    <button
-                      onClick={handleAddBidang}
-                      className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium shadow-md hover:shadow-lg"
-                    >
-                      {editingBidang ? "Update Bidang" : "Tambah Bidang"}
-                    </button>
+                      <div className="flex justify-end gap-2 pt-2">
                     {editingBidang && (
                       <button
                         onClick={() => {
@@ -3074,11 +3046,19 @@ const PedomanPoinIKD: React.FC = () => {
                           setNewBidang({ kode: "", nama: "" });
                           setBidangModalError(null);
                         }}
-                        className="w-full px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors mt-2"
+                            className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
                       >
                         Batal Edit
                       </button>
                     )}
+                  <button
+                          onClick={handleAddBidang}
+                          className="px-3 sm:px-4 py-2 rounded-lg bg-brand-500 text-white text-xs sm:text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition-all duration-300 ease-in-out"
+                        >
+                          {editingBidang ? "Update Bidang" : "Tambah Bidang"}
+                  </button>
+                    </div>
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -3086,99 +3066,12 @@ const PedomanPoinIKD: React.FC = () => {
           )}
         </AnimatePresence>
 
-        {/* Modal Konfirmasi Hapus Bidang */}
-        <AnimatePresence>
-          {showDeleteBidangModal && bidangToDelete && (
-            <>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[100000] bg-black/40 dark:bg-black/60 backdrop-blur-sm"
-                onClick={() => {
-                  setShowDeleteBidangModal(false);
-                  setBidangToDelete(null);
-                }}
-              />
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                className="fixed inset-0 z-[100001] flex items-center justify-center pointer-events-none"
-              >
-                <div
-                  className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 px-6 py-6 shadow-xl z-[100001] pointer-events-auto"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {/* Close Button */}
-                  <button
-                    onClick={() => {
-                      setShowDeleteBidangModal(false);
-                      setBidangToDelete(null);
-                    }}
-                    className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-4 top-4 h-9 w-9"
-                  >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </button>
-
-                  <div className="pr-8">
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
-                      Konfirmasi Hapus Bidang
-                    </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                      Apakah Anda yakin ingin menghapus bidang ini?
-                    </p>
-                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 mb-4">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">
-                        Bidang {bidangToDelete.kode} - {bidangToDelete.nama}
-                      </p>
-                      <p className="text-xs text-red-600 dark:text-red-400 mt-2">
-                        ⚠️ Peringatan: Semua item pedoman poin dengan bidang ini
-                        akan ikut terhapus, termasuk file dan skor yang terkait.
-                      </p>
-                    </div>
-                    <div className="flex gap-3 justify-end">
-                      <button
-                        onClick={() => {
-                          setShowDeleteBidangModal(false);
-                          setBidangToDelete(null);
-                        }}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                      >
-                        Batal
-                      </button>
-                      <button
-                        onClick={handleDeleteBidang}
-                        className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
-                      >
-                        Hapus
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
-
         {/* Info Box */}
         {hasData && (
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-            <div className="flex items-start gap-3">
+          <div className="bg-white dark:bg-white/[0.05] border border-gray-300 dark:border-gray-700 rounded-2xl p-6 mb-6 shadow-lg">
+            <div className="flex items-center gap-2 mb-3">
               <svg
-                className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0"
+                className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -3190,11 +3083,16 @@ const PedomanPoinIKD: React.FC = () => {
                   d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
+              <div className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+                Informasi
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
               <div className="flex-1">
-                <h4 className="font-semibold text-blue-900 dark:text-blue-300 mb-1">
+                <h4 className="font-semibold text-gray-900 dark:text-white mb-1">
                   Cara Menambah Item:
                 </h4>
-                <ul className="text-sm text-blue-800 dark:text-blue-400 space-y-2 list-disc list-inside">
+                <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-disc list-inside">
                   <li>
                     <strong>Menambah Item:</strong> Klik tombol "Edit Table IKD"
                     di kanan atas, pilih Bidang, lalu isi form. Nomor akan
@@ -3208,16 +3106,32 @@ const PedomanPoinIKD: React.FC = () => {
 
         {/* Zoom Controls - hanya tampil jika ada data */}
         {hasData && !loading && (
-          <div className="flex justify-between items-center mb-3">
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              Zoom: {Math.round(tableZoom * 100)}%
+          <div className="bg-white dark:bg-white/[0.05] border border-gray-300 dark:border-gray-700 rounded-xl p-5 mb-6 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <svg
+                className="w-5 h-5 text-gray-600 dark:text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
+              </svg>
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                Zoom: {Math.round(tableZoom * 100)}%
+              </span>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() =>
                   setTableZoom((prev) => Math.max(0.5, prev - 0.1))
                 }
-                className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors flex items-center gap-2 text-sm"
+                  className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium shadow-theme-xs hover:bg-gray-200 dark:hover:bg-gray-700 transition flex items-center gap-2"
                 title="Zoom Out"
               >
                 <svg
@@ -3237,7 +3151,7 @@ const PedomanPoinIKD: React.FC = () => {
               </button>
               <button
                 onClick={() => setTableZoom(1)}
-                className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors flex items-center gap-2 text-sm"
+                  className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium shadow-theme-xs hover:bg-gray-200 dark:hover:bg-gray-700 transition flex items-center gap-2"
                 title="Reset Zoom"
               >
                 <svg
@@ -3257,7 +3171,7 @@ const PedomanPoinIKD: React.FC = () => {
               </button>
               <button
                 onClick={() => setTableZoom((prev) => Math.min(2, prev + 0.1))}
-                className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors flex items-center gap-2 text-sm"
+                  className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium shadow-theme-xs hover:bg-gray-200 dark:hover:bg-gray-700 transition flex items-center gap-2"
                 title="Zoom In"
               >
                 <svg
@@ -3275,69 +3189,51 @@ const PedomanPoinIKD: React.FC = () => {
                 </svg>
                 Zoom In
               </button>
+              </div>
             </div>
           </div>
         )}
 
         {/* Table */}
         {loading ? (
-          <div className="overflow-x-auto w-full">
-            <table className="w-full border-collapse border border-gray-300 dark:border-gray-700">
-              <thead>
-                <tr className="bg-gray-100 dark:bg-gray-800">
-                  <th className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-left text-sm font-semibold">
-                    <div className="h-4 w-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+          <div className="bg-white dark:bg-white/[0.03] rounded-b-xl shadow-md border border-gray-200 dark:border-gray-800">
+            <div className="p-6">
+              <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                <div className="max-w-full overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                    <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900">
+                      <tr>
+                        {Array.from({ length: 6 }).map((_, i) => (
+                          <th key={i} className="px-6 py-4">
+                            <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
                   </th>
-                  <th className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-left text-sm font-semibold">
-                    <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                  </th>
-                  <th className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-left text-sm font-semibold">
-                    <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                  </th>
-                  <th className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-left text-sm font-semibold">
-                    <div className="h-4 w-28 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                  </th>
-                  <th className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-left text-sm font-semibold">
-                    <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                  </th>
-                  <th className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-left text-sm font-semibold">
-                    <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                  </th>
-                  <th className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-left text-sm font-semibold">
-                    <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                  </th>
+                        ))}
                 </tr>
               </thead>
               <tbody>
-                {Array.from({ length: 5 }).map((_, idx) => (
-                  <tr key={idx} className="animate-pulse">
-                    <td className="border border-gray-300 dark:border-gray-700 px-4 py-2">
-                      <div className="h-4 w-8 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <tr
+                          key={i}
+                          className={
+                            i % 2 === 1 ? "bg-gray-50 dark:bg-white/[0.02]" : ""
+                          }
+                        >
+                          {Array.from({ length: 6 }).map((_, j) => (
+                            <td key={j} className="px-6 py-4">
+                              <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
                     </td>
-                    <td className="border border-gray-300 dark:border-gray-700 px-4 py-2">
-                      <div className="h-4 w-48 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                    </td>
-                    <td className="border border-gray-300 dark:border-gray-700 px-4 py-2">
-                      <div className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                    </td>
-                    <td className="border border-gray-300 dark:border-gray-700 px-4 py-2">
-                      <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                    </td>
-                    <td className="border border-gray-300 dark:border-gray-700 px-4 py-2">
-                      <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                    </td>
-                    <td className="border border-gray-300 dark:border-gray-700 px-4 py-2">
-                      <div className="h-4 w-40 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                    </td>
-                    <td className="border border-gray-300 dark:border-gray-700 px-4 py-2">
-                      <div className="h-6 w-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                    </td>
+                          ))}
                   </tr>
                 ))}
               </tbody>
             </table>
+                </div>
+              </div>
+            </div>
           </div>
         ) : hasData ? (
+          <div className="bg-white dark:bg-white/[0.03] rounded-b-xl shadow-md border border-gray-200 dark:border-gray-800">
+            <div className="p-6">
           <div className="overflow-auto w-full" style={{ maxHeight: "80vh" }}>
             <div
               style={{
@@ -3347,25 +3243,27 @@ const PedomanPoinIKD: React.FC = () => {
                 width: `${100 / tableZoom}%`,
               }}
             >
-              <table className="w-full border-collapse border border-gray-300 dark:border-gray-700">
-                <thead>
-                  <tr className="bg-gray-100 dark:bg-gray-800">
-                    <th className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                    <div className="max-w-full overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                        <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900">
+                          <tr>
+                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
                       NO
                     </th>
-                    <th className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
                       Kegiatan
                     </th>
-                    <th className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
                       Indeks poin
                     </th>
-                    <th className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
                       Unit Kerja
                     </th>
-                    <th className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
                       Bukti fisik
                     </th>
-                    <th className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
                       Prosedur yang dilakukan oleh dosen
                     </th>
                   </tr>
@@ -3377,7 +3275,7 @@ const PedomanPoinIKD: React.FC = () => {
                       <tr className="bg-white dark:bg-gray-900">
                         <td
                           colSpan={6}
-                          className="border-b-2 border-gray-400 dark:border-gray-600 px-4 py-3 text-base font-bold text-gray-900 dark:text-white"
+                                  className="border-b-2 border-gray-400 dark:border-gray-600 px-6 py-4 text-base font-bold text-gray-900 dark:text-white"
                         >
                           {getBidangNama(bidang)}
                         </td>
@@ -3389,24 +3287,26 @@ const PedomanPoinIKD: React.FC = () => {
                             key={item.id || idx}
                             className={`${
                               isSubItem
-                                ? "bg-gray-50 dark:bg-gray-800/50"
+                                        ? "bg-gray-50 dark:bg-white/[0.02]"
+                                        : idx % 2 === 1
+                                        ? "bg-gray-50 dark:bg-white/[0.02]"
                                 : "bg-white dark:bg-gray-900"
                             }`}
                           >
                             {!isSubItem && (
-                              <td className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-sm text-gray-900 dark:text-white">
+                                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                                 <span className="font-medium">{item.no}</span>
                               </td>
                             )}
                             {isSubItem && (
-                              <td className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-sm text-gray-900 dark:text-white">
+                                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                                 {/* Empty cell untuk sub items, tidak ada NO */}
                               </td>
                             )}
-                            <td className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-sm text-gray-900 dark:text-white">
+                                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                               {item.kegiatan}
                             </td>
-                            <td className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-sm text-gray-900 dark:text-white">
+                                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                               {item.indeks_poin !== null &&
                               item.indeks_poin !== undefined &&
                               Number(item.indeks_poin) !== 0 &&
@@ -3414,13 +3314,13 @@ const PedomanPoinIKD: React.FC = () => {
                                 ? Number(item.indeks_poin).toFixed(2)
                                 : ""}
                             </td>
-                            <td className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-sm text-gray-900 dark:text-white">
+                                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                               {item.unit_kerja || ""}
                             </td>
-                            <td className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-sm text-gray-900 dark:text-white">
+                                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                               {item.bukti_fisik || ""}
                             </td>
-                            <td className="border border-gray-300 dark:border-gray-700 px-4 py-2 text-sm text-gray-900 dark:text-white">
+                                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                               {item.prosedur || ""}
                             </td>
                           </tr>
@@ -3430,15 +3330,19 @@ const PedomanPoinIKD: React.FC = () => {
                   ))}
                 </tbody>
               </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         ) : (
-          <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <div className="max-w-2xl mx-auto">
+          <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-12 shadow-sm">
+            <div className="text-center">
               <p className="text-gray-600 dark:text-gray-400 mb-4">
                 Belum ada data. Klik "Buat Table IKD" untuk mulai.
               </p>
-              <div className="text-left bg-white dark:bg-gray-900 p-4 rounded-lg mt-4">
+              <div className="text-left bg-gray-50 dark:bg-gray-800/50 p-6 rounded-xl mt-4 max-w-2xl mx-auto">
                 <h4 className="font-semibold text-gray-900 dark:text-white mb-2">
                   Cara menggunakan:
                 </h4>
@@ -3464,46 +3368,51 @@ const PedomanPoinIKD: React.FC = () => {
         <AnimatePresence>
           {showModal && (
             <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+              {/* Overlay */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-gray-500/30 dark:bg-gray-700/50 backdrop-blur-sm"
+                className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
                 onClick={handleCloseModal}
               />
+              {/* Modal Content */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto"
+                transition={{ duration: 0.2 }}
+                className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
               >
-                <div className="flex justify-between items-center mb-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                      {editMode ? "Edit" : "Tambah"} Item Pedoman IKD
-                    </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                      Bidang {selectedBidang} - {getBidangNama(selectedBidang)}
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleCloseModal}
-                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                {/* Close Button */}
+                <button
+                  onClick={handleCloseModal}
+                  className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+                >
+                  <svg
+                    width="20"
+                    height="20"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    className="w-6 h-6"
                   >
-                    <svg
-                      className="w-6 h-6"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </button>
+                    <path
+                      fillRule="evenodd"
+                      clipRule="evenodd"
+                      d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </button>
+
+                {/* Header */}
+                <div className="mb-6">
+                  <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                    {editMode ? "Edit" : "Tambah"} Item Pedoman IKD
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Bidang {selectedBidang} - {getBidangNama(selectedBidang)}
+                  </p>
                 </div>
 
                 {/* Alert Success/Error di dalam modal */}
@@ -4086,7 +3995,7 @@ const PedomanPoinIKD: React.FC = () => {
                         // Open sub item type modal
                         setShowSubItemTypeModal(true);
                       }}
-                      className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm font-medium shadow-sm transition-colors"
+                      className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition"
                     >
                       Tambah Sub Item
                     </button>
@@ -4577,7 +4486,7 @@ const PedomanPoinIKD: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => handleAddSubItemForItem(idx)}
-                                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm font-medium shadow-sm transition-colors"
+                                className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition"
                               >
                                 Tambah Sub Item
                               </button>
@@ -4595,10 +4504,10 @@ const PedomanPoinIKD: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleAddNewItem}
-                      className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm font-medium flex items-center gap-2 shadow-sm transition-colors"
+                      className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition flex items-center gap-2"
                     >
                       <svg
-                        className="w-4 h-4"
+                        className="w-5 h-5"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -4620,26 +4529,59 @@ const PedomanPoinIKD: React.FC = () => {
                 <AnimatePresence>
                   {showSubItemTypeModal && (
                     <div className="fixed inset-0 z-[100002] flex items-center justify-center">
+                      {/* Overlay */}
                       <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-gray-500/30 dark:bg-gray-700/50 backdrop-blur-sm"
+                        className="fixed inset-0 z-[100002] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
                         onClick={() => {
                           setShowSubItemTypeModal(false);
                           setCurrentItemIndex(null);
                         }}
                       />
+                      {/* Modal Content */}
                       <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.95 }}
-                        className="relative bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg z-[100003] max-w-md w-full mx-4"
+                        transition={{ duration: 0.2 }}
+                        className="relative bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100003] max-w-md w-full mx-4"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <h4 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
-                          Pilih Format Sub Item
-                        </h4>
+                        {/* Close Button */}
+                        <button
+                          onClick={() => {
+                            setShowSubItemTypeModal(false);
+                            setCurrentItemIndex(null);
+                          }}
+                          className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+                        >
+                          <svg
+                            width="20"
+                            height="20"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            className="w-6 h-6"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              clipRule="evenodd"
+                              d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                              fill="currentColor"
+                            />
+                          </svg>
+                        </button>
+
+                        {/* Header */}
+                        <div className="mb-6">
+                          <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                            Pilih Format Sub Item
+                          </h2>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Pilih format untuk sub item yang akan ditambahkan
+                          </p>
+                        </div>
                         <div className="space-y-3">
                           <button
                             onClick={() => {
@@ -4701,7 +4643,7 @@ const PedomanPoinIKD: React.FC = () => {
                                 setShowSubItemTypeModal(false);
                               }
                             }}
-                            className="w-full px-4 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-left"
+                            className="w-full px-4 py-3 rounded-lg bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 text-sm font-medium shadow-theme-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition text-left"
                           >
                             <div className="font-medium">
                               Format Angka (1.2, 1.3, dst)
@@ -4793,7 +4735,7 @@ const PedomanPoinIKD: React.FC = () => {
                                 setShowSubItemTypeModal(false);
                               }
                             }}
-                            className="w-full px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-left"
+                            className="w-full px-4 py-3 rounded-lg bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200 text-sm font-medium shadow-theme-xs hover:bg-green-200 dark:hover:bg-green-800 transition text-left"
                           >
                             <div className="font-medium">
                               Format Huruf (1.1.a, 1.1.b, dst)
@@ -4803,15 +4745,6 @@ const PedomanPoinIKD: React.FC = () => {
                             </div>
                           </button>
                         </div>
-                        <button
-                          onClick={() => {
-                            setShowSubItemTypeModal(false);
-                            setCurrentItemIndex(null);
-                          }}
-                          className="mt-4 w-full px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-                        >
-                          Batal
-                        </button>
                       </motion.div>
                     </div>
                   )}
@@ -4823,7 +4756,7 @@ const PedomanPoinIKD: React.FC = () => {
                       handleCloseModal();
                       setShowBidangModal(true);
                     }}
-                    className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors flex items-center gap-2"
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium shadow-theme-xs hover:bg-gray-200 dark:hover:bg-gray-700 transition flex items-center gap-2"
                   >
                     <svg
                       className="w-5 h-5"
@@ -4843,15 +4776,38 @@ const PedomanPoinIKD: React.FC = () => {
                   <div className="flex gap-3">
                     <button
                       onClick={handleCloseModal}
-                      className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                      className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium shadow-theme-xs hover:bg-gray-200 dark:hover:bg-gray-700 transition"
                     >
                       Batal
                     </button>
                     <button
                       onClick={handleSave}
-                      className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                      disabled={isSaving}
+                      className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
-                      Simpan
+                      {isSaving && (
+                        <svg
+                          className="animate-spin h-4 w-4 text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                      )}
+                      {isSaving ? "Menyimpan..." : "Simpan"}
                     </button>
                   </div>
                 </div>
@@ -4860,288 +4816,129 @@ const PedomanPoinIKD: React.FC = () => {
           )}
         </AnimatePresence>
 
-        {/* Modal Konfirmasi Hapus */}
+        {/* Modal Import Excel */}
         <AnimatePresence>
-          {showDeleteModal && (
-            <>
+          {showImportModal && (
+            <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+              {/* Overlay */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[100000] bg-black/40 dark:bg-black/60 backdrop-blur-sm"
-                onClick={handleCancelDelete}
+                className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+                onClick={handleCloseImportModal}
               />
+
+              {/* Modal Content */}
               <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                className="fixed inset-0 z-[100001] flex items-center justify-center pointer-events-none"
-              >
-                <div
-                  className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 px-6 py-6 shadow-xl z-[100001] pointer-events-auto"
-                  onClick={(e) => e.stopPropagation()}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
                 >
                   {/* Close Button */}
                   <button
-                    onClick={handleCancelDelete}
-                    className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-4 top-4 h-9 w-9"
+                  onClick={handleCloseImportModal}
+                  className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+                  disabled={isSaving}
                   >
                     <svg
-                      className="w-4 h-4"
+                    width="20"
+                    height="20"
                       fill="none"
-                      stroke="currentColor"
                       viewBox="0 0 24 24"
+                    className="w-6 h-6"
                     >
                       <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
+                      fillRule="evenodd"
+                      clipRule="evenodd"
+                      d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                      fill="currentColor"
                       />
                     </svg>
                   </button>
 
-                  <div className="pr-8">
-                    <div className="flex items-center mb-4">
-                      <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center mr-4">
-                        <svg
-                          className="w-6 h-6 text-red-500"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
-                          />
-                        </svg>
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                          Konfirmasi Hapus
-                        </h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                          Hapus{" "}
-                          {deleteType === "item"
-                            ? "Item"
-                            : deleteType === "subItem" ||
-                              deleteType === "mainFormSubItem"
-                            ? "Sub Item"
-                            : "Form Utama"}
-                        </p>
-                      </div>
+                {/* Header */}
+                <div className="mb-6">
+                  <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                    Import Data Pedoman Poin IKD
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Preview dan validasi data sebelum import
+                  </p>
                     </div>
 
-                    <p className="text-base text-gray-800 dark:text-white mb-3">
-                      Apakah Anda yakin ingin menghapus{" "}
-                      <span className="font-bold text-red-500">
-                        {getDeleteMessage()}
-                      </span>
-                      ?
-                    </p>
-
-                    <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-4">
-                      <div className="flex items-start gap-2">
-                        <svg
-                          className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+                {/* Upload Section */}
+                {!importedFile && (
+                  <div className="mb-6">
+                    <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:border-brand-500 dark:hover:border-brand-400 transition-colors">
+                      <div className="space-y-4">
+                        <div className="w-16 h-16 mx-auto bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
+                          <FontAwesomeIcon
+                            icon={faFileExcel}
+                            className="w-8 h-8 text-brand-600 dark:text-brand-400"
                           />
-                        </svg>
+                        </div>
                         <div>
-                          <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300 mb-1">
-                            Peringatan
-                          </p>
-                          <p className="text-sm text-yellow-700 dark:text-yellow-400">
-                            Data yang dihapus tidak dapat dikembalikan. Semua
-                            data terkait seperti file yang sudah diupload oleh
-                            dosen, skor, dan data lainnya akan ikut hilang.
+                          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                            Upload File Excel
+                          </h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                            Pilih file Excel dengan format template (.xlsx, .xls)
                           </p>
                         </div>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-3 justify-end">
-                      <button
-                        onClick={handleCancelDelete}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                      >
-                        Batal
-                      </button>
-                      <button
-                        onClick={handleConfirmDelete}
-                        className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
-                      >
-                        Hapus
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
-
-        {/* Modal Import Excel */}
-        <AnimatePresence>
-          {showImportModal && (
-            <>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed top-0 left-0 right-0 bottom-0 z-[100000] bg-black/40 dark:bg-black/60 backdrop-blur-sm"
-                style={{ width: "100vw", height: "100vh", minHeight: "100vh" }}
-                onClick={() => {
-                  if (!isSaving) {
-                    setShowImportModal(false);
-                    setPreviewData([]);
-                    setValidationErrors([]);
-                    setCellErrors({});
-                    setImportedFile(null);
-                  }
-                }}
-              />
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                className="fixed inset-0 z-[100001] flex items-center justify-center p-4"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
-                  {/* Header */}
-                  <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                      Import Data dari Excel
-                    </h3>
-                    <button
-                      onClick={() => {
-                        if (!isSaving) {
-                          setShowImportModal(false);
-                          setPreviewData([]);
-                          setValidationErrors([]);
-                          setCellErrors({});
-                          setImportedFile(null);
-                        }
-                      }}
-                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                      disabled={isSaving}
-                    >
-                      <svg
-                        className="w-6 h-6"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                    </button>
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex-1 overflow-y-auto p-6">
-                    {!importedFile ? (
-                      <div className="space-y-4">
-                        <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
+                        <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
+                          <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                          Pilih File
                           <input
                             ref={fileInputRef}
                             type="file"
                             accept=".xlsx,.xls"
                             onChange={handleImport}
                             className="hidden"
-                            id="import-file-input"
                           />
-                          <label
-                            htmlFor="import-file-input"
-                            className="cursor-pointer flex flex-col items-center gap-4"
-                          >
-                            <svg
-                              className="w-16 h-16 text-gray-400"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                              />
-                            </svg>
-                            <div>
-                              <p className="text-lg font-medium text-gray-700 dark:text-gray-300">
-                                Klik untuk memilih file Excel
-                              </p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                Format: .xlsx atau .xls
-                              </p>
-                            </div>
                           </label>
                         </div>
-                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                          <p className="text-sm text-blue-800 dark:text-blue-300">
-                            <strong>Catatan:</strong> Pastikan file Excel
-                            mengikuti format template. Download template
-                            terlebih dahulu jika belum punya.
-                          </p>
                         </div>
                       </div>
-                    ) : (
-                      <div className="space-y-4">
+                )}
+
                         {/* File Info */}
-                        <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 flex items-center justify-between">
+                {importedFile && (
+                  <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                           <div className="flex items-center gap-3">
-                            <svg
-                              className="w-8 h-8 text-green-500"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                              />
-                            </svg>
-                            <div>
-                              <p className="font-medium text-gray-900 dark:text-white">
+                      <FontAwesomeIcon
+                        icon={faFileExcel}
+                        className="w-5 h-5 text-blue-500"
+                      />
+
+                      <div className="flex-1">
+                        <p className="font-medium text-blue-800 dark:text-blue-200">
                                 {importedFile.name}
                               </p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">
-                                {(importedFile.size / 1024).toFixed(2)} KB
+
+                        <p className="text-sm text-blue-600 dark:text-blue-300">
+                          {(importedFile.size / 1024).toFixed(1)} KB
                               </p>
                             </div>
-                          </div>
+
                           <button
                             onClick={() => {
                               setImportedFile(null);
                               setPreviewData([]);
                               setValidationErrors([]);
-                              setCellErrors({});
-                              if (fileInputRef.current)
+                          setCellErrors([]);
+                          if (fileInputRef.current) {
                                 fileInputRef.current.value = "";
+                          }
                             }}
-                            className="text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors"
+                        className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                        title="Hapus file"
                             disabled={isSaving}
                           >
                             <svg
-                              className="w-5 h-5"
+                          className="w-4 h-4"
                               fill="none"
                               stroke="currentColor"
                               viewBox="0 0 24 24"
@@ -5155,416 +4952,292 @@ const PedomanPoinIKD: React.FC = () => {
                             </svg>
                           </button>
                         </div>
+                  </div>
+                )}
 
-                        {/* Validation Errors */}
-                        {validationErrors.length > 0 && (
+                {/* Error Messages */}
+                {cellErrors.length > 0 && (
+                  <div className="mb-6">
                           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                            <div className="flex items-start gap-2 mb-2">
-                              <svg
-                                className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      <div className="flex items-center gap-2 mb-3">
+                        <FontAwesomeIcon
+                          icon={faExclamationTriangle}
+                          className="w-5 h-5 text-red-500"
                                 />
-                              </svg>
-                              <div className="flex-1">
-                                <p className="font-medium text-red-800 dark:text-red-300 mb-2">
-                                  Terdapat {validationErrors.length} error
-                                  validasi:
-                                </p>
-                                <ul className="space-y-1 max-h-40 overflow-y-auto">
-                                  {validationErrors
-                                    .slice(0, 10)
-                                    .map((err, idx) => (
-                                      <li
+
+                        <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+                          Error Validasi ({cellErrors.length} error)
+                        </h3>
+                      </div>
+
+                      <div className="max-h-40 overflow-y-auto">
+                        {/* Error cell/detail */}
+                        {cellErrors.map((err, idx) => (
+                          <p
                                         key={idx}
-                                        className="text-sm text-red-700 dark:text-red-400"
+                            className="text-sm text-red-600 dark:text-red-400 mb-1"
                                       >
-                                        Baris {err.row}: {err.field} -{" "}
-                                        {err.message}
-                                      </li>
+                            • {err.message} (Baris {err.row}, Kolom{" "}
+                            {err.field.toUpperCase()})
+                          </p>
                                     ))}
-                                  {validationErrors.length > 10 && (
-                                    <li className="text-sm text-red-700 dark:text-red-400 font-medium">
-                                      ... dan {validationErrors.length - 10}{" "}
-                                      error lainnya
-                                    </li>
-                                  )}
-                                </ul>
                               </div>
                             </div>
                           </div>
                         )}
 
-                        {/* Success Message */}
-                        {importedCount > 0 && (
-                          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-                            <p className="text-green-800 dark:text-green-300">
-                              <strong>Berhasil!</strong> {importedCount} data
-                              berhasil diimpor.
-                            </p>
-                          </div>
-                        )}
+                {/* Preview Data Table */}
+                {previewData.length > 0 && (
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                        Preview Data ({previewData.length} data)
+                      </h3>
 
-                        {/* Preview Table */}
-                        {previewData.length > 0 && (
-                          <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
-                            <table className="w-full border-collapse border border-gray-300 dark:border-gray-700 text-sm">
-                              <thead className="sticky top-0 bg-gray-100 dark:bg-gray-700 z-10">
-                                <tr className="bg-gray-100 dark:bg-gray-700">
-                                  <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        File: {importedFile?.name}
+                          </div>
+                    </div>
+
+                    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                      <div className="max-w-full overflow-x-auto hide-scroll">
+                        <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                          <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                            <tr>
+                              <th className="px-4 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
+                                No
+                              </th>
+
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                                     Bidang
                                   </th>
-                                  <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">
+
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                                     NO
                                   </th>
-                                  <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">
+
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                                     Kegiatan
                                   </th>
-                                  <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">
+
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                                     Indeks Poin
                                   </th>
-                                  <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">
+
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                                     Unit Kerja
                                   </th>
-                                  <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">
+
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                                     Bukti Fisik
                                   </th>
-                                  <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">
+
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                                     Prosedur
                                   </th>
-                                  <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">
+
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                                     Is Sub Item
                                   </th>
-                                  <th className="border border-gray-300 dark:border-gray-700 px-3 py-2 text-left">
+
+                              <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
                                     Parent NO
                                   </th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {previewData.map((row, idx) => {
-                                  const rowNum = idx + 2;
-                                  const hasError = validationErrors.some(
-                                    (err) => err.row === rowNum
+                            {previewData.map((row, index) => {
+                              const actualIndex = index;
+
+                              const renderEditableCell = (
+                                field: string,
+                                value: any,
+                                isNumeric = false,
+                                isSelect = false,
+                                selectOptions?: { value: string; label: string }[],
+                                disabled = false
+                              ) => {
+                                const isEditing =
+                                  editingCell?.row === actualIndex &&
+                                  editingCell?.key === field;
+
+                                const cellError = cellErrors.find(
+                                  (err) =>
+                                    err.row === actualIndex + 2 &&
+                                    err.field === field
                                   );
+
                                   return (
-                                    <tr
-                                      key={idx}
-                                      className={
-                                        hasError
-                                          ? "bg-red-50 dark:bg-red-900/10"
-                                          : idx % 2 === 0
-                                          ? "bg-white dark:bg-gray-800"
-                                          : "bg-gray-50 dark:bg-gray-700/50"
+                                  <td
+                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
+                                      isEditing ? "border-2 border-brand-500" : ""
+                                    } ${
+                                      cellError
+                                        ? "bg-red-100 dark:bg-red-900/30"
+                                            : ""
+                                        }`}
+                                    onClick={() => {
+                                      if (!disabled && !isSelect) {
+                                        setEditingCell({
+                                          row: actualIndex,
+                                          key: field,
+                                        });
                                       }
-                                    >
-                                      <td
-                                        className={`border border-gray-300 dark:border-gray-700 px-3 py-2 ${
-                                          cellErrors[`${rowNum}-bidang`]
-                                            ? "bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700"
+                                    }}
+                                    title={cellError ? cellError.message : ""}
+                                      >
+                                    {isEditing && !isSelect ? (
+                                        <input
+                                        className="w-full px-1 border-none outline-none text-xs md:text-sm"
+                                        type={isNumeric ? "number" : "text"}
+                                        value={value || ""}
+                                        onChange={(e) => {
+                                            handleCellEdit(
+                                            actualIndex,
+                                            field,
+                                            isNumeric
+                                              ? Number(e.target.value) || 0
+                                              : e.target.value
+                                          );
+                                        }}
+                                        onBlur={() => setEditingCell(null)}
+                                        autoFocus
+                                      />
+                                    ) : isSelect ? (
+                                      <select
+                                        value={
+                                          field === "is_sub_item"
+                                            ? value
+                                              ? "Y"
+                                              : "N"
+                                            : value || ""
+                                        }
+                                        onChange={(e) => {
+                                            handleCellEdit(
+                                            actualIndex,
+                                            field,
+                                            field === "is_sub_item"
+                                              ? e.target.value === "Y"
+                                              : e.target.value
+                                          );
+                                        }}
+                                        className="w-full px-1 border-none outline-none text-xs md:text-sm bg-transparent"
+                                        disabled={disabled}
+                                      >
+                                        {selectOptions?.map((opt) => (
+                                          <option key={opt.value} value={opt.value}>
+                                            {opt.label}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    ) : (
+                                      <span
+                                        className={
+                                          cellError
+                                            ? "text-red-500"
+                                            : "text-gray-800 dark:text-gray-100"
+                                        }
+                                      >
+                                        {value || "-"}
+                                      </span>
+                                    )}
+                                      </td>
+                                );
+                              };
+
+                              return (
+                                <tr
+                                  key={index}
+                                  className={`${
+                                    index % 2 === 1
+                                      ? "bg-gray-50 dark:bg-white/[0.02]"
                                             : ""
                                         }`}
                                       >
-                                        <input
-                                          type="text"
-                                          value={row.bidang}
-                                          onChange={(e) =>
-                                            handleCellEdit(
-                                              idx,
-                                              "bidang",
-                                              e.target.value
-                                            )
-                                          }
-                                          className={`w-full px-2 py-1 border rounded text-sm bg-transparent ${
-                                            cellErrors[`${rowNum}-bidang`]
-                                              ? "border-red-500 dark:border-red-600 text-red-900 dark:text-red-200"
-                                              : "border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
-                                          }`}
-                                          title={
-                                            cellErrors[`${rowNum}-bidang`] || ""
-                                          }
-                                        />
+                                  <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
+                                    {index + 1}
                                       </td>
-                                      <td
-                                        className={`border border-gray-300 dark:border-gray-700 px-3 py-2 ${
-                                          cellErrors[`${rowNum}-no`]
-                                            ? "bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700"
-                                            : ""
-                                        }`}
-                                      >
-                                        <input
-                                          type="text"
-                                          value={row.no}
-                                          onChange={(e) =>
-                                            handleCellEdit(
-                                              idx,
-                                              "no",
-                                              e.target.value
-                                            )
-                                          }
-                                          className={`w-full px-2 py-1 border rounded text-sm bg-transparent ${
-                                            cellErrors[`${rowNum}-no`]
-                                              ? "border-red-500 dark:border-red-600 text-red-900 dark:text-red-200"
-                                              : "border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
-                                          }`}
-                                          title={
-                                            cellErrors[`${rowNum}-no`] || ""
-                                          }
-                                        />
-                                      </td>
-                                      <td
-                                        className={`border border-gray-300 dark:border-gray-700 px-3 py-2 ${
-                                          cellErrors[`${rowNum}-kegiatan`]
-                                            ? "bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700"
-                                            : ""
-                                        }`}
-                                      >
-                                        <input
-                                          type="text"
-                                          value={row.kegiatan}
-                                          onChange={(e) =>
-                                            handleCellEdit(
-                                              idx,
-                                              "kegiatan",
-                                              e.target.value
-                                            )
-                                          }
-                                          className={`w-full px-2 py-1 border rounded text-sm bg-transparent ${
-                                            cellErrors[`${rowNum}-kegiatan`]
-                                              ? "border-red-500 dark:border-red-600 text-red-900 dark:text-red-200"
-                                              : "border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
-                                          }`}
-                                          title={
-                                            cellErrors[`${rowNum}-kegiatan`] ||
-                                            ""
-                                          }
-                                        />
-                                      </td>
-                                      <td
-                                        className={`border border-gray-300 dark:border-gray-700 px-3 py-2 ${
-                                          cellErrors[`${rowNum}-indeks_poin`]
-                                            ? "bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700"
-                                            : ""
-                                        }`}
-                                      >
-                                        <input
-                                          type="number"
-                                          step="0.01"
-                                          min="0"
-                                          value={row.indeks_poin || ""}
-                                          onChange={(e) =>
-                                            handleCellEdit(
-                                              idx,
-                                              "indeks_poin",
-                                              e.target.value
-                                            )
-                                          }
-                                          className={`w-full px-2 py-1 border rounded text-sm bg-transparent ${
-                                            cellErrors[`${rowNum}-indeks_poin`]
-                                              ? "border-red-500 dark:border-red-600 text-red-900 dark:text-red-200"
-                                              : "border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
-                                          }`}
-                                          title={
-                                            cellErrors[
-                                              `${rowNum}-indeks_poin`
-                                            ] || ""
-                                          }
-                                        />
-                                      </td>
-                                      <td className="border border-gray-300 dark:border-gray-700 px-3 py-2">
-                                        <input
-                                          type="text"
-                                          value={row.unit_kerja || ""}
-                                          onChange={(e) =>
-                                            handleCellEdit(
-                                              idx,
+
+                                  {renderEditableCell("bidang", row.bidang)}
+                                  {renderEditableCell("no", row.no)}
+                                  {renderEditableCell("kegiatan", row.kegiatan)}
+                                  {renderEditableCell(
+                                    "indeks_poin",
+                                    row.indeks_poin,
+                                    true
+                                  )}
+                                  {renderEditableCell(
                                               "unit_kerja",
-                                              e.target.value
-                                            )
-                                          }
-                                          className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-transparent text-gray-900 dark:text-white"
-                                        />
-                                      </td>
-                                      <td className="border border-gray-300 dark:border-gray-700 px-3 py-2">
-                                        <input
-                                          type="text"
-                                          value={row.bukti_fisik || ""}
-                                          onChange={(e) =>
-                                            handleCellEdit(
-                                              idx,
+                                    row.unit_kerja
+                                  )}
+                                  {renderEditableCell(
                                               "bukti_fisik",
-                                              e.target.value
-                                            )
-                                          }
-                                          className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-transparent text-gray-900 dark:text-white"
-                                        />
-                                      </td>
-                                      <td className="border border-gray-300 dark:border-gray-700 px-3 py-2">
-                                        <input
-                                          type="text"
-                                          value={row.prosedur || ""}
-                                          onChange={(e) =>
-                                            handleCellEdit(
-                                              idx,
-                                              "prosedur",
-                                              e.target.value
-                                            )
-                                          }
-                                          className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-transparent text-gray-900 dark:text-white"
-                                        />
-                                      </td>
-                                      <td
-                                        className={`border border-gray-300 dark:border-gray-700 px-3 py-2 ${
-                                          cellErrors[`${rowNum}-is_sub_item`]
-                                            ? "bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700"
-                                            : ""
-                                        }`}
-                                      >
-                                        <select
-                                          value={row.is_sub_item ? "Y" : "N"}
-                                          onChange={(e) =>
-                                            handleCellEdit(
-                                              idx,
+                                    row.bukti_fisik
+                                  )}
+                                  {renderEditableCell("prosedur", row.prosedur)}
+                                  {renderEditableCell(
                                               "is_sub_item",
-                                              e.target.value
-                                            )
-                                          }
-                                          className={`w-full px-2 py-1 border rounded text-sm bg-transparent ${
-                                            cellErrors[`${rowNum}-is_sub_item`]
-                                              ? "border-red-500 dark:border-red-600 text-red-900 dark:text-red-200"
-                                              : "border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
-                                          }`}
-                                          title={
-                                            cellErrors[
-                                              `${rowNum}-is_sub_item`
-                                            ] || ""
-                                          }
-                                        >
-                                          <option value="N">N</option>
-                                          <option value="Y">Y</option>
-                                        </select>
-                                      </td>
-                                      <td
-                                        className={`border border-gray-300 dark:border-gray-700 px-3 py-2 ${
-                                          cellErrors[`${rowNum}-parent_no`]
-                                            ? "bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700"
-                                            : ""
-                                        }`}
-                                      >
-                                        <input
-                                          type="text"
-                                          value={row.parent_no || ""}
-                                          onChange={(e) =>
-                                            handleCellEdit(
-                                              idx,
+                                    row.is_sub_item,
+                                    false,
+                                    true,
+                                    [
+                                      { value: "N", label: "N" },
+                                      { value: "Y", label: "Y" },
+                                    ]
+                                  )}
+                                  {renderEditableCell(
                                               "parent_no",
-                                              e.target.value
-                                            )
-                                          }
-                                          className={`w-full px-2 py-1 border rounded text-sm bg-transparent ${
-                                            cellErrors[`${rowNum}-parent_no`]
-                                              ? "border-red-500 dark:border-red-600 text-red-900 dark:text-red-200"
-                                              : "border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
-                                          }`}
-                                          title={
-                                            cellErrors[`${rowNum}-parent_no`] ||
-                                            ""
-                                          }
-                                          disabled={!row.is_sub_item}
-                                        />
-                                      </td>
+                                    row.parent_no,
+                                    false,
+                                    false,
+                                    undefined,
+                                    !row.is_sub_item
+                                  )}
                                     </tr>
                                   );
                                 })}
                               </tbody>
                             </table>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 text-center sticky bottom-0 bg-gray-50 dark:bg-gray-800 py-2">
-                              Menampilkan semua {previewData.length} baris
-                            </p>
                           </div>
-                        )}
                       </div>
-                    )}
                   </div>
+                )}
 
-                  {/* Footer */}
-                  <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end gap-3">
+                {/* Action Buttons */}
+                <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
                     <button
-                      onClick={() => {
-                        if (!isSaving) {
-                          setShowImportModal(false);
-                          setPreviewData([]);
-                          setValidationErrors([]);
-                          setCellErrors({});
-                          setImportedFile(null);
-                        }
-                      }}
-                      className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                    onClick={handleCloseImportModal}
+                    className="px-6 py-3 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
                       disabled={isSaving}
                     >
                       {importedCount > 0 ? "Tutup" : "Batal"}
                     </button>
+
                     {previewData.length > 0 &&
                       validationErrors.length === 0 &&
+                    cellErrors.length === 0 &&
                       importedCount === 0 && (
                         <button
                           onClick={handleSubmitImport}
                           disabled={isSaving}
-                          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
                           {isSaving ? (
                             <>
-                              <svg
-                                className="animate-spin h-5 w-5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                              >
-                                <circle
-                                  className="opacity-25"
-                                  cx="12"
-                                  cy="12"
-                                  r="10"
-                                  stroke="currentColor"
-                                  strokeWidth="4"
-                                />
-                                <path
-                                  className="opacity-75"
-                                  fill="currentColor"
-                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                />
-                              </svg>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                               Mengimpor...
                             </>
                           ) : (
                             <>
-                              <svg
-                                className="w-5 h-5"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M5 13l4 4L19 7"
-                                />
-                              </svg>
-                              Import Data
+                            <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                            Import Data ({previewData.length} data)
                             </>
                           )}
                         </button>
                       )}
-                  </div>
                 </div>
               </motion.div>
-            </>
+            </div>
           )}
         </AnimatePresence>
       </div>

@@ -33,8 +33,12 @@ return new class extends Migration
             
             // Foreign keys
             $table->foreign('jadwal_id')->references('id')->on('jadwal_non_blok_non_csr')->onDelete('cascade');
-            $table->foreign('mahasiswa_id')->references('id')->on('users')->onDelete('cascade');
             $table->foreign('penguji_id')->references('id')->on('users')->onDelete('cascade');
+            
+            // Index for faster queries (mahasiswa_id doesn't have FK constraint)
+            $table->index('mahasiswa_id');
+            $table->index(['jadwal_id', 'mahasiswa_id']);
+            $table->index(['mahasiswa_id', 'created_at']);
         });
     }
 

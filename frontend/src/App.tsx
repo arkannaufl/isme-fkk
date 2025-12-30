@@ -83,16 +83,8 @@ import DetailAbSenMahasiswaSeminarPleno from "./pages/DetailAbSenMahasiswaSemina
 import WhatsAppTest from "./pages/WhatsAppTest";
 import PedomanPoinIKD from "./pages/RekapIKD/PedomanPoinIKD";
 import UserIKD from "./pages/RekapIKD/UserIKD";
-import TimAkademikIKD from "./pages/RekapIKD/TimAkademik";
-import DosenIKD from "./pages/RekapIKD/DosenIKD";
+import RekapIKDWrapper from "./pages/RekapIKD/RekapIKDWrapper";
 import RekapIKDDetail from "./pages/RekapIKD/RekapIKDDetail";
-import AIKIKD from "./pages/RekapIKD/AIK";
-import MEUIKD from "./pages/RekapIKD/MEU";
-import ProfesiIKD from "./pages/RekapIKD/Profesi";
-import KemahasiswaanIKD from "./pages/RekapIKD/Kemahasiswaan";
-import SDMIKD from "./pages/RekapIKD/SDM";
-import UPTJurnalIKD from "./pages/RekapIKD/UPTJurnal";
-import UPTPPMIKD from "./pages/RekapIKD/UPTPPM";
 
 function AppContent() {
   const { isSessionExpired, setSessionExpired } = useSession();
@@ -492,12 +484,36 @@ function AppContent() {
               />
 
               {/* Rekap IKD Routes - Role Based Access */}
+              {/* Rekap IKD Main Route - Redirect to first available tab */}
+              <Route
+                path="/rekap-ikd"
+                element={
+                  <RequireDosenRole
+                    allowedRoles={[
+                      "super_admin",
+                      "ketua_ikd",
+                      "akademik",
+                      "dosen",
+                      "aik",
+                      "meu",
+                      "profesi",
+                      "kemahasiswaan",
+                      "sdm",
+                      "upt_jurnal",
+                      "upt_ppm",
+                      "verifikator",
+                    ]}
+                  >
+                    <RekapIKDWrapper />
+                  </RequireDosenRole>
+                }
+              />
               {/* Pedoman Poin IKD - Super Admin & Ketua IKD Only */}
               <Route
                 path="/rekap-ikd/pedoman-poin"
                 element={
                   <RequireDosenRole allowedRoles={["super_admin", "ketua_ikd"]}>
-                    <PedomanPoinIKD />
+                    <RekapIKDWrapper />
                   </RequireDosenRole>
                 }
               />
@@ -510,6 +526,7 @@ function AppContent() {
                   </RequireDosenRole>
                 }
               />
+              {/* Rekap IKD Wrapper - Menggabungkan semua unit kerja dengan tabs */}
               {/* Akademik - Super Admin, Ketua IKD, Akademik */}
               <Route
                 path="/rekap-ikd/tim-akademik"
@@ -517,7 +534,7 @@ function AppContent() {
                   <RequireDosenRole
                     allowedRoles={["super_admin", "ketua_ikd", "akademik"]}
                   >
-                    <TimAkademikIKD />
+                    <RekapIKDWrapper />
                   </RequireDosenRole>
                 }
               />
@@ -533,7 +550,7 @@ function AppContent() {
                       "dosen",
                     ]}
                   >
-                    <DosenIKD />
+                    <RekapIKDWrapper />
                   </RequireDosenRole>
                 }
               />
@@ -544,7 +561,7 @@ function AppContent() {
                   <RequireDosenRole
                     allowedRoles={["super_admin", "ketua_ikd", "aik"]}
                   >
-                    <AIKIKD />
+                    <RekapIKDWrapper />
                   </RequireDosenRole>
                 }
               />
@@ -555,7 +572,7 @@ function AppContent() {
                   <RequireDosenRole
                     allowedRoles={["super_admin", "ketua_ikd", "meu"]}
                   >
-                    <MEUIKD />
+                    <RekapIKDWrapper />
                   </RequireDosenRole>
                 }
               />
@@ -566,7 +583,7 @@ function AppContent() {
                   <RequireDosenRole
                     allowedRoles={["super_admin", "ketua_ikd", "profesi"]}
                   >
-                    <ProfesiIKD />
+                    <RekapIKDWrapper />
                   </RequireDosenRole>
                 }
               />
@@ -577,7 +594,7 @@ function AppContent() {
                   <RequireDosenRole
                     allowedRoles={["super_admin", "ketua_ikd", "kemahasiswaan"]}
                   >
-                    <KemahasiswaanIKD />
+                    <RekapIKDWrapper />
                   </RequireDosenRole>
                 }
               />
@@ -588,7 +605,7 @@ function AppContent() {
                   <RequireDosenRole
                     allowedRoles={["super_admin", "ketua_ikd", "sdm"]}
                   >
-                    <SDMIKD />
+                    <RekapIKDWrapper />
                   </RequireDosenRole>
                 }
               />
@@ -599,7 +616,7 @@ function AppContent() {
                   <RequireDosenRole
                     allowedRoles={["super_admin", "ketua_ikd", "upt_jurnal"]}
                   >
-                    <UPTJurnalIKD />
+                    <RekapIKDWrapper />
                   </RequireDosenRole>
                 }
               />
@@ -610,7 +627,7 @@ function AppContent() {
                   <RequireDosenRole
                     allowedRoles={["super_admin", "ketua_ikd", "upt_ppm"]}
                   >
-                    <UPTPPMIKD />
+                    <RekapIKDWrapper />
                   </RequireDosenRole>
                 }
               />

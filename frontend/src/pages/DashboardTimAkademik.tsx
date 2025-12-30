@@ -17,7 +17,6 @@ import {
   BoltIcon,
 } from "../icons";
 import api, { handleApiError } from "../utils/api";
-import SemesterInfo from "../components/SemesterInfo";
 
 // Interfaces
 
@@ -145,6 +144,7 @@ const DashboardTimAkademik: React.FC = () => {
   };
   const user = getUser();
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [tahunAjaran, setTahunAjaran] = useState<{ tahun: string; semesters: Array<{ id: number; jenis: string; aktif: boolean }> } | null>(null);
   const [activeAttendanceSemester, setActiveAttendanceSemester] = useState<
     "reguler" | "antara"
   >("reguler");
@@ -205,6 +205,19 @@ const DashboardTimAkademik: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Fetch active semester
+  useEffect(() => {
+    const fetchActiveSemester = async () => {
+      try {
+        const res = await api.get("/tahun-ajaran/active");
+        setTahunAjaran(res.data);
+      } catch (error) {
+        console.error("Error fetching active semester:", error);
+      }
+    };
+    fetchActiveSemester();
+  }, []);
 
   // Update time every second for real-time clock
   useEffect(() => {
@@ -575,25 +588,31 @@ const DashboardTimAkademik: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3 mt-4 sm:mt-0">
-                  {/* Left side - Status */}
-                  <div className="flex items-center gap-3">
-                    <span className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-medium bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800">
-                      <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-                      <div className="flex flex-col">
-                        <span className="font-semibold">System Online</span>
-                        <span className="text-xs opacity-90">
-                          All Services Running
-                        </span>
-                      </div>
-                    </span>
-                  </div>
-
                   {/* Right side - Time & Academic Info */}
                   <div className="flex items-center gap-3 flex-wrap">
                     {/* Semester Info */}
-                    <SemesterInfo showFilter={false} />
+                    {tahunAjaran && tahunAjaran.semesters?.find((s) => s.aktif) && (
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-900/20 dark:text-indigo-400 dark:border-indigo-800">
+                        <svg
+                          className="w-3 h-3 mr-2"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                          />
+                        </svg>
+                        <span className="text-sm font-medium">
+                          Semester Aktif: {tahunAjaran.semesters.find((s) => s.aktif)?.jenis} ({tahunAjaran.tahun})
+                        </span>
+                      </span>
+                    )}
                     {/* Real-time Clock with Date */}
-                    <span className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800">
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200 dark:bg-gray-900/20 dark:text-gray-400 dark:border-gray-800">
                       <TimeIcon className="w-3 h-3 mr-2" />
                       <div className="flex flex-col">
                         <span className="font-semibold">

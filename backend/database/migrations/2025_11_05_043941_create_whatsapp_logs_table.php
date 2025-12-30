@@ -11,22 +11,20 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (!Schema::hasTable('whatsapp_logs')) {
-            Schema::create('whatsapp_logs', function (Blueprint $table) {
-                $table->id();
-                $table->string('phone', 20)->index();
-                $table->text('message');
-                $table->enum('status', ['sent', 'failed', 'received', 'pending'])->default('pending');
-                $table->json('response')->nullable();
-                $table->json('metadata')->nullable();
-                $table->unsignedBigInteger('sent_by')->nullable();
-                $table->timestamps();
+        Schema::create('whatsapp_logs', function (Blueprint $table) {
+            $table->id();
+            $table->string('phone', 20)->index();
+            $table->text('message');
+            $table->enum('status', ['sent', 'failed', 'received', 'pending'])->default('pending');
+            $table->json('response')->nullable();
+            $table->json('metadata')->nullable();
+            $table->unsignedBigInteger('sent_by')->nullable();
+            $table->timestamps();
 
-                $table->foreign('sent_by')->references('id')->on('users')->onDelete('set null');
-                $table->index(['phone', 'status']);
-                $table->index('created_at');
-            });
-        }
+            $table->foreign('sent_by')->references('id')->on('users')->onDelete('set null');
+            $table->index(['phone', 'status'], 'whatsapp_logs_phone_status_index');
+            $table->index('created_at', 'whatsapp_logs_created_at_index');
+        });
     }
 
     /**

@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('no'); // "1", "1.1", "1.2", "2", etc.
             $table->text('kegiatan');
             $table->decimal('indeks_poin', 8, 2)->default(0);
-            $table->string('unit_kerja'); // Unit Kerja PJ Input data
+            $table->string('unit_kerja')->nullable(); // Unit Kerja PJ Input data
             $table->text('bukti_fisik')->nullable();
             $table->text('prosedur')->nullable(); // Prosedur yang dilakukan oleh dosen
             $table->string('bidang'); // "A", "D", or custom

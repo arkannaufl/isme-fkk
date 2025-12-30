@@ -15,16 +15,18 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('user_id');
             $table->unsignedBigInteger('ikd_pedoman_id');
+            $table->string('unit')->nullable();
             $table->string('file_path');
             $table->string('file_name');
             $table->string('file_type')->nullable(); // pdf, xlsx, docx, etc.
             $table->integer('file_size')->nullable(); // in bytes
+            $table->decimal('skor', 8, 2)->nullable();
+            $table->enum('status_verifikasi', ['salah', 'benar', 'perbaiki'])->nullable();
             $table->timestamps();
 
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             $table->foreign('ikd_pedoman_id')->references('id')->on('ikd_pedoman')->onDelete('cascade');
-            // Unique constraint dengan unit akan ditambahkan di migration berikutnya setelah kolom unit ditambahkan
-            $table->unique(['user_id', 'ikd_pedoman_id']); // Temporary unique constraint, akan diupdate di migration berikutnya
+            // Tidak ada unique constraint karena bisa multiple files per user + pedoman + unit dengan status_verifikasi berbeda
         });
     }
 

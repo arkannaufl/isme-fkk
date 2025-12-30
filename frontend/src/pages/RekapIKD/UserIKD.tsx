@@ -52,8 +52,6 @@ export default function UserIKD() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE_OPTIONS[0]);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [selectedDeleteId, setSelectedDeleteId] = useState<number | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -378,48 +376,41 @@ export default function UserIKD() {
     setShowPassword(false);
   };
 
-  const confirmDelete = async () => {
+  const handleDeleteClick = async (userId: number, userName: string) => {
+    const confirmed = window.confirm(
+      `Apakah Anda yakin ingin menghapus user "${userName}"? Tindakan ini tidak dapat dibatalkan.`
+    );
+    if (!confirmed) return;
+
+    await confirmDelete(userId);
+  };
+
+  const confirmDelete = async (userId: number) => {
     setIsDeleting(true);
     try {
-      if (selectedDeleteId) {
-        // Optimistically remove from state
-        setData((prevData) => prevData.filter((user) => user.id !== selectedDeleteId));
-        
-        // Close modal immediately for better UX
-        setShowDeleteModal(false);
-        const deletedId = selectedDeleteId;
-        setSelectedDeleteId(null);
+      // Optimistically remove from state
+      setData((prevData) => prevData.filter((user) => user.id !== userId));
 
-        // Delete from backend
-        await api.delete(`/users/${deletedId}`);
-        
-        // Wait a bit to ensure backend cache is cleared
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-        // Refresh data from server
-        await fetchData();
-        
-        setSuccess("Data user IKD berhasil dihapus.");
-      }
+      // Delete from backend
+      await api.delete(`/users/${userId}`);
+      
+      // Wait a bit to ensure backend cache is cleared
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Refresh data from server
+      await fetchData();
+      
+      setSuccess("Data user IKD berhasil dihapus.");
     } catch (err: any) {
       // If delete fails, restore data by fetching again
       console.error("Error deleting user:", err);
       setError(handleApiError(err, "Menghapus data user IKD"));
       // Restore data by fetching again
       await fetchData();
-      setShowDeleteModal(false);
-      setSelectedDeleteId(null);
     } finally {
       setIsDeleting(false);
     }
   };
-
-  const cancelDelete = () => {
-    setShowDeleteModal(false);
-    setSelectedDeleteId(null);
-  };
-
-  const userToDelete = data.find((u) => u.id === selectedDeleteId);
 
   const isFormValid =
     form.name &&
@@ -460,8 +451,9 @@ export default function UserIKD() {
     <RekapIKDBase
       title="User IKD"
       description="Kelola user untuk Rekap IKD berdasarkan Unit Kerja"
+      hideSubMenu={true}
     >
-      <div className="space-y-6">
+      <div className="w-full mx-auto space-y-6">
         {/* Success/Error Messages */}
         <AnimatePresence>
           {success && (
@@ -520,34 +512,15 @@ export default function UserIKD() {
           )}
         </AnimatePresence>
 
-        {/* Header dengan Search dan Add Button */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="flex-1">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Cari nama, username, email, telepon, atau unit kerja..."
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
-                className="w-full px-4 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <svg
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-            </div>
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-xl font-bold text-gray-800 dark:text-white/90 mb-1">
+              Tabel User IKD
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Kelola user untuk Rekap IKD berdasarkan Unit Kerja
+            </p>
           </div>
           <button
             onClick={() => {
@@ -562,277 +535,359 @@ export default function UserIKD() {
                 role: "",
               });
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition"
           >
-            <FontAwesomeIcon icon={faPlus} className="w-4 h-4" />
+            <FontAwesomeIcon icon={faPlus} className="w-5 h-5" />
             Tambah User
           </button>
         </div>
 
-        {/* Table */}
-        {loading ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800 rounded-lg">
-              <thead className="bg-gray-50 dark:bg-gray-900">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    <div className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    <div className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {Array.from({ length: 5 }).map((_, idx) => (
-                  <tr key={idx} className="animate-pulse">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="h-8 w-24 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : paginatedData.length === 0 ? (
-          <div className="text-center py-12 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <p className="text-gray-600 dark:text-gray-400">
-              {search
-                ? "Tidak ada data yang sesuai dengan pencarian."
-                : "Belum ada data user IKD."}
-            </p>
-          </div>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800 rounded-lg">
-              <thead className="bg-gray-50 dark:bg-gray-900">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Nama
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Username
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Telepon
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Unit Kerja
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Aksi
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {paginatedData.map((user) => (
-                  <tr
-                    key={user.id}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-700/50"
+        {/* Search Bar */}
+        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="w-full lg:w-96">
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <svg
+                    className="fill-gray-500 dark:fill-gray-400"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
                   >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {user.name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {user.username}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {user.email}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {user.telp}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-xs font-medium">
-                        {formatRole(user.role)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleEdit(user)}
-                          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
-                        >
-                          <FontAwesomeIcon icon={faPenToSquare} />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedDeleteId(user.id || null);
-                            setShowDeleteModal(true);
-                          }}
-                          className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
-                        >
-                          <FontAwesomeIcon icon={faTrash} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    <path
+                      fillRule="evenodd"
+                      clipRule="evenodd"
+                      d="M3.04175 9.37363C3.04175 5.87693 5.87711 3.04199 9.37508 3.04199C12.8731 3.04199 15.7084 5.87693 15.7084 9.37363C15.7084 12.8703 12.8731 15.7053 9.37508 15.7053C5.87711 15.7053 3.04175 12.8703 3.04175 9.37363ZM9.37508 1.54199C5.04902 1.54199 1.54175 5.04817 1.54175 9.37363C1.54175 13.6991 5.04902 17.2053 9.37508 17.2053C11.2674 17.2053 13.003 16.5344 14.357 15.4176L17.177 18.238C17.4699 18.5309 17.9448 18.5309 18.2377 18.238C18.5306 17.9451 18.5306 17.4703 18.2377 17.1774L15.418 14.3573C16.5365 13.0033 17.2084 11.2669 17.2084 9.37363C17.2084 5.04817 13.7011 1.54199 9.37508 1.54199Z"
+                      fill=""
+                    />
+                  </svg>
+                </span>
+                <input
+                  type="text"
+                  placeholder="Cari nama, username, email, telepon, atau unit kerja..."
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
+                  className="h-11 w-full rounded-lg border border-gray-200 bg-transparent py-2.5 pl-12 pr-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-white/[0.03] dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                />
+              </div>
             </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {filteredData.length} user ditemukan
+            </div>
+          </div>
+        </div>
 
-            {/* Pagination - selalu tampilkan jika ada data */}
-            {filteredData.length > 0 && (
-              <div className="mt-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm">
-                <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 flex items-center justify-between sm:px-6">
-                <div className="flex-1 flex justify-between sm:hidden">
-                  <button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                    className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Sebelumnya
-                  </button>
-                  <button
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
-                    className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Selanjutnya
-                  </button>
+        {/* Table */}
+        <div className="bg-white dark:bg-white/[0.03] rounded-b-xl shadow-md border border-gray-200 dark:border-gray-800">
+          <div className="p-6">
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+          {loading ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900">
+                  <tr>
+                    <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <div className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                    </th>
+                    <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                    </th>
+                    <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                    </th>
+                    <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                    </th>
+                    <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <div className="h-4 w-16 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                    </th>
+                    <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <div className="h-4 w-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-white/[0.03] divide-y divide-gray-100 dark:divide-white/[0.05]">
+                  {Array.from({ length: 5 }).map((_, rowIdx) => (
+                    <tr key={rowIdx} className="animate-pulse">
+                      <td className="px-4 py-4">
+                        <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="h-6 w-24 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="h-6 w-16 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : paginatedData.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-400 dark:text-gray-500">
+                {search
+                  ? "Tidak ada data yang sesuai dengan pencarian."
+                  : "Belum ada data user IKD."}
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                <div
+                  className="max-w-full overflow-x-auto hide-scroll"
+                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                >
+                  <style>{`
+                    .max-w-full::-webkit-scrollbar { display: none; }
+                    .hide-scroll { 
+                      -ms-overflow-style: none; /* IE and Edge */
+                      scrollbar-width: none; /* Firefox */
+                    }
+                    .hide-scroll::-webkit-scrollbar { /* Chrome, Safari, Opera */
+                      display: none;
+                    }
+                  `}</style>
+                  <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                    <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                      <tr>
+                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Nama
+                        </th>
+                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Username
+                        </th>
+                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Email
+                        </th>
+                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Telepon
+                        </th>
+                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Unit Kerja
+                        </th>
+                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Aksi
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedData.map((user, idx) => (
+                        <tr
+                          key={user.id}
+                          className={
+                            idx % 2 === 1 ? "bg-gray-50 dark:bg-white/[0.02]" : ""
+                          }
+                        >
+                          <td className="px-6 py-4 whitespace-nowrap text-gray-800 dark:text-white/90 align-middle">
+                            {user.name}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-gray-800 dark:text-white/90 align-middle">
+                            {user.username}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-gray-800 dark:text-white/90 align-middle">
+                            {user.email}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-gray-800 dark:text-white/90 align-middle">
+                            {user.telp}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap align-middle">
+                            <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-xs font-medium">
+                              {formatRole(user.role)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap align-middle">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleEdit(user)}
+                                className="inline-flex items-center gap-1 px-2 py-1 text-sm font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition"
+                                title="Edit"
+                              >
+                                <FontAwesomeIcon icon={faPenToSquare} className="w-4 h-4 sm:w-5 sm:h-5" />
+                                <span className="hidden sm:inline">Edit</span>
+                              </button>
+                              <button
+                                onClick={() => handleDeleteClick(user.id || 0, user.name)}
+                                className="inline-flex items-center gap-1 px-2 py-1 text-sm font-medium text-red-500 hover:text-red-700 dark:hover:text-red-300 transition"
+                                title="Hapus"
+                              >
+                                <FontAwesomeIcon icon={faTrash} className="w-4 h-4 sm:w-5 sm:h-5" />
+                                <span className="hidden sm:inline">Hapus</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-3">
-                    <p className="text-sm text-gray-700 dark:text-gray-300">
-                      Menampilkan{" "}
-                      <span className="font-medium">{startIndex + 1}</span> sampai{" "}
-                      <span className="font-medium">
-                        {Math.min(endIndex, filteredData.length)}
-                      </span>{" "}
-                      dari{" "}
-                      <span className="font-medium">{filteredData.length}</span>{" "}
-                      hasil
-                    </p>
+
+                {/* Pagination */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 sm:px-6 py-4">
+                  <div className="flex items-center gap-4">
                     <select
+                      id="perPage"
                       value={pageSize}
                       onChange={(e) => {
                         setPageSize(Number(e.target.value));
                         setPage(1);
                       }}
-                      className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
                     >
-                      {PAGE_SIZE_OPTIONS.map((size) => (
-                        <option key={size} value={size}>
-                          {size} per halaman
+                      {PAGE_SIZE_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
                         </option>
                       ))}
                     </select>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      Menampilkan {paginatedData.length} dari {filteredData.length} data
+                    </span>
                   </div>
-                  <div>
-                    <nav
-                      className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px"
-                      aria-label="Pagination"
+                  <div className="flex items-center gap-2 justify-center sm:justify-end">
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
                     >
+                      Prev
+                    </button>
+
+                    {/* Smart Pagination with Scroll */}
+                    <div
+                      className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll"
+                      style={{
+                        scrollbarWidth: "thin",
+                        scrollbarColor: "#cbd5e1 #f1f5f9",
+                      }}
+                    >
+                      <style
+                        dangerouslySetInnerHTML={{
+                          __html: `
+                          .pagination-scroll::-webkit-scrollbar {
+                            height: 6px;
+                          }
+                          .pagination-scroll::-webkit-scrollbar-track {
+                            background: #f1f5f9;
+                            border-radius: 3px;
+                          }
+                          .pagination-scroll::-webkit-scrollbar-thumb {
+                            background: #cbd5e1;
+                            border-radius: 3px;
+                          }
+                          .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                            background: #94a3b8;
+                          }
+                          .dark .pagination-scroll::-webkit-scrollbar-track {
+                            background: #1e293b;
+                          }
+                          .dark .pagination-scroll::-webkit-scrollbar-thumb {
+                            background: #475569;
+                          }
+                          .dark .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                            background: #64748b;
+                          }
+                        `,
+                        }}
+                      />
+
+                      {/* Always show first page */}
                       <button
-                        onClick={() => setPage((p) => Math.max(1, p - 1))}
-                        disabled={page === 1}
-                        className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={() => setPage(1)}
+                        className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                          page === 1
+                            ? "bg-brand-500 text-white"
+                            : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        }`}
                       >
-                        <span className="sr-only">Sebelumnya</span>
-                        <svg
-                          className="h-5 w-5"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
+                        1
                       </button>
-                      {Array.from(
-                        { length: totalPages },
-                        (_, i) => i + 1
-                      ).map((pageNum) => {
-                        if (
-                          pageNum === 1 ||
-                          pageNum === totalPages ||
-                          (pageNum >= page - 1 && pageNum <= page + 1)
-                        ) {
-                          return (
-                            <button
-                              key={pageNum}
-                              onClick={() => {
-                                setPage(pageNum);
-                                window.scrollTo({ top: 0, behavior: "smooth" });
-                              }}
-                              className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                                page === pageNum
-                                  ? "z-10 bg-blue-50 dark:bg-blue-900/30 border-blue-500 dark:border-blue-500 text-blue-600 dark:text-blue-400"
-                                  : "bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                              }`}
-                            >
-                              {pageNum}
-                            </button>
-                          );
-                        } else if (
-                          pageNum === page - 2 ||
-                          pageNum === page + 2
-                        ) {
-                          return (
-                            <span
-                              key={pageNum}
-                              className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300"
-                            >
-                              ...
-                            </span>
-                          );
-                        }
-                        return null;
+
+                      {/* Show ellipsis if current page is far from start */}
+                      {page > 4 && (
+                        <span className="px-2 text-gray-500 dark:text-gray-400">
+                          ...
+                        </span>
+                      )}
+
+                      {/* Show pages around current page */}
+                      {Array.from({ length: totalPages }, (_, i) => {
+                        const pageNum = i + 1;
+                        // Show pages around current page (2 pages before and after)
+                        const shouldShow =
+                          pageNum > 1 &&
+                          pageNum < totalPages &&
+                          pageNum >= page - 2 &&
+                          pageNum <= page + 2;
+
+                        if (!shouldShow) return null;
+
+                        return (
+                          <button
+                            key={i}
+                            onClick={() => setPage(pageNum)}
+                            className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                              page === pageNum
+                                ? "bg-brand-500 text-white"
+                                : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
                       })}
-                      <button
-                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                        disabled={page === totalPages}
-                        className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <span className="sr-only">Selanjutnya</span>
-                        <svg
-                          className="h-5 w-5"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
+
+                      {/* Show ellipsis if current page is far from end */}
+                      {page < totalPages - 3 && (
+                        <span className="px-2 text-gray-500 dark:text-gray-400">
+                          ...
+                        </span>
+                      )}
+
+                      {/* Always show last page if it's not the first page */}
+                      {totalPages > 1 && (
+                        <button
+                          onClick={() => setPage(totalPages)}
+                          className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                            page === totalPages
+                              ? "bg-brand-500 text-white"
+                              : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          }`}
                         >
-                          <path
-                            fillRule="evenodd"
-                            d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </button>
-                    </nav>
+                          {totalPages}
+                        </button>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages}
+                      className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                    >
+                      Next
+                    </button>
                   </div>
-                </div>
                 </div>
               </div>
-            )}
-          </>
-        )}
+            </>
+          )}
+            </div>
+          </div>
+        </div>
 
         {/* Add/Edit Modal */}
         <AnimatePresence>
@@ -842,38 +897,48 @@ export default function UserIKD() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-gray-500/30 dark:bg-gray-700/50 backdrop-blur-sm"
+                className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
                 onClick={handleCloseModal}
               />
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="relative w-full max-w-2xl mx-auto bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto"
+                transition={{ duration: 0.2 }}
+                className="relative w-full max-w-2xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                {/* Close Button */}
+                <button
+                  onClick={handleCloseModal}
+                  className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+                >
+                  <svg
+                    width="20"
+                    height="20"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    className="w-6 h-6"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      clipRule="evenodd"
+                      d="M5.29289 5.29289C5.68342 4.90237 6.31658 4.90237 6.70711 5.29289L12 10.5858L17.2929 5.29289C17.6834 4.90237 18.3166 4.90237 18.7071 5.29289C19.0976 5.68342 19.0976 6.31658 18.7071 6.70711L13.4142 12L18.7071 17.2929C19.0976 17.6834 19.0976 18.3166 18.7071 18.7071C18.3166 19.0976 17.6834 19.0976 17.2929 18.7071L12 13.4142L6.70711 18.7071C6.31658 19.0976 5.68342 19.0976 5.29289 18.7071C4.90237 18.3166 4.90237 17.6834 5.29289 17.2929L10.5858 12L5.29289 6.70711C4.90237 6.31658 4.90237 5.68342 5.29289 5.29289Z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </button>
+
+                {/* Header */}
+                <div className="pb-4 sm:pb-6">
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
                     {editMode ? "Edit" : "Tambah"} User IKD
                   </h3>
-                  <button
-                    onClick={handleCloseModal}
-                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                  >
-                    <svg
-                      className="w-6 h-6"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </button>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    {editMode
+                      ? "Ubah informasi user IKD"
+                      : "Tambahkan user baru untuk Rekap IKD"}
+                  </p>
                 </div>
 
                 {/* Error Message */}
@@ -897,7 +962,7 @@ export default function UserIKD() {
                       onChange={(e) =>
                         setForm({ ...form, name: e.target.value })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                       placeholder="Masukkan nama"
                     />
                   </div>
@@ -913,7 +978,7 @@ export default function UserIKD() {
                       onChange={(e) =>
                         setForm({ ...form, username: e.target.value })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                       placeholder="Masukkan username"
                     />
                   </div>
@@ -929,7 +994,7 @@ export default function UserIKD() {
                       onChange={(e) =>
                         setForm({ ...form, email: e.target.value })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                       placeholder="Masukkan email"
                     />
                   </div>
@@ -947,7 +1012,7 @@ export default function UserIKD() {
                         const value = e.target.value.replace(/\D/g, '');
                         setForm({ ...form, telp: value });
                       }}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                       placeholder="Masukkan nomor telepon (hanya angka)"
                     />
                   </div>
@@ -962,7 +1027,7 @@ export default function UserIKD() {
                       onChange={(e) =>
                         setForm({ ...form, role: e.target.value })
                       }
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                     >
                       <option value="">Pilih Unit Kerja</option>
                       {UNIT_KERJA_OPTIONS.map((unit) => (
@@ -991,7 +1056,7 @@ export default function UserIKD() {
                         onChange={(e) =>
                           setForm({ ...form, password: e.target.value })
                         }
-                        className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                         placeholder={
                           editMode
                             ? "Kosongkan jika tidak ingin mengubah"
@@ -1017,15 +1082,37 @@ export default function UserIKD() {
                 <div className="flex justify-end gap-3 mt-6">
                   <button
                     onClick={handleCloseModal}
-                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium shadow-theme-xs hover:bg-gray-200 dark:hover:bg-gray-700 transition"
                   >
                     Batal
                   </button>
                   <button
                     onClick={handleAdd}
                     disabled={!isFormValid || isSaving}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                    className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
                   >
+                    {isSaving && (
+                      <svg
+                        className="animate-spin h-4 w-4 text-white"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                    )}
                     {isSaving ? "Menyimpan..." : editMode ? "Update" : "Simpan"}
                   </button>
                 </div>
@@ -1034,51 +1121,6 @@ export default function UserIKD() {
           )}
         </AnimatePresence>
 
-        {/* Delete Confirmation Modal */}
-        <AnimatePresence>
-          {showDeleteModal && (
-            <div className="fixed inset-0 z-[100000] flex items-center justify-center">
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-gray-500/30 dark:bg-gray-700/50 backdrop-blur-sm"
-                onClick={cancelDelete}
-              />
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg z-[100001]"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                  Konfirmasi Hapus
-                </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                  Apakah Anda yakin ingin menghapus user{" "}
-                  <strong>{userToDelete?.name}</strong>? Tindakan ini tidak
-                  dapat dibatalkan.
-                </p>
-                <div className="flex justify-end gap-3">
-                  <button
-                    onClick={cancelDelete}
-                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    onClick={confirmDelete}
-                    disabled={isDeleting}
-                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-                  >
-                    {isDeleting ? "Menghapus..." : "Hapus"}
-                  </button>
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
       </div>
     </RekapIKDBase>
   );

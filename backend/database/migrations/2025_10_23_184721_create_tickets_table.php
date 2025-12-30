@@ -16,8 +16,9 @@ return new class extends Migration
             $table->string('ticket_number')->unique();
             $table->string('title');
             $table->text('description');
+            $table->json('images')->nullable();
             $table->string('category');
-            $table->enum('priority', ['Low', 'Medium', 'High', 'Critical']);
+            $table->enum('priority', ['Low', 'Medium', 'High', 'Critical', 'Nice to have', 'Important']);
             $table->enum('status', ['Open', 'In Progress', 'Resolved', 'Closed'])->default('Open');
             $table->foreignId('assigned_to')->constrained('developers');
             $table->string('user_name');

@@ -12,7 +12,6 @@ import {
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import ExcelJS from "exceljs";
-import SemesterInfo from "../components/SemesterInfo";
 
 // Extend jsPDF type to include autoTable
 declare module "jspdf" {
@@ -100,6 +99,7 @@ const ReportingDosen: React.FC = () => {
     end_date: "",
   });
   const [availableSemesters, setAvailableSemesters] = useState<Array<{id: number, jenis: string}>>([]);
+  const [tahunAjaran, setTahunAjaran] = useState<{ tahun: string; semesters: Array<{ id: number; jenis: string; aktif: boolean }> } | null>(null);
   const [pagination, setPagination] = useState({
     current_page: 1,
     last_page: 1,
@@ -117,13 +117,14 @@ const ReportingDosen: React.FC = () => {
   };
   const [showExcelDropdown, setShowExcelDropdown] = useState(false);
 
-  // Fetch available semesters
+  // Fetch available semesters and active semester
   useEffect(() => {
     const fetchAvailableSemesters = async () => {
       try {
         const res = await api.get("/tahun-ajaran/active");
         if (res.data?.semesters) {
           setAvailableSemesters(res.data.semesters);
+          setTahunAjaran(res.data);
         }
       } catch (error) {
         console.error("Error fetching available semesters:", error);
@@ -2191,7 +2192,26 @@ const ReportingDosen: React.FC = () => {
             {getDescription()}
           </p>
         </div>
-        <SemesterInfo showFilter={false} />
+        {tahunAjaran && tahunAjaran.semesters?.find((s) => s.aktif) && (
+          <span className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-900/20 dark:text-indigo-400 dark:border-indigo-800">
+            <svg
+              className="w-3 h-3 mr-2"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
+            </svg>
+            <span className="text-sm font-medium">
+              Semester Aktif: {tahunAjaran.semesters.find((s) => s.aktif)?.jenis} ({tahunAjaran.tahun})
+            </span>
+          </span>
+        )}
         <div className="flex flex-wrap gap-3">
           {activeTab === "pbl" && (
             <div className="relative">

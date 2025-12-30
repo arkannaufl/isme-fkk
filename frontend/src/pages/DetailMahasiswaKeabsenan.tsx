@@ -283,7 +283,7 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
       // LOAD LOGO
       const loadLogo = async (): Promise<string> => {
         try {
-          const response = await fetch("/images/logo/logo.svg");
+          const response = await fetch("/images/logo/logo-isme-icon.svg");
           if (!response.ok) {
             throw new Error("Logo tidak ditemukan");
           }

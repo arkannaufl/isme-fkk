@@ -22,20 +22,31 @@ return new class extends Migration
             $table->float('ipk')->nullable();
             $table->string('status')->nullable();
             $table->boolean('is_veteran')->default(false);
+            $table->boolean('is_multi_veteran')->default(false)->comment('Mahasiswa veteran yang bisa masuk ke lebih dari 1 semester');
             $table->text('veteran_notes')->nullable();
             $table->timestamp('veteran_set_at')->nullable();
             $table->unsignedBigInteger('veteran_set_by')->nullable();
             $table->string('veteran_semester')->nullable()->comment('Semester dimana veteran dipilih untuk dikelompokkan');
+            $table->json('veteran_semesters')->nullable()->comment('Array semester dimana multi-veteran terdaftar');
+            $table->json('veteran_history')->nullable()->comment('Array riwayat veteran dengan timestamp');
             $table->string('angkatan')->nullable();
             $table->string('name');
             $table->string('username');
             $table->string('email')->nullable();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('telp')->nullable();
+            $table->string('whatsapp_phone')->nullable()->comment('Nomor WhatsApp untuk Wablas (format: 62...)');
+            $table->string('whatsapp_email')->nullable()->comment('Email untuk Wablas (harus sama dengan email verification)');
+            $table->text('whatsapp_address')->nullable()->comment('Alamat untuk Wablas contact');
+            $table->date('whatsapp_birth_day')->nullable()->comment('Tanggal lahir untuk Wablas contact (format: YYYY-mm-dd)');
+            $table->timestamp('wablas_synced_at')->nullable()->comment('Timestamp terakhir sync ke Wablas');
+            $table->enum('wablas_sync_status', ['pending', 'synced', 'failed'])->nullable()->comment('Status sync ke Wablas');
             $table->string('ket')->nullable();
-            $table->enum('role', ['super_admin', 'tim_akademik', 'dosen', 'mahasiswa'])->default('mahasiswa');
+            $table->string('role', 50)->default('mahasiswa');
             $table->string('password');
             $table->string('avatar')->nullable();
+            $table->longText('signature_image')->nullable();
+            $table->boolean('email_verified')->default(false);
 
             $table->integer('semester')->nullable();
             $table->unsignedBigInteger('tahun_ajaran_masuk_id')->nullable();
@@ -62,6 +73,12 @@ return new class extends Migration
             
             // Foreign key constraint for veteran_set_by
             $table->foreign('veteran_set_by')->references('id')->on('users')->onDelete('set null');
+            
+            // Indexes for frequently queried columns
+            $table->index('role');
+            $table->index('semester');
+            $table->index('is_logged_in');
+            $table->index('created_at');
         });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {

@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('mata_kuliah_kode');
             $table->string('modul_ke');
             $table->string('nama_modul');
+            $table->integer('tipe_pbl')->default(1);
             $table->timestamps();
             $table->foreign('mata_kuliah_kode')->references('kode')->on('mata_kuliah')->onDelete('cascade');
         });

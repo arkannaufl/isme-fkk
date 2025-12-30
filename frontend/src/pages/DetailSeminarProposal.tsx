@@ -148,7 +148,7 @@ const DetailSeminarProposal = () => {
     aspectRatio: number;
   }> => {
     try {
-      const response = await fetch("/images/logo/logo-icon.svg");
+      const response = await fetch("/images/logo/logo-isme-light.svg");
       if (!response.ok) {
         throw new Error("Watermark logo tidak ditemukan");
       }

@@ -71,13 +71,15 @@ const handleDownloadFile = async (fileId: number, fileName: string) => {
   }
 };
 
+const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
+
 const MEU: React.FC = () => {
   const [dosenList, setDosenList] = useState<DosenData[]>([]);
   const [filteredDosen, setFilteredDosen] = useState<DosenData[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [loading, setLoading] = useState(true);
-  const itemsPerPage = 10;
 
   // State untuk pedoman poin IKD
   const [pedomanList, setPedomanList] = useState<IKDPedoman[]>([]);
@@ -103,11 +105,6 @@ const MEU: React.FC = () => {
   );
 
   // State untuk delete confirmation modal
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [fileToDelete, setFileToDelete] = useState<{
-    id: number;
-    fileName: string;
-  } | null>(null);
 
   // Ref untuk menyimpan deletedKeys (user_id + pedoman_id) yang sudah dihapus
   const deletedKeysRef = useRef<Set<string>>(new Set());
@@ -335,7 +332,7 @@ const MEU: React.FC = () => {
   useEffect(() => {
     if (!searchQuery.trim()) {
       setFilteredDosen(dosenList);
-      setCurrentPage(1);
+      setPage(1);
       return;
     }
     const query = searchQuery.toLowerCase().trim();
@@ -498,18 +495,20 @@ const MEU: React.FC = () => {
   };
 
   // Handle delete file confirmation
-  const handleDeleteClick = (buktiFisikId: number, fileName: string) => {
-    setFileToDelete({ id: buktiFisikId, fileName });
-    setShowDeleteModal(true);
+  const handleDeleteClick = async (buktiFisikId: number, fileName: string) => {
+    const confirmed = window.confirm(
+      `Apakah Anda yakin ingin menghapus file "${fileName}"?`
+    );
+    if (!confirmed) return;
+
+    await handleDeleteFile(buktiFisikId, fileName);
   };
 
   // Handle delete file
-  const handleDeleteFile = async () => {
-    if (!fileToDelete) return;
-
+  const handleDeleteFile = async (buktiFisikId: number, fileName: string) => {
     try {
       const deletedBuktiFisik = Object.values(buktiFisikMap).find(
-        (bf) => bf.id === fileToDelete.id
+        (bf) => bf.id === buktiFisikId
       );
 
       if (!deletedBuktiFisik) {
@@ -539,7 +538,7 @@ const MEU: React.FC = () => {
 
       // Hapus file dari backend
       const res = await api.delete(
-        `/rekap-ikd/bukti-fisik/${fileToDelete.id}`
+        `/rekap-ikd/bukti-fisik/${buktiFisikId}`
       );
       if (res.data?.success) {
         // Langsung update local state: hapus dari buktiFisikMap dan reset skor
@@ -554,10 +553,6 @@ const MEU: React.FC = () => {
           ...prev,
           [key]: "0",
         }));
-
-        // Tutup modal
-        setShowDeleteModal(false);
-        setFileToDelete(null);
 
         // Show success message
         setSuccessMessage("File berhasil dihapus! Skor telah direset ke 0.");
@@ -663,22 +658,18 @@ const MEU: React.FC = () => {
   };
 
   // Pagination helpers
-  const totalPages = Math.ceil(filteredDosen.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedDosen = filteredDosen.slice(startIndex, endIndex);
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  const totalPages = Math.ceil(filteredDosen.length / pageSize);
+  const paginatedDosen = filteredDosen.slice(
+    (page - 1) * pageSize,
+    page * pageSize
+  );
 
   return (
     <RekapIKDBase
       title="Rekap IKD - MEU"
       description="Rekap Indikator Kinerja Dosen untuk MEU"
     >
-      <div className="space-y-6">
+      <div className="w-full mx-auto space-y-6">
         {/* Success Message */}
         <AnimatePresence>
           {successMessage && (
@@ -724,39 +715,59 @@ const MEU: React.FC = () => {
           )}
         </AnimatePresence>
 
-        {/* Search Bar */}
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1 max-w-md">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg
-                className="h-5 w-5 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-            </div>
-            <input
-              type="text"
-              placeholder="Cari dosen (nama)..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-xl font-bold text-gray-800 dark:text-white/90 mb-1">
+              Tabel Rekap IKD - MEU
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Kelola rekap IKD untuk unit kerja MEU
+            </p>
           </div>
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            {filteredDosen.length} dosen ditemukan
+        </div>
+
+        {/* Search Bar */}
+        <div className="bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="w-full lg:w-96">
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <svg
+                    className="fill-gray-500 dark:fill-gray-400"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      clipRule="evenodd"
+                      d="M3.04175 9.37363C3.04175 5.87693 5.87711 3.04199 9.37508 3.04199C12.8731 3.04199 15.7084 5.87693 15.7084 9.37363C15.7084 12.8703 12.8731 15.7053 9.37508 15.7053C5.87711 15.7053 3.04175 12.8703 3.04175 9.37363ZM9.37508 1.54199C5.04902 1.54199 1.54175 5.04817 1.54175 9.37363C1.54175 13.6991 5.04902 17.2053 9.37508 17.2053C11.2674 17.2053 13.003 16.5344 14.357 15.4176L17.177 18.238C17.4699 18.5309 17.9448 18.5309 18.2377 18.238C18.5306 17.9451 18.5306 17.4703 18.2377 17.1774L15.418 14.3573C16.5365 13.0033 17.2084 11.2669 17.2084 9.37363C17.2084 5.04817 13.7011 1.54199 9.37508 1.54199Z"
+                      fill=""
+                    />
+                  </svg>
+                </span>
+                <input
+                  type="text"
+                  placeholder="Cari dosen (nama)..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-11 w-full rounded-lg border border-gray-200 bg-transparent py-2.5 pl-12 pr-4 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-800 dark:bg-white/[0.03] dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                />
+              </div>
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {filteredDosen.length} dosen ditemukan
+            </div>
           </div>
         </div>
 
         {/* Table */}
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+        <div className="bg-white dark:bg-white/[0.03] rounded-b-xl shadow-md border border-gray-200 dark:border-gray-800">
+          <div className="p-6">
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
           {loading || loadingPedoman ? (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
@@ -806,14 +817,22 @@ const MEU: React.FC = () => {
             </div>
           ) : (
             <>
-              <div
-                className="max-w-full overflow-x-auto"
-                style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-              >
-                <style>{`
-                  .max-w-full::-webkit-scrollbar { display: none; }
-                `}</style>
-                <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+              <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                <div
+                  className="max-w-full overflow-x-auto hide-scroll"
+                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                >
+                  <style>{`
+                    .max-w-full::-webkit-scrollbar { display: none; }
+                    .hide-scroll { 
+                      -ms-overflow-style: none; /* IE and Edge */
+                      scrollbar-width: none; /* Firefox */
+                    }
+                    .hide-scroll::-webkit-scrollbar { /* Chrome, Safari, Opera */
+                      display: none;
+                    }
+                  `}</style>
+                  <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
                   <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                     <tr>
                       <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -851,52 +870,28 @@ const MEU: React.FC = () => {
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="bg-white dark:bg-white/[0.03] divide-y divide-gray-100 dark:divide-white/[0.05]">
+                  <tbody>
                     {paginatedDosen.length === 0 ? (
                       <tr>
                         <td
                           colSpan={2 + pedomanList.length * 2}
-                          className="px-6 py-16 text-center"
+                          className="text-center py-8 text-gray-400 dark:text-gray-500"
                         >
-                          <div className="flex flex-col items-center gap-3 text-gray-400 dark:text-gray-500">
-                            <svg
-                              className="w-10 h-10"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M13 16h-1v-4h-1m1 4h.01M12 9h.01"
-                              />
-                              <circle
-                                cx="12"
-                                cy="12"
-                                r="9"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                              />
-                            </svg>
-                            <span className="bg-gray-100 dark:bg-gray-800/60 rounded-full px-5 py-2 mt-1 font-medium">
-                              {searchQuery
-                                ? "Tidak ada data yang cocok dengan pencarian"
-                                : "Tidak ada data dosen"}
-                            </span>
-                          </div>
+                          Belum ada data.
                         </td>
                       </tr>
                     ) : (
-                      paginatedDosen.map((dosen, index) => (
+                      paginatedDosen.map((dosen, idx) => (
                         <tr
                           key={dosen.id}
-                          className="hover:bg-gray-50 dark:hover:bg-white/[0.05] transition-colors"
+                          className={
+                            idx % 2 === 1 ? "bg-gray-50 dark:bg-white/[0.02]" : ""
+                          }
                         >
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                            {startIndex + index + 1}
+                          <td className="px-6 py-4 whitespace-nowrap text-gray-800 dark:text-white/90 align-middle">
+                            {(page - 1) * pageSize + idx + 1}
                           </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
+                          <td className="px-6 py-4 whitespace-nowrap text-gray-800 dark:text-white/90 align-middle">
                             {dosen.name || "-"}
                           </td>
                           {pedomanList.map((pedoman, index) => {
@@ -913,9 +908,9 @@ const MEU: React.FC = () => {
                             return (
                               <React.Fragment key={pedoman.id}>
                                 <td
-                                  className={`px-4 ${
+                                  className={`px-6 ${
                                     index > 0 ? "pl-8" : ""
-                                  } pr-2 py-4 text-sm text-gray-900 dark:text-gray-100`}
+                                  } pr-2 py-4 text-gray-800 dark:text-white/90 align-middle`}
                                 >
                                   <div className="flex flex-col gap-2">
                                     {buktiFisik ? (
@@ -981,22 +976,23 @@ const MEU: React.FC = () => {
                                             ]?.click();
                                           }}
                                           disabled={isUploading}
-                                          className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                          className="inline-flex items-center gap-1 px-2 py-1 text-sm font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                           {isUploading ? (
                                             <>
                                               <FontAwesomeIcon
                                                 icon={faSpinner}
-                                                className="animate-spin"
+                                                className="w-4 h-4 animate-spin"
                                               />
-                                              <span>Uploading...</span>
+                                              <span className="hidden sm:inline">Uploading...</span>
                                             </>
                                           ) : (
                                             <>
                                               <FontAwesomeIcon
                                                 icon={faUpload}
+                                                className="w-4 h-4 sm:w-5 sm:h-5"
                                               />
-                                              <span>Upload</span>
+                                              <span className="hidden sm:inline">Upload</span>
                                             </>
                                           )}
                                         </button>
@@ -1004,7 +1000,7 @@ const MEU: React.FC = () => {
                                     )}
                                   </div>
                                 </td>
-                                <td className="px-2 pr-4 py-4 text-center">
+                                <td className="px-2 pr-4 py-4 text-center align-middle">
                                   <input
                                     type="number"
                                     step="0.01"
@@ -1039,169 +1035,218 @@ const MEU: React.FC = () => {
                     )}
                   </tbody>
                 </table>
-              </div>
-
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 flex items-center justify-between border-t border-gray-200 dark:border-gray-600 sm:px-6">
-                  <div className="flex-1 flex justify-between sm:hidden">
-                    <button
-                      onClick={() => handlePageChange(currentPage - 1)}
-                      disabled={currentPage === 1}
-                      className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Sebelumnya
-                    </button>
-                    <button
-                      onClick={() => handlePageChange(currentPage + 1)}
-                      disabled={currentPage === totalPages}
-                      className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Selanjutnya
-                    </button>
-                  </div>
-                  <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                    <div>
-                      <p className="text-sm text-gray-700 dark:text-gray-300">
-                        Menampilkan{" "}
-                        <span className="font-medium">{startIndex + 1}</span>{" "}
-                        sampai{" "}
-                        <span className="font-medium">
-                          {Math.min(endIndex, filteredDosen.length)}
-                        </span>{" "}
-                        dari{" "}
-                        <span className="font-medium">
-                          {filteredDosen.length}
-                        </span>{" "}
-                        hasil
-                      </p>
-                    </div>
-                    <div>
-                      <nav
-                        className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px"
-                        aria-label="Pagination"
-                      >
-                        <button
-                          onClick={() => handlePageChange(currentPage - 1)}
-                          disabled={currentPage === 1}
-                          className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <span className="sr-only">Sebelumnya</span>
-                          <svg
-                            className="h-5 w-5"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        </button>
-                        {Array.from(
-                          { length: totalPages },
-                          (_, i) => i + 1
-                        ).map((page) => {
-                          if (
-                            page === 1 ||
-                            page === totalPages ||
-                            (page >= currentPage - 1 && page <= currentPage + 1)
-                          ) {
-                            return (
-                              <button
-                                key={page}
-                                onClick={() => handlePageChange(page)}
-                                className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                                  currentPage === page
-                                    ? "z-10 bg-blue-50 dark:bg-blue-900/30 border-blue-500 dark:border-blue-500 text-blue-600 dark:text-blue-400"
-                                    : "bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                                }`}
-                              >
-                                {page}
-                              </button>
-                            );
-                          } else if (
-                            page === currentPage - 2 ||
-                            page === currentPage + 2
-                          ) {
-                            return (
-                              <span
-                                key={page}
-                                className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300"
-                              >
-                                ...
-                              </span>
-                            );
-                          }
-                          return null;
-                        })}
-                        <button
-                          onClick={() => handlePageChange(currentPage + 1)}
-                          disabled={currentPage === totalPages}
-                          className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <span className="sr-only">Selanjutnya</span>
-                          <svg
-                            className="h-5 w-5"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        </button>
-                      </nav>
-                    </div>
-                  </div>
                 </div>
-              )}
+
+                {/* Pagination */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 sm:px-6 py-4">
+                  <div className="flex items-center gap-4">
+                    <select
+                      id="perPage"
+                      value={pageSize}
+                      onChange={(e) => {
+                        setPageSize(Number(e.target.value));
+                        setPage(1);
+                      }}
+                      className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
+                    >
+                      {PAGE_SIZE_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      Menampilkan {paginatedDosen.length} dari {filteredDosen.length} data
+                    </span>
+                  </div>
+                  {totalPages > 1 && (
+                    <div className="flex items-center gap-2 justify-center sm:justify-end">
+                      <button
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        disabled={page === 1}
+                        className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                      >
+                        Prev
+                      </button>
+
+                      {/* Smart Pagination with Scroll */}
+                      <div
+                        className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll"
+                        style={{
+                          scrollbarWidth: "thin",
+                          scrollbarColor: "#cbd5e1 #f1f5f9",
+                        }}
+                      >
+                        <style
+                          dangerouslySetInnerHTML={{
+                            __html: `
+                            .pagination-scroll::-webkit-scrollbar {
+                              height: 6px;
+                            }
+                            .pagination-scroll::-webkit-scrollbar-track {
+                              background: #f1f5f9;
+                              border-radius: 3px;
+                            }
+                            .pagination-scroll::-webkit-scrollbar-thumb {
+                              background: #cbd5e1;
+                              border-radius: 3px;
+                            }
+                            .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                              background: #94a3b8;
+                            }
+                            .dark .pagination-scroll::-webkit-scrollbar-track {
+                              background: #1e293b;
+                            }
+                            .dark .pagination-scroll::-webkit-scrollbar-thumb {
+                              background: #475569;
+                            }
+                            .dark .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                              background: #64748b;
+                            }
+                          `,
+                          }}
+                        />
+
+                        {/* Always show first page */}
+                        <button
+                          onClick={() => setPage(1)}
+                          className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                            page === 1
+                              ? "bg-brand-500 text-white"
+                              : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          }`}
+                        >
+                          1
+                        </button>
+
+                        {/* Show ellipsis if current page is far from start */}
+                        {page > 4 && (
+                          <span className="px-2 text-gray-500 dark:text-gray-400">
+                            ...
+                          </span>
+                        )}
+
+                        {/* Show pages around current page */}
+                        {Array.from({ length: totalPages }, (_, i) => {
+                          const pageNum = i + 1;
+                          // Show pages around current page (2 pages before and after)
+                          const shouldShow =
+                            pageNum > 1 &&
+                            pageNum < totalPages &&
+                            pageNum >= page - 2 &&
+                            pageNum <= page + 2;
+
+                          if (!shouldShow) return null;
+
+                          return (
+                            <button
+                              key={i}
+                              onClick={() => setPage(pageNum)}
+                              className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                                page === pageNum
+                                  ? "bg-brand-500 text-white"
+                                  : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+
+                        {/* Show ellipsis if current page is far from end */}
+                        {page < totalPages - 3 && (
+                          <span className="px-2 text-gray-500 dark:text-gray-400">
+                            ...
+                          </span>
+                        )}
+
+                        {/* Always show last page if it's not the first page */}
+                        {totalPages > 1 && (
+                          <button
+                            onClick={() => setPage(totalPages)}
+                            className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                              page === totalPages
+                                ? "bg-brand-500 text-white"
+                                : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            }`}
+                          >
+                            {totalPages}
+                          </button>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={page === totalPages}
+                        className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </>
           )}
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Modal Info Kegiatan */}
       <AnimatePresence>
         {showKegiatanModal && selectedKegiatan && (
-          <>
+          <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+            {/* Overlay */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-black/40 dark:bg-black/60 backdrop-blur-sm"
+              className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
               onClick={() => {
                 setShowKegiatanModal(false);
                 setSelectedKegiatan(null);
               }}
             />
+            {/* Modal Content */}
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="fixed inset-0 z-[100001] flex items-center justify-center pointer-events-none"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="relative w-full max-w-2xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
+              onClick={(e) => e.stopPropagation()}
             >
-              <div
-                className="relative w-full max-w-2xl mx-auto bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 px-8 py-8 shadow-xl z-[100001] pointer-events-auto"
-                onClick={(e) => e.stopPropagation()}
+              {/* Close Button */}
+              <button
+                onClick={() => {
+                  setShowKegiatanModal(false);
+                  setSelectedKegiatan(null);
+                }}
+                className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
               >
-                {/* Close Button */}
-                <button
-                  onClick={() => {
-                    setShowKegiatanModal(false);
-                    setSelectedKegiatan(null);
-                  }}
-                  className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
+                <svg
+                  width="20"
+                  height="20"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  className="w-6 h-6"
                 >
-                  <FontAwesomeIcon icon={faTimes} />
-                </button>
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </button>
 
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
-                  {selectedKegiatan.kegiatan}
-                </h2>
+              <div>
+                <div className="flex items-center justify-between pb-4 sm:pb-6">
+                  <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
+                    {selectedKegiatan.kegiatan}
+                  </h2>
+                </div>
 
                 <div className="space-y-4">
                   {/* Indicators */}
@@ -1255,80 +1300,10 @@ const MEU: React.FC = () => {
                 </div>
               </div>
             </motion.div>
-          </>
+          </div>
         )}
       </AnimatePresence>
 
-      {/* Modal Konfirmasi Hapus */}
-      <AnimatePresence>
-        {showDeleteModal && fileToDelete && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100000] bg-black/40 dark:bg-black/60 backdrop-blur-sm"
-              onClick={() => {
-                setShowDeleteModal(false);
-                setFileToDelete(null);
-              }}
-            />
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="fixed inset-0 z-[100001] flex items-center justify-center pointer-events-none"
-            >
-              <div
-                className="relative w-full max-w-md mx-auto bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 px-6 py-6 shadow-xl z-[100001] pointer-events-auto"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {/* Close Button */}
-                <button
-                  onClick={() => {
-                    setShowDeleteModal(false);
-                    setFileToDelete(null);
-                  }}
-                  className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-4 top-4 h-9 w-9"
-                >
-                  <FontAwesomeIcon icon={faTimes} className="w-4 h-4" />
-                </button>
-
-                <div className="pr-8">
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
-                    Konfirmasi Hapus
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    Apakah Anda yakin ingin menghapus file ini?
-                  </p>
-                  <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 mb-4">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                      {fileToDelete.fileName}
-                    </p>
-                  </div>
-                  <div className="flex gap-3 justify-end">
-                    <button
-                      onClick={() => {
-                        setShowDeleteModal(false);
-                        setFileToDelete(null);
-                      }}
-                      className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                    >
-                      Batal
-                    </button>
-                    <button
-                      onClick={handleDeleteFile}
-                      className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
-                    >
-                      Hapus
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
     </RekapIKDBase>
   );
 };

@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('title');
             $table->text('content');
+            $table->json('images')->nullable();
             $table->enum('category', ['general', 'technical', 'faq', 'troubleshooting', 'guide']);
             $table->json('tags')->nullable();
             $table->boolean('is_published')->default(true);

@@ -307,58 +307,7 @@ const getNavItems = (userRole?: string): NavItem[] => {
     {
       icon: <RekapIKDIcon />,
       name: "Rekap IKD",
-      subItems: [
-        {
-          name: "Pedoman Poin IKD",
-          path: "/rekap-ikd/pedoman-poin",
-          roles: ["super_admin", "ketua_ikd"],
-        },
-        {
-          name: "Akademik",
-          path: "/rekap-ikd/tim-akademik",
-          roles: ["super_admin", "ketua_ikd", "akademik"],
-        },
-        {
-          name: "Dosen",
-          path: "/rekap-ikd/dosen",
-          roles: ["super_admin", "ketua_ikd", "verifikator", "dosen"],
-        },
-        {
-          name: "AIK",
-          path: "/rekap-ikd/aik",
-          roles: ["super_admin", "ketua_ikd", "aik"],
-        },
-        {
-          name: "MEU",
-          path: "/rekap-ikd/meu",
-          roles: ["super_admin", "ketua_ikd", "meu"],
-        },
-        {
-          name: "Profesi",
-          path: "/rekap-ikd/profesi",
-          roles: ["super_admin", "ketua_ikd", "profesi"],
-        },
-        {
-          name: "Kemahasiswaan",
-          path: "/rekap-ikd/kemahasiswaan",
-          roles: ["super_admin", "ketua_ikd", "kemahasiswaan"],
-        },
-        {
-          name: "SDM",
-          path: "/rekap-ikd/sdm",
-          roles: ["super_admin", "ketua_ikd", "sdm"],
-        },
-        {
-          name: "UPT Jurnal",
-          path: "/rekap-ikd/upt-jurnal",
-          roles: ["super_admin", "ketua_ikd", "upt_jurnal"],
-        },
-        {
-          name: "UPT PPM",
-          path: "/rekap-ikd/upt-ppm",
-          roles: ["super_admin", "ketua_ikd", "upt_ppm"],
-        },
-      ],
+      path: "/rekap-ikd",
       roles: ["super_admin", "ketua_ikd", "akademik", "dosen", "aik", "meu", "profesi", "kemahasiswaan", "sdm", "upt_jurnal", "upt_ppm", "verifikator"],
     },
     {
@@ -805,31 +754,19 @@ const AppSidebar: React.FC = () => {
         }`}
       >
         <Link to="/">
-          {isExpanded || isHovered || isMobileOpen ? (
-            <>
-              <img
-                className="dark:hidden"
-                src="/images/logo/logo-icon.svg"
-                alt="Logo"
-                width={110}
-                height={40}
-              />
-              <img
-                className="hidden dark:block"
-                src="/images/logo/logo-dark.svg"
-                alt="Logo"
-                width={110}
-                height={40}
-              />
-            </>
-          ) : (
+          <div className="flex items-center gap-3">
             <img
-              src="/images/logo/logo.svg"
+              src="/images/logo/logo-isme-icon.svg"
               alt="Logo"
-              width={32}
-              height={32}
+              width={40}
+              height={40}
             />
-          )}
+            {(isExpanded || isHovered || isMobileOpen) && (
+              <span className="text-2xl font-semibold text-gray-900 dark:text-white">
+                ISME
+              </span>
+            )}
+          </div>
         </Link>
       </div>
       <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar">
