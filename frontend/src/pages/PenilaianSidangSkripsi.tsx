@@ -791,7 +791,7 @@ const PenilaianSidangSkripsi = () => {
     doc.setFont("times", "normal");
 
     const tanggalFormatted = formatTanggal(jadwal.tanggal);
-    const paragraph1 = `Pada hari ini ${tanggalFormatted}, telah diselenggarakan Sidang Skripsi terhadap Peserta didik Program Studi Kedokteran Fakultas Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta, atas nama :`;
+    const paragraph1 = `Pada hari ini ${tanggalFormatted}, telah diselenggarakan Sidang Skripsi terhadap Peserta didik Program Studi Kedokteran Universitas Muhammadiyah Jakarta, atas nama :`;
     const p1Lines = doc.splitTextToSize(paragraph1, pageWidth - margin * 2);
     p1Lines.forEach((line: string) => {
       yPos = addText(line, margin, yPos);

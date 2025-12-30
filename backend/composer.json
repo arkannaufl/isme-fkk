@@ -2,7 +2,7 @@
     "$schema": "https://getcomposer.org/schema.json",
     "name": "isme/medical-education",
     "type": "project",
-    "description": "Isme - Integrated System Medical Education Fakultas Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta",
+    "description": "ISME - Integrated System Medical Education",
     "keywords": [
         "laravel",
         "framework"

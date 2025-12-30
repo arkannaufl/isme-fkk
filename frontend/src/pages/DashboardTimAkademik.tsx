@@ -577,8 +577,7 @@ const DashboardTimAkademik: React.FC = () => {
                       Dashboard Tim Akademik
                     </h1>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      Isme - Integrated System Medical Education Fakultas
-                      Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta
+                      ISME - Integrated System Medical Education
                     </p>
                     {user && (
                       <p className="mt-1 text-sm text-purple-700 dark:text-purple-400 font-semibold">

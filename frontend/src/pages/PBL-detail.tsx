@@ -2903,7 +2903,7 @@ export default function PBL() {
             "Saran Penggunaan",
             "Koordinator ditandai latar biru dengan teks tebal. Tim Blok dilatar biru tanpa tebal. Dosen Mengajar berwarna putih. Manfaatkan filter/pencarian Excel bila diperlukan. Mohon verifikasi data sebelum distribusi.",
           ],
-          ["Kontak", "Support Center Isme - Sistem ISME FKK"],
+          ["Kontak", "Service Center ISME - Sistem ISME"],
         ];
 
         rows.forEach(([label, value]) => {
@@ -2931,7 +2931,7 @@ export default function PBL() {
 
         infoSheet.addRow([]);
         const footer = infoSheet.addRow([
-          "Dokumen ini dihasilkan otomatis oleh Sistem ISME FKK.",
+          "Dokumen ini dihasilkan otomatis oleh Sistem ISME.",
         ]);
         footer.font = { italic: true, color: { argb: "FF666666" } };
         infoSheet.mergeCells(`A${footer.number}:B${footer.number}`);

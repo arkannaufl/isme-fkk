@@ -674,8 +674,8 @@ Route::prefix('forum')->group(function () {
     });
 });
 
-// Support Center Routes
-Route::prefix('support-center')->group(function () {
+// Service Center Routes
+Route::prefix('service-center')->group(function () {
     // Public routes (no auth required for form submissions)
     Route::post('/bug-report', [SupportCenterController::class, 'submitBugReport']);
     Route::post('/feature-request', [SupportCenterController::class, 'submitFeatureRequest']);

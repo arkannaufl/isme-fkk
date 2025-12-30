@@ -63,7 +63,7 @@ import ForumDiskusi from "./pages/ForumDiskusi";
 import ForumDetail from "./pages/ForumDetail";
 import ForumCategory from "./pages/ForumCategory";
 import Bookmarks from "./pages/Bookmarks";
-import SupportCenter from "./pages/SupportCenter";
+import ServiceCenter from "./pages/ServiceCenter";
 
 import AbSenQRMahasiswa from "./pages/AbSenQRMahasiswa";
 import DetailAbSenMahasiswa from "./pages/DetailAbSenMahasiswa";
@@ -473,7 +473,7 @@ function AppContent() {
               />
               <Route path="/profile" element={<Profile />} />
               <Route path="/bookmarks" element={<Bookmarks />} />
-              <Route path="/support-center" element={<SupportCenter />} />
+              <Route path="/service-center" element={<ServiceCenter />} />
               <Route
                 path="/whatsapp-bot-management"
                 element={

@@ -1579,9 +1579,8 @@ export default function DashboardMahasiswa() {
                     Dashboard Mahasiswa
                   </h1>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Isme - Integrated System Medical Education Fakultas
-                    Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta
-                  </p>
+                    ISME - Integrated System Medical Education
+                    </p>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                     Logged in as:{" "}
                     <span className="font-semibold text-blue-600 dark:text-blue-400">

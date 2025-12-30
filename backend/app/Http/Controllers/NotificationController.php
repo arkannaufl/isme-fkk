@@ -2944,7 +2944,7 @@ class NotificationController extends Controller
                         ], function ($message) use ($dosen, $subject) {
                             $message->to($dosen->email, $dosen->name)
                                 ->subject($subject)
-                                ->from(env('MAIL_FROM_ADDRESS'), 'Pengingat Dari ISME (Integrated System Medical Education Fakultas Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta)');
+                                ->from(env('MAIL_FROM_ADDRESS'), 'Pengingat Dari ISME (Integrated System Medical Education)');
                         });
 
                         \Log::info("Email reminder sent to {$dosen->name} ({$dosen->email}) for Persamaan Persepsi - Type: upcoming" . ($isKoordinator ? " (Koordinator)" : ""));
@@ -3146,7 +3146,7 @@ class NotificationController extends Controller
                 ], function ($message) use ($dosen, $subject) {
                     $message->to($dosen->email, $dosen->name)
                         ->subject($subject)
-                        ->from(env('MAIL_FROM_ADDRESS'), 'Pengingat Dari ISME (Integrated System Medical Education Fakultas Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta)');
+                        ->from(env('MAIL_FROM_ADDRESS'), 'Pengingat Dari ISME (Integrated System Medical Education)');
                 });
 
                 \Log::info("Email reminder sent to {$dosen->name} ({$dosen->email}) for Persamaan Persepsi - Type: upcoming" . ($isKoordinator ? " (Koordinator)" : ""));
@@ -4013,7 +4013,7 @@ class NotificationController extends Controller
                 ], function ($message) use ($dosen, $subject) {
                     $message->to($dosen->email, $dosen->name)
                         ->subject($subject)
-                        ->from(env('MAIL_FROM_ADDRESS'), 'Pengingat Dari ISME (Integrated System Medical Education Fakultas Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta)');
+                        ->from(env('MAIL_FROM_ADDRESS'), 'Pengingat Dari ISME (Integrated System Medical Education)');
                 });
 
                 \Log::info("Email reminder sent to {$dosen->name} ({$dosen->email}) for Seminar Pleno - Type: upcoming" . ($isKoordinator ? " (Koordinator)" : ""));
@@ -4267,7 +4267,7 @@ class NotificationController extends Controller
                         ], function ($message) use ($dosen, $subject) {
                             $message->to($dosen->email, $dosen->name)
                                 ->subject($subject)
-                                ->from(env('MAIL_FROM_ADDRESS'), 'Pengingat Dari ISME (Integrated System Medical Education Fakultas Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta)');
+                                ->from(env('MAIL_FROM_ADDRESS'), 'Pengingat Dari ISME (Integrated System Medical Education)');
                         });
 
                         \Log::info("Email reminder sent to {$dosen->name} ({$dosen->email}) for Seminar Pleno - Type: upcoming" . ($isKoordinator ? " (Koordinator)" : ""));
@@ -5161,7 +5161,7 @@ class NotificationController extends Controller
             ], function ($message) use ($dosen, $subject) {
                 $message->to($dosen->email, $dosen->name)
                     ->subject($subject)
-                    ->from(env('MAIL_FROM_ADDRESS'), 'Pengingat Dari ISME (Integrated System Medical Education Fakultas Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta)');
+                    ->from(env('MAIL_FROM_ADDRESS'), 'Pengingat Dari ISME (Integrated System Medical Education)');
             });
 
             \Log::info("Email reminder sent to {$dosen->name} ({$dosen->email}) for {$jadwalType}");
@@ -5190,7 +5190,7 @@ class NotificationController extends Controller
             ], function ($message) use ($dosen, $subject) {
                 $message->to($dosen->email, $dosen->name)
                     ->subject($subject)
-                    ->from(env('MAIL_FROM_ADDRESS'), 'Pengingat Dari ISME (Integrated System Medical Education Fakultas Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta)');
+                    ->from(env('MAIL_FROM_ADDRESS'), 'Pengingat Dari ISME (Integrated System Medical Education)');
             });
 
             \Log::info("Email reminder sent to {$dosen->name} ({$dosen->email}) for {$jadwalType} - Type: {$reminderType}");
@@ -5234,13 +5234,13 @@ class NotificationController extends Controller
 
             $content .= "\nSilakan persiapkan diri untuk mengikuti kuliah sesuai jadwal di atas.\n\n";
             $content .= "Akses sistem: https://isme.fkkumj.ac.id/\n\n";
-            $content .= "Terima kasih.\nSistem ISME FKK\nFakultas Kedokteran dan Kesehatan\nUniversitas Muhammadiyah Jakarta";
+            $content .= "Terima kasih.\nSistem ISME";
 
             // Send email
             Mail::raw($content, function ($message) use ($mahasiswa, $subject) {
                 $message->to($mahasiswa->email, $mahasiswa->name)
                     ->subject($subject)
-                    ->from(env('MAIL_FROM_ADDRESS'), 'Pengingat Dari ISME (Integrated System Medical Education Fakultas Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta)');
+                    ->from(env('MAIL_FROM_ADDRESS'), 'Pengingat Dari ISME (Integrated System Medical Education)');
             });
 
             \Log::info("Email reminder sent to mahasiswa {$mahasiswa->name} ({$mahasiswa->email}) for {$jadwalType}");
@@ -5279,7 +5279,7 @@ class NotificationController extends Controller
                 ],
             ];
 
-            $footer = "Sistem ISME FKK - Fakultas Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta";
+            $footer = "Sistem ISME";
 
             // Handle different jadwal types (CSR uses kategori, others use mataKuliah)
             $mataKuliahNama = $jadwal->mataKuliah->nama ?? $jadwal->kategori->nama ?? 'N/A';
@@ -5444,7 +5444,7 @@ class NotificationController extends Controller
         }
 
         // Footer
-        $footer = "\n\nTerima kasih.\nSistem ISME FKK\nFakultas Kedokteran dan Kesehatan\nUniversitas Muhammadiyah Jakarta";
+        $footer = "\n\nTerima kasih.\nSistem ISME";
 
         // Combine all parts
         $message = "{$greeting}\n\n{$intro}\n\n{$details}\n{$action}{$footer}";
@@ -5549,7 +5549,7 @@ class NotificationController extends Controller
         }
 
         $content .= "Terima kasih.\n";
-        $content .= "Sistem ISME FKK";
+        $content .= "Sistem ISME";
 
         return $content;
     }
@@ -5715,7 +5715,7 @@ class NotificationController extends Controller
             ], function ($message) use ($dosen, $subject) {
                 $message->to($dosen->email, $dosen->name)
                     ->subject($subject)
-                    ->from(env('MAIL_FROM_ADDRESS'), 'Notifikasi Dari ISME (Integrated System Medical Education Fakultas Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta)');
+                    ->from(env('MAIL_FROM_ADDRESS'), 'Notifikasi Dari ISME (Integrated System Medical Education)');
             });
 
             Log::info("Email status change notification sent to {$dosen->name} ({$dosen->email})");
@@ -5804,7 +5804,7 @@ class NotificationController extends Controller
         $action = "Silakan login ke sistem untuk melihat detail jadwal:\nhttps://isme.fkkumj.ac.id/";
 
         // Footer
-        $footer = "\n\nTerima kasih.\nSistem ISME FKK\nFakultas Kedokteran dan Kesehatan\nUniversitas Muhammadiyah Jakarta";
+        $footer = "\n\nTerima kasih.\nSistem ISME";
 
         // Combine all parts
         $message = "{$greeting}\n\n{$intro}\n\n{$details}\n{$action}{$footer}";

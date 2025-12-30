@@ -727,8 +727,8 @@ export default function AbsensiKuliahBesarPage() {
       const worksheet = workbook.addWorksheet("Absensi Kuliah Besar");
 
       // Set workbook properties
-      workbook.creator = "Sistem Isme FKK";
-      workbook.lastModifiedBy = "Sistem Isme FKK";
+      workbook.creator = "Sistem ISME";
+      workbook.lastModifiedBy = "Sistem ISME";
       workbook.created = new Date();
       workbook.modified = new Date();
 
@@ -1075,7 +1075,7 @@ export default function AbsensiKuliahBesarPage() {
       worksheet.addRow([]);
       worksheet.addRow([]);
       const footerRow = worksheet.addRow([
-        "Laporan ini dibuat secara otomatis oleh Sistem Isme FKK",
+        "Laporan ini dibuat secara otomatis oleh Sistem ISME",
       ]);
       footerRow.font = { size: 8, color: { argb: "FF999999" }, italic: true };
       footerRow.alignment = { horizontal: "center" };

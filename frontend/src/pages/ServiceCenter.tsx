@@ -113,7 +113,7 @@ interface FormData {
 }
 
 
-const SupportCenter: React.FC = () => {
+const ServiceCenter: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"bug" | "feature" | "contact" | "tickets" | "analytics" | "knowledge" | "all-tickets">(
     "bug"
   );
@@ -243,7 +243,7 @@ const SupportCenter: React.FC = () => {
       
       // Fetch developers and user data first (required)
       const [developersResponse, userResponse] = await Promise.all([
-        api.get("/support-center/developers"),
+        api.get("/service-center/developers"),
         api.get("/me"),
       ]);
 
@@ -260,8 +260,8 @@ const SupportCenter: React.FC = () => {
       // Try to fetch tickets and metrics (optional)
       try {
         const [ticketsResponse, metricsResponse] = await Promise.all([
-          api.get("/support-center/tickets"),
-          api.get("/support-center/metrics"),
+          api.get("/service-center/tickets"),
+          api.get("/service-center/metrics"),
         ]);
         
         
@@ -271,7 +271,7 @@ const SupportCenter: React.FC = () => {
         // If user is super admin, also fetch all tickets
         if (userResponse.data.role === 'super_admin') {
           try {
-            const allTicketsResponse = await api.get("/support-center/all-tickets");
+            const allTicketsResponse = await api.get("/service-center/all-tickets");
             setAllTickets(allTicketsResponse.data.data || []);
           } catch (allTicketsError) {
             setAllTickets([]);
@@ -298,7 +298,7 @@ const SupportCenter: React.FC = () => {
     try {
       switch (tab) {
         case 'tickets':
-          const ticketsResponse = await api.get(`/support-center/tickets?page=${page}&per_page=${itemsPerPage}`);
+          const ticketsResponse = await api.get(`/service-center/tickets?page=${page}&per_page=${itemsPerPage}`);
           if (ticketsResponse.data.success) {
             // Handle Laravel pagination response
             const paginationData = ticketsResponse.data.data;
@@ -312,7 +312,7 @@ const SupportCenter: React.FC = () => {
           
         case 'all-tickets':
           if (user.role === 'super_admin') {
-            const allTicketsResponse = await api.get(`/support-center/all-tickets?page=${page}&per_page=${itemsPerPage}`);
+            const allTicketsResponse = await api.get(`/service-center/all-tickets?page=${page}&per_page=${itemsPerPage}`);
             if (allTicketsResponse.data.success) {
               // Handle Laravel pagination response
               const paginationData = allTicketsResponse.data.data;
@@ -327,8 +327,8 @@ const SupportCenter: React.FC = () => {
           
         case 'analytics':
           const [analyticsTicketsResponse, metricsResponse] = await Promise.all([
-            api.get("/support-center/tickets"),
-            api.get("/support-center/metrics"),
+            api.get("/service-center/tickets"),
+            api.get("/service-center/metrics"),
           ]);
           setTickets(analyticsTicketsResponse.data.data || []);
           setSlaMetrics(metricsResponse.data.data || null);
@@ -336,7 +336,7 @@ const SupportCenter: React.FC = () => {
           
         case 'knowledge':
           try {
-            const endpoint = user.role === 'super_admin' ? "/support-center/knowledge/all" : "/support-center/knowledge";
+            const endpoint = user.role === 'super_admin' ? "/service-center/knowledge/all" : "/service-center/knowledge";
             const knowledgeResponse = await api.get(`${endpoint}?page=${page}&per_page=${itemsPerPage}`);
             if (knowledgeResponse.data.success) {
               // Handle Laravel pagination response
@@ -481,7 +481,7 @@ const SupportCenter: React.FC = () => {
 
     try {
       setSubmitting(true);
-      const response = await api.delete(`/support-center/knowledge/${deletingKnowledge.id}`);
+      const response = await api.delete(`/service-center/knowledge/${deletingKnowledge.id}`);
 
       if (response.data.success) {
         setShowSuccess(true);
@@ -641,7 +641,7 @@ const SupportCenter: React.FC = () => {
 
       switch (activeTab) {
         case "bug":
-          endpoint = "/support-center/bug-report";
+          endpoint = "/service-center/bug-report";
           data = {
             title: formData.title,
             description: formData.description,
@@ -656,7 +656,7 @@ const SupportCenter: React.FC = () => {
           };
           break;
         case "feature":
-          endpoint = "/support-center/feature-request";
+          endpoint = "/service-center/feature-request";
           data = {
             title: formData.title,
             description: formData.description,
@@ -669,7 +669,7 @@ const SupportCenter: React.FC = () => {
           };
           break;
         case "contact":
-          endpoint = "/support-center/contact";
+          endpoint = "/service-center/contact";
           data = {
             subject: formData.subject,
             message: formData.message,
@@ -744,8 +744,8 @@ const SupportCenter: React.FC = () => {
 
     try {
       const endpoint = editingKnowledge 
-        ? `/support-center/knowledge/${editingKnowledge.id}`
-        : '/support-center/knowledge';
+        ? `/service-center/knowledge/${editingKnowledge.id}`
+        : '/service-center/knowledge';
       
       const method = 'post'; // Always use POST for FormData compatibility
       
@@ -828,7 +828,7 @@ const SupportCenter: React.FC = () => {
 
     try {
       const response = await api.put(
-        `/support-center/developers/${editingDeveloper.id}`,
+        `/service-center/developers/${editingDeveloper.id}`,
         editingDeveloper
       );
 
@@ -852,7 +852,7 @@ const SupportCenter: React.FC = () => {
 
     try {
       const response = await api.post(
-        "/support-center/developers",
+        "/service-center/developers",
         editingDeveloper
       );
 
@@ -876,7 +876,7 @@ const SupportCenter: React.FC = () => {
     if (!developerToDelete) return;
 
     try {
-      const response = await api.delete(`/support-center/developers/${developerToDelete.id}`);
+      const response = await api.delete(`/service-center/developers/${developerToDelete.id}`);
 
       if (response.data.success) {
         setDevelopers((prev) => prev.filter((dev) => dev.id !== developerToDelete.id));
@@ -896,7 +896,7 @@ const SupportCenter: React.FC = () => {
 
   const handleStatusUpdate = async (ticketId: string, newStatus: 'Open' | 'In Progress' | 'Resolved' | 'Closed') => {
     try {
-      const response = await api.put(`/support-center/tickets/${ticketId}/status`, {
+      const response = await api.put(`/service-center/tickets/${ticketId}/status`, {
         status: newStatus
       });
 
@@ -1116,10 +1116,10 @@ const SupportCenter: React.FC = () => {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90 mb-2">
-          Isme Web Service Center
+          ISME Web Service Center
         </h1>
         <p className="text-gray-600 dark:text-gray-400 mb-4">
-          Pusat Layanan Teknologi Informasi Fakultas Kedokteran
+          Pusat Layanan Sistem ISME yang menyediakan berbagai layanan terintegrasi untuk kebutuhan akademik.
         </p>
         
         {/* Info Card */}
@@ -2260,7 +2260,7 @@ const SupportCenter: React.FC = () => {
                       Tim Pengembangan
                     </h3>
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                      Tim IT Support Isme Web
+                      Tim IT Support ISME Web
                     </p>
                   </div>
                 </div>
@@ -3603,4 +3603,4 @@ const SupportCenter: React.FC = () => {
   );
 };
 
-export default SupportCenter;
+export default ServiceCenter;

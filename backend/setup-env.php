@@ -31,7 +31,7 @@ $targetFile = $baseDir . '/.env';
 
 // Template untuk development
 $developmentTemplate = <<<'ENV'
-APP_NAME=Isme
+APP_NAME=ISME
 APP_ENV=local
 APP_KEY=
 APP_DEBUG=true
@@ -103,7 +103,7 @@ ENV;
 
 // Template untuk production
 $productionTemplate = <<<'ENV'
-APP_NAME=Isme
+APP_NAME=ISME
 APP_ENV=production
 APP_KEY=
 APP_DEBUG=false

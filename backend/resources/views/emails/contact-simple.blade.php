@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Contact Message - Isme</title>
+    <title>Contact Message - ISME</title>
 </head>
 <body>
     <h2>📧 Contact Message</h2>
@@ -13,6 +13,6 @@
     <p><strong>From:</strong> {{ $user_name }} ({{ $user_email }})</p>
     <p><strong>Assigned to:</strong> {{ $developer_name }}</p>
     <hr>
-    <p><em>This message was sent through the Support Center.</em></p>
+    <p><em>This message was sent through the Service Center.</em></p>
 </body>
 </html>

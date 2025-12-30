@@ -551,7 +551,7 @@ export default function Ruangan() {
         ['Kapasitas Terbesar', Math.max(...dataToExport.map(d => d.kapasitas))],
         [''],
         ['Tanggal Export', new Date().toLocaleString('id-ID')],
-        ['Dibuat oleh', 'Sistem ISME FKK']
+        ['Dibuat oleh', 'Sistem ISME']
       ];
 
       const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);

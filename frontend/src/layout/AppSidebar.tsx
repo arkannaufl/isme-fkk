@@ -254,7 +254,7 @@ const getNavItems = (userRole?: string): NavItem[] => {
     },
     {
       icon: <UserIcon />,
-      name: "Manajemen Pengguna",
+      name: "User Management",
       subItems: [
         {
           name: "Tim Akademik",
@@ -378,7 +378,7 @@ const getNavItems = (userRole?: string): NavItem[] => {
     {
       icon: <ServiceCenterIcon />,
       name: "Service Center",
-      path: "/support-center",
+      path: "/service-center",
       roles: ["super_admin", "dosen", "mahasiswa", "tim_akademik"],
     },
   ];

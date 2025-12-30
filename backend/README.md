@@ -166,7 +166,7 @@ Route::middleware(['auth:sanctum', 'validate.token', 'role:super_admin,tim_akade
 
 | Role | Access Level | Key Capabilities |
 |------|-------------|------------------|
-| **super_admin** | Full System Access | All CRUD operations, user management, system configuration, IKD management, support center administration, Excel imports |
+| **super_admin** | Full System Access | All CRUD operations, user management, system configuration, IKD management, service center administration, Excel imports |
 | **tim_akademik** | Academic Management | Course management, schedule administration, PBL/CSR assignment, academic reporting, student-faculty coordination |
 | **dosen** | Teaching Operations | Schedule confirmation, attendance taking, grade submission, course material access, own profile management |
 | **mahasiswa** | Student Operations | Schedule viewing, attendance submission, grade viewing, forum participation, own profile management |
@@ -392,10 +392,10 @@ Route::middleware(['auth:sanctum', 'validate.token', 'role:super_admin,tim_akade
 - `POST /api/forum/{id}/like` - Like forum post
 - `POST /api/forum/{id}/bookmark` - Bookmark forum post
 
-### Support Center Module
+### Service Center Module
 
 **Tickets:**
-- `GET /api/tickets` - List support tickets
+- `GET /api/service-center/tickets` - List support tickets
 - `POST /api/tickets` - Create ticket
 - `GET /api/tickets/{id}` - Get ticket details
 - `PUT /api/tickets/{id}` - Update ticket
@@ -573,7 +573,7 @@ The backend uses `.env` file for configuration. Setup scripts (`setup-env.php`, 
 
 **Application:**
 ```env
-APP_NAME=Isme
+APP_NAME=ISME
 APP_ENV=local                    # local | production
 APP_KEY=base64:...              # Auto-generated if empty
 APP_DEBUG=true                  # false in production
@@ -586,8 +586,8 @@ DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_DATABASE=isme-db-local       # Production: isme-db
-DB_USERNAME=root                # Production: isme-fkk
-DB_PASSWORD=                    # Production: Ism3fkk@2025
+DB_USERNAME=root                # Production: isme
+DB_PASSWORD=                    # Production: Ism3@2025
 ```
 
 **Cache & Session:**
@@ -679,7 +679,7 @@ composer run setup:prod
 **1. Clone Repository:**
 ```bash
 git clone <repository-url>
-cd isme-fkk/backend
+cd isme/backend
 ```
 
 **2. Install Dependencies:**
@@ -724,7 +724,7 @@ chown -R www-data:www-data storage bootstrap/cache
 **For VPS/Production (Recommended):**
 ```bash
 # Navigate to backend directory
-cd /var/www/isme-fkk/backend
+cd /var/www/isme/backend
 
 # Give execute permission to script
 sudo chmod +x fix-permissions.sh
@@ -793,7 +793,7 @@ php artisan tinker
 - **Local Development**: Run `chmod -R 775 storage bootstrap/cache`
 - **VPS/Production**: Use the automated script:
   ```bash
-  cd /var/www/isme-fkk/backend
+  cd /var/www/isme/backend
   sudo chmod +x fix-permissions.sh
   sudo ./fix-permissions.sh
   ```
@@ -815,14 +815,14 @@ The `fix-permissions.sh` script automates permission setup for Laravel applicati
 **Prerequisites:**
 - VPS running Linux (Ubuntu/Debian recommended)
 - Web server user: `www-data` (default for Apache/Nginx on Ubuntu/Debian)
-- Project path: `/var/www/isme-fkk` (or update script with your path)
+- Project path: `/var/www/isme` (or update script with your path)
 - Sudo access
 
 **How to Run:**
 
 ```bash
 # 1. Navigate to backend directory
-cd /var/www/isme-fkk/backend
+cd /var/www/isme/backend
 
 # 2. Give execute permission to script
 sudo chmod +x fix-permissions.sh
@@ -902,16 +902,16 @@ sudo ./fix-permissions.sh
 
 **Customizing the Script:**
 
-If your project path differs from `/var/www/isme-fkk`, edit the script:
+If your project path differs from `/var/www/isme`, edit the script:
 
 ```bash
 # Edit the script
 nano fix-permissions.sh
 
 # Change line 11:
-PROJECT_PATH="/var/www/isme-fkk"
+PROJECT_PATH="/var/www/isme"
 # To your project path, e.g.:
-PROJECT_PATH="/home/user/isme-fkk"
+PROJECT_PATH="/home/user/isme"
 ```
 
 **Troubleshooting:**
@@ -935,10 +935,10 @@ sudo useradd -r -s /bin/false www-data
 ```bash
 # Verify you're in the correct directory
 pwd
-# Should show: /var/www/isme-fkk/backend
+# Should show: /var/www/isme/backend
 
 # Or use absolute path
-sudo /var/www/isme-fkk/backend/fix-permissions.sh
+sudo /var/www/isme/backend/fix-permissions.sh
 ```
 
 **Different Web Server User:**
@@ -948,7 +948,7 @@ If your web server uses a different user (e.g., `apache`, `nginx`), edit the scr
 **Quick Command (Copy-Paste):**
 
 ```bash
-cd /var/www/isme-fkk/backend && sudo chmod +x fix-permissions.sh && sudo ./fix-permissions.sh
+cd /var/www/isme/backend && sudo chmod +x fix-permissions.sh && sudo ./fix-permissions.sh
 ```
 
 **Creating an Alias (Optional):**
@@ -956,7 +956,7 @@ cd /var/www/isme-fkk/backend && sudo chmod +x fix-permissions.sh && sudo ./fix-p
 For convenience, add to `~/.bashrc` or `~/.zshrc`:
 
 ```bash
-alias fix-perms='cd /var/www/isme-fkk/backend && sudo ./fix-permissions.sh'
+alias fix-perms='cd /var/www/isme/backend && sudo ./fix-permissions.sh'
 ```
 
 Then reload shell and use:
@@ -1023,7 +1023,7 @@ php artisan queue:flush
 ```ini
 [program:isme-queue-worker]
 process_name=%(program_name)s_%(process_num)02d
-command=php /var/www/isme-fkk/backend/artisan queue:work redis --sleep=3 --tries=3 --max-time=3600
+command=php /var/www/isme/backend/artisan queue:work redis --sleep=3 --tries=3 --max-time=3600
 autostart=true
 autorestart=true
 stopasgroup=true
@@ -1031,7 +1031,7 @@ killasgroup=true
 user=www-data
 numprocs=2
 redirect_stderr=true
-stdout_logfile=/var/www/isme-fkk/backend/storage/logs/queue-worker.log
+stdout_logfile=/var/www/isme/backend/storage/logs/queue-worker.log
 stopwaitsecs=3600
 ```
 
@@ -1077,7 +1077,7 @@ protected function schedule(Schedule $schedule)
 **Running Scheduler:**
 ```bash
 # Add to crontab (production)
-* * * * * cd /var/www/isme-fkk/backend && php artisan schedule:run >> /dev/null 2>&1
+* * * * * cd /var/www/isme/backend && php artisan schedule:run >> /dev/null 2>&1
 ```
 
 ### Background Processes
@@ -1360,4 +1360,4 @@ class User extends Model
 
 **Version**: 2.0.2  
 **Last Updated**: December 13, 2025  
-**Maintained By**: Development Team - Fakultas Kedokteran dan Kesehatan UMJ
+**Maintained By**: Development Team - Universitas Muhammadiyah Jakarta

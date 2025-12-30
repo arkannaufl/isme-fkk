@@ -14,7 +14,7 @@
 [![Redis](https://img.shields.io/badge/Redis-6.0+-red.svg)](https://redis.io)
 
 **Version:** 2.0.2  
-**Institution:** Fakultas Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta  
+**Institution:** Universitas Muhammadiyah Jakarta  
 **License:** MIT
 
 ---
@@ -93,7 +93,7 @@ Medical education programs require sophisticated management systems capable of h
 - **Forum System**: Categorized discussion forums with replies, likes, and bookmarks
 - **Notification System**: Real-time notifications with role-based filtering
 - **WhatsApp Integration**: Wablas API integration for schedule and assignment notifications
-- **Support Center**: Ticketing system with knowledge base and developer assignment
+- **Service Center**: Ticketing system with knowledge base and developer assignment
 
 #### Reporting & Analytics
 - **Activity Logging**: Comprehensive audit trail using Spatie Activity Log
@@ -239,7 +239,7 @@ Capacity Check → Database Insert → Notification Queue → Response
 
 | Role | Primary Responsibilities | Key Capabilities |
 |------|-------------------------|------------------|
-| **super_admin** | System administration and configuration | Full system access, user management, system configuration, IKD management, support center administration |
+| **super_admin** | System administration and configuration | Full system access, user management, system configuration, IKD management, service center administration |
 | **tim_akademik** | Academic program management | Course management, schedule administration, PBL assignment, CSR management, academic reporting |
 | **dosen** | Teaching and assessment | Schedule confirmation, attendance taking, grade submission, course material access, notification management |
 | **mahasiswa** | Academic participation | Schedule viewing, attendance submission, grade viewing, forum participation, profile management |
@@ -267,7 +267,7 @@ Capacity Check → Database Insert → Notification Queue → Response
 ### Project Organization
 
 ```
-isme-fkk/
+isme/
 ├── backend/                    # Laravel 12 API Backend
 │   ├── app/
 │   │   ├── Http/
@@ -305,14 +305,14 @@ isme-fkk/
 - Authentication, User Management, Course Management
 - Scheduling (8+ schedule types)
 - PBL Generation, CSR Management
-- Assessment, Attendance, Forum, Support Center
+- Assessment, Attendance, Forum, Service Center
 - Reporting, Notifications, WhatsApp Integration
 
 **Frontend Pages (82 files)**
 - Dashboard pages (role-specific)
 - Course and schedule management pages
 - Attendance and assessment pages
-- User management, forum, support center
+- User management, forum, service center
 - IKD management pages
 
 **Database Migrations (130 files)**
@@ -321,7 +321,7 @@ isme-fkk/
 - Scheduling tables (8+ types)
 - Attendance tables (8+ types)
 - Assessment tables
-- Forum and support center tables
+- Forum and service center tables
 - Activity logging and system tables
 
 ---
@@ -471,7 +471,7 @@ Role Verification → Permission Check → Resource Access
 - ✅ Automated PBL assignment generation
 - ✅ QR code attendance system
 - ✅ Comprehensive assessment management
-- ✅ Forum and support center
+- ✅ Forum and service center
 - ✅ WhatsApp notification integration
 - ✅ Role-based access control
 - ✅ Activity logging and reporting
@@ -536,7 +536,7 @@ Role Verification → Permission Check → Resource Access
 ### Maintenance and Support
 
 **Current Support Model:**
-- Built-in support center with ticketing system
+- Built-in service center with ticketing system
 - Knowledge base for common issues
 - Developer assignment for technical issues
 - Activity logging for troubleshooting
@@ -567,10 +567,10 @@ This project is licensed under the MIT License.
 ## Contact and Support
 
 For technical inquiries, feature requests, or support:
-- **Support Center**: Available within the application (requires login)
+- **Service Center**: Available within the application (requires login)
 - **Documentation**: Comprehensive documentation in `backend/README.md`
 
 ---
 
 **Last Updated**: December 30, 2025  
-**Maintained By**: Development Team - Fakultas Kedokteran dan Kesehatan UMJ
+**Maintained By**: Development Team - Universitas Muhammadiyah Jakarta

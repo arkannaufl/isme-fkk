@@ -1363,8 +1363,7 @@ const DashboardSuperAdmin: React.FC = () => {
           Dashboard Super Admin
         </h1>
                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      Isme - Integrated System Medical Education Fakultas
-                      Kedokteran dan Kesehatan Universitas Muhammadiyah Jakarta
+                      ISME - Integrated System Medical Education
         </p>
                    {user && user.name && (
                      <p className="mt-1 text-sm text-blue-600 dark:text-blue-400 font-medium">

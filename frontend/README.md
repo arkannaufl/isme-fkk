@@ -1145,4 +1145,4 @@ npm run preview
 
 **Version**: 2.0.2  
 **Last Updated**: December 13, 2025  
-**Maintained By**: Development Team - Fakultas Kedokteran dan Kesehatan UMJ
+**Maintained By**: Development Team - Universitas Muhammadiyah Jakarta

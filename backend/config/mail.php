@@ -112,7 +112,7 @@ return [
 
     'from' => [
         'address' => env('MAIL_FROM_ADDRESS', 'noreply@isme.fkkumj.ac.id'),
-        'name' => env('MAIL_FROM_NAME', 'Isme'),
+        'name' => env('MAIL_FROM_NAME', 'ISME'),
     ],
 
 ];

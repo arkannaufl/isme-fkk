@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Reset Password - ISME FKK</title>
+    <title>Reset Password - ISME</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -144,14 +144,14 @@
 <div class="email-container">
     <div class="header">
         <h1 class="header-title">Permintaan Reset Password</h1>
-        <p class="header-subtitle">ISME FKK - Integrated System Medical Education</p>
+        <p class="header-subtitle">ISME - Integrated System Medical Education</p>
     </div>
 
     <div class="content">
         <p class="greeting">Halo {{ $name }},</p>
 
         <p class="intro-text">
-            Kami menerima permintaan untuk mengatur ulang password akun ISME FKK Anda.
+            Kami menerima permintaan untuk mengatur ulang password akun ISME Anda.
             Silakan gunakan kode OTP berikut untuk melanjutkan proses reset password.
         </p>
 
@@ -173,16 +173,15 @@
             mengatasnamakan Admin, Tim Akademik, ataupun pihak lain.
         </p>
         <p class="small-text">
-            Untuk melanjutkan proses, kembali ke halaman ISME FKK dan masukkan kode OTP tersebut
+            Untuk melanjutkan proses, kembali ke halaman ISME dan masukkan kode OTP tersebut
             pada form reset password.
         </p>
     </div>
 
     <div class="footer">
         <p>Terima kasih.</p>
-        <p class="system-name">Sistem ISME FKK</p>
-        <p>Fakultas Kedokteran dan Kesehatan<br>Universitas Muhammadiyah Jakarta</p>
-    </div>
+        <p class="system-name">Sistem ISME</p>
+        </div>
 </div>
 </body>
 </html>

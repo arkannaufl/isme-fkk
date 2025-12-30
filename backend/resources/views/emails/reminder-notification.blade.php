@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ $reminderType === 'unconfirmed' ? 'Pengingat Konfirmasi' : 'Pengingat Persiapan Mengajar' }} - ISME FKK</title>
+    <title>{{ $reminderType === 'unconfirmed' ? 'Pengingat Konfirmasi' : 'Pengingat Persiapan Mengajar' }} - ISME</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -222,7 +222,7 @@
             <h1>
                 {{ $reminderType === 'unconfirmed' ? 'Pengingat Konfirmasi' : 'Pengingat Persiapan Mengajar' }}
             </h1>
-            <p>ISME FKK - Integrated System Medical Education</p>
+            <p>ISME - Integrated System Medical Education</p>
         </div>
 
         <div class="content">
@@ -363,9 +363,8 @@
 
         <div class="footer">
             <p>Terima kasih.</p>
-            <p class="system-name">Sistem ISME FKK</p>
-            <p>Fakultas Kedokteran dan Kesehatan<br>Universitas Muhammadiyah Jakarta</p>
-        </div>
+            <p class="system-name">Sistem ISME</p>
+            </div>
     </div>
 </body>
 </html>

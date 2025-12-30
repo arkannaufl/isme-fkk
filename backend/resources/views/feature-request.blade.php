@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Feature Request - Isme</title>
+    <title>Feature Request - ISME</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -60,7 +60,7 @@
 <body>
     <div class="header">
         <h1>💡 Feature Request</h1>
-        <p>Isme</p>
+        <p>ISME</p>
     </div>
     
     <div class="content">
@@ -103,7 +103,7 @@
     </div>
     
     <div class="footer">
-        <p>This feature request was submitted through the Support Center.</p>
+        <p>This feature request was submitted through the Service Center.</p>
         <p>Please respond to the user at: {{ $user_email }}</p>
     </div>
 </body>
