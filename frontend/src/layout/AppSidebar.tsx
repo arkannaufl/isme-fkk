@@ -371,7 +371,7 @@ const getNavItems = (userRole?: string): NavItem[] => {
     },
     {
       icon: <WhatsAppIcon />,
-      name: "WhatsApp Bot Management",
+      name: "WA Bot Management",
       path: "/whatsapp-bot-management",
       roles: ["super_admin"],
     },
