@@ -6,7 +6,7 @@ import { useTheme } from "../../context/ThemeContext";
 
 const OTP_LENGTH = 6;
 
-export default function ForgotPasswordOtp() {
+export default function VerifyOtp() {
   const location = useLocation();
   const navigate = useNavigate();
   const { theme } = useTheme();
@@ -132,7 +132,7 @@ export default function ForgotPasswordOtp() {
             <div className="p-8 md:p-12">
               <div className="mb-5 sm:mb-8">
                 <h1 className="mb-2 font-semibold text-gray-800 text-title-sm dark:text-white/90 sm:text-title-md">
-                  Lupa Password
+                  Verifikasi OTP
                 </h1>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Masukkan kode OTP yang dikirim ke email terverifikasi Anda.

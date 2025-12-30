@@ -10,7 +10,7 @@ interface LocationState {
   masked?: string;
 }
 
-export default function ForgotPasswordNew() {
+export default function ResetPassword() {
   const location = useLocation();
   const navigate = useNavigate();
   const { theme } = useTheme();
@@ -113,7 +113,7 @@ export default function ForgotPasswordNew() {
             <div className="p-8 md:p-12">
               <div className="mb-5 sm:mb-8">
                 <h1 className="mb-2 font-semibold text-gray-800 text-title-sm dark:text-white/90 sm:text-title-md">
-                  Atur Password Baru
+                  Reset Password
                 </h1>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Masukkan password baru Anda untuk menyelesaikan reset.

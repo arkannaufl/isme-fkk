@@ -78,7 +78,7 @@ const renderChanges = (properties: ActivityLog['properties']) => {
 };
 
 
-const Histori: React.FC = () => {
+const LogAktivitas: React.FC = () => {
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [summary, setSummary] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -163,7 +163,7 @@ const Histori: React.FC = () => {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     } catch (error) {
-      const errorMessage = handleApiError(error, 'Export Histori');
+      const errorMessage = handleApiError(error, 'Export Log Aktivitas');
       // Bisa ditambahkan toast notification di sini
     }
   };
@@ -208,8 +208,8 @@ const Histori: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Histori Aplikasi</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Riwayat interaksi user dengan aplikasi ini</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Log Aktivitas</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Riwayat aktivitas user dalam aplikasi</p>
         </div>
         <button
           onClick={handleExport}
@@ -566,4 +566,4 @@ const Histori: React.FC = () => {
   );
 };
 
-export default Histori; 
+export default LogAktivitas; 

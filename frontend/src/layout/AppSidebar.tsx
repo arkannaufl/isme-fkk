@@ -327,7 +327,7 @@ const getNavItems = (userRole?: string): NavItem[] => {
         },
         {
           name: "Log Aktivitas",
-          path: "/reporting/histori",
+          path: "/reporting/log-aktivitas",
           roles: ["super_admin"],
         },
       ],
@@ -371,8 +371,8 @@ const getNavItems = (userRole?: string): NavItem[] => {
     },
     {
       icon: <WhatsAppIcon />,
-      name: "WhatsApp Bot",
-      path: "/whatsapp-test",
+      name: "WhatsApp Bot Management",
+      path: "/whatsapp-bot-management",
       roles: ["super_admin"],
     },
     {

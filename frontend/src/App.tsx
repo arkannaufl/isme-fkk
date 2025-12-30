@@ -11,9 +11,9 @@ import TahunAjaran from "./pages/TahunAjaran";
 import Ruangan from "./pages/Ruangan";
 import Profile from "./pages/Profile";
 import SignIn from "./pages/AuthPages/SignIn";
-import ForgotPassword from "./pages/AuthPages/ForgotPassword";
-import ForgotPasswordOtp from "./pages/AuthPages/ForgotPasswordOtp";
-import ForgotPasswordNew from "./pages/AuthPages/ForgotPasswordNew";
+import RequestOtp from "./pages/AuthPages/RequestOtp";
+import VerifyOtp from "./pages/AuthPages/VerifyOtp";
+import ResetPassword from "./pages/AuthPages/ResetPassword";
 import RequireAuth from "./components/common/RequireAuth";
 import RequireDosenRole from "./components/common/RequireDosenRole";
 import RoleBasedRedirect from "./components/common/RoleBasedRedirect";
@@ -31,7 +31,7 @@ import KelompokBesar from "./pages/KelompokBesar";
 import Kelompok from "./pages/Kelompok";
 import KelompokKecil from "./pages/KelompokKecil";
 import MahasiswaVeteran from "./pages/MahasiswaVeteran";
-import Histori from "./pages/Histori";
+import LogAktivitas from "./pages/LogAktivitas";
 import ReportingDosen from "./pages/ReportingDosen";
 import PBLDetail from "./pages/PBL-detail";
 import PBLList from "./pages/PBL";
@@ -80,7 +80,7 @@ import DosenAbsensiPraktikum from "./pages/DosenAbsensiPraktikum";
 import DosenAbsensiSeminarPleno from "./pages/DosenAbsensiSeminarPleno";
 import DetailAbSenMahasiswaSeminarPleno from "./pages/DetailAbSenMahasiswaSeminarPleno";
 
-import WhatsAppTest from "./pages/WhatsAppTest";
+import WhatsAppBot from "./pages/WhatsAppBot";
 import PedomanPoinIKD from "./pages/RekapIKD/PedomanPoinIKD";
 import UserIKD from "./pages/RekapIKD/UserIKD";
 import RekapIKDWrapper from "./pages/RekapIKD/RekapIKDWrapper";
@@ -475,10 +475,10 @@ function AppContent() {
               <Route path="/bookmarks" element={<Bookmarks />} />
               <Route path="/support-center" element={<SupportCenter />} />
               <Route
-                path="/whatsapp-test"
+                path="/whatsapp-bot-management"
                 element={
                   <RequireDosenRole allowedRoles={["super_admin"]}>
-                    <WhatsAppTest />
+                    <WhatsAppBot />
                   </RequireDosenRole>
                 }
               />
@@ -777,10 +777,10 @@ function AppContent() {
                 }
               />
               <Route
-                path="/reporting/histori"
+                path="/reporting/log-aktivitas"
                 element={
                   <RequireDosenRole allowedRoles={["super_admin"]}>
-                    <Histori />
+                    <LogAktivitas />
                   </RequireDosenRole>
                 }
               />
@@ -966,7 +966,7 @@ function AppContent() {
             path="/forgot-password"
             element={
               <RedirectIfAuth>
-                <ForgotPassword />
+                <RequestOtp />
               </RedirectIfAuth>
             }
           />
@@ -974,7 +974,7 @@ function AppContent() {
             path="/forgot-password/otp"
             element={
               <RedirectIfAuth>
-                <ForgotPasswordOtp />
+                <VerifyOtp />
               </RedirectIfAuth>
             }
           />
@@ -982,7 +982,7 @@ function AppContent() {
             path="/forgot-password/new-password"
             element={
               <RedirectIfAuth>
-                <ForgotPasswordNew />
+                <ResetPassword />
               </RedirectIfAuth>
             }
           />

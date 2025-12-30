@@ -4,7 +4,7 @@ import { ThemeToggleButton } from "../../components/common/ThemeToggleButton";
 import api, { handleApiError } from "../../utils/api";
 import { useTheme } from "../../context/ThemeContext";
 
-export default function ForgotPassword() {
+export default function RequestOtp() {
   const [login, setLogin] = useState("");
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -62,7 +62,7 @@ export default function ForgotPassword() {
             <div className="p-8 md:p-12">
               <div className="mb-5 sm:mb-8">
                 <h1 className="mb-2 font-semibold text-gray-800 text-title-sm dark:text-white/90 sm:text-title-md">
-                  Lupa Password
+                  Request OTP
                 </h1>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Masukkan username atau email Anda untuk menerima kode OTP

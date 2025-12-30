@@ -41,7 +41,7 @@ interface Contact {
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
-export default function WhatsAppTest() {
+export default function WhatsAppBot() {
   const [loading, setLoading] = useState(false);
   const [deviceLoading, setDeviceLoading] = useState(false);
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
@@ -772,7 +772,7 @@ export default function WhatsAppTest() {
           <div className="flex items-center justify-between">
               <div>
             <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90 mb-2">
-                  WhatsApp Bot
+                  WhatsApp Bot Management
                 </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
                   Kelola dan monitor pesan WhatsApp melalui Wablas API
