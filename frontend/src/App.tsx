@@ -779,7 +779,7 @@ function AppContent() {
               <Route
                 path="/reporting/log-aktivitas"
                 element={
-                  <RequireDosenRole allowedRoles={["super_admin"]}>
+                  <RequireDosenRole allowedRoles={["super_admin", "tim_akademik"]}>
                     <LogAktivitas />
                   </RequireDosenRole>
                 }

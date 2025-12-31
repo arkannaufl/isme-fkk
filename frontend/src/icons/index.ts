@@ -55,6 +55,16 @@ import { ReactComponent as MoreDotIcon } from "./moredot.svg?react";
 import { ReactComponent as AlertHexaIcon } from "./alert-hexa.svg?react";
 import { ReactComponent as ErrorHexaIcon } from "./info-hexa.svg?react";
 import { ReactComponent as DocumentChartBarIcon } from "./document-chart-bar.svg?react";
+import { ReactComponent as DashboardIcon } from "./dashboard.svg?react";
+import { ReactComponent as HistoryIcon } from "./history.svg?react";
+import { ReactComponent as AcademicIcon } from "./academic.svg?react";
+import { ReactComponent as PetaBlokIcon } from "./peta-blok.svg?react";
+import { ReactComponent as DetailKeabsenanIcon } from "./detail-keabsenan.svg?react";
+import { ReactComponent as ServiceCenterIcon } from "./service-center.svg?react";
+import { ReactComponent as WhatsAppIcon } from "./whatsapp.svg?react";
+import { ReactComponent as NotificationsIcon } from "./notifications.svg?react";
+import { ReactComponent as RekapIKDIcon } from "./rekap-ikd.svg?react";
+import { ReactComponent as ManagementIcon } from "./management.svg?react";
 
 export {
   ErrorHexaIcon,
@@ -114,4 +124,14 @@ export {
   AngleLeftIcon,
   AngleRightIcon,
   DocumentChartBarIcon,
+  DashboardIcon,
+  HistoryIcon,
+  AcademicIcon,
+  PetaBlokIcon,
+  DetailKeabsenanIcon,
+  ServiceCenterIcon,
+  WhatsAppIcon,
+  NotificationsIcon,
+  RekapIKDIcon,
+  ManagementIcon,
 };

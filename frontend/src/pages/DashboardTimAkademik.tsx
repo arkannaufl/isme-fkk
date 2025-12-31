@@ -213,7 +213,7 @@ const DashboardTimAkademik: React.FC = () => {
         const res = await api.get("/tahun-ajaran/active");
         setTahunAjaran(res.data);
       } catch (error) {
-        console.error("Error fetching active semester:", error);
+        // Handle error silently
       }
     };
     fetchActiveSemester();
@@ -229,71 +229,136 @@ const DashboardTimAkademik: React.FC = () => {
 
   // Cache untuk menyimpan data yang sudah pernah di-fetch
   const [dataCache, setDataCache] = useState<{ [key: string]: any }>({});
-  const [isTabLoading, setIsTabLoading] = useState(false);
+  
+  // Individual loading states for each card
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [assessmentLoading, setAssessmentLoading] = useState(false);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
 
-  // Fetch dashboard data
-  const fetchDashboardData = async (
-    attendanceSemester: "reguler" | "antara" = "reguler",
-    assessmentSemester: "reguler" | "antara" = "reguler",
-    scheduleSemester: "reguler" | "antara" = "reguler",
-    isInitialLoad = false
-  ) => {
-    const cacheKey = `${attendanceSemester}-${assessmentSemester}-${scheduleSemester}`;
-
-    // Jika data sudah ada di cache dan bukan initial load, gunakan cache
-    if (dataCache[cacheKey] && !isInitialLoad) {
-      setStats(dataCache[cacheKey]);
+  // Fetch attendance data separately
+  const fetchAttendanceData = async (semester: "reguler" | "antara") => {
+    const cacheKey = `${semester}-attendance`;
+    
+    // Jika data sudah ada di cache, gunakan cache
+    if (dataCache[cacheKey]) {
+      setStats(prev => ({
+        ...prev,
+        attendanceStats: dataCache[cacheKey].attendanceStats
+      }));
       return;
     }
 
     try {
-      if (isInitialLoad) {
-        setLoading(true);
-      } else {
-        setIsTabLoading(true);
-      }
-
+      setAttendanceLoading(true);
       const response = await api.get(
-        `/dashboard-tim-akademik?attendance_semester=${attendanceSemester}&assessment_semester=${assessmentSemester}&schedule_semester=${scheduleSemester}`
+        `/dashboard-tim-akademik/attendance?semester=${semester}`
       );
 
       // Simpan ke cache
-      setDataCache((prev) => ({
+      setDataCache(prev => ({
         ...prev,
-        [cacheKey]: response.data,
+        [cacheKey]: response.data
       }));
 
-      setStats(response.data);
-      setError(null);
+      setStats(prev => ({
+        ...prev,
+        attendanceStats: response.data.attendanceStats
+      }));
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Gagal memuat data dashboard");
-      console.error("Error fetching dashboard data:", err);
+        // Handle error silently
     } finally {
-      if (isInitialLoad) {
-        setLoading(false);
-      } else {
-        setIsTabLoading(false);
-      }
+      setAttendanceLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchDashboardData("reguler", "reguler", "reguler", true);
-  }, []);
+  // Fetch assessment data separately
+  const fetchAssessmentData = async (semester: "reguler" | "antara") => {
+    const cacheKey = `${semester}-assessment`;
+    
+    // Jika data sudah ada di cache, gunakan cache
+    if (dataCache[cacheKey]) {
+      setStats(prev => ({
+        ...prev,
+        assessmentStats: dataCache[cacheKey].assessmentStats
+      }));
+      return;
+    }
 
-  // Refetch data when semester tabs change
+    try {
+      setAssessmentLoading(true);
+      const response = await api.get(
+        `/dashboard-tim-akademik/assessment?semester=${semester}`
+      );
+
+      // Simpan ke cache
+      setDataCache(prev => ({
+        ...prev,
+        [cacheKey]: response.data
+      }));
+
+      setStats(prev => ({
+        ...prev,
+        assessmentStats: response.data.assessmentStats
+      }));
+    } catch (err: any) {
+        // Handle error silently
+    } finally {
+      setAssessmentLoading(false);
+    }
+  };
+
+  // Fetch schedule data separately
+  const fetchScheduleData = async (semester: "reguler" | "antara") => {
+    const cacheKey = `${semester}-schedule`;
+    
+    // Jika data sudah ada di cache, gunakan cache
+    if (dataCache[cacheKey]) {
+      setStats(prev => ({
+        ...prev,
+        scheduleStats: dataCache[cacheKey].scheduleStats
+      }));
+      return;
+    }
+
+    try {
+      setScheduleLoading(true);
+      const response = await api.get(
+        `/dashboard-tim-akademik/schedule?semester=${semester}`
+      );
+
+      // Simpan ke cache
+      setDataCache(prev => ({
+        ...prev,
+        [cacheKey]: response.data
+      }));
+
+      setStats(prev => ({
+        ...prev,
+        scheduleStats: response.data.scheduleStats
+      }));
+    } catch (err: any) {
+        // Handle error silently
+    } finally {
+      setScheduleLoading(false);
+    }
+  };
+
+  // Initial data fetch
   useEffect(() => {
-    fetchDashboardData(
-      activeAttendanceSemester,
-      activeAssessmentSemester,
-      activeScheduleSemester,
-      false
-    );
-  }, [
-    activeAttendanceSemester,
-    activeAssessmentSemester,
-    activeScheduleSemester,
-  ]);
+    const fetchInitialData = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get("/dashboard-tim-akademik");
+        setStats(response.data);
+        setError(null);
+      } catch (err: any) {
+        setError(err?.response?.data?.message || "Gagal memuat data dashboard");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchInitialData();
+  }, []);
 
   // Auto-clear success message after 5 seconds
   useEffect(() => {
@@ -381,140 +446,18 @@ const DashboardTimAkademik: React.FC = () => {
     });
   };
 
-  // Loading skeleton
-  const SkeletonCard = ({
-    className = "",
-    children,
-  }: {
-    className?: string;
-    children?: React.ReactNode;
-  }) => (
-    <div
-      className={`rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6 ${className}`}
-    >
-      {children}
-    </div>
-  );
-
-  const SkeletonLine = ({
-    width = "w-full",
-    height = "h-4",
-  }: {
-    width?: string;
-    height?: string;
-  }) => (
-    <div
-      className={`${width} ${height} bg-gray-200 dark:bg-gray-700 rounded animate-pulse`}
-    ></div>
-  );
-
-  const SkeletonCircle = ({ size = "w-12 h-12" }: { size?: string }) => (
-    <div
-      className={`${size} bg-gray-200 dark:bg-gray-700 rounded-xl animate-pulse`}
-    ></div>
-  );
-
   if (loading) {
     return (
-      <>
-        <style>{`
-          @keyframes progressFill {
-            from { width: 0%; }
-            to { width: 100%; }
-          }
-          @keyframes slideInRight {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-          }
-          .notification-enter {
-            animation: slideInRight 0.5s ease-out forwards;
-          }
-        `}</style>
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-          <div className="grid grid-cols-12 gap-4 md:gap-6 p-4 md:p-6">
-            {/* Header Skeleton */}
-            <div className="col-span-12 mb-6">
-              <div className="bg-white dark:bg-white/[0.03] rounded-2xl p-5 md:p-6 shadow-sm border border-gray-200 dark:border-gray-800">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <SkeletonLine width="w-64" height="h-8" />
-                    <div className="mt-2">
-                      <SkeletonLine width="w-96" height="h-4" />
-                    </div>
-                  </div>
-                  <div className="flex gap-3 mt-4 sm:mt-0">
-                    <SkeletonLine width="w-24" height="h-6" />
-                    <SkeletonLine width="w-16" height="h-6" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Main Stats Cards Skeleton */}
-            <div className="col-span-12">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 md:gap-6">
-                {[1, 2, 3, 4].map((i) => (
-                  <SkeletonCard key={i}>
-                    <div className="flex items-center justify-between mb-4">
-                      <SkeletonCircle />
-                      <SkeletonLine width="w-16" height="h-6" />
-                    </div>
-                    <SkeletonLine width="w-20" height="h-4" />
-                    <SkeletonLine width="w-16" height="h-8" />
-                  </SkeletonCard>
-                ))}
-              </div>
-            </div>
-
-            {/* Analytics Cards Skeleton */}
-            <div className="col-span-12">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
-                {[1, 2, 3].map((i) => (
-                  <SkeletonCard key={i}>
-                    <div className="flex items-center justify-between mb-6">
-                      <SkeletonLine width="w-32" height="h-6" />
-                      <SkeletonLine width="w-16" height="h-6" />
-                    </div>
-                    <div className="space-y-4">
-                      {[1, 2, 3].map((j) => (
-                        <div key={j}>
-                          <div className="flex justify-between mb-2">
-                            <SkeletonLine width="w-20" height="h-4" />
-                            <SkeletonLine width="w-12" height="h-4" />
-                          </div>
-                          <SkeletonLine width="w-full" height="h-2" />
-                        </div>
-                      ))}
-                    </div>
-                  </SkeletonCard>
-                ))}
-              </div>
-            </div>
-
-            {/* Bottom Cards Skeleton */}
-            <div className="col-span-12">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
-                {[1, 2].map((i) => (
-                  <SkeletonCard key={i}>
-                    <SkeletonLine width="w-40" height="h-6" />
-                    <div className="mt-4 space-y-3">
-                      {[1, 2, 3, 4].map((j) => (
-                        <div key={j} className="flex items-center space-x-3">
-                          <SkeletonCircle size="w-8 h-8" />
-                          <div className="flex-1">
-                            <SkeletonLine width="w-3/4" height="h-4" />
-                            <SkeletonLine width="w-1/2" height="h-3" />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </SkeletonCard>
-                ))}
-              </div>
-            </div>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="w-8 h-8 bg-blue-500 rounded-full animate-pulse"></div>
           </div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+            Loading Dashboard
+          </h3>
         </div>
-      </>
+      </div>
     );
   }
 
@@ -530,14 +473,7 @@ const DashboardTimAkademik: React.FC = () => {
           </h3>
           <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
           <button
-            onClick={() =>
-              fetchDashboardData(
-                activeAttendanceSemester,
-                activeAssessmentSemester,
-                activeScheduleSemester,
-                true
-              )
-            }
+            onClick={() => window.location.reload()}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
           >
             Coba Lagi
@@ -775,24 +711,20 @@ const DashboardTimAkademik: React.FC = () => {
 
                   {/* Semester Tabs - Improved Design */}
                   <div className="flex bg-gray-50 dark:bg-gray-800/50 rounded-xl p-1 relative">
-                    {isTabLoading && (
+                    {attendanceLoading && (
                       <div className="absolute inset-0 bg-white/50 dark:bg-gray-800/50 rounded-xl flex items-center justify-center z-10">
-                        <div className="flex space-x-2">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                          <div
-                            className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"
-                            style={{ animationDelay: "0.2s" }}
-                          ></div>
-                          <div
-                            className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"
-                            style={{ animationDelay: "0.4s" }}
-                          ></div>
+                        <div className="flex w-full px-1 gap-1">
+                          <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse w-1/2"></div>
+                          <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse w-1/2" style={{ animationDelay: "0.1s" }}></div>
                         </div>
                       </div>
                     )}
                     <button
-                      onClick={() => setActiveAttendanceSemester("reguler")}
-                      disabled={isTabLoading}
+                      onClick={() => {
+                        setActiveAttendanceSemester("reguler");
+                        fetchAttendanceData("reguler");
+                      }}
+                      disabled={attendanceLoading}
                       className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none disabled:opacity-50 ${
                         activeAttendanceSemester === "reguler"
                           ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm"
@@ -802,8 +734,11 @@ const DashboardTimAkademik: React.FC = () => {
                       Reguler
                     </button>
                     <button
-                      onClick={() => setActiveAttendanceSemester("antara")}
-                      disabled={isTabLoading}
+                      onClick={() => {
+                        setActiveAttendanceSemester("antara");
+                        fetchAttendanceData("antara");
+                      }}
+                      disabled={attendanceLoading}
                       className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none disabled:opacity-50 ${
                         activeAttendanceSemester === "antara"
                           ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm"
@@ -816,133 +751,162 @@ const DashboardTimAkademik: React.FC = () => {
                 </div>
 
                 <div className="space-y-3">
-                  <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Keseluruhan
-                      </span>
-                      <span
-                        className={`font-bold text-lg ${getAttendanceColor(
-                          stats.attendanceStats.overall_rate
-                        )}`}
-                      >
-                        {stats.attendanceStats.overall_rate}%
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
-                      <div
-                        className={`h-2 rounded-full transition-all duration-500 ${
-                          stats.attendanceStats.overall_rate >= 80
-                            ? "bg-green-500"
-                            : stats.attendanceStats.overall_rate >= 60
-                            ? "bg-yellow-500"
-                            : "bg-red-500"
-                        }`}
-                        style={{
-                          width: `${Math.min(
-                            stats.attendanceStats.overall_rate,
-                            100
-                          )}%`,
-                        }}
-                      ></div>
-                    </div>
-                  </div>
+                  {attendanceLoading ? (
+                    // Skeleton Loading untuk Statistik Kehadiran
+                    <>
+                      <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                        <div className="flex justify-between items-center">
+                          <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                          <div className="h-6 w-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2"></div>
+                      </div>
+                      <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                        <div className="flex justify-between items-center">
+                          <div className="h-4 w-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                          <div className="h-6 w-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2"></div>
+                      </div>
+                      <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                        <div className="flex justify-between items-center">
+                          <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                          <div className="h-6 w-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2"></div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Keseluruhan
+                          </span>
+                          <span
+                            className={`font-bold text-lg ${getAttendanceColor(
+                              stats.attendanceStats.overall_rate
+                            )}`}
+                          >
+                            {stats.attendanceStats.overall_rate}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
+                          <div
+                            className={`h-2 rounded-full transition-all duration-500 ${
+                              stats.attendanceStats.overall_rate >= 80
+                                ? "bg-green-500"
+                                : stats.attendanceStats.overall_rate >= 60
+                                ? "bg-yellow-500"
+                                : "bg-red-500"
+                            }`}
+                            style={{
+                              width: `${Math.min(
+                                stats.attendanceStats.overall_rate,
+                                100
+                              )}%`,
+                            }}
+                          ></div>
+                        </div>
+                      </div>
 
-                  <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        PBL
-                      </span>
-                      <span
-                        className={`font-bold text-lg ${getAttendanceColor(
-                          stats.attendanceStats.pbl_rate
-                        )}`}
-                      >
-                        {stats.attendanceStats.pbl_rate}%
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
-                      <div
-                        className={`h-2 rounded-full transition-all duration-500 ${
-                          stats.attendanceStats.pbl_rate >= 80
-                            ? "bg-green-500"
-                            : stats.attendanceStats.pbl_rate >= 60
-                            ? "bg-yellow-500"
-                            : "bg-red-500"
-                        }`}
-                        style={{
-                          width: `${Math.min(
-                            stats.attendanceStats.pbl_rate,
-                            100
-                          )}%`,
-                        }}
-                      ></div>
-                    </div>
-                  </div>
+                      <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            PBL
+                          </span>
+                          <span
+                            className={`font-bold text-lg ${getAttendanceColor(
+                              stats.attendanceStats.pbl_rate
+                            )}`}
+                          >
+                            {stats.attendanceStats.pbl_rate}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
+                          <div
+                            className={`h-2 rounded-full transition-all duration-500 ${
+                              stats.attendanceStats.pbl_rate >= 80
+                                ? "bg-green-500"
+                                : stats.attendanceStats.pbl_rate >= 60
+                                ? "bg-yellow-500"
+                                : "bg-red-500"
+                            }`}
+                            style={{
+                              width: `${Math.min(
+                                stats.attendanceStats.pbl_rate,
+                                100
+                              )}%`,
+                            }}
+                          ></div>
+                        </div>
+                      </div>
 
-                  <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Journal Reading
-                      </span>
-                      <span
-                        className={`font-bold text-lg ${getAttendanceColor(
-                          stats.attendanceStats.journal_rate
-                        )}`}
-                      >
-                        {stats.attendanceStats.journal_rate}%
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
-                      <div
-                        className={`h-2 rounded-full transition-all duration-500 ${
-                          stats.attendanceStats.journal_rate >= 80
-                            ? "bg-green-500"
-                            : stats.attendanceStats.journal_rate >= 60
-                            ? "bg-yellow-500"
-                            : "bg-red-500"
-                        }`}
-                        style={{
-                          width: `${Math.min(
-                            stats.attendanceStats.journal_rate,
-                            100
-                          )}%`,
-                        }}
-                      ></div>
-                    </div>
-                  </div>
+                      <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Journal Reading
+                          </span>
+                          <span
+                            className={`font-bold text-lg ${getAttendanceColor(
+                              stats.attendanceStats.journal_rate
+                            )}`}
+                          >
+                            {stats.attendanceStats.journal_rate}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
+                          <div
+                            className={`h-2 rounded-full transition-all duration-500 ${
+                              stats.attendanceStats.journal_rate >= 80
+                                ? "bg-green-500"
+                                : stats.attendanceStats.journal_rate >= 60
+                                ? "bg-yellow-500"
+                                : "bg-red-500"
+                            }`}
+                            style={{
+                              width: `${Math.min(
+                                stats.attendanceStats.journal_rate,
+                                100
+                              )}%`,
+                            }}
+                          ></div>
+                        </div>
+                      </div>
 
-                  <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        CSR
-                      </span>
-                      <span
-                        className={`font-bold text-lg ${getAttendanceColor(
-                          stats.attendanceStats.csr_rate
-                        )}`}
-                      >
-                        {stats.attendanceStats.csr_rate}%
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
-                      <div
-                        className={`h-2 rounded-full transition-all duration-500 ${
-                          stats.attendanceStats.csr_rate >= 80
-                            ? "bg-green-500"
-                            : stats.attendanceStats.csr_rate >= 60
-                            ? "bg-yellow-500"
-                            : "bg-red-500"
-                        }`}
-                        style={{
-                          width: `${Math.min(
-                            stats.attendanceStats.csr_rate,
-                            100
-                          )}%`,
-                        }}
-                      ></div>
-                    </div>
-                  </div>
+                      <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg transition-all duration-300 hover:scale-[1.02]">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            CSR
+                          </span>
+                          <span
+                            className={`font-bold text-lg ${getAttendanceColor(
+                              stats.attendanceStats.csr_rate
+                            )}`}
+                          >
+                            {stats.attendanceStats.csr_rate}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
+                          <div
+                            className={`h-2 rounded-full transition-all duration-500 ${
+                              stats.attendanceStats.csr_rate >= 80
+                                ? "bg-green-500"
+                                : stats.attendanceStats.csr_rate >= 60
+                                ? "bg-yellow-500"
+                                : "bg-red-500"
+                            }`}
+                            style={{
+                              width: `${Math.min(
+                                stats.attendanceStats.csr_rate,
+                                100
+                              )}%`,
+                            }}
+                          ></div>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -963,24 +927,20 @@ const DashboardTimAkademik: React.FC = () => {
 
                   {/* Semester Tabs - Improved Design */}
                   <div className="flex bg-gray-50 dark:bg-gray-800/50 rounded-xl p-1 relative">
-                    {isTabLoading && (
+                    {assessmentLoading && (
                       <div className="absolute inset-0 bg-white/50 dark:bg-gray-800/50 rounded-xl flex items-center justify-center z-10">
-                        <div className="flex space-x-2">
-                          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                          <div
-                            className="w-2 h-2 bg-green-500 rounded-full animate-pulse"
-                            style={{ animationDelay: "0.2s" }}
-                          ></div>
-                          <div
-                            className="w-2 h-2 bg-green-500 rounded-full animate-pulse"
-                            style={{ animationDelay: "0.4s" }}
-                          ></div>
+                        <div className="flex w-full px-1 gap-1">
+                          <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse w-1/2"></div>
+                          <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse w-1/2" style={{ animationDelay: "0.1s" }}></div>
                         </div>
                       </div>
                     )}
                     <button
-                      onClick={() => setActiveAssessmentSemester("reguler")}
-                      disabled={isTabLoading}
+                      onClick={() => {
+                        setActiveAssessmentSemester("reguler");
+                        fetchAssessmentData("reguler");
+                      }}
+                      disabled={assessmentLoading}
                       className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none disabled:opacity-50 ${
                         activeAssessmentSemester === "reguler"
                           ? "bg-white dark:bg-gray-700 text-green-600 dark:text-green-400 shadow-sm"
@@ -990,8 +950,11 @@ const DashboardTimAkademik: React.FC = () => {
                       Reguler
                     </button>
                     <button
-                      onClick={() => setActiveAssessmentSemester("antara")}
-                      disabled={isTabLoading}
+                      onClick={() => {
+                        setActiveAssessmentSemester("antara");
+                        fetchAssessmentData("antara");
+                      }}
+                      disabled={assessmentLoading}
                       className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none disabled:opacity-50 ${
                         activeAssessmentSemester === "antara"
                           ? "bg-white dark:bg-gray-700 text-green-600 dark:text-green-400 shadow-sm"
@@ -1105,24 +1068,20 @@ const DashboardTimAkademik: React.FC = () => {
 
                   {/* Semester Tabs - Improved Design */}
                   <div className="flex bg-gray-50 dark:bg-gray-800/50 rounded-xl p-1 relative">
-                    {isTabLoading && (
+                    {scheduleLoading && (
                       <div className="absolute inset-0 bg-white/50 dark:bg-gray-800/50 rounded-xl flex items-center justify-center z-10">
-                        <div className="flex space-x-2">
-                          <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
-                          <div
-                            className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"
-                            style={{ animationDelay: "0.2s" }}
-                          ></div>
-                          <div
-                            className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"
-                            style={{ animationDelay: "0.4s" }}
-                          ></div>
+                        <div className="flex w-full px-1 gap-1">
+                          <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse w-1/2"></div>
+                          <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse w-1/2" style={{ animationDelay: "0.1s" }}></div>
                         </div>
                       </div>
                     )}
                     <button
-                      onClick={() => setActiveScheduleSemester("reguler")}
-                      disabled={isTabLoading}
+                      onClick={() => {
+                        setActiveScheduleSemester("reguler");
+                        fetchScheduleData("reguler");
+                      }}
+                      disabled={scheduleLoading}
                       className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none disabled:opacity-50 ${
                         activeScheduleSemester === "reguler"
                           ? "bg-white dark:bg-gray-700 text-purple-600 dark:text-purple-400 shadow-sm"
@@ -1132,8 +1091,11 @@ const DashboardTimAkademik: React.FC = () => {
                       Reguler
                     </button>
                     <button
-                      onClick={() => setActiveScheduleSemester("antara")}
-                      disabled={isTabLoading}
+                      onClick={() => {
+                        setActiveScheduleSemester("antara");
+                        fetchScheduleData("antara");
+                      }}
+                      disabled={scheduleLoading}
                       className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 focus:outline-none disabled:opacity-50 ${
                         activeScheduleSemester === "antara"
                           ? "bg-white dark:bg-gray-700 text-purple-600 dark:text-purple-400 shadow-sm"

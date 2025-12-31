@@ -156,6 +156,7 @@ class SystemBackupController extends Controller
             $type = $request->input('type', 'full');
             $filename = $file->getClientOriginalName();
             $extension = strtolower($file->getClientOriginalExtension());
+            $fileSize = $file->getSize(); // Store file size early
             
             // Accept common backup file extensions
             $allowedExtensions = ['sql', 'zip', 'txt', 'bak'];
@@ -345,29 +346,29 @@ class SystemBackupController extends Controller
                     $this->restoreStorageFilesFromZip($fullPath, $extractPath);
                 }
 
-                // Clean up temporary files
-                File::delete($fullPath);
-                if (isset($extractPath)) {
-                    File::deleteDirectory($extractPath);
-                }
-
                 // Prepare response message
                 $message = 'Database restored successfully!';
                 if ($correctedType !== $type) {
                     $message .= " Import type was auto-corrected from '{$type}' to '{$correctedType}' based on file content.";
                 }
                 
-                // Log import activity
+                // Log import activity (before file deletion)
                 activity()
                     ->withProperties([
-                        'filename' => $backupFile->getClientOriginalName(),
+                        'filename' => $file->getClientOriginalName(),
                         'backup_type' => $correctedType,
                         'original_requested_type' => $type,
                         'detected_file_type' => $detectedType,
                         'pre_import_backup' => basename($preImportBackup),
-                        'file_size' => $backupFile->getSize()
+                        'file_size' => $fileSize
                     ])
-                    ->log("System backup imported: {$correctedType} backup from {$backupFile->getClientOriginalName()}");
+                    ->log("System backup imported: {$correctedType} backup from {$file->getClientOriginalName()}");
+
+                // Clean up temporary files
+                File::delete($fullPath);
+                if (isset($extractPath)) {
+                    File::deleteDirectory($extractPath);
+                }
 
                 $responseData = [
                     'success' => true,

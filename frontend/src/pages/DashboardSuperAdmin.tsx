@@ -3188,14 +3188,16 @@ const DashboardSuperAdmin: React.FC = () => {
                               handleFileSelection(null);
                             }
                           }} 
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                          className={`absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 ${
+                            selectedBackupFile ? 'pointer-events-none' : ''
+                          }`}
                           id="backup-file-upload"
                         />
                         <div 
-                          className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-all duration-300 ease-in-out transform ${
+                          className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-all duration-300 ease-in-out ${
                             isDragOver 
-                                  ? "border-red-500 dark:border-red-400 bg-red-50 dark:bg-red-900/20 scale-105 shadow-lg"
-                                  : "border-gray-300 dark:border-gray-600 hover:border-red-500 dark:hover:border-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 bg-gray-50 dark:bg-gray-800 hover:scale-102"
+                                  ? "border-red-500 dark:border-red-400 bg-red-50 dark:bg-red-900/20 shadow-lg"
+                                  : "border-gray-300 dark:border-gray-600 hover:border-red-500 dark:hover:border-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 bg-gray-50 dark:bg-gray-800"
                           }`}
                           onDragOver={(e) => {
                             e.preventDefault();
@@ -3281,6 +3283,10 @@ const DashboardSuperAdmin: React.FC = () => {
                                       e.preventDefault();
                                       e.stopPropagation();
                                       handleFileSelection(null);
+                                      const fileInput = document.getElementById('backup-file-upload') as HTMLInputElement;
+                                      if (fileInput) {
+                                        fileInput.value = '';
+                                      }
                                     }}
                                     className="flex-shrink-0 p-1 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors duration-200"
                                   >
