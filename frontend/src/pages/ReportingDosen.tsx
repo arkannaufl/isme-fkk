@@ -12,6 +12,7 @@ import {
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import ExcelJS from "exceljs";
+import { addWatermarkToAllPages } from "../utils/watermarkHelper";
 
 // Extend jsPDF type to include autoTable
 declare module "jspdf" {
@@ -620,6 +621,9 @@ const ReportingDosen: React.FC = () => {
         doc.setFont("helvetica", "normal");
         doc.text("Tidak ada data dosen untuk Blok 1", 20, 50);
       }
+      
+      // Add watermark using centralized helper
+      addWatermarkToAllPages(doc);
       
       // Save the PDF
       const filename = `laporan-kinerja-dosen-${new Date().toISOString().split('T')[0]}.pdf`;

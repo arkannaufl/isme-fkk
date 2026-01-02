@@ -17,6 +17,7 @@ import {
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { addWatermarkToAllPages } from "../../utils/watermarkHelper";
 
 interface IKDPedoman {
   id: number;
@@ -911,6 +912,9 @@ const RekapIKDDetail: React.FC = () => {
 
       // Generate filename and download
       const now = new Date();
+      // Add watermark using centralized helper
+      addWatermarkToAllPages(doc);
+
       const timestamp = now.toISOString().slice(0, 19).replace(/:/g, "-");
       const fileName = `Rekap_IKD_Detail_${
         userInfo?.name || "User"

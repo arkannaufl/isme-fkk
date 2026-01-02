@@ -8,7 +8,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { QRCodeSVG as QRCode } from 'qrcode.react';
 import { UserIcon } from '../icons';
 import ExcelJS from 'exceljs';
-import jsPDF from 'jspdf';
+import jsPDF from "jspdf";
+import { addWatermarkToAllPages } from "../utils/watermarkHelper";
 import autoTable from 'jspdf-autotable';
 import { saveAs } from 'file-saver';
 
@@ -1435,92 +1436,13 @@ export default function DosenAbsensiKuliahBesarAntaraPage() {
         );
       }
 
-      // Buat watermark menggunakan canvas dengan resolusi tinggi
-      const createWatermark = (): string => {
-        const canvas = document.createElement('canvas');
-        let ctx = canvas.getContext('2d');
-        if (!ctx) return '';
-        
-        // Scale factor untuk resolusi tinggi (2x atau 3x untuk kualitas lebih baik)
-        const scale = 3; // Meningkatkan resolusi 3x untuk hasil yang lebih halus
-        
-        // Set style untuk watermark terlebih dahulu untuk mengukur teks
-        const baseFontSize = 60;
-        ctx.font = `bold ${baseFontSize}px Times New Roman`;
-        const text = 'FKK UMJ';
-        const textMetrics = ctx.measureText(text);
-        const textWidth = textMetrics.width;
-        const textHeight = baseFontSize;
-        
-        // Hitung ukuran canvas yang cukup besar untuk rotasi 45 derajat
-        // Diagonal dari kotak yang dirotasi = sqrt(width^2 + height^2)
-        const padding = 40; // Padding tambahan untuk menghindari terpotong
-        const diagonal = Math.sqrt(textWidth * textWidth + textHeight * textHeight);
-        const baseCanvasSize = Math.ceil(diagonal) + padding * 2;
-        
-        // Set ukuran canvas dengan scale tinggi untuk resolusi lebih baik
-        canvas.width = baseCanvasSize * scale;
-        canvas.height = baseCanvasSize * scale;
-        
-        // Reset context setelah resize canvas
-        ctx = canvas.getContext('2d');
-        if (!ctx) return '';
-        
-        // Scale context untuk menjaga proporsi
-        ctx.scale(scale, scale);
-        
-        // Set style untuk watermark dengan font size yang sesuai
-        ctx.fillStyle = 'rgba(200, 200, 200, 0.3)'; // Abu-abu terang dengan opacity rendah
-        ctx.font = `bold ${baseFontSize}px Times New Roman`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        
-        // Rotasi 45 derajat
-        ctx.save();
-        ctx.translate(baseCanvasSize / 2, baseCanvasSize / 2);
-        ctx.rotate(-45 * Math.PI / 180);
-        
-        // Tambahkan teks watermark
-        ctx.fillText(text, 0, 0);
-        
-        ctx.restore();
-        
-        return canvas.toDataURL('image/png');
-      };
+      // Add watermark using centralized helper
+      addWatermarkToAllPages(doc);
 
-      const watermarkDataUrl = createWatermark();
-
-      // Footer halaman dan Watermark
+      // Footer halaman
       const totalPages = (doc as any).internal.pages.length;
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
-        
-        // Tambahkan watermark di setiap halaman
-        if (watermarkDataUrl) {
-          const pageWidth = doc.internal.pageSize.width;
-          const pageHeight = doc.internal.pageSize.height;
-          const centerX = pageWidth / 2;
-          const centerY = pageHeight / 2;
-          
-          // Tambahkan watermark sebagai gambar di tengah halaman
-          // Ukuran watermark disesuaikan agar cukup besar dan tidak terpotong
-          try {
-            const watermarkWidth = 250;  // Width lebih besar
-            const watermarkHeight = 250;  // Height lebih besar (persegi)
-            doc.addImage(
-              watermarkDataUrl,
-              'PNG',
-              centerX - watermarkWidth / 2, // Offset untuk posisi tengah
-              centerY - watermarkHeight / 2, // Offset untuk posisi tengah
-              watermarkWidth,
-              watermarkHeight,
-              undefined,
-              'FAST'
-            );
-          } catch (error) {
-            console.error('Error adding watermark:', error);
-          }
-        }
         
         // Footer
         doc.setFontSize(8);

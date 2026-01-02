@@ -17,6 +17,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import api, { handleApiError } from "../utils/api";
 import jsPDF from "jspdf";
+import { addWatermarkToAllPages } from "../utils/watermarkHelper";
 
 interface MahasiswaKeabsenan {
   id: number;
@@ -617,6 +618,9 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
         { align: "right" }
       );
 
+      // Add watermark using centralized helper
+      addWatermarkToAllPages(doc);
+
       // Simpan PDF
       const fileName = `Laporan_Kehadiran_${mahasiswaData.nama.replace(
         /\s+/g,
@@ -799,14 +803,14 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
         {/* Informasi Mahasiswa */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-8">
           <div className="flex items-center gap-4 mb-6">
-            <div className="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center">
-              <FontAwesomeIcon icon={faUser} className="w-8 h-8 text-white" />
+            <div className="w-12 h-12 bg-blue-500 rounded-2xl flex items-center justify-center">
+              <FontAwesomeIcon icon={faUser} className="w-6 h-6 text-white" />
               </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">
                   {mahasiswaData.nama}
                 </h2>
-              <p className="text-gray-600 dark:text-gray-400">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 {mahasiswaData.nid} • Semester {mahasiswaData.semester}
               </p>
             </div>
@@ -815,7 +819,7 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="space-y-2">
               <p className="text-sm text-gray-500 dark:text-gray-400">Email</p>
-              <p className="text-gray-900 dark:text-white font-medium">
+              <p className="text-sm text-gray-900 dark:text-white font-medium">
                   {mahasiswaData.email}
                 </p>
               </div>
@@ -823,7 +827,7 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Telepon
               </p>
-              <p className="text-gray-900 dark:text-white font-medium">
+              <p className="text-sm text-gray-900 dark:text-white font-medium">
                   {mahasiswaData.telp}
                 </p>
               </div>
@@ -831,7 +835,7 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Kelompok Kecil
               </p>
-              <p className="text-gray-900 dark:text-white font-medium">
+              <p className="text-sm text-gray-900 dark:text-white font-medium">
                   {mahasiswaData.kelompok_kecil || "-"}
                 </p>
               </div>
@@ -839,7 +843,7 @@ const DetailMahasiswaKeabsenan: React.FC = () => {
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Kelompok Besar
               </p>
-              <p className="text-gray-900 dark:text-white font-medium">
+              <p className="text-sm text-gray-900 dark:text-white font-medium">
                   Semester {mahasiswaData.semester}
                 </p>
             </div>

@@ -21,6 +21,7 @@ import {
 import api, { getUser } from "../utils/api";
 import PageMeta from "../components/common/PageMeta";
 import jsPDF from "jspdf";
+import { addWatermarkToAllPages } from "../utils/watermarkHelper";
 
 interface JadwalDetail {
   id: number;
@@ -588,68 +589,6 @@ const PenilaianSeminarProposal = () => {
     }
   };
 
-  // Load watermark logo
-  const loadWatermarkLogo = async (): Promise<{
-    dataUrl: string;
-    aspectRatio: number;
-  }> => {
-    try {
-      const response = await fetch("/images/logo/logo-isme-light.svg");
-      if (!response.ok) {
-        throw new Error("Watermark logo tidak ditemukan");
-      }
-      const svgText = await response.text();
-
-      // Convert SVG to canvas then to data URL
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => {
-          // Hitung aspect ratio dari gambar asli
-          const aspectRatio = img.width / img.height;
-
-          // Tentukan ukuran maksimum untuk watermark (diperbesar untuk HD)
-          const maxSize = 600; // Diperbesar dari 200 ke 600 untuk kualitas lebih tinggi
-          let canvasWidth: number;
-          let canvasHeight: number;
-
-          // Pertahankan aspect ratio
-          if (img.width > img.height) {
-            canvasWidth = maxSize;
-            canvasHeight = maxSize / aspectRatio;
-          } else {
-            canvasHeight = maxSize;
-            canvasWidth = maxSize * aspectRatio;
-          }
-
-          const canvas = document.createElement("canvas");
-          const ctx = canvas.getContext("2d");
-          // Set canvas size dengan scale factor untuk HD
-          const scaleFactor = 2; // 2x untuk retina/HD quality
-          canvas.width = canvasWidth * scaleFactor;
-          canvas.height = canvasHeight * scaleFactor;
-
-          if (ctx) {
-            // Scale context untuk HD rendering
-            ctx.scale(scaleFactor, scaleFactor);
-            // Set opacity untuk watermark
-            ctx.globalAlpha = 0.1;
-            ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
-            resolve({
-              dataUrl: canvas.toDataURL("image/png"),
-              aspectRatio: aspectRatio,
-            });
-          } else {
-            resolve({ dataUrl: "", aspectRatio: 1 });
-          }
-        };
-        img.onerror = () => resolve({ dataUrl: "", aspectRatio: 1 });
-        img.src = "data:image/svg+xml;base64," + btoa(svgText);
-      });
-    } catch (error) {
-      return { dataUrl: "", aspectRatio: 1 };
-    }
-  };
-
   // Generate Berita Acara PDF menggunakan jsPDF (3 halaman)
   const generateBeritaAcaraPDF = async () => {
     try {
@@ -700,12 +639,6 @@ const PenilaianSeminarProposal = () => {
         });
       }
 
-
-      // Load watermark logo
-      const watermarkLogo = await loadWatermarkLogo();
-      const watermarkLogoDataUrl = watermarkLogo.dataUrl;
-      const watermarkAspectRatio = watermarkLogo.aspectRatio;
-
       const doc = new jsPDF();
       const margin = 20;
       let yPos = margin;
@@ -714,46 +647,8 @@ const PenilaianSeminarProposal = () => {
 
       const bulanList = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 
-      // Helper function untuk menambahkan watermark di setiap halaman
-      const addWatermarkToPage = () => {
-        if (watermarkLogoDataUrl) {
-          try {
-            // Hitung ukuran watermark (diperbesar untuk HD)
-            const maxWatermarkSize = 150; // Diperbesar dari 90 ke 150 untuk HD
-            let watermarkWidth: number;
-            let watermarkHeight: number;
-
-            if (watermarkAspectRatio > 1) {
-              watermarkWidth = maxWatermarkSize;
-              watermarkHeight = maxWatermarkSize / watermarkAspectRatio;
-            } else {
-              watermarkHeight = maxWatermarkSize;
-              watermarkWidth = maxWatermarkSize * watermarkAspectRatio;
-            }
-
-            // Posisi di tengah halaman
-            const xPos = (pageWidth - watermarkWidth) / 2;
-            const yPos = (pageHeight - watermarkHeight) / 2;
-
-            // Tambahkan 3 watermark (satu di tengah, dua di samping untuk efek yang lebih baik)
-            doc.addImage(
-              watermarkLogoDataUrl,
-              "PNG",
-              xPos,
-              yPos,
-              watermarkWidth,
-              watermarkHeight,
-              undefined,
-              "SLOW" // Mode SLOW untuk kualitas lebih tinggi
-            );
-          } catch (error) {
-            // Error adding watermark - silent fail
-          }
-        }
-      };
-
-      // Tambahkan watermark di halaman pertama
-      addWatermarkToPage();
+      // Add watermark using centralized helper
+      addWatermarkToAllPages(doc);
 
       // Helper functions
       const addText = (text: string, x: number, y: number, options?: { align?: "center" | "left" | "right" }) => {
@@ -880,7 +775,6 @@ const PenilaianSeminarProposal = () => {
         if (yPos + lineHeight > maxYPos) {
           // Tidak muat, pindah ke halaman baru
           doc.addPage();
-          addWatermarkToPage();
           yPos = margin;
         }
         
@@ -901,7 +795,6 @@ const PenilaianSeminarProposal = () => {
       // Hanya pindah jika ruang yang tersedia kurang dari yang dibutuhkan
       if (availableSpace < spaceNeededForSignatures) {
         doc.addPage();
-        addWatermarkToPage();
         yPos = margin;
       }
     
@@ -1011,7 +904,6 @@ const PenilaianSeminarProposal = () => {
     if (pengujiList.length === 0) {
       // Jika tidak ada penguji, buat satu halaman kosong
       doc.addPage();
-      addWatermarkToPage();
       yPos = margin;
       doc.setFontSize(14);
       doc.setFont("times", "bold");
@@ -1022,7 +914,6 @@ const PenilaianSeminarProposal = () => {
     }
     pengujiList.forEach((pengujiNilai) => {
       doc.addPage();
-      addWatermarkToPage();
       yPos = margin;
 
       doc.setFontSize(14);
@@ -1163,7 +1054,6 @@ const PenilaianSeminarProposal = () => {
           if (yPos + lineHeight > maxYPos) {
             // Tidak muat, pindah ke halaman baru
             doc.addPage();
-            addWatermarkToPage();
             yPos = margin;
           }
           
@@ -1192,7 +1082,6 @@ const PenilaianSeminarProposal = () => {
       if (availableSpace < spaceNeededForSignature) {
         // Tidak muat, buat halaman baru
         doc.addPage();
-        addWatermarkToPage();
         yPos = margin;
       }
 
@@ -1228,7 +1117,6 @@ const PenilaianSeminarProposal = () => {
 
     // ========== HALAMAN 3: NILAI SEMINAR PROPOSAL ==========
     doc.addPage();
-    addWatermarkToPage();
     yPos = margin;
 
     doc.setFontSize(14);

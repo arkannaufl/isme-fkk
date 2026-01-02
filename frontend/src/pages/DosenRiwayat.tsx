@@ -18,6 +18,7 @@ import {
 import { motion } from "framer-motion";
 import api from "../utils/api";
 import jsPDF from "jspdf";
+import { addWatermarkToAllPages } from "../utils/watermarkHelper";
 
 type UserDosen = {
   id?: number;
@@ -844,69 +845,7 @@ export default function DosenRiwayat() {
         }
       };
 
-      // LOAD WATERMARK LOGO
-      const loadWatermarkLogo = async (): Promise<{
-        dataUrl: string;
-        aspectRatio: number;
-      }> => {
-        try {
-          const response = await fetch("/images/logo/logo-isme-light.svg");
-          if (!response.ok) {
-            throw new Error("Watermark logo tidak ditemukan");
-          }
-          const svgText = await response.text();
-
-          // Convert SVG to canvas then to data URL
-          return new Promise((resolve) => {
-            const img = new Image();
-            img.onload = () => {
-              // Hitung aspect ratio dari gambar asli
-              const aspectRatio = img.width / img.height;
-
-              // Tentukan ukuran maksimum untuk watermark
-              const maxSize = 200;
-              let canvasWidth: number;
-              let canvasHeight: number;
-
-              // Pertahankan aspect ratio
-              if (img.width > img.height) {
-                canvasWidth = maxSize;
-                canvasHeight = maxSize / aspectRatio;
-              } else {
-                canvasHeight = maxSize;
-                canvasWidth = maxSize * aspectRatio;
-              }
-
-              const canvas = document.createElement("canvas");
-              const ctx = canvas.getContext("2d");
-              canvas.width = canvasWidth;
-              canvas.height = canvasHeight;
-
-              if (ctx) {
-                // Set opacity untuk watermark
-                ctx.globalAlpha = 0.1;
-                ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
-                resolve({
-                  dataUrl: canvas.toDataURL("image/png"),
-                  aspectRatio: aspectRatio,
-                });
-              } else {
-                resolve({ dataUrl: "", aspectRatio: 1 });
-              }
-            };
-            img.onerror = () => resolve({ dataUrl: "", aspectRatio: 1 });
-            img.src = "data:image/svg+xml;base64," + btoa(svgText);
-          });
-        } catch (error) {
-          console.error("Error loading watermark logo:", error);
-          return { dataUrl: "", aspectRatio: 1 };
-        }
-      };
-
       const logoDataUrl = await loadLogo();
-      const watermarkLogo = await loadWatermarkLogo();
-      const watermarkLogoDataUrl = watermarkLogo.dataUrl;
-      const watermarkAspectRatio = watermarkLogo.aspectRatio;
 
       // HEADER UNIVERSITAS DENGAN LOGO
       if (logoDataUrl) {
@@ -1537,92 +1476,15 @@ export default function DosenRiwayat() {
 
           // CSR breakdown dihapus - hanya tampilkan satu baris CSR saja
         });
-
-        // Tabel selesai tanpa garis vertikal
-        yPos += 15; // Jarak antar tabel blok
       }
 
-      // Footer halaman dan Watermark
+      // Add watermark using centralized helper
+      addWatermarkToAllPages(doc);
+
+      // Footer halaman
       const totalPages = doc.internal.pages.length;
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
-
-        // Tambahkan 3 watermark logo di setiap halaman (semua rata tengah)
-        if (watermarkLogoDataUrl) {
-          try {
-            const pageWidth = doc.internal.pageSize.width;
-            const pageHeight = doc.internal.pageSize.height;
-            const maxWatermarkSize = 90; // Ukuran maksimum watermark (diperkecil)
-
-            // Hitung ukuran watermark dengan mempertahankan aspect ratio
-            let watermarkWidth: number;
-            let watermarkHeight: number;
-
-            if (watermarkAspectRatio >= 1) {
-              // Lebar lebih besar atau sama dengan tinggi
-              watermarkWidth = maxWatermarkSize;
-              watermarkHeight = maxWatermarkSize / watermarkAspectRatio;
-            } else {
-              // Tinggi lebih besar dari lebar
-              watermarkHeight = maxWatermarkSize;
-              watermarkWidth = maxWatermarkSize * watermarkAspectRatio;
-            }
-
-            // Semua watermark rata tengah horizontal
-            const watermarkX = (pageWidth - watermarkWidth) / 2;
-
-            // Jarak antar watermark (lebih dekat)
-            const spacing = watermarkHeight + 10; // Jarak antar watermark (diperkecil dari 20 ke 10)
-
-            // Hitung posisi vertikal untuk 3 watermark yang rata tengah
-            const totalHeight = watermarkHeight * 3 + spacing * 2; // Total tinggi 3 watermark + 2 spacing
-            const startY = (pageHeight - totalHeight) / 2; // Mulai dari tengah dikurangi setengah total tinggi
-
-            // Watermark 1: Paling atas
-            const watermarkY1 = startY;
-            doc.addImage(
-              watermarkLogoDataUrl,
-              "PNG",
-              watermarkX,
-              watermarkY1,
-              watermarkWidth,
-              watermarkHeight,
-              undefined,
-              "FAST",
-              0
-            );
-
-            // Watermark 2: Tengah
-            const watermarkY2 = startY + watermarkHeight + spacing;
-            doc.addImage(
-              watermarkLogoDataUrl,
-              "PNG",
-              watermarkX,
-              watermarkY2,
-              watermarkWidth,
-              watermarkHeight,
-              undefined,
-              "FAST",
-              0
-            );
-
-            // Watermark 3: Paling bawah
-            const watermarkY3 = startY + (watermarkHeight + spacing) * 2;
-            doc.addImage(
-              watermarkLogoDataUrl,
-              "PNG",
-              watermarkX,
-              watermarkY3,
-              watermarkWidth,
-              watermarkHeight,
-              undefined,
-              "FAST",
-              0
-            );
-          } catch (watermarkError) {
-            console.error("Error adding watermark to PDF:", watermarkError);
-          }
-        }
 
         doc.setFontSize(8);
         doc.setFont("times", "normal");

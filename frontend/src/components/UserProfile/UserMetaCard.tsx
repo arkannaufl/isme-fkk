@@ -11,8 +11,10 @@ export default function UserMetaCard() {
 
   useEffect(() => {
     const updateUser = () => {
-      const userData = JSON.parse(localStorage.getItem("user") || "{}");
-      setUser(userData);
+      const userData = JSON.parse(localStorage.getItem("user") || "null");
+      if (userData) {
+        setUser(userData);
+      }
     };
     updateUser();
     window.addEventListener("user-updated", updateUser);
@@ -23,7 +25,7 @@ export default function UserMetaCard() {
     setIsImgError(false);
   }, [user && user.avatar]);
 
-  if (!user || typeof user !== 'object' || !('avatar' in user)) return null;
+  if (!user || typeof user !== 'object') return null;
 
   // Avatar: huruf awal nama jika tidak ada foto
   const getInitials = (name: string) => {
