@@ -22,7 +22,16 @@ class RekapIKDController extends Controller
             $user = Auth::user();
             
             // Check if user is super admin or ketua_ikd
-            if (!in_array($user->role, ['super_admin', 'ketua_ikd'])) {
+            // Check if user is allowed to view pedoman values
+            // Allow all roles that have access to Rekap IKD tabs
+            $allowedRoles = [
+                'super_admin', 'ketua_ikd', 
+                'akademik', 'tim_akademik', 
+                'dosen', 'verifikator',
+                'aik', 'meu', 'profesi', 'kemahasiswaan', 'sdm', 'upt_jurnal', 'upt_ppm'
+            ];
+            
+            if (!in_array($user->role, $allowedRoles)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Unauthorized access'
@@ -536,7 +545,7 @@ class RekapIKDController extends Controller
                 'user_id' => 'required|exists:users,id',
                 'ikd_pedoman_id' => 'required|exists:ikd_pedoman,id',
                 'unit' => 'required|string|in:Akademik,Dosen,AIK,MEU,Profesi,Kemahasiswaan,SDM,UPT Jurnal,UPT PPM',
-                'file' => 'required|file|mimes:pdf,xlsx,xls,docx,doc,ppt,pptx,jpg,jpeg,png,gif,zip,rar|max:51200', // 50MB max
+                'file' => 'required|file|mimes:pdf,xlsx,xls,xlsm,docx,doc,docm,ppt,pptx,pptm,jpg,jpeg,png,gif,zip,rar|max:51200', // 50MB max
             ]);
 
             if ($validator->fails()) {
@@ -576,9 +585,10 @@ class RekapIKDController extends Controller
             } else {
                 // Untuk unit lain (Akademik, AIK, MEU, dll):
                 // - Super admin, ketua_ikd, dan verifikator bisa upload untuk siapa saja
+                // - Unit admin (akademik, aik, meu, dll) bisa upload untuk semua dosen di unit mereka
                 // - User dengan role sesuai unit bisa upload untuk dirinya sendiri
                 
-                // Mapping role to unit (hanya role yang bisa upload)
+                // Mapping role to unit
                 $roleToUnitMapping = [
                     'akademik' => 'Akademik', // hanya role "akademik", bukan "tim_akademik"
                     'aik' => 'AIK',
@@ -591,9 +601,17 @@ class RekapIKDController extends Controller
                 ];
                 
                 // Super admin, ketua_ikd, dan verifikator bisa upload untuk semua unit (kecuali Dosen)
-                if (!in_array($user->role, ['super_admin', 'ketua_ikd', 'verifikator'])) {
-                    // User biasa hanya bisa upload untuk dirinya sendiri di unit yang sesuai
+                if (in_array($user->role, ['super_admin', 'ketua_ikd', 'verifikator'])) {
+                    // Can upload for anyone in any unit (except Dosen)
+                } else {
+                    // Check if user is unit admin
                     $userUnit = $roleToUnitMapping[$user->role] ?? null;
+                    
+                    if ($userUnit && $userUnit === $unit) {
+                        // Unit admin can upload for all users in their unit
+                        // No need to check user_id, they can upload for anyone in their unit
+                    } else {
+                        // User biasa hanya bisa upload untuk dirinya sendiri di unit yang sesuai
                     if ($userUnit !== $unit) {
                         return response()->json([
                             'success' => false,
@@ -607,6 +625,7 @@ class RekapIKDController extends Controller
                             'success' => false,
                             'message' => 'Unauthorized: Anda hanya dapat mengupload file untuk diri sendiri'
                         ], 403);
+                        }
                     }
                 }
             }
@@ -625,6 +644,7 @@ class RekapIKDController extends Controller
             
             // Always create new record (support multiple files)
             // Reset status_verifikasi to null when new file is uploaded
+            // Skor tetap null saat upload baru (belum disimpan)
             $buktiFisik = IKDBuktiFisik::create([
                 'user_id' => $requestedUserId,
                 'ikd_pedoman_id' => $ikdPedomanId,
@@ -634,6 +654,7 @@ class RekapIKDController extends Controller
                 'file_type' => $fileType,
                 'file_size' => $fileSize,
                 'status_verifikasi' => null, // Reset status saat upload baru
+                'skor' => null, // Skor null saat upload baru (belum disimpan)
             ]);
             
             return response()->json([
@@ -672,12 +693,39 @@ class RekapIKDController extends Controller
 
             $query = IKDBuktiFisik::with(['user', 'pedoman']);
             
+            // Mapping role to unit untuk admin unit
+            $roleToUnitMapping = [
+                'akademik' => 'Akademik',
+                'aik' => 'AIK',
+                'meu' => 'MEU',
+                'profesi' => 'Profesi',
+                'kemahasiswaan' => 'Kemahasiswaan',
+                'sdm' => 'SDM',
+                'upt_jurnal' => 'UPT Jurnal',
+                'upt_ppm' => 'UPT PPM',
+            ];
+            
+            // Roles yang bisa melihat semua data (tanpa filter user_id)
+            $adminRoles = ['super_admin', 'ketua_ikd', 'verifikator', 'tim_akademik'];
+            $unitAdminRoles = array_keys($roleToUnitMapping); // akademik, aik, meu, dll
+            
             // If user_id is provided, filter by user_id
-            // If not provided and user is verifikator/super_admin/ketua_ikd/tim_akademik, return all
             $requestedUserId = $request->input('user_id');
             if ($requestedUserId) {
-                // Check authorization: user can only view their own, unless super_admin/ketua_ikd/verifikator/tim_akademik
-                if (!in_array($user->role, ['super_admin', 'ketua_ikd', 'verifikator', 'tim_akademik']) && $user->id != $requestedUserId) {
+                // Check authorization: user can only view their own, unless admin role
+                $canViewAll = in_array($user->role, $adminRoles);
+                
+                // Check if user is unit admin and requesting data for their unit
+                if (!$canViewAll && in_array($user->role, $unitAdminRoles)) {
+                    $userUnit = $roleToUnitMapping[$user->role];
+                    $requestedUnit = $request->input('unit');
+                    // Unit admin can view all data in their unit
+                    if ($userUnit && $requestedUnit && $userUnit === trim($requestedUnit)) {
+                        $canViewAll = true;
+                    }
+                }
+                
+                if (!$canViewAll && $user->id != $requestedUserId) {
                     return response()->json([
                         'success' => false,
                         'message' => 'Unauthorized: Anda hanya dapat melihat file Anda sendiri'
@@ -685,10 +733,19 @@ class RekapIKDController extends Controller
                 }
                 $query->where('user_id', $requestedUserId);
             } else {
-                // If no user_id, only super_admin/ketua_ikd/verifikator/tim_akademik can see all
-                // Role dosen hanya bisa melihat data dirinya sendiri
-                if (!in_array($user->role, ['super_admin', 'ketua_ikd', 'verifikator', 'tim_akademik'])) {
-                    // For other roles (including dosen), only show their own
+                // If no user_id, check what user can see
+                $userRole = $user->role;
+                
+                // Super admin, ketua_ikd, verifikator, tim_akademik can see all
+                if (in_array($userRole, $adminRoles)) {
+                    // Can see all, no filter needed
+                } 
+                // Unit admin can see all data in their unit
+                else if (in_array($userRole, $unitAdminRoles)) {
+                    // Will filter by unit below, no user_id filter needed
+                }
+                // Dosen and other roles can only see their own data
+                else {
                     $query->where('user_id', $user->id);
                 }
             }
@@ -699,6 +756,17 @@ class RekapIKDController extends Controller
             if ($request->has('unit') && $request->input('unit')) {
                 $unit = trim($request->input('unit'));
                 if (!empty($unit)) {
+                    // For unit admin, ensure they can only access their own unit
+                    if (in_array($user->role, $unitAdminRoles)) {
+                        $userUnit = $roleToUnitMapping[$user->role] ?? null;
+                        if ($userUnit && $userUnit !== $unit) {
+                            return response()->json([
+                                'success' => false,
+                                'message' => 'Unauthorized: Anda hanya dapat mengakses data unit Anda sendiri'
+                            ], 403);
+                        }
+                    }
+                    
                     $query->where(function($q) use ($unit) {
                         $q->where('unit', $unit)
                           ->orWhereNull('unit'); // Include data lama yang belum punya unit
@@ -736,12 +804,38 @@ class RekapIKDController extends Controller
             
             $buktiFisik = IKDBuktiFisik::findOrFail($id);
             
-            // Check authorization: user can only delete their own, unless super_admin/ketua_ikd/verifikator
-            if (!in_array($user->role, ['super_admin', 'ketua_ikd', 'verifikator']) && $user->id != $buktiFisik->user_id) {
+            // Mapping role to unit untuk unit admin
+            $roleToUnitMapping = [
+                'akademik' => 'Akademik',
+                'aik' => 'AIK',
+                'meu' => 'MEU',
+                'profesi' => 'Profesi',
+                'kemahasiswaan' => 'Kemahasiswaan',
+                'sdm' => 'SDM',
+                'upt_jurnal' => 'UPT Jurnal',
+                'upt_ppm' => 'UPT PPM',
+            ];
+            
+            // Check authorization
+            // Super admin, ketua_ikd, dan verifikator bisa delete untuk siapa saja
+            if (in_array($user->role, ['super_admin', 'ketua_ikd', 'verifikator'])) {
+                // Can delete for anyone
+            } else {
+                // Check if user is unit admin
+                $userUnit = $roleToUnitMapping[$user->role] ?? null;
+                
+                if ($userUnit && $buktiFisik->unit && $userUnit === $buktiFisik->unit) {
+                    // Unit admin can delete files for all users in their unit
+                    // No need to check user_id, they can delete for anyone in their unit
+                } else {
+                    // User hanya bisa delete file mereka sendiri
+                    if ($user->id != $buktiFisik->user_id) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Unauthorized: Anda hanya dapat menghapus file Anda sendiri'
                 ], 403);
+                    }
+                }
             }
             
             // Delete file from storage
@@ -877,6 +971,111 @@ class RekapIKDController extends Controller
     }
 
     /**
+     * Mark bukti fisik as saved (set is_saved = true for all files with same user_id, ikd_pedoman_id, and unit)
+     */
+    public function markAsSaved(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            
+            $validator = Validator::make($request->all(), [
+                'user_id' => 'required|exists:users,id',
+                'ikd_pedoman_id' => 'required|exists:ikd_pedoman,id',
+                'unit' => 'nullable|string|in:Akademik,Dosen,AIK,MEU,Profesi,Kemahasiswaan,SDM,UPT Jurnal,UPT PPM',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation error',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $requestedUserId = $request->input('user_id');
+            $ikdPedomanId = $request->input('ikd_pedoman_id');
+            $unit = $request->input('unit');
+
+            // Mapping role to unit untuk unit admin
+            $roleToUnitMapping = [
+                'akademik' => 'Akademik',
+                'aik' => 'AIK',
+                'meu' => 'MEU',
+                'profesi' => 'Profesi',
+                'kemahasiswaan' => 'Kemahasiswaan',
+                'sdm' => 'SDM',
+                'upt_jurnal' => 'UPT Jurnal',
+                'upt_ppm' => 'UPT PPM',
+            ];
+
+            // Check authorization
+            // Super admin, ketua_ikd, dan verifikator bisa mark as saved untuk siapa saja
+            if (in_array($user->role, ['super_admin', 'ketua_ikd', 'verifikator'])) {
+                // Can mark as saved for anyone
+            } else {
+                // Check if user is unit admin
+                $userUnit = $roleToUnitMapping[$user->role] ?? null;
+                
+                if ($userUnit && $unit && $userUnit === $unit) {
+                    // Unit admin can mark as saved for all users in their unit
+                    // No need to check user_id, they can mark for anyone in their unit
+                } else {
+                    // User tidak memiliki akses untuk mark as saved
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Unauthorized: Anda tidak memiliki akses untuk melakukan aksi ini'
+                    ], 403);
+                }
+            }
+
+            // Update semua file dengan kombinasi user_id + ikd_pedoman_id + unit yang sama
+            $query = IKDBuktiFisik::where('user_id', $requestedUserId)
+                ->where('ikd_pedoman_id', $ikdPedomanId);
+            
+            if ($unit) {
+                $query->where(function($q) use ($unit) {
+                    $q->where('unit', $unit)->orWhereNull('unit');
+                });
+            } else {
+                $query->whereNull('unit');
+            }
+            
+            // Pastikan ada file yang akan di-update
+            $count = $query->count();
+            if ($count === 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Tidak ada file yang ditemukan untuk di-update'
+                ], 404);
+            }
+            
+            $updated = $query->update(['is_saved' => true]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Bukti fisik berhasil ditandai sebagai tersimpan',
+                'data' => ['updated_count' => $updated]
+            ]);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error marking as saved: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Error marking as saved: ' . $e->getMessage(),
+                'error' => config('app.debug') ? [
+                    'message' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine()
+                ] : null
+            ], 500);
+        }
+    }
+
+    /**
      * Update skor for bukti fisik
      */
     public function updateSkor(Request $request): JsonResponse
@@ -900,15 +1099,41 @@ class RekapIKDController extends Controller
             }
 
             // Check authorization: 
-            // - Hanya verifikator dan super_admin yang bisa update skor (untuk menilai dosen)
+            // - Super admin, ketua_ikd, dan verifikator bisa update skor untuk siapa saja
+            // - Unit admin bisa update skor untuk semua dosen di unit mereka
             // - Dosen tidak bisa update skor sendiri
             $requestedUserId = $request->input('user_id');
+            $unit = $request->input('unit');
             
-            if (!in_array($user->role, ['super_admin', 'ketua_ikd', 'verifikator'])) {
+            // Mapping role to unit untuk unit admin
+            $roleToUnitMapping = [
+                'akademik' => 'Akademik',
+                'aik' => 'AIK',
+                'meu' => 'MEU',
+                'profesi' => 'Profesi',
+                'kemahasiswaan' => 'Kemahasiswaan',
+                'sdm' => 'SDM',
+                'upt_jurnal' => 'UPT Jurnal',
+                'upt_ppm' => 'UPT PPM',
+            ];
+            
+            // Super admin, ketua_ikd, dan verifikator bisa update skor untuk siapa saja
+            if (in_array($user->role, ['super_admin', 'ketua_ikd', 'verifikator'])) {
+                // Can update skor for anyone
+            } else {
+                // Check if user is unit admin
+                $userUnit = $roleToUnitMapping[$user->role] ?? null;
+                
+                if ($userUnit && $unit && $userUnit === $unit) {
+                    // Unit admin can update skor for all users in their unit
+                    // No need to check user_id, they can update for anyone in their unit
+                } else {
+                    // User tidak memiliki akses untuk update skor
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unauthorized: Hanya verifikator dan super admin yang dapat memberikan skor'
+                        'message' => 'Unauthorized: Anda tidak memiliki akses untuk memberikan skor'
                 ], 403);
+                }
             }
 
             $ikdPedomanId = $request->input('ikd_pedoman_id');
@@ -932,17 +1157,28 @@ class RekapIKDController extends Controller
             $buktiFisik = $query->first();
 
             if ($buktiFisik) {
-                // Update existing record
-                // Jika unit disediakan dan record belum punya unit, update unit juga
+                // Update SEMUA file dengan kombinasi user_id + ikd_pedoman_id + unit yang sama
+                // Ini untuk memastikan semua file memiliki skor yang sama
                 $updateData = [
                     'skor' => $skor ? (float)$skor : null,
+                    'admin_id' => $user->id,
                 ];
                 
                 if ($unit && !$buktiFisik->unit) {
                     $updateData['unit'] = $unit;
                 }
                 
-                $buktiFisik->update($updateData);
+                // Update semua file sekaligus
+                IKDBuktiFisik::where('user_id', $requestedUserId)
+                    ->where('ikd_pedoman_id', $ikdPedomanId)
+                    ->where(function($q) use ($unit) {
+                        if ($unit) {
+                            $q->where('unit', $unit)->orWhereNull('unit');
+                        } else {
+                            $q->whereNull('unit');
+                        }
+                    })
+                    ->update($updateData);
             } else {
                 // Create new record with only skor (no file)
                 // Hanya create jika ada unit (untuk mencegah duplikasi)
@@ -954,6 +1190,7 @@ class RekapIKDController extends Controller
                         'file_path' => '', // Empty for now
                         'file_name' => '', // Empty for now
                         'skor' => $skor ? (float)$skor : null,
+                        'admin_id' => $user->id,
                     ]);
                 } else {
                     // Jika tidak ada unit, tidak bisa create (harus ada unit untuk data baru)
@@ -1268,6 +1505,207 @@ class RekapIKDController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error downloading file: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+    /**
+     * Get dashboard stats for unit IKD
+     */
+    public function getDashboardStats(Request $request): JsonResponse
+    {
+        try {
+            $user = Auth::user();
+            $userRole = $user->role;
+            
+            // Mapping role to unit for STATS (match unit_kerja in ikd_pedoman)
+            $roleToStatsUnitMapping = [
+                'akademik'      => 'Akademik',
+                'tim_akademik'  => 'Akademik',
+                'verifikator'   => 'Dosen',
+                'aik'           => 'AIK',
+                'meu'           => 'MEU',
+                'profesi'       => 'Profesi',
+                'kemahasiswaan' => 'Kemahasiswaan',
+                'sdm'           => 'SDM',
+                'upt_jurnal'    => 'UPT Jurnal',
+                'upt_ppm'       => 'UPT PPM',
+            ];
+
+            // Mapping role to display name/role for Account List (Segregated)
+            $roleToDisplayMapping = [
+                'akademik'      => 'Akademik',
+                'tim_akademik'  => 'Tim Akademik',
+                'verifikator'   => 'Verifikator',
+                'aik'           => 'AIK',
+                'meu'           => 'MEU',
+                'profesi'       => 'Profesi',
+                'kemahasiswaan' => 'Kemahasiswaan',
+                'sdm'           => 'SDM',
+                'upt_jurnal'    => 'UPT Jurnal',
+                'upt_ppm'       => 'UPT PPM',
+                'ketua_ikd'     => 'Ketua IKD',
+                'dosen'         => 'Dosen',
+            ];
+
+            // Determine Unit for stats
+            $unitForStats = null;
+            if (in_array($userRole, ['super_admin', 'ketua_ikd'])) {
+                if ($request->has('unit')) {
+                    $unitForStats = $request->unit;
+                }
+            } else {
+                 $unitForStats = $roleToStatsUnitMapping[$userRole] ?? null;
+            }
+
+            // Determine Display Unit and Role filter
+            $displayUnit = null;
+            $filterRole = null;
+            if (in_array($userRole, ['super_admin', 'ketua_ikd'])) {
+                 $displayUnit = $request->has('unit') ? $request->unit : 'Seluruh Unit';
+                 // If super admin requests a unit, find the role matching that unit name
+                 // Otherwise, set filterRole to null to show all units
+                 $filterRole = $request->has('unit') ? (array_search($displayUnit, $roleToDisplayMapping) ?: $userRole) : null;
+            } else {
+                 $displayUnit = $roleToDisplayMapping[$userRole] ?? $userRole;
+                 $filterRole = $userRole;
+            }
+
+            // Stats 1: Total Pedoman Items (Target)
+            $totalDosen = \App\Models\User::where('role', 'dosen')->count();
+            
+            $pedomanQuery = IKDPedoman::query();
+            if ($unitForStats) {
+                $unitLower = strtolower(trim($unitForStats));
+                $pedomanQuery->where(function($q) use ($unitForStats, $unitLower) {
+                     $q->whereRaw('LOWER(TRIM(unit_kerja)) = ?', [$unitLower])
+                       ->orWhereRaw('LOWER(TRIM(unit_kerja)) LIKE ?', [$unitLower . ',%'])
+                       ->orWhereRaw('LOWER(TRIM(unit_kerja)) LIKE ?', ['%, ' . $unitLower . ',%'])
+                       ->orWhereRaw('LOWER(TRIM(unit_kerja)) LIKE ?', ['%,' . $unitLower . ',%'])
+                       ->orWhereRaw('LOWER(TRIM(unit_kerja)) LIKE ?', ['%, ' . $unitLower])
+                       ->orWhereRaw('LOWER(TRIM(unit_kerja)) LIKE ?', ['%,' . $unitLower]);
+                });
+            }
+            $totalPedomanItems = $pedomanQuery->where('is_active', true)->count();
+            $totalInstrumenTarget = $totalDosen * $totalPedomanItems;
+
+            // Stats 2: Total Rekap Entries
+            $rekapQuery = IKDBuktiFisik::query();
+            if ($unitForStats) {
+                 $unitLower = strtolower(trim($unitForStats));
+                 $rekapQuery->whereHas('pedoman', function($q) use ($unitLower) {
+                      $q->whereRaw('LOWER(TRIM(unit_kerja)) = ?', [$unitLower])
+                       ->orWhereRaw('LOWER(TRIM(unit_kerja)) LIKE ?', [$unitLower . ',%'])
+                       ->orWhereRaw('LOWER(TRIM(unit_kerja)) LIKE ?', ['%, ' . $unitLower . ',%'])
+                       ->orWhereRaw('LOWER(TRIM(unit_kerja)) LIKE ?', ['%,' . $unitLower . ',%'])
+                       ->orWhereRaw('LOWER(TRIM(unit_kerja)) LIKE ?', ['%, ' . $unitLower])
+                       ->orWhereRaw('LOWER(TRIM(unit_kerja)) LIKE ?', ['%,' . $unitLower]);
+                 });
+            }
+            $totalRekap = $rekapQuery->whereNotNull('skor')
+                ->where('skor', '>', 0)
+                ->select('user_id', 'ikd_pedoman_id')
+                ->distinct()
+                ->get()
+                ->count();
+
+            // Stats 3: Unit Progress (For Overview)
+            $unitProgress = [];
+            $totalTargetSum = 0;
+            $totalRealizationSum = 0;
+
+            if (in_array($userRole, ['super_admin', 'ketua_ikd']) && !$request->has('unit')) {
+                $units = ['Akademik', 'Dosen', 'AIK', 'MEU', 'Profesi', 'Kemahasiswaan', 'SDM', 'UPT Jurnal', 'UPT PPM'];
+                foreach ($units as $u) {
+                    $uLower = strtolower(trim($u));
+                    
+                    // Target for this unit
+                    $uTarget = $totalDosen * IKDPedoman::where('is_active', true)
+                        ->where(function($q) use ($uLower) {
+                             $q->whereRaw('LOWER(TRIM(unit_kerja)) = ?', [$uLower])
+                               ->orWhereRaw('LOWER(TRIM(unit_kerja)) LIKE ?', [$uLower . ',%'])
+                               ->orWhereRaw('LOWER(TRIM(unit_kerja)) LIKE ?', ['%, ' . $uLower . ',%'])
+                               ->orWhereRaw('LOWER(TRIM(unit_kerja)) LIKE ?', ['%,' . $uLower . ',%'])
+                               ->orWhereRaw('LOWER(TRIM(unit_kerja)) LIKE ?', ['%, ' . $uLower])
+                               ->orWhereRaw('LOWER(TRIM(unit_kerja)) LIKE ?', ['%,' . $uLower]);
+                        })->count();
+                        
+                    // Realization for this unit - Count based on skor
+                    $uRealization = IKDBuktiFisik::whereNotNull('skor')
+                        ->where('skor', '>', 0)
+                        ->whereHas('pedoman', function($q) use ($uLower) {
+                             $q->whereRaw('LOWER(TRIM(unit_kerja)) = ?', [$uLower])
+                               ->orWhereRaw('LOWER(TRIM(unit_kerja)) LIKE ?', [$uLower . ',%'])
+                               ->orWhereRaw('LOWER(TRIM(unit_kerja)) LIKE ?', ['%, ' . $uLower . ',%'])
+                               ->orWhereRaw('LOWER(TRIM(unit_kerja)) LIKE ?', ['%,' . $uLower . ',%'])
+                               ->orWhereRaw('LOWER(TRIM(unit_kerja)) LIKE ?', ['%, ' . $uLower])
+                               ->orWhereRaw('LOWER(TRIM(unit_kerja)) LIKE ?', ['%,' . $uLower]);
+                        })
+                        ->select('user_id', 'ikd_pedoman_id')
+                        ->distinct()
+                        ->get()
+                        ->count();
+                        
+                    $unitProgress[] = [
+                        'unit' => $u,
+                        'target' => $uTarget,
+                        'realization' => $uRealization,
+                        'percentage' => $uTarget > 0 ? round(($uRealization / $uTarget) * 100, 2) : 0
+                    ];
+
+                    $totalTargetSum += $uTarget;
+                    $totalRealizationSum += $uRealization;
+                }
+
+                // For Ketua IKD global view, use the sum of unit targets
+                $totalInstrumenTarget = $totalTargetSum;
+                $totalRekap = $totalRealizationSum;
+            }
+
+            // Stats 4: Unit Accounts status & individual progress
+            $adminRoles = ['akademik', 'aik', 'meu', 'profesi', 'kemahasiswaan', 'sdm', 'upt_jurnal', 'upt_ppm', 'verifikator', 'ketua_ikd', 'super_admin'];
+            
+            $accountsQuery = \App\Models\User::query();
+            if ($filterRole) {
+                $accountsQuery->where('role', $filterRole);
+            } else {
+                $accountsQuery->whereIn('role', $adminRoles);
+            }
+
+            $unitAccounts = $accountsQuery->get()->map(function($u) {
+                // Count realization (distinct pedoman entries with score > 0)
+                // Filter by admin_id to track who filled it
+                $realizationCount = IKDBuktiFisik::where('admin_id', $u->id)
+                    ->whereNotNull('skor')
+                    ->where('skor', '>', 0)
+                    ->select('ikd_pedoman_id', 'user_id')
+                    ->distinct()
+                    ->get()
+                    ->count();
+
+                return [
+                    'id' => $u->id,
+                    'name' => $u->name,
+                    'role' => $u->role,
+                    'is_logged_in' => $u->is_logged_in,
+                    'realization' => $realizationCount
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'unit' => $displayUnit,
+                    'total_pedoman' => $totalInstrumenTarget,
+                    'total_rekap' => $totalRekap,
+                    'unit_progress' => $unitProgress,
+                    'unit_accounts' => $unitAccounts
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fetching dashboard stats: ' . $e->getMessage()
             ], 500);
         }
     }

@@ -737,9 +737,13 @@ Route::middleware(['auth:sanctum', 'role:super_admin'])->prefix('admin')->group(
 });
 
 // Rekap IKD Routes - Role Based Access
-// Pedoman Poin IKD - Super Admin & Ketua IKD only
-Route::middleware(['auth:sanctum', 'validate.token', 'role:super_admin,ketua_ikd'])->prefix('rekap-ikd')->group(function () {
+// Pedoman Poin IKD - Read Access (All related roles)
+Route::middleware(['auth:sanctum', 'validate.token', 'role:super_admin,ketua_ikd,akademik,tim_akademik,dosen,verifikator,aik,meu,profesi,kemahasiswaan,sdm,upt_jurnal,upt_ppm'])->prefix('rekap-ikd')->group(function () {
     Route::get('/pedoman-poin', [RekapIKDController::class, 'getPedomanPoin']);
+});
+
+// Pedoman Poin IKD - Write Access (Super Admin & Ketua IKD only)
+Route::middleware(['auth:sanctum', 'validate.token', 'role:super_admin,ketua_ikd'])->prefix('rekap-ikd')->group(function () {
     Route::post('/pedoman-poin', [RekapIKDController::class, 'storePedomanPoin']);
     Route::put('/pedoman-poin/{id}', [RekapIKDController::class, 'updatePedomanPoin']);
     Route::delete('/pedoman-poin/{id}', [RekapIKDController::class, 'destroyPedomanPoin']);
@@ -747,6 +751,7 @@ Route::middleware(['auth:sanctum', 'validate.token', 'role:super_admin,ketua_ikd
 
 // Rekap IKD by unit - Role based (super_admin, ketua_ikd, and unit-specific roles)
 Route::middleware(['auth:sanctum', 'validate.token'])->prefix('rekap-ikd')->group(function () {
+    Route::get('/dashboard-stats', [RekapIKDController::class, 'getDashboardStats']);
     Route::get('/unit/{unit}', [RekapIKDController::class, 'getRekapByUnit']);
     Route::post('/rekap', [RekapIKDController::class, 'storeRekap']);
     Route::get('/pedoman-poin/unit/{unit}', [RekapIKDController::class, 'getPedomanPoinByUnit']);
@@ -760,6 +765,7 @@ Route::middleware(['auth:sanctum', 'validate.token'])->prefix('rekap-ikd')->grou
     Route::post('/bukti-fisik/mark-key-deleted', [RekapIKDController::class, 'markKeyAsDeleted']);
     Route::get('/bukti-fisik/deleted-keys', [RekapIKDController::class, 'getDeletedKeys']);
     Route::post('/bukti-fisik/remove-deleted-key', [RekapIKDController::class, 'removeDeletedKey']);
+    Route::post('/bukti-fisik/mark-as-saved', [RekapIKDController::class, 'markAsSaved']);
 });
 
 // Mahasiswa Dashboard Routes

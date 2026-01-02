@@ -3,6 +3,8 @@ import DashboardSuperAdmin from "../../pages/DashboardSuperAdmin";
 import DashboardDosen from "../../pages/DashboardDosen";
 import DashboardTimAkademik from "../../pages/DashboardTimAkademik";
 import DashboardMahasiswa from "../../pages/DashboardMahasiswa";
+import DashboardUnitIKD from "../../pages/DashboardUnitIKD";
+import DashboardKetuaIKD from "../../pages/DashboardKetuaIKD";
 
 export default function UniversalDashboard() {
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -25,14 +27,7 @@ export default function UniversalDashboard() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Memuat...</p>
-        </div>
-      </div>
-    );
+    return null; // Or return a simple div without spinner if layout flickers, but null avoids the 'double loader' issue
   }
 
   // Render dashboard based on user role
@@ -44,12 +39,29 @@ export default function UniversalDashboard() {
     return <DashboardTimAkademik />;
   } else if (userRole === "mahasiswa") {
     return <DashboardMahasiswa />;
+  } else if (userRole === "ketua_ikd") {
+    return <DashboardKetuaIKD />;
+  } else if (
+    [
+      "aik",
+      "meu",
+      "profesi",
+      "kemahasiswaan",
+      "sdm",
+      "upt_jurnal",
+      "upt_ppm",
+      "akademik",
+      "verifikator"
+    ].includes(userRole || "")
+  ) {
+    return <DashboardUnitIKD />;
   } else {
+    // Fallback or specific dashboard for Ketua IKD if needed later
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <p className="text-gray-600 dark:text-gray-400">
-            Role tidak dikenali
+            Role tidak dikenali: {userRole}
           </p>
         </div>
       </div>

@@ -17,7 +17,6 @@ import {
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { addWatermarkToAllPages } from "../../utils/watermarkHelper";
 
 interface IKDPedoman {
   id: number;
@@ -58,7 +57,7 @@ interface BidangData {
 interface UnitData {
   unit: string;
   pedomanList: IKDPedoman[];
-  buktiFisikMap: { [key: number]: IKDBuktiFisik }; // Key: `ikd_pedoman_id` (number)
+  buktiFisikMap: { [key: number]: IKDBuktiFisik[] }; // Key: `ikd_pedoman_id` (number), Value: array of files
   totalHasil: number;
   kegiatanCount: number; // Jumlah kegiatan yang sudah ada file atau skor > 0
   bidangDataMap: { [key: string]: BidangData }; // Key: bidang code (A, B, D, etc.)
@@ -75,6 +74,8 @@ const UNIT_LIST = [
   "UPT Jurnal",
   "UPT PPM",
 ];
+
+const PAGE_SIZE_OPTIONS = [5, 10, 20, 30, 40, 50];
 
 // Helper function to check if a pedoman belongs to a specific unit
 const isPedomanInUnit = (pedoman: IKDPedoman, unit: string): boolean => {
@@ -133,11 +134,19 @@ const RekapIKDDetail: React.FC = () => {
   }>({});
   const [loading, setLoading] = useState(true);
   const [expandedUnits, setExpandedUnits] = useState<Set<string>>(new Set());
+  const [expandedFiles, setExpandedFiles] = useState<{
+    [key: string]: boolean;
+  }>({}); // Key: `${unit}_${ikd_pedoman_id}` untuk track file yang di-expand
   const isInitialLoadRef = React.useRef(true);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const fetchingUserInfoRef = React.useRef(false);
+  
+  // State untuk pagination per unit
+  const [unitPagination, setUnitPagination] = useState<{
+    [key: string]: { page: number; pageSize: number };
+  }>({});
 
   // Get current user - memoize to prevent unnecessary re-renders
   const currentUser = React.useMemo(() => getUser(), []);
@@ -196,17 +205,19 @@ const RekapIKDDetail: React.FC = () => {
               ? buktiFisikRes.data.data
               : [];
 
-          // Create bukti fisik map by pedoman_id (use number as key)
+          // Create bukti fisik map by pedoman_id (use number as key, array as value for multiple files)
           // Hanya map bukti fisik yang pedoman-nya benar-benar termasuk dalam unit ini
           // Juga include data yang unit-nya NULL untuk backward compatibility
-          const buktiFisikMap: { [key: number]: IKDBuktiFisik } = {};
+          const buktiFisikMap: { [key: number]: IKDBuktiFisik[] } = {};
           buktiFisikArray.forEach((bf) => {
             // Jika bukti fisik punya unit, pastikan unit-nya sesuai
             // Jika unit-nya NULL (data lama), verifikasi berdasarkan pedoman
+            let shouldInclude = false;
+            
             if (bf.unit) {
               // Data baru: hanya map jika unit-nya sesuai
               if (bf.unit === unit) {
-                buktiFisikMap[bf.ikd_pedoman_id] = bf;
+                shouldInclude = true;
               }
             } else {
               // Data lama (unit NULL): verifikasi berdasarkan pedoman unit_kerja
@@ -241,8 +252,36 @@ const RekapIKDDetail: React.FC = () => {
               if (pedomanToCheck) {
                 const isInUnit = isPedomanInUnit(pedomanToCheck, unit);
                 if (isInUnit) {
-                  buktiFisikMap[bf.ikd_pedoman_id] = bf;
+                  shouldInclude = true;
                 }
+              }
+            }
+            
+            // Add to map if should include
+            if (shouldInclude) {
+              if (!buktiFisikMap[bf.ikd_pedoman_id]) {
+                buktiFisikMap[bf.ikd_pedoman_id] = [];
+              }
+              buktiFisikMap[bf.ikd_pedoman_id].push(bf);
+            }
+          });
+          
+          // Pastikan semua file dengan ikd_pedoman_id yang sama memiliki skor yang sama
+          // (sinkronisasi skor seperti di TimAkademik.tsx)
+          Object.keys(buktiFisikMap).forEach((pedomanIdStr) => {
+            const pedomanId = Number(pedomanIdStr);
+            const files = buktiFisikMap[pedomanId];
+            if (files && files.length > 0) {
+              // Cari file yang memiliki skor (bukan null)
+              const fileWithSkor = files.find(
+                (f) => f.skor !== null && f.skor !== undefined
+              );
+              if (fileWithSkor) {
+                // Update semua file dengan skor yang sama
+                buktiFisikMap[pedomanId] = files.map((f) => ({
+                  ...f,
+                  skor: fileWithSkor.skor,
+                }));
               }
             }
           });
@@ -256,9 +295,19 @@ const RekapIKDDetail: React.FC = () => {
           pedomanList.forEach((pedoman) => {
             // Hanya proses jika unit saat ini ada di unit_kerja pedoman
             if (isPedomanInUnit(pedoman, unit)) {
-              const buktiFisik = buktiFisikMap[pedoman.id];
-              if (buktiFisik && buktiFisik.skor) {
-                const skor = Number(buktiFisik.skor) || 0;
+              const buktiFisikFiles = buktiFisikMap[pedoman.id];
+              if (buktiFisikFiles && buktiFisikFiles.length > 0) {
+                // Cari file yang memiliki skor (bukan null atau undefined)
+                // Jika tidak ada yang punya skor, ambil dari file terbaru
+                const fileWithSkor = buktiFisikFiles.find(
+                  (f) => f.skor !== null && f.skor !== undefined
+                );
+                const skorValue = fileWithSkor 
+                  ? fileWithSkor.skor 
+                  : (buktiFisikFiles.sort((a, b) => b.id - a.id)[0]?.skor || null);
+                
+                if (skorValue !== null && skorValue !== undefined) {
+                  const skor = Number(skorValue) || 0;
                 // Hitung kegiatan jika ada file dan skor > 0
                 if (skor > 0) {
                   kegiatanCount++;
@@ -282,6 +331,7 @@ const RekapIKDDetail: React.FC = () => {
                       }
                       bidangDataMap[bidangCode].totalHasil += hasil;
                       bidangDataMap[bidangCode].kegiatanCount += 1;
+                      }
                     }
                   }
                 }
@@ -596,12 +646,29 @@ const RekapIKDDetail: React.FC = () => {
         unitData.pedomanList.forEach((pedoman) => {
           if (!isPedomanInUnit(pedoman, unit)) return;
 
-          const buktiFisik = unitData.buktiFisikMap[pedoman.id];
-          const skor = Number(buktiFisik?.skor) || 0;
+          const buktiFisikFiles = unitData.buktiFisikMap[pedoman.id] || [];
+          
+          // Cari file yang memiliki skor (bukan null atau undefined)
+          // Jika tidak ada yang punya skor, ambil dari file terbaru
+          const fileWithSkor = buktiFisikFiles.find(
+            (f) => f.skor !== null && f.skor !== undefined
+          );
+          // Buat salinan array sebelum sorting untuk menghindari mutasi
+          const sortedFiles = [...buktiFisikFiles].sort((a, b) => b.id - a.id);
+          const skorValue = fileWithSkor 
+            ? fileWithSkor.skor 
+            : (sortedFiles[0]?.skor || null);
+          
+          const skor = skorValue !== null && skorValue !== undefined 
+            ? Number(skorValue) || 0 
+            : 0;
           if (skor === 0) return;
 
           const indeksPoin = Number(pedoman.indeks_poin) || 0;
           const hasil = indeksPoin * skor;
+
+          // Gabungkan semua nama file dengan koma sebagai separator
+          const fileNames = buktiFisikFiles.map((f) => f.file_name).join(", ");
 
           unitDetailData.push([
             pedoman.no,
@@ -610,7 +677,7 @@ const RekapIKDDetail: React.FC = () => {
             indeksPoin.toFixed(2),
             skor,
             hasil.toFixed(2),
-            buktiFisik?.file_name || "-",
+            fileNames || "-",
           ]);
         });
 
@@ -841,12 +908,29 @@ const RekapIKDDetail: React.FC = () => {
         unitData.pedomanList.forEach((pedoman) => {
           if (!isPedomanInUnit(pedoman, unit)) return;
 
-          const buktiFisik = unitData.buktiFisikMap[pedoman.id];
-          const skor = Number(buktiFisik?.skor) || 0;
+          const buktiFisikFiles = unitData.buktiFisikMap[pedoman.id] || [];
+          
+          // Cari file yang memiliki skor (bukan null atau undefined)
+          // Jika tidak ada yang punya skor, ambil dari file terbaru
+          const fileWithSkor = buktiFisikFiles.find(
+            (f) => f.skor !== null && f.skor !== undefined
+          );
+          // Buat salinan array sebelum sorting untuk menghindari mutasi
+          const sortedFiles = [...buktiFisikFiles].sort((a, b) => b.id - a.id);
+          const skorValue = fileWithSkor 
+            ? fileWithSkor.skor 
+            : (sortedFiles[0]?.skor || null);
+          
+          const skor = skorValue !== null && skorValue !== undefined 
+            ? Number(skorValue) || 0 
+            : 0;
           if (skor === 0) return;
 
           const indeksPoin = Number(pedoman.indeks_poin) || 0;
           const hasil = indeksPoin * skor;
+
+          // Gabungkan semua nama file dengan koma sebagai separator
+          const fileNames = buktiFisikFiles.map((f) => f.file_name).join(", ");
 
           detailData.push([
             pedoman.no,
@@ -855,7 +939,7 @@ const RekapIKDDetail: React.FC = () => {
             indeksPoin.toFixed(2),
             skor.toString(),
             hasil.toFixed(2),
-            buktiFisik?.file_name?.substring(0, 30) || "-",
+            fileNames?.substring(0, 30) || "-",
           ]);
         });
 
@@ -912,9 +996,6 @@ const RekapIKDDetail: React.FC = () => {
 
       // Generate filename and download
       const now = new Date();
-      // Add watermark using centralized helper
-      addWatermarkToAllPages(doc);
-
       const timestamp = now.toISOString().slice(0, 19).replace(/:/g, "-");
       const fileName = `Rekap_IKD_Detail_${
         userInfo?.name || "User"
@@ -1382,6 +1463,7 @@ const RekapIKDDetail: React.FC = () => {
                     className="p-6"
                   >
                     {hasData ? (
+                      <>
                       <div className="overflow-x-auto">
                         <table className="w-full">
                           <thead className="bg-gray-50 dark:bg-gray-700/50">
@@ -1407,21 +1489,73 @@ const RekapIKDDetail: React.FC = () => {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                            {unitData.pedomanList.map((pedoman) => {
+                              {(() => {
+                                // Filter pedoman yang memiliki data (skor > 0)
+                                const pedomanWithData = unitData.pedomanList.filter((pedoman) => {
+                                  if (!isPedomanInUnit(pedoman, unit)) {
+                                    return false;
+                                  }
+                                  const buktiFisikFiles = unitData.buktiFisikMap[pedoman.id] || [];
+                                  const fileWithSkor = buktiFisikFiles.find(
+                                    (f) => f.skor !== null && f.skor !== undefined
+                                  );
+                                  const sortedFiles = [...buktiFisikFiles].sort((a, b) => b.id - a.id);
+                                  const skorValue = fileWithSkor 
+                                    ? fileWithSkor.skor 
+                                    : (sortedFiles[0]?.skor || null);
+                                  const skor = skorValue !== null && skorValue !== undefined 
+                                    ? Number(skorValue) || 0 
+                                    : 0;
+                                  return skor > 0;
+                                });
+
+                                // Pagination untuk unit ini
+                                const currentPage = unitPagination[unit]?.page || 1;
+                                const currentPageSize = unitPagination[unit]?.pageSize || 5;
+                                const totalPages = Math.ceil(pedomanWithData.length / currentPageSize);
+                                const startIndex = (currentPage - 1) * currentPageSize;
+                                const endIndex = startIndex + currentPageSize;
+                                const paginatedPedoman = pedomanWithData.slice(startIndex, endIndex);
+
+                                return paginatedPedoman.map((pedoman, idx) => {
                               // Hanya tampilkan jika unit saat ini ada di unit_kerja pedoman
                               if (!isPedomanInUnit(pedoman, unit)) {
                                 return null;
                               }
 
-                              const buktiFisik =
-                                unitData.buktiFisikMap[pedoman.id];
-                              const skor = Number(buktiFisik?.skor) || 0;
+                              const buktiFisikFiles =
+                                unitData.buktiFisikMap[pedoman.id] || [];
+                              
+                              // Cari file yang memiliki skor (bukan null atau undefined)
+                              // Jika tidak ada yang punya skor, ambil dari file terbaru
+                              const fileWithSkor = buktiFisikFiles.find(
+                                (f) => f.skor !== null && f.skor !== undefined
+                              );
+                              // Buat salinan array sebelum sorting untuk menghindari mutasi
+                              const sortedFiles = [...buktiFisikFiles].sort((a, b) => b.id - a.id);
+                              const skorValue = fileWithSkor 
+                                ? fileWithSkor.skor 
+                                : (sortedFiles[0]?.skor || null);
+                              
+                              const skor = skorValue !== null && skorValue !== undefined 
+                                ? Number(skorValue) || 0 
+                                : 0;
                               const indeksPoin =
                                 Number(pedoman.indeks_poin) || 0;
                               const hasil = indeksPoin * skor;
 
                               // Only show rows that have skor > 0
                               if (skor === 0) return null;
+
+                              // Logic untuk show more/less files
+                              const fileKey = `${unit}_${pedoman.id}`;
+                              const maxVisibleFiles = 1; // Tampilkan 1 file dulu
+                              const isExpanded = expandedFiles[fileKey] || false;
+                              const visibleFiles = isExpanded
+                                ? buktiFisikFiles
+                                : buktiFisikFiles.slice(0, maxVisibleFiles);
+                              const hasMoreFiles =
+                                buktiFisikFiles.length > maxVisibleFiles;
 
                               return (
                                 <tr
@@ -1442,8 +1576,13 @@ const RekapIKDDetail: React.FC = () => {
                                     {pedoman.kegiatan}
                                   </td>
                                   <td className="px-4 py-3 text-center">
-                                    {buktiFisik?.file_url ? (
-                                      <div className="flex flex-col items-center gap-1">
+                                    {buktiFisikFiles.length > 0 ? (
+                                      <div className="flex flex-col items-center gap-2">
+                                        {visibleFiles.map((buktiFisik) => (
+                                          <div
+                                            key={buktiFisik.id}
+                                            className="flex flex-col items-center gap-1"
+                                          >
                                         <button
                                           onClick={() =>
                                             handleDownloadFile(
@@ -1459,7 +1598,7 @@ const RekapIKDDetail: React.FC = () => {
                                             className="w-4 h-4"
                                           />
                                           <span className="text-xs font-medium">
-                                            Download File
+                                                Download
                                           </span>
                                         </button>
                                         <p
@@ -1468,6 +1607,28 @@ const RekapIKDDetail: React.FC = () => {
                                         >
                                           {buktiFisik.file_name}
                                         </p>
+                                          </div>
+                                        ))}
+                                        
+                                        {/* Show more/less button jika file lebih dari 1 */}
+                                        {hasMoreFiles && (
+                                          <button
+                                            onClick={() =>
+                                              setExpandedFiles((prev) => ({
+                                                ...prev,
+                                                [fileKey]: !prev[fileKey],
+                                              }))
+                                            }
+                                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1"
+                                          >
+                                            {isExpanded
+                                              ? "Lihat lebih sedikit"
+                                              : `Lihat ${
+                                                  buktiFisikFiles.length -
+                                                  maxVisibleFiles
+                                                } file lagi`}
+                                          </button>
+                                        )}
                                       </div>
                                     ) : (
                                       <span className="text-xs text-gray-400">
@@ -1486,7 +1647,8 @@ const RekapIKDDetail: React.FC = () => {
                                   </td>
                                 </tr>
                               );
-                            })}
+                                });
+                              })()}
                           </tbody>
                           <tfoot className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-t-2 border-blue-200 dark:border-blue-700">
                             <tr>
@@ -1503,6 +1665,227 @@ const RekapIKDDetail: React.FC = () => {
                           </tfoot>
                         </table>
                       </div>
+
+                        {/* Pagination */}
+                        {(() => {
+                          const pedomanWithData = unitData.pedomanList.filter((pedoman) => {
+                            if (!isPedomanInUnit(pedoman, unit)) {
+                              return false;
+                            }
+                            const buktiFisikFiles = unitData.buktiFisikMap[pedoman.id] || [];
+                            const fileWithSkor = buktiFisikFiles.find(
+                              (f) => f.skor !== null && f.skor !== undefined
+                            );
+                            const sortedFiles = [...buktiFisikFiles].sort((a, b) => b.id - a.id);
+                            const skorValue = fileWithSkor 
+                              ? fileWithSkor.skor 
+                              : (sortedFiles[0]?.skor || null);
+                            const skor = skorValue !== null && skorValue !== undefined 
+                              ? Number(skorValue) || 0 
+                              : 0;
+                            return skor > 0;
+                          });
+
+                          const currentPage = unitPagination[unit]?.page || 1;
+                          const currentPageSize = unitPagination[unit]?.pageSize || 5;
+                          const totalPages = Math.ceil(pedomanWithData.length / currentPageSize);
+                          const paginatedCount = Math.min(currentPageSize, pedomanWithData.length - (currentPage - 1) * currentPageSize);
+
+                          if (totalPages <= 1) return null;
+
+                          return (
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 sm:px-6 py-4 mt-4 border-t border-gray-200 dark:border-gray-700">
+                              <div className="flex items-center gap-4">
+                                <select
+                                  value={currentPageSize}
+                                  onChange={(e) => {
+                                    setUnitPagination((prev) => ({
+                                      ...prev,
+                                      [unit]: {
+                                        page: 1,
+                                        pageSize: Number(e.target.value),
+                                      },
+                                    }));
+                                  }}
+                                  className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
+                                >
+                                  {PAGE_SIZE_OPTIONS.map((opt) => (
+                                    <option key={opt} value={opt}>
+                                      {opt}
+                                    </option>
+                                  ))}
+                                </select>
+                                <span className="text-sm text-gray-500 dark:text-gray-400">
+                                  Menampilkan {paginatedCount} dari {pedomanWithData.length} data
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 justify-center sm:justify-end">
+                                <button
+                                  onClick={() => {
+                                    setUnitPagination((prev) => ({
+                                      ...prev,
+                                      [unit]: {
+                                        ...(prev[unit] || { page: 1, pageSize: 5 }),
+                                        page: Math.max(1, (prev[unit]?.page || 1) - 1),
+                                      },
+                                    }));
+                                  }}
+                                  disabled={currentPage === 1}
+                                  className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                                >
+                                  Prev
+                                </button>
+
+                                {/* Smart Pagination with Scroll */}
+                                <div
+                                  className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll"
+                                  style={{
+                                    scrollbarWidth: "thin",
+                                    scrollbarColor: "#cbd5e1 #f1f5f9",
+                                  }}
+                                >
+                                  <style
+                                    dangerouslySetInnerHTML={{
+                                      __html: `
+                                      .pagination-scroll::-webkit-scrollbar {
+                                        height: 6px;
+                                      }
+                                      .pagination-scroll::-webkit-scrollbar-track {
+                                        background: #f1f5f9;
+                                        border-radius: 3px;
+                                      }
+                                      .pagination-scroll::-webkit-scrollbar-thumb {
+                                        background: #cbd5e1;
+                                        border-radius: 3px;
+                                      }
+                                      .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                                        background: #94a3b8;
+                                      }
+                                      .dark .pagination-scroll::-webkit-scrollbar-track {
+                                        background: #1e293b;
+                                      }
+                                      .dark .pagination-scroll::-webkit-scrollbar-thumb {
+                                        background: #475569;
+                                      }
+                                      .dark .pagination-scroll::-webkit-scrollbar-thumb:hover {
+                                        background: #64748b;
+                                      }
+                                    `,
+                                    }}
+                                  />
+
+                                  {/* Always show first page */}
+                                  <button
+                                    onClick={() => {
+                                      setUnitPagination((prev) => ({
+                                        ...prev,
+                                        [unit]: {
+                                          ...(prev[unit] || { page: 1, pageSize: 5 }),
+                                          page: 1,
+                                        },
+                                      }));
+                                    }}
+                                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                                      currentPage === 1
+                                        ? "bg-brand-500 text-white"
+                                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    }`}
+                                  >
+                                    1
+                                  </button>
+
+                                  {/* Show ellipsis if current page is far from start */}
+                                  {currentPage > 4 && (
+                                    <span className="px-2 text-gray-500 dark:text-gray-400">
+                                      ...
+                                    </span>
+                                  )}
+
+                                  {/* Show pages around current page */}
+                                  {Array.from({ length: totalPages }, (_, i) => {
+                                    const pageNum = i + 1;
+                                    // Show pages around current page (2 pages before and after)
+                                    const shouldShow =
+                                      pageNum > 1 &&
+                                      pageNum < totalPages &&
+                                      pageNum >= currentPage - 2 &&
+                                      pageNum <= currentPage + 2;
+
+                                    if (!shouldShow) return null;
+
+                                    return (
+                                      <button
+                                        key={i}
+                                        onClick={() => {
+                                          setUnitPagination((prev) => ({
+                                            ...prev,
+                                            [unit]: {
+                                              ...(prev[unit] || { page: 1, pageSize: 5 }),
+                                              page: pageNum,
+                                            },
+                                          }));
+                                        }}
+                                        className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                                          currentPage === pageNum
+                                            ? "bg-brand-500 text-white"
+                                            : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                        }`}
+                                      >
+                                        {pageNum}
+                                      </button>
+                                    );
+                                  })}
+
+                                  {/* Show ellipsis if current page is far from end */}
+                                  {currentPage < totalPages - 3 && (
+                                    <span className="px-2 text-gray-500 dark:text-gray-400">
+                                      ...
+                                    </span>
+                                  )}
+
+                                  {/* Always show last page if it's not the first page */}
+                                  {totalPages > 1 && (
+                                    <button
+                                      onClick={() => {
+                                        setUnitPagination((prev) => ({
+                                          ...prev,
+                                          [unit]: {
+                                            ...(prev[unit] || { page: 1, pageSize: 5 }),
+                                            page: totalPages,
+                                          },
+                                        }));
+                                      }}
+                                      className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
+                                        currentPage === totalPages
+                                          ? "bg-brand-500 text-white"
+                                          : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                      }`}
+                                    >
+                                      {totalPages}
+                                    </button>
+                                  )}
+                                </div>
+
+                                <button
+                                  onClick={() => {
+                                    setUnitPagination((prev) => ({
+                                      ...prev,
+                                      [unit]: {
+                                        ...(prev[unit] || { page: 1, pageSize: 5 }),
+                                        page: Math.min(totalPages, (prev[unit]?.page || 1) + 1),
+                                      },
+                                    }));
+                                  }}
+                                  disabled={currentPage === totalPages}
+                                  className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                                >
+                                  Next
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </>
                     ) : (
                       <div className="text-center py-8">
                         <FontAwesomeIcon
@@ -1553,3 +1936,4 @@ const RekapIKDDetail: React.FC = () => {
 };
 
 export default RekapIKDDetail;
+

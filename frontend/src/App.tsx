@@ -508,11 +508,26 @@ function AppContent() {
                   </RequireDosenRole>
                 }
               />
-              {/* Pedoman Poin IKD - Super Admin & Ketua IKD Only */}
+              {/* Pedoman Poin IKD - Expanded Roles */}
               <Route
                 path="/rekap-ikd/pedoman-poin"
                 element={
-                  <RequireDosenRole allowedRoles={["super_admin", "ketua_ikd"]}>
+                  <RequireDosenRole
+                    allowedRoles={[
+                      "super_admin",
+                      "ketua_ikd",
+                      "akademik",
+                      "dosen",
+                      "aik",
+                      "meu",
+                      "profesi",
+                      "kemahasiswaan",
+                      "sdm",
+                      "upt_jurnal",
+                      "upt_ppm",
+                      "verifikator",
+                    ]}
+                  >
                     <RekapIKDWrapper />
                   </RequireDosenRole>
                 }

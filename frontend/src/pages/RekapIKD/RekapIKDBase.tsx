@@ -51,7 +51,7 @@ const RekapIKDBase: React.FC<RekapIKDBaseProps> = ({
       {
         name: "Pedoman Poin IKD",
         path: "/rekap-ikd/pedoman-poin",
-        roles: ["super_admin", "ketua_ikd"],
+        roles: ["super_admin", "ketua_ikd", "akademik", "dosen", "aik", "meu", "profesi", "kemahasiswaan", "sdm", "upt_jurnal", "upt_ppm", "verifikator"],
       },
       {
         name: "Akademik",

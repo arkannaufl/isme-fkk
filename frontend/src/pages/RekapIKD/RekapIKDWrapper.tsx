@@ -42,7 +42,20 @@ const RekapIKDWrapper: React.FC = () => {
       id: "pedoman-poin",
       name: "Pedoman Poin IKD",
       path: "/rekap-ikd/pedoman-poin",
-      roles: ["super_admin", "ketua_ikd"],
+      roles: [
+        "super_admin",
+        "ketua_ikd",
+        "akademik",
+        "dosen",
+        "aik",
+        "meu",
+        "profesi",
+        "kemahasiswaan",
+        "sdm",
+        "upt_jurnal",
+        "upt_ppm",
+        "verifikator",
+      ],
       component: PedomanPoinIKD,
     },
     {
@@ -212,4 +225,3 @@ const RekapIKDWrapper: React.FC = () => {
 };
 
 export default RekapIKDWrapper;
-

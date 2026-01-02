@@ -45,7 +45,7 @@ interface IKDBuktiFisik {
   file_size?: number;
   file_url?: string;
   skor?: number | null;
-  status_verifikasi?: 'salah' | 'benar' | 'perbaiki' | null;
+  status_verifikasi?: "salah" | "benar" | "perbaiki" | null;
   pedoman?: IKDPedoman;
 }
 
@@ -85,6 +85,9 @@ const DosenIKD: React.FC = () => {
   const [pageSize, setPageSize] = useState(10);
   const [loading, setLoading] = useState(true);
 
+  // State untuk pembagian beban kerja
+  const [unitAccounts, setUnitAccounts] = useState<any[]>([]);
+
   // State untuk pedoman poin IKD
   const [pedomanList, setPedomanList] = useState<IKDPedoman[]>([]);
   const [loadingPedoman, setLoadingPedoman] = useState(true);
@@ -117,8 +120,20 @@ const DosenIKD: React.FC = () => {
   );
 
   // State untuk delete confirmation modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
 
   // State untuk aksi confirmation modal
+  const [showAksiModal, setShowAksiModal] = useState(false);
+  const [aksiToConfirm, setAksiToConfirm] = useState<{
+    id: number;
+    status: "salah" | "benar" | "perbaiki";
+    fileName: string;
+    description: string;
+  } | null>(null);
 
   // State untuk skor values (untuk input fields)
   const [skorValues, setSkorValues] = useState<{
@@ -287,14 +302,13 @@ const DosenIKD: React.FC = () => {
       // Jika dosen, hanya fetch untuk dirinya sendiri
       // Jika verifikator, super_admin, atau ketua_ikd, fetch semua (tanpa user_id filter)
       const userId = isDosen && user?.id ? user.id : undefined;
-      const url = `/rekap-ikd/bukti-fisik?unit=${unitKerja}${
-        userId ? `&user_id=${userId}` : ""
-      }`;
+      const url = `/rekap-ikd/bukti-fisik?unit=${unitKerja}${userId ? `&user_id=${userId}` : ""
+        }`;
       const res = await api.get(url);
       if (res.data?.success && res.data?.data) {
         const buktiFisikArray: IKDBuktiFisik[] = res.data.data;
         const newMap: { [key: string]: IKDBuktiFisik[] } = {};
-        
+
         // Group by user_id and ikd_pedoman_id (support multiple files)
         buktiFisikArray.forEach((bf) => {
           const key = `${bf.user_id}_${bf.ikd_pedoman_id}`;
@@ -339,8 +353,14 @@ const DosenIKD: React.FC = () => {
             let currentSkor = "0";
             if (files && files.length > 0) {
               // Prioritaskan file dengan status_verifikasi = 'benar'
-              const benarFile = files.find(f => f.status_verifikasi === 'benar');
-              if (benarFile && benarFile.skor !== null && benarFile.skor !== undefined) {
+              const benarFile = files.find(
+                (f) => f.status_verifikasi === "benar"
+              );
+              if (
+                benarFile &&
+                benarFile.skor !== null &&
+                benarFile.skor !== undefined
+              ) {
                 currentSkor = benarFile.skor.toString();
               } else {
                 // Jika tidak ada yang 'benar', ambil dari file terbaru (id terbesar)
@@ -348,7 +368,7 @@ const DosenIKD: React.FC = () => {
                 currentSkor = latestFile.skor?.toString() || "0";
               }
             }
-            
+
             if (
               !(key in prev) ||
               prev[key] === undefined ||
@@ -379,9 +399,8 @@ const DosenIKD: React.FC = () => {
     const fetchDosen = async () => {
       try {
         // Cek apakah ada cached data di sessionStorage
-        const cacheKey = `dosen_ikd_${user?.id || "all"}_${
-          isDosen ? "dosen" : isVerifikator ? "verifikator" : "admin"
-        }`;
+        const cacheKey = `dosen_ikd_${user?.id || "all"}_${isDosen ? "dosen" : isVerifikator ? "verifikator" : "admin"
+          }`;
         const cachedData = sessionStorage.getItem(cacheKey);
 
         // Jika ada cached data, gunakan itu terlebih dahulu untuk menghindari flash of loading
@@ -416,21 +435,51 @@ const DosenIKD: React.FC = () => {
             sessionStorage.setItem(cacheKey, JSON.stringify(data));
           }
         } else if (isVerifikator || isSuperAdmin || isKetuaIKD) {
-          const res = await api.get("/users?role=dosen&per_page=1000");
+          const res = await api.get("/users", { params: { role: "dosen", per_page: 2000 } });
           // Handle pagination response
-          let data: DosenData[] = [];
+          let rawDosen: DosenData[] = [];
           if (Array.isArray(res.data)) {
-            data = res.data;
+            rawDosen = res.data;
           } else if (res.data?.data && Array.isArray(res.data.data)) {
-            data = res.data.data;
-          } else if (res.data?.data?.data && Array.isArray(res.data.data.data)) {
-            data = res.data.data.data;
+            rawDosen = res.data.data;
+          } else if (
+            res.data?.data?.data &&
+            Array.isArray(res.data.data.data)
+          ) {
+            rawDosen = res.data.data.data;
           }
-          setDosenList(data);
-          setFilteredDosen(data);
-          // Cache data ke sessionStorage
-          sessionStorage.setItem(cacheKey, JSON.stringify(data));
-        } else {
+
+          // Distribusi untuk Verifikator
+          if (isVerifikator && user?.id) {
+            let sameRoleAccounts: any[] = [];
+            const resAcc = await api.get("/users", { params: { role: "verifikator", per_page: 100 } });
+            if (Array.isArray(resAcc.data)) {
+              sameRoleAccounts = resAcc.data;
+            } else if (resAcc.data?.data && Array.isArray(resAcc.data.data)) {
+              sameRoleAccounts = resAcc.data.data;
+            }
+            sameRoleAccounts.sort((a, b) => a.id - b.id);
+            setUnitAccounts(sameRoleAccounts);
+
+            const myIndex = sameRoleAccounts.findIndex((acc: any) => acc.id === user.id);
+            if (myIndex !== -1) {
+              const distributed = rawDosen.filter((_, index) => index % sameRoleAccounts.length === myIndex);
+              setDosenList(distributed);
+              setFilteredDosen(distributed);
+              sessionStorage.setItem(cacheKey, JSON.stringify(distributed));
+            } else {
+              setDosenList(rawDosen);
+              setFilteredDosen(rawDosen);
+              sessionStorage.setItem(cacheKey, JSON.stringify(rawDosen));
+            }
+          } else {
+            // Super Admin & Ketua IKD melihat semua
+            setDosenList(rawDosen);
+            setFilteredDosen(rawDosen);
+            sessionStorage.setItem(cacheKey, JSON.stringify(rawDosen));
+          }
+        }
+        else {
           // Fallback: jika bukan dosen, verifikator, super_admin, atau ketua_ikd, tidak ada data
           setDosenList([]);
           setFilteredDosen([]);
@@ -490,11 +539,15 @@ const DosenIKD: React.FC = () => {
       return dosen.name?.toLowerCase().includes(query);
     });
     setFilteredDosen(filtered);
-    setCurrentPage(1);
+    setPage(1);
   }, [searchQuery, dosenList]);
 
-  // Handle klik tombol aksi (konfirmasi dengan window.confirm)
-  const handleAksiClick = async (buktiFisikId: number, status: 'salah' | 'benar' | 'perbaiki', fileName: string) => {
+  // Handle klik tombol aksi (tampilkan modal konfirmasi)
+  const handleAksiClick = (
+    buktiFisikId: number,
+    status: "salah" | "benar" | "perbaiki",
+    fileName: string
+  ) => {
     // Find file untuk mendapatkan nama file
     let foundFileName = fileName;
     for (const files of Object.values(buktiFisikMap)) {
@@ -504,30 +557,43 @@ const DosenIKD: React.FC = () => {
         break;
       }
     }
-    
+
     // Buat pesan konfirmasi berdasarkan status
-    let confirmMessage = '';
-    let actionDescription = '';
-    
-    if (status === 'salah') {
-      actionDescription = 'Tandai file sebagai salah';
-      confirmMessage = `Apakah Anda yakin ingin menandai file "${foundFileName}" sebagai salah?\n\nSemua file akan ditandai sebagai salah. Skor akan otomatis menjadi 0 dan tidak dapat diubah. Dosen tidak dapat upload file lagi untuk kegiatan ini.`;
-    } else if (status === 'benar') {
-      actionDescription = 'Tandai file sebagai benar';
-      confirmMessage = `Apakah Anda yakin ingin menandai file "${foundFileName}" sebagai benar?\n\nSemua file akan ditandai sebagai benar. Anda dapat memberikan skor untuk file-file ini. Dosen tidak dapat upload file lagi untuk kegiatan ini.`;
+    let description = "";
+
+    if (status === "salah") {
+      description =
+        "Semua file akan ditandai sebagai salah. Skor akan otomatis menjadi 0 dan tidak dapat diubah. Dosen tidak dapat upload file lagi untuk kegiatan ini.";
+    } else if (status === "benar") {
+      description =
+        "Semua file akan ditandai sebagai benar. Anda dapat memberikan skor untuk file-file ini. Dosen tidak dapat upload file lagi untuk kegiatan ini.";
     } else {
-      actionDescription = 'Minta dosen untuk memperbaiki file';
-      confirmMessage = `Apakah Anda yakin ingin meminta dosen untuk memperbaiki file "${foundFileName}"?\n\nSemua file akan dihapus dan dosen harus upload ulang. Dosen akan mendapat notifikasi untuk memperbaiki file.`;
+      description =
+        "Semua file akan dihapus dan dosen harus upload ulang. Dosen akan mendapat notifikasi untuk memperbaiki file.";
     }
-    
-    if (window.confirm(confirmMessage)) {
-      await handleUpdateStatusVerifikasi(buktiFisikId, status);
-    }
+
+    // Tampilkan modal konfirmasi
+    setAksiToConfirm({
+      id: buktiFisikId,
+      status,
+      fileName: foundFileName,
+      description,
+    });
+    setShowAksiModal(true);
+  };
+
+  // Confirm aksi verifikasi
+  const confirmAksi = async () => {
+    if (!aksiToConfirm) return;
+
+    await handleUpdateStatusVerifikasi(aksiToConfirm.id, aksiToConfirm.status);
+    setShowAksiModal(false);
+    setAksiToConfirm(null);
   };
 
   // Handle update status verifikasi
   const handleUpdateStatusVerifikasi = useCallback(
-    async (buktiFisikId: number, status: 'salah' | 'benar' | 'perbaiki') => {
+    async (buktiFisikId: number, status: "salah" | "benar" | "perbaiki") => {
       try {
         // Find the file to get user_id and ikd_pedoman_id before deletion
         let fileKey = "";
@@ -541,29 +607,34 @@ const DosenIKD: React.FC = () => {
           }
         }
 
-        const res = await api.post("/rekap-ikd/bukti-fisik/update-status-verifikasi", {
-          bukti_fisik_id: buktiFisikId,
-          status_verifikasi: status,
-        });
+        const res = await api.post(
+          "/rekap-ikd/bukti-fisik/update-status-verifikasi",
+          {
+            bukti_fisik_id: buktiFisikId,
+            status_verifikasi: status,
+          }
+        );
 
         if (res.data?.success) {
           // Jika status = 'perbaiki', hapus semua file dari state
-          if (status === 'perbaiki') {
+          if (status === "perbaiki") {
             if (fileKey) {
               setBuktiFisikMap((prev) => {
                 const newMap = { ...prev };
                 delete newMap[fileKey];
                 return newMap;
               });
-              
+
               // Reset skor
               setSkorValues((prev) => ({
                 ...prev,
                 [fileKey]: "0",
               }));
             }
-            
-            setSuccessMessage("Semua file telah dihapus. Dosen harus upload ulang.");
+
+            setSuccessMessage(
+              "Semua file telah dihapus. Dosen harus upload ulang."
+            );
             setTimeout(() => setSuccessMessage(null), 5000);
           } else {
             // Update local state untuk SEMUA file dengan key yang sama (status 'salah' atau 'benar')
@@ -575,14 +646,14 @@ const DosenIKD: React.FC = () => {
                   newMap[fileKey] = newMap[fileKey].map((file) => ({
                     ...file,
                     status_verifikasi: status,
-                    skor: status === 'salah' ? 0 : file.skor,
+                    skor: status === "salah" ? 0 : file.skor,
                   }));
                 }
                 return newMap;
               });
 
               // Jika status = 'salah', update skor ke 0
-              if (status === 'salah') {
+              if (status === "salah") {
                 setSkorValues((prev) => ({
                   ...prev,
                   [fileKey]: "0",
@@ -590,10 +661,12 @@ const DosenIKD: React.FC = () => {
               }
             }
 
-            setSuccessMessage(`Status verifikasi berhasil diupdate menjadi "${status}" untuk semua file`);
+            setSuccessMessage(
+              `Status verifikasi berhasil diupdate menjadi "${status}" untuk semua file`
+            );
             setTimeout(() => setSuccessMessage(null), 3000);
           }
-          
+
           // Refresh data
           await fetchBuktiFisik();
         }
@@ -604,7 +677,6 @@ const DosenIKD: React.FC = () => {
     },
     [buktiFisikMap, fetchBuktiFisik]
   );
-
 
   // Handle skor change dengan debounce
   const handleSkorChange = useCallback(
@@ -647,7 +719,9 @@ const DosenIKD: React.FC = () => {
             if (updated[key] && updated[key].length > 0) {
               const files = [...updated[key]];
               // Cari file dengan status_verifikasi = 'benar'
-              const benarFileIndex = files.findIndex(f => f.status_verifikasi === 'benar');
+              const benarFileIndex = files.findIndex(
+                (f) => f.status_verifikasi === "benar"
+              );
               if (benarFileIndex !== -1) {
                 files[benarFileIndex] = {
                   ...files[benarFileIndex],
@@ -655,13 +729,15 @@ const DosenIKD: React.FC = () => {
                 };
               } else {
                 // Jika tidak ada yang 'benar', update file terbaru (id terbesar)
-                const latestIndex = files.reduce((maxIdx, file, idx) => 
-                  file.id > files[maxIdx].id ? idx : maxIdx, 0
+                const latestIndex = files.reduce(
+                  (maxIdx, file, idx) =>
+                    file.id > files[maxIdx].id ? idx : maxIdx,
+                  0
                 );
                 files[latestIndex] = {
                   ...files[latestIndex],
-                skor: skorValue,
-              };
+                  skor: skorValue,
+                };
               }
               updated[key] = files;
             }
@@ -678,8 +754,11 @@ const DosenIKD: React.FC = () => {
           // Revert to original value on error
           const currentFiles = buktiFisikMap[key];
           if (currentFiles && currentFiles.length > 0) {
-            const benarFile = currentFiles.find(f => f.status_verifikasi === 'benar');
-            const fileToUse = benarFile || currentFiles.sort((a, b) => b.id - a.id)[0];
+            const benarFile = currentFiles.find(
+              (f) => f.status_verifikasi === "benar"
+            );
+            const fileToUse =
+              benarFile || currentFiles.sort((a, b) => b.id - a.id)[0];
             setSkorValues((prev) => ({
               ...prev,
               [key]: fileToUse.skor?.toString() || "",
@@ -865,22 +944,23 @@ const DosenIKD: React.FC = () => {
           setBuktiFisikMap((prev) => {
             const existingFiles = prev[key] || [];
             return {
-            ...prev,
+              ...prev,
               [key]: [
                 ...existingFiles,
                 {
-              id: uploadedBuktiFisik.id,
-              user_id: uploadedBuktiFisik.user_id,
-              ikd_pedoman_id: uploadedBuktiFisik.ikd_pedoman_id,
-              file_path: uploadedBuktiFisik.file_path,
-              file_name: uploadedBuktiFisik.file_name,
-              file_type: uploadedBuktiFisik.file_type,
-              file_size: uploadedBuktiFisik.file_size,
-              file_url: uploadedBuktiFisik.file_url,
-              skor: uploadedBuktiFisik.skor || 0,
-                  status_verifikasi: uploadedBuktiFisik.status_verifikasi || null,
-              pedoman: uploadedBuktiFisik.pedoman,
-            },
+                  id: uploadedBuktiFisik.id,
+                  user_id: uploadedBuktiFisik.user_id,
+                  ikd_pedoman_id: uploadedBuktiFisik.ikd_pedoman_id,
+                  file_path: uploadedBuktiFisik.file_path,
+                  file_name: uploadedBuktiFisik.file_name,
+                  file_type: uploadedBuktiFisik.file_type,
+                  file_size: uploadedBuktiFisik.file_size,
+                  file_url: uploadedBuktiFisik.file_url,
+                  skor: uploadedBuktiFisik.skor || 0,
+                  status_verifikasi:
+                    uploadedBuktiFisik.status_verifikasi || null,
+                  pedoman: uploadedBuktiFisik.pedoman,
+                },
               ],
             };
           });
@@ -920,13 +1000,18 @@ const DosenIKD: React.FC = () => {
   };
 
   // Handle delete file confirmation
-  const handleDeleteClick = async (buktiFisikId: number, fileName: string) => {
-    const confirmed = window.confirm(
-      `Apakah Anda yakin ingin menghapus file "${fileName}"?`
-    );
-    if (!confirmed) return;
+  const handleDeleteClick = (buktiFisikId: number, fileName: string) => {
+    // Tampilkan modal konfirmasi (karena delete dari table, bukan dari modal)
+    setFileToDelete({ id: buktiFisikId, name: fileName });
+    setShowDeleteModal(true);
+  };
 
-    await handleDeleteFile(buktiFisikId, fileName);
+  const confirmDeleteFile = async () => {
+    if (!fileToDelete) return;
+
+    await handleDeleteFile(fileToDelete.id, fileToDelete.name);
+    setShowDeleteModal(false);
+    setFileToDelete(null);
   };
 
   // Handle delete file
@@ -935,7 +1020,7 @@ const DosenIKD: React.FC = () => {
       // Find the file in buktiFisikMap
       let deletedBuktiFisik: IKDBuktiFisik | null = null;
       let fileKey = "";
-      
+
       for (const [key, files] of Object.entries(buktiFisikMap)) {
         const file = files.find((bf) => bf.id === buktiFisikId);
         if (file) {
@@ -968,11 +1053,11 @@ const DosenIKD: React.FC = () => {
               deletedKeysRef.current = newDeletedKeysSet;
               saveDeletedKey(fileKey);
 
-        // Reset skor ke 0 di local state
-        setSkorValues((prev) => ({
-          ...prev,
+              // Reset skor ke 0 di local state
+              setSkorValues((prev) => ({
+                ...prev,
                 [fileKey]: "0",
-        }));
+              }));
             } else {
               newMap[fileKey] = filteredFiles;
             }
@@ -1099,10 +1184,12 @@ const DosenIKD: React.FC = () => {
             if (!itemMatch) return false;
             const itemNumber = itemMatch[1];
             // Pastikan nomor cocok DAN juga cocok dengan bidang
-            return itemNumber === currentNumber && 
-                   item.bidang === currentPedoman.bidang &&
-                   (item.level === 0 || item.level === undefined) &&
-                   (!item.parent_id || item.parent_id === null);
+            return (
+              itemNumber === currentNumber &&
+              item.bidang === currentPedoman.bidang &&
+              (item.level === 0 || item.level === undefined) &&
+              (!item.parent_id || item.parent_id === null)
+            );
           });
 
           if (parent && !hasContent(parent)) {
@@ -1186,10 +1273,12 @@ const DosenIKD: React.FC = () => {
             if (!itemMatch) return false;
             const itemNumber = itemMatch[1];
             // Pastikan nomor cocok DAN juga cocok dengan bidang
-            return itemNumber === currentNumber && 
-                   item.bidang === currentPedoman.bidang &&
-                   (item.level === 0 || item.level === undefined) &&
-                   (!item.parent_id || item.parent_id === null);
+            return (
+              itemNumber === currentNumber &&
+              item.bidang === currentPedoman.bidang &&
+              (item.level === 0 || item.level === undefined) &&
+              (!item.parent_id || item.parent_id === null)
+            );
           });
 
           if (parent && hasContent(parent)) {
@@ -1322,61 +1411,64 @@ const DosenIKD: React.FC = () => {
         <div className="bg-white dark:bg-white/[0.03] rounded-b-xl shadow-md border border-gray-200 dark:border-gray-800">
           <div className="p-6">
             <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-          {loading || loadingPedoman ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-                <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900">
-                  <tr>
-                    <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      No
-                    </th>
-                    <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Nama Dosen
-                    </th>
-                    {Array.from({ length: 3 }).map((_, idx) => (
-                      <React.Fragment key={idx}>
+              {loading || loadingPedoman ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                    <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900">
+                      <tr>
                         <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                          No
                         </th>
-                        <th className="px-2 pr-4 py-4 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20">
-                          <div className="h-4 w-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mx-auto"></div>
+                        <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Nama Dosen
                         </th>
-                      </React.Fragment>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="bg-white dark:bg-white/[0.03] divide-y divide-gray-100 dark:divide-white/[0.05]">
-                  {Array.from({ length: 5 }).map((_, rowIdx) => (
-                    <tr key={rowIdx} className="animate-pulse">
-                      <td className="px-4 py-4">
-                        <div className="h-4 w-8 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                      </td>
-                      {Array.from({ length: 3 }).map((_, colIdx) => (
-                        <React.Fragment key={colIdx}>
+                        {Array.from({ length: 3 }).map((_, idx) => (
+                          <React.Fragment key={idx}>
+                            <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                              <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                            </th>
+                            <th className="px-2 pr-4 py-4 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20">
+                              <div className="h-4 w-12 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mx-auto"></div>
+                            </th>
+                          </React.Fragment>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white dark:bg-white/[0.03] divide-y divide-gray-100 dark:divide-white/[0.05]">
+                      {Array.from({ length: 5 }).map((_, rowIdx) => (
+                        <tr key={rowIdx} className="animate-pulse">
                           <td className="px-4 py-4">
-                            <div className="h-8 w-24 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                            <div className="h-4 w-8 bg-gray-200 dark:bg-gray-700 rounded"></div>
                           </td>
-                          <td className="px-2 pr-4 py-4 text-center">
-                            <div className="h-6 w-16 bg-gray-200 dark:bg-gray-700 rounded mx-auto"></div>
+                          <td className="px-4 py-4">
+                            <div className="h-4 w-32 bg-gray-200 dark:bg-gray-700 rounded"></div>
                           </td>
-                        </React.Fragment>
+                          {Array.from({ length: 3 }).map((_, colIdx) => (
+                            <React.Fragment key={colIdx}>
+                              <td className="px-4 py-4">
+                                <div className="h-8 w-24 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                              </td>
+                              <td className="px-2 pr-4 py-4 text-center">
+                                <div className="h-6 w-16 bg-gray-200 dark:bg-gray-700 rounded mx-auto"></div>
+                              </td>
+                            </React.Fragment>
+                          ))}
+                        </tr>
                       ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <>
-              <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-                <div
-                  className="max-w-full overflow-x-auto hide-scroll"
-                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-                >
-                  <style>{`
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+                    <div
+                      className="max-w-full overflow-x-auto hide-scroll"
+                      style={{
+                        scrollbarWidth: "none",
+                        msOverflowStyle: "none",
+                      }}
+                    >
+                      <style>{`
                     .max-w-full::-webkit-scrollbar { display: none; }
                     .hide-scroll { 
                       -ms-overflow-style: none; /* IE and Edge */
@@ -1386,414 +1478,524 @@ const DosenIKD: React.FC = () => {
                       display: none;
                     }
                   `}</style>
-                  <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
-                  <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
-                    <tr>
-                      <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        No
-                      </th>
-                      <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Nama Dosen
-                      </th>
-                      {pedomanList.map((pedoman, index) => (
-                        <React.Fragment key={pedoman.id}>
-                          <th
-                            className={`px-4 ${
-                              index > 0 ? "pl-8" : ""
-                            } pr-2 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors relative group`}
-                            onClick={() => handleKegiatanHeaderClick(pedoman)}
-                            title={pedoman.kegiatan}
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span 
-                                className="truncate block max-w-[200px]" 
-                                title={pedoman.kegiatan}
-                              >
-                                {pedoman.kegiatan}
-                              </span>
-                              <FontAwesomeIcon
-                                icon={faInfoCircle}
-                                className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                              />
-                            </div>
-                          </th>
-                          <th className="px-2 pr-4 py-4 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-24">
-                            Aksi
-                          </th>
-                          <th className="px-2 pr-4 py-4 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20">
-                            Skor
-                          </th>
-                        </React.Fragment>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white dark:bg-white/[0.03] divide-y divide-gray-100 dark:divide-white/[0.05]">
-                    {paginatedDosen.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={2 + pedomanList.length * 3}
-                          className="text-center py-8 text-gray-400 dark:text-gray-500"
-                        >
-                          Belum ada data.
-                        </td>
-                      </tr>
-                    ) : (
-                      paginatedDosen.map((dosen, idx) => (
-                        <tr
-                          key={dosen.id}
-                          className={
-                            idx % 2 === 1 ? "bg-gray-50 dark:bg-white/[0.02]" : ""
-                          }
-                        >
-                          <td className="px-6 py-4 whitespace-nowrap text-gray-800 dark:text-white/90 align-middle">
-                            {(page - 1) * pageSize + idx + 1}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-gray-800 dark:text-white/90 align-middle">
-                            {dosen.name || "-"}
-                          </td>
-                          {pedomanList.map((pedoman, index) => {
-                            const key = `${dosen.id}_${pedoman.id}`;
-                            const buktiFisikFiles = buktiFisikMap[key] || [];
-                            const isUploading = uploadingFiles[key] || false;
-                            const fileInputKey = `file_${key}`;
-                            
-                            // Get skor value (prioritize file with status_verifikasi = 'benar')
-                            let skorValue = "0";
-                            if (buktiFisikFiles.length > 0) {
-                              const benarFile = buktiFisikFiles.find(f => f.status_verifikasi === 'benar');
-                              if (benarFile && benarFile.skor !== null && benarFile.skor !== undefined) {
-                                skorValue = benarFile.skor.toString();
-                              } else {
-                                const latestFile = buktiFisikFiles.sort((a, b) => b.id - a.id)[0];
-                                skorValue = skorValues[key] ?? latestFile.skor?.toString() ?? "0";
-                              }
-                            }
-
-                            // Check status untuk menentukan apakah bisa upload
-                            const hasSalahStatus = buktiFisikFiles.some(f => f.status_verifikasi === 'salah');
-                            const hasBenarStatus = buktiFisikFiles.some(f => f.status_verifikasi === 'benar');
-                            const hasPerbaikiStatus = buktiFisikFiles.some(f => f.status_verifikasi === 'perbaiki');
-                            // Dosen tidak bisa upload jika ada status 'salah' atau 'benar'
-                            const canUpload = isDosen && dosen.id === user?.id && !hasSalahStatus && !hasBenarStatus;
-
-                            // Check apakah ada file dengan status verifikasi
-                            const hasStatusVerifikasi = buktiFisikFiles.some(f => f.status_verifikasi !== null && f.status_verifikasi !== undefined);
-                            // Check apakah ada file dengan status 'benar' (bisa isi skor)
-                            const hasBenarFile = buktiFisikFiles.some(f => f.status_verifikasi === 'benar');
-                            
-                            // Limit files untuk display (max 3, sisanya bisa expand)
-                            const maxVisibleFiles = 3;
-                            const isExpanded = expandedFiles[key] || false;
-                            const visibleFiles = isExpanded ? buktiFisikFiles : buktiFisikFiles.slice(0, maxVisibleFiles);
-                            const hasMoreFiles = buktiFisikFiles.length > maxVisibleFiles;
-
-                            return (
+                      <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
+                        <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
+                          <tr>
+                            <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                              No
+                            </th>
+                            <th className="px-4 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                              Nama Dosen
+                            </th>
+                            {pedomanList.map((pedoman, index) => (
                               <React.Fragment key={pedoman.id}>
-                                <td
-                                  className={`px-6 ${
-                                    index > 0 ? "pl-8" : ""
-                                  } pr-2 py-4 text-gray-800 dark:text-white/90 align-middle`}
+                                <th
+                                  className={`px-4 ${index > 0 ? "pl-8" : ""
+                                    } pr-2 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors relative group`}
+                                  onClick={() =>
+                                    handleKegiatanHeaderClick(pedoman)
+                                  }
+                                  title={pedoman.kegiatan}
                                 >
-                                  <div className="flex flex-col gap-2">
-                                    {buktiFisikFiles.length > 0 ? (
-                                      <>
-                                        {/* Multiple files display */}
-                                        {visibleFiles.map((buktiFisik) => (
-                                          <div key={buktiFisik.id} className="flex flex-col gap-1">
-                                      <div className="flex items-center gap-2">
-                                        {/* Download button - semua role bisa download */}
-                                        <button
-                                          onClick={() =>
-                                            handleDownloadFile(
-                                              buktiFisik.id,
-                                              buktiFisik.file_name
-                                            )
-                                          }
-                                          className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline"
-                                          title={buktiFisik.file_name}
-                                        >
-                                          <FontAwesomeIcon icon={faDownload} />
-                                          <span className="text-xs truncate max-w-[150px]">
-                                            {buktiFisik.file_name}
-                                          </span>
-                                        </button>
-                                        {/* Delete button - hanya dosen yang bisa hapus file sendiri */}
-                                        {isDosen && dosen.id === user?.id && (
-                                          <button
-                                            onClick={() =>
-                                              handleDeleteClick(
-                                                buktiFisik.id,
-                                                buktiFisik.file_name
-                                              )
-                                            }
-                                            className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors"
-                                            title="Hapus file"
-                                          >
-                                            <FontAwesomeIcon icon={faTrash} />
-                                          </button>
-                                        )}
-                                      </div>
-                                            
-                                            {/* Status badge */}
-                                            {buktiFisik.status_verifikasi && (
-                                              <span className={`text-xs px-2 py-0.5 rounded ${
-                                                buktiFisik.status_verifikasi === 'benar' 
-                                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                                                  : buktiFisik.status_verifikasi === 'salah'
-                                                  ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                                                  : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                                              }`}>
-                                                {buktiFisik.status_verifikasi === 'benar' ? '✓ Benar' :
-                                                 buktiFisik.status_verifikasi === 'salah' ? '✗ Salah' :
-                                                 '⚠ Perbaiki'}
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span
+                                      className="truncate block max-w-[200px]"
+                                      title={pedoman.kegiatan}
+                                    >
+                                      {pedoman.kegiatan}
+                                    </span>
+                                    <FontAwesomeIcon
+                                      icon={faInfoCircle}
+                                      className="w-3 h-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                                    />
+                                  </div>
+                                </th>
+                                <th className="px-2 pr-4 py-4 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-24">
+                                  Aksi
+                                </th>
+                                <th className="px-2 pr-4 py-4 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20">
+                                  Skor
+                                </th>
+                              </React.Fragment>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white dark:bg-white/[0.03] divide-y divide-gray-100 dark:divide-white/[0.05]">
+                          {paginatedDosen.length === 0 ? (
+                            <tr>
+                              <td
+                                colSpan={2 + pedomanList.length * 3}
+                                className="text-center py-8 text-gray-400 dark:text-gray-500"
+                              >
+                                Belum ada data.
+                              </td>
+                            </tr>
+                          ) : (
+                            paginatedDosen.map((dosen, idx) => (
+                              <tr
+                                key={dosen.id}
+                                className={
+                                  idx % 2 === 1
+                                    ? "bg-gray-50 dark:bg-white/[0.02]"
+                                    : ""
+                                }
+                              >
+                                <td className="px-6 py-4 whitespace-nowrap text-gray-800 dark:text-white/90 align-middle">
+                                  {(page - 1) * pageSize + idx + 1}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-gray-800 dark:text-white/90 align-middle">
+                                  {dosen.name || "-"}
+                                </td>
+                                {pedomanList.map((pedoman, index) => {
+                                  const key = `${dosen.id}_${pedoman.id}`;
+                                  const buktiFisikFiles =
+                                    buktiFisikMap[key] || [];
+                                  const isUploading =
+                                    uploadingFiles[key] || false;
+                                  const fileInputKey = `file_${key}`;
+
+                                  // Get skor value (prioritize file with status_verifikasi = 'benar')
+                                  let skorValue = "0";
+                                  if (buktiFisikFiles.length > 0) {
+                                    const benarFile = buktiFisikFiles.find(
+                                      (f) => f.status_verifikasi === "benar"
+                                    );
+                                    if (
+                                      benarFile &&
+                                      benarFile.skor !== null &&
+                                      benarFile.skor !== undefined
+                                    ) {
+                                      skorValue = benarFile.skor.toString();
+                                    } else {
+                                      const latestFile = buktiFisikFiles.sort(
+                                        (a, b) => b.id - a.id
+                                      )[0];
+                                      skorValue =
+                                        skorValues[key] ??
+                                        latestFile.skor?.toString() ??
+                                        "0";
+                                    }
+                                  }
+
+                                  // Check status untuk menentukan apakah bisa upload
+                                  const hasSalahStatus = buktiFisikFiles.some(
+                                    (f) => f.status_verifikasi === "salah"
+                                  );
+                                  const hasBenarStatus = buktiFisikFiles.some(
+                                    (f) => f.status_verifikasi === "benar"
+                                  );
+                                  const hasPerbaikiStatus =
+                                    buktiFisikFiles.some(
+                                      (f) => f.status_verifikasi === "perbaiki"
+                                    );
+                                  // Dosen tidak bisa upload jika ada status 'salah' atau 'benar'
+                                  const canUpload =
+                                    isDosen &&
+                                    dosen.id === user?.id &&
+                                    !hasSalahStatus &&
+                                    !hasBenarStatus;
+
+                                  // Check apakah ada file dengan status verifikasi
+                                  const hasStatusVerifikasi =
+                                    buktiFisikFiles.some(
+                                      (f) =>
+                                        f.status_verifikasi !== null &&
+                                        f.status_verifikasi !== undefined
+                                    );
+                                  // Check apakah ada file dengan status 'benar' (bisa isi skor)
+                                  const hasBenarFile = buktiFisikFiles.some(
+                                    (f) => f.status_verifikasi === "benar"
+                                  );
+
+                                  // Limit files untuk display (max 3, sisanya bisa expand)
+                                  const maxVisibleFiles = 3;
+                                  const isExpanded =
+                                    expandedFiles[key] || false;
+                                  const visibleFiles = isExpanded
+                                    ? buktiFisikFiles
+                                    : buktiFisikFiles.slice(0, maxVisibleFiles);
+                                  const hasMoreFiles =
+                                    buktiFisikFiles.length > maxVisibleFiles;
+
+                                  return (
+                                    <React.Fragment key={pedoman.id}>
+                                      <td
+                                        className={`px-6 ${index > 0 ? "pl-8" : ""
+                                          } pr-2 py-4 text-gray-800 dark:text-white/90 align-middle`}
+                                      >
+                                        <div className="flex flex-col gap-2">
+                                          {buktiFisikFiles.length > 0 ? (
+                                            <>
+                                              {/* Multiple files display */}
+                                              {visibleFiles.map(
+                                                (buktiFisik) => (
+                                                  <div
+                                                    key={buktiFisik.id}
+                                                    className="flex flex-col gap-1"
+                                                  >
+                                                    <div className="flex items-center gap-2">
+                                                      {/* Download button - semua role bisa download */}
+                                                      <button
+                                                        onClick={() =>
+                                                          handleDownloadFile(
+                                                            buktiFisik.id,
+                                                            buktiFisik.file_name
+                                                          )
+                                                        }
+                                                        className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline"
+                                                        title={
+                                                          buktiFisik.file_name
+                                                        }
+                                                      >
+                                                        <FontAwesomeIcon
+                                                          icon={faDownload}
+                                                        />
+                                                        <span className="text-xs truncate max-w-[150px]">
+                                                          {buktiFisik.file_name}
+                                                        </span>
+                                                      </button>
+                                                      {/* Delete button - hanya dosen yang bisa hapus file sendiri */}
+                                                      {isDosen &&
+                                                        dosen.id ===
+                                                        user?.id && (
+                                                          <button
+                                                            onClick={() =>
+                                                              handleDeleteClick(
+                                                                buktiFisik.id,
+                                                                buktiFisik.file_name
+                                                              )
+                                                            }
+                                                            className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors"
+                                                            title="Hapus file"
+                                                          >
+                                                            <FontAwesomeIcon
+                                                              icon={faTrash}
+                                                            />
+                                                          </button>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Status badge */}
+                                                    {buktiFisik.status_verifikasi && (
+                                                      <span
+                                                        className={`text-xs px-2 py-0.5 rounded ${buktiFisik.status_verifikasi ===
+                                                          "benar"
+                                                          ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                                                          : buktiFisik.status_verifikasi ===
+                                                            "salah"
+                                                            ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                                                            : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+                                                          }`}
+                                                      >
+                                                        {buktiFisik.status_verifikasi ===
+                                                          "benar"
+                                                          ? "✓ Benar"
+                                                          : buktiFisik.status_verifikasi ===
+                                                            "salah"
+                                                            ? "✗ Salah"
+                                                            : "⚠ Perbaiki"}
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                )
+                                              )}
+
+                                              {/* Show more/less button jika file lebih dari 3 */}
+                                              {hasMoreFiles && (
+                                                <button
+                                                  onClick={() =>
+                                                    setExpandedFiles(
+                                                      (prev) => ({
+                                                        ...prev,
+                                                        [key]: !prev[key],
+                                                      })
+                                                    )
+                                                  }
+                                                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1"
+                                                >
+                                                  {isExpanded
+                                                    ? "Lihat lebih sedikit"
+                                                    : `Lihat ${buktiFisikFiles.length -
+                                                    maxVisibleFiles
+                                                    } file lagi`}
+                                                </button>
+                                              )}
+                                            </>
+                                          ) : null}
+
+                                          {/* Upload button - hanya dosen yang bisa upload untuk dirinya sendiri */}
+                                          {/* Bisa upload jika: belum ada file, atau semua file status-nya null */}
+                                          {canUpload ? (
+                                            <div className="flex flex-col gap-1 items-start">
+                                              <div className="flex items-center gap-2">
+                                                <input
+                                                  ref={(el) => {
+                                                    fileInputRefs.current[
+                                                      fileInputKey
+                                                    ] = el;
+                                                  }}
+                                                  type="file"
+                                                  accept=".pdf,.xlsx,.xls,.xlsm,.docx,.doc,.docm,.ppt,.pptx,.pptm,.jpg,.jpeg,.png,.gif,.zip,.rar"
+                                                  multiple
+                                                  className="hidden"
+                                                  onChange={(e) => {
+                                                    const files = e.target.files;
+                                                    if (
+                                                      files &&
+                                                      files.length > 0
+                                                    ) {
+                                                      handleMultipleFileUpload(
+                                                        dosen.id,
+                                                        pedoman.id,
+                                                        files
+                                                      );
+                                                    }
+                                                    if (
+                                                      fileInputRefs.current[
+                                                      fileInputKey
+                                                      ]
+                                                    ) {
+                                                      fileInputRefs.current[
+                                                        fileInputKey
+                                                      ].value = "";
+                                                    }
+                                                  }}
+                                                />
+                                                <button
+                                                  onClick={() => {
+                                                    fileInputRefs.current[
+                                                      fileInputKey
+                                                    ]?.click();
+                                                  }}
+                                                  disabled={isUploading}
+                                                  className="inline-flex items-center gap-1 px-2 py-1 text-sm font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                  {isUploading ? (
+                                                    <>
+                                                      <FontAwesomeIcon
+                                                        icon={faSpinner}
+                                                        className="w-4 h-4 animate-spin"
+                                                      />
+                                                      <span className="hidden sm:inline">
+                                                        Uploading...
+                                                      </span>
+                                                    </>
+                                                  ) : (
+                                                    <>
+                                                      <FontAwesomeIcon
+                                                        icon={faUpload}
+                                                        className="w-4 h-4 sm:w-5 sm:h-5"
+                                                      />
+                                                      <span className="hidden sm:inline">
+                                                        Upload
+                                                      </span>
+                                                    </>
+                                                  )}
+                                                </button>
+                                              </div>
+                                              <span className="text-xs font-bold text-gray-700 dark:text-gray-300">Upload Bukti Fisik</span>
+                                              <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">(PDF, Word, Excel, Gambar)</span>
+                                            </div>
+                                          ) : (
+                                            /* Tampilkan pesan sesuai kondisi */
+                                            <>
+                                              {isDosen &&
+                                                dosen.id === user?.id ? (
+                                                /* Untuk dosen: tampilkan informasi mengapa tidak bisa upload */
+                                                hasSalahStatus ||
+                                                  hasBenarStatus ? (
+                                                  <div className="p-2 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded text-xs text-gray-600 dark:text-gray-400">
+                                                    {hasSalahStatus
+                                                      ? "✗ File telah ditandai sebagai salah. Tidak dapat upload lagi."
+                                                      : hasBenarStatus
+                                                        ? "✓ File telah ditandai sebagai benar. Tidak dapat upload lagi."
+                                                        : ""}
+                                                  </div>
+                                                ) : (
+                                                  <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                                                    Belum ada file
+                                                  </span>
+                                                )
+                                              ) : (
+                                                /* Untuk verifikator/superadmin, tampilkan pesan jika belum ada file */
+                                                <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                                                  Belum ada file
+                                                </span>
+                                              )}
+                                            </>
+                                          )}
+                                        </div>
+                                      </td>
+                                      <td className="px-2 pr-4 py-4 text-center align-middle">
+                                        {/* Aksi buttons untuk verifikator/superadmin - hanya muncul sekali per pedoman (aksi diterapkan ke semua file) */}
+                                        {(isVerifikator ||
+                                          isSuperAdmin ||
+                                          isKetuaIKD) &&
+                                          buktiFisikFiles.length > 0 ? (
+                                          <div className="flex flex-col gap-1 items-center justify-center w-full">
+                                            {/* Cek apakah semua file sudah memiliki status_verifikasi */}
+                                            {!hasStatusVerifikasi ? (
+                                              /* Ambil file pertama untuk mendapatkan info (aksi akan diterapkan ke semua file) */
+                                              (() => {
+                                                const firstFile =
+                                                  buktiFisikFiles[0];
+                                                return (
+                                                  <div className="flex items-center justify-center gap-1">
+                                                    <button
+                                                      onClick={() =>
+                                                        handleAksiClick(
+                                                          firstFile.id,
+                                                          "salah",
+                                                          `Semua file (${buktiFisikFiles.length} file)`
+                                                        )
+                                                      }
+                                                      className="px-2 py-0.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition-colors"
+                                                      title="Tandai semua file sebagai salah (skor = 0)"
+                                                    >
+                                                      Salah
+                                                    </button>
+                                                    <button
+                                                      onClick={() =>
+                                                        handleAksiClick(
+                                                          firstFile.id,
+                                                          "benar",
+                                                          `Semua file (${buktiFisikFiles.length} file)`
+                                                        )
+                                                      }
+                                                      className="px-2 py-0.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition-colors"
+                                                      title="Tandai semua file sebagai benar (bisa dinilai)"
+                                                    >
+                                                      Benar
+                                                    </button>
+                                                    <button
+                                                      onClick={() =>
+                                                        handleAksiClick(
+                                                          firstFile.id,
+                                                          "perbaiki",
+                                                          `Semua file (${buktiFisikFiles.length} file)`
+                                                        )
+                                                      }
+                                                      className="px-2 py-0.5 text-xs font-medium text-white bg-yellow-600 hover:bg-yellow-700 rounded transition-colors"
+                                                      title="Minta dosen untuk memperbaiki semua file"
+                                                    >
+                                                      Perbaiki
+                                                    </button>
+                                                  </div>
+                                                );
+                                              })()
+                                            ) : (
+                                              <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                                                Sudah dipilih
                                               </span>
                                             )}
                                           </div>
-                                        ))}
-                                        
-                                        {/* Show more/less button jika file lebih dari 3 */}
-                                        {hasMoreFiles && (
-                                          <button
-                                            onClick={() => setExpandedFiles(prev => ({
-                                              ...prev,
-                                              [key]: !prev[key]
-                                            }))}
-                                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1"
-                                          >
-                                            {isExpanded ? 'Lihat lebih sedikit' : `Lihat ${buktiFisikFiles.length - maxVisibleFiles} file lagi`}
-                                          </button>
+                                        ) : (
+                                          <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+                                            -
+                                          </span>
                                         )}
-                                        
-                                      </>
-                                    ) : null}
-                                    
-                                    {/* Upload button - hanya dosen yang bisa upload untuk dirinya sendiri */}
-                                    {/* Bisa upload jika: belum ada file, atau semua file status-nya null */}
-                                    {canUpload ? (
-                                      <div className="flex items-center gap-2">
-                                        <input
-                                          ref={(el) => {
-                                            fileInputRefs.current[
-                                              fileInputKey
-                                            ] = el;
-                                          }}
-                                          type="file"
-                                          accept=".pdf,.xlsx,.xls,.docx,.doc,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.zip,.rar"
-                                          multiple
-                                          className="hidden"
-                                          onChange={(e) => {
-                                            const files = e.target.files;
-                                            if (files && files.length > 0) {
-                                              handleMultipleFileUpload(
+                                      </td>
+                                      <td className="px-2 pr-4 py-4 text-center align-middle">
+                                        {/* Skor input - hanya verifikator/superadmin yang bisa isi skor */}
+                                        {isVerifikator ||
+                                          isSuperAdmin ||
+                                          isKetuaIKD ? (
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            value={skorValue}
+                                            onChange={(e) =>
+                                              handleSkorChange(
                                                 dosen.id,
                                                 pedoman.id,
-                                                files
-                                              );
+                                                e.target.value
+                                              )
                                             }
-                                            if (
-                                              fileInputRefs.current[
-                                                fileInputKey
-                                              ]
-                                            ) {
-                                              fileInputRefs.current[
-                                                fileInputKey
-                                              ].value = "";
+                                            disabled={
+                                              !hasStatusVerifikasi ||
+                                              hasSalahStatus ||
+                                              !hasBenarFile
                                             }
-                                          }}
-                                        />
-                                        <button
-                                          onClick={() => {
-                                            fileInputRefs.current[
-                                              fileInputKey
-                                            ]?.click();
-                                          }}
-                                          disabled={isUploading}
-                                          className="inline-flex items-center gap-1 px-2 py-1 text-sm font-medium text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                          {isUploading ? (
-                                            <>
-                                              <FontAwesomeIcon
-                                                icon={faSpinner}
-                                                className="w-4 h-4 animate-spin"
-                                              />
-                                              <span className="hidden sm:inline">Uploading...</span>
-                                            </>
-                                          ) : (
-                                            <>
-                                              <FontAwesomeIcon
-                                                icon={faUpload}
-                                                className="w-4 h-4 sm:w-5 sm:h-5"
-                                              />
-                                              <span className="hidden sm:inline">Upload</span>
-                                            </>
-                                          )}
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      /* Tampilkan pesan sesuai kondisi */
-                                      <>
-                                        {isDosen && dosen.id === user?.id ? (
-                                          /* Untuk dosen: tampilkan informasi mengapa tidak bisa upload */
-                                          hasSalahStatus || hasBenarStatus ? (
-                                            <div className="p-2 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded text-xs text-gray-600 dark:text-gray-400">
-                                              {hasSalahStatus ? '✗ File telah ditandai sebagai salah. Tidak dapat upload lagi.' : 
-                                               hasBenarStatus ? '✓ File telah ditandai sebagai benar. Tidak dapat upload lagi.' : ''}
-                                            </div>
-                                          ) : (
-                                            <span className="text-xs text-gray-400 dark:text-gray-500 italic">
-                                              Belum ada file
-                                            </span>
-                                          )
-                                    ) : (
-                                      /* Untuk verifikator/superadmin, tampilkan pesan jika belum ada file */
-                                      <span className="text-xs text-gray-400 dark:text-gray-500 italic">
-                                        Belum ada file
-                                      </span>
+                                            className={`w-16 px-1.5 py-1 text-sm text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${!hasStatusVerifikasi ||
+                                              hasSalahStatus ||
+                                              !hasBenarFile
+                                              ? "opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-700"
+                                              : ""
+                                              }`}
+                                            placeholder="0"
+                                            title={
+                                              !hasStatusVerifikasi
+                                                ? "Pilih aksi terlebih dahulu (Salah/Benar/Perbaiki)"
+                                                : hasSalahStatus
+                                                  ? "Status salah, skor otomatis 0 dan tidak bisa diubah"
+                                                  : !hasBenarFile
+                                                    ? "Pilih aksi 'Benar' terlebih dahulu untuk bisa mengisi skor"
+                                                    : "Isi skor untuk dosen ini"
+                                            }
+                                          />
+                                        ) : (
+                                          /* Untuk dosen, tampilkan skor sebagai read-only */
+                                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                                            {skorValue}
+                                          </span>
                                         )}
-                                      </>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="px-2 pr-4 py-4 text-center align-middle">
-                                  {/* Aksi buttons untuk verifikator/superadmin - hanya muncul sekali per pedoman (aksi diterapkan ke semua file) */}
-                                  {(isVerifikator || isSuperAdmin || isKetuaIKD) && buktiFisikFiles.length > 0 ? (
-                                    <div className="flex flex-col gap-1 items-center justify-center w-full">
-                                      {/* Cek apakah semua file sudah memiliki status_verifikasi */}
-                                      {!hasStatusVerifikasi ? (
-                                        /* Ambil file pertama untuk mendapatkan info (aksi akan diterapkan ke semua file) */
-                                        (() => {
-                                          const firstFile = buktiFisikFiles[0];
-                                          return (
-                                            <div className="flex items-center justify-center gap-1">
-                                              <button
-                                                onClick={() => handleAksiClick(firstFile.id, 'salah', `Semua file (${buktiFisikFiles.length} file)`)}
-                                                className="px-2 py-0.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded transition-colors"
-                                                title="Tandai semua file sebagai salah (skor = 0)"
-                                              >
-                                                Salah
-                                              </button>
-                                              <button
-                                                onClick={() => handleAksiClick(firstFile.id, 'benar', `Semua file (${buktiFisikFiles.length} file)`)}
-                                                className="px-2 py-0.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded transition-colors"
-                                                title="Tandai semua file sebagai benar (bisa dinilai)"
-                                              >
-                                                Benar
-                                              </button>
-                                              <button
-                                                onClick={() => handleAksiClick(firstFile.id, 'perbaiki', `Semua file (${buktiFisikFiles.length} file)`)}
-                                                className="px-2 py-0.5 text-xs font-medium text-white bg-yellow-600 hover:bg-yellow-700 rounded transition-colors"
-                                                title="Minta dosen untuk memperbaiki semua file"
-                                              >
-                                                Perbaiki
-                                              </button>
-                                            </div>
-                                          );
-                                        })()
-                                      ) : (
-                                        <span className="text-xs text-gray-400 dark:text-gray-500 italic">
-                                          Sudah dipilih
-                                        </span>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <span className="text-xs text-gray-400 dark:text-gray-500 italic">
-                                      -
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="px-2 pr-4 py-4 text-center align-middle">
-                                  {/* Skor input - hanya verifikator/superadmin yang bisa isi skor */}
-                                  {isVerifikator || isSuperAdmin || isKetuaIKD ? (
-                                    <input
-                                      type="number"
-                                      step="0.01"
-                                      min="0"
-                                      value={skorValue}
-                                      onChange={(e) =>
-                                        handleSkorChange(
-                                          dosen.id,
-                                          pedoman.id,
-                                          e.target.value
-                                        )
-                                      }
-                                      disabled={!hasStatusVerifikasi || hasSalahStatus || !hasBenarFile}
-                                      className={`w-16 px-1.5 py-1 text-sm text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                                        !hasStatusVerifikasi || hasSalahStatus || !hasBenarFile
-                                          ? "opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-700"
-                                          : ""
-                                      }`}
-                                      placeholder="0"
-                                      title={
-                                        !hasStatusVerifikasi
-                                          ? "Pilih aksi terlebih dahulu (Salah/Benar/Perbaiki)"
-                                          : hasSalahStatus
-                                          ? "Status salah, skor otomatis 0 dan tidak bisa diubah"
-                                          : !hasBenarFile
-                                          ? "Pilih aksi 'Benar' terlebih dahulu untuk bisa mengisi skor"
-                                          : "Isi skor untuk dosen ini"
-                                      }
-                                    />
-                                  ) : (
-                                    /* Untuk dosen, tampilkan skor sebagai read-only */
-                                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                                      {skorValue}
-                                    </span>
-                                  )}
-                                </td>
-                              </React.Fragment>
-                            );
-                          })}
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-                </div>
-
-                {/* Pagination - hanya tampilkan jika verifikator atau super_admin dan lebih dari 1 halaman */}
-                {(isVerifikator || isSuperAdmin) && (
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 sm:px-6 py-4">
-                    <div className="flex items-center gap-4">
-                      <select
-                        id="perPage"
-                        value={pageSize}
-                        onChange={(e) => {
-                          setPageSize(Number(e.target.value));
-                          setPage(1);
-                        }}
-                        className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
-                      >
-                        {PAGE_SIZE_OPTIONS.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        Menampilkan {paginatedDosen.length} dari {filteredDosen.length} data
-                      </span>
+                                      </td>
+                                    </React.Fragment>
+                                  );
+                                })}
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
                     </div>
-                    {totalPages > 1 && (
-                      <div className="flex items-center gap-2 justify-center sm:justify-end">
-                        <button
-                          onClick={() => setPage((p) => Math.max(1, p - 1))}
-                          disabled={page === 1}
-                          className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
-                        >
-                          Prev
-                        </button>
 
-                        {/* Smart Pagination with Scroll */}
-                        <div
-                          className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll"
-                          style={{
-                            scrollbarWidth: "thin",
-                            scrollbarColor: "#cbd5e1 #f1f5f9",
-                          }}
-                        >
-                          <style
-                            dangerouslySetInnerHTML={{
-                              __html: `
+                    {/* Pagination - tampilkan jika ada data */}
+                    {filteredDosen.length > 0 && (
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 sm:px-6 py-4">
+                        <div className="flex items-center gap-4">
+                          <select
+                            id="perPage"
+                            value={pageSize}
+                            onChange={(e) => {
+                              setPageSize(Number(e.target.value));
+                              setPage(1);
+                            }}
+                            className="px-2 py-1 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-white text-sm focus:outline-none"
+                          >
+                            {PAGE_SIZE_OPTIONS.map((opt) => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                          </select>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">
+                            Menampilkan {paginatedDosen.length} dari{" "}
+                            {filteredDosen.length} data
+                          </span>
+                        </div>
+                        {totalPages > 1 && (
+                          <div className="flex items-center gap-2 justify-center sm:justify-end">
+                            <button
+                              onClick={() => setPage((p) => Math.max(1, p - 1))}
+                              disabled={page === 1}
+                              className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                            >
+                              Prev
+                            </button>
+
+                            {/* Smart Pagination with Scroll */}
+                            <div
+                              className="flex items-center gap-1 max-w-[400px] overflow-x-auto pagination-scroll"
+                              style={{
+                                scrollbarWidth: "thin",
+                                scrollbarColor: "#cbd5e1 #f1f5f9",
+                              }}
+                            >
+                              <style
+                                dangerouslySetInnerHTML={{
+                                  __html: `
                               .pagination-scroll::-webkit-scrollbar {
                                 height: 6px;
                               }
@@ -1818,91 +2020,90 @@ const DosenIKD: React.FC = () => {
                                 background: #64748b;
                               }
                             `,
-                            }}
-                          />
+                                }}
+                              />
 
-                          {/* Always show first page */}
-                          <button
-                            onClick={() => setPage(1)}
-                            className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                              page === 1
-                                ? "bg-brand-500 text-white"
-                                : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                            }`}
-                          >
-                            1
-                          </button>
-
-                          {/* Show ellipsis if current page is far from start */}
-                          {page > 4 && (
-                            <span className="px-2 text-gray-500 dark:text-gray-400">
-                              ...
-                            </span>
-                          )}
-
-                          {/* Show pages around current page */}
-                          {Array.from({ length: totalPages }, (_, i) => {
-                            const pageNum = i + 1;
-                            // Show pages around current page (2 pages before and after)
-                            const shouldShow =
-                              pageNum > 1 &&
-                              pageNum < totalPages &&
-                              pageNum >= page - 2 &&
-                              pageNum <= page + 2;
-
-                            if (!shouldShow) return null;
-
-                            return (
+                              {/* Always show first page */}
                               <button
-                                key={i}
-                                onClick={() => setPage(pageNum)}
-                                className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                                  page === pageNum
-                                    ? "bg-brand-500 text-white"
-                                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                }`}
-                              >
-                                {pageNum}
-                              </button>
-                            );
-                          })}
-
-                          {/* Show ellipsis if current page is far from end */}
-                          {page < totalPages - 3 && (
-                            <span className="px-2 text-gray-500 dark:text-gray-400">
-                              ...
-                            </span>
-                          )}
-
-                          {/* Always show last page if it's not the first page */}
-                          {totalPages > 1 && (
-                            <button
-                              onClick={() => setPage(totalPages)}
-                              className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${
-                                page === totalPages
+                                onClick={() => setPage(1)}
+                                className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${page === 1
                                   ? "bg-brand-500 text-white"
                                   : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                              }`}
-                            >
-                              {totalPages}
-                            </button>
-                          )}
-                        </div>
+                                  }`}
+                              >
+                                1
+                              </button>
 
-                        <button
-                          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                          disabled={page === totalPages}
-                          className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
-                        >
-                          Next
-                        </button>
+                              {/* Show ellipsis if current page is far from start */}
+                              {page > 4 && (
+                                <span className="px-2 text-gray-500 dark:text-gray-400">
+                                  ...
+                                </span>
+                              )}
+
+                              {/* Show pages around current page */}
+                              {Array.from({ length: totalPages }, (_, i) => {
+                                const pageNum = i + 1;
+                                // Show pages around current page (2 pages before and after)
+                                const shouldShow =
+                                  pageNum > 1 &&
+                                  pageNum < totalPages &&
+                                  pageNum >= page - 2 &&
+                                  pageNum <= page + 2;
+
+                                if (!shouldShow) return null;
+
+                                return (
+                                  <button
+                                    key={i}
+                                    onClick={() => setPage(pageNum)}
+                                    className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${page === pageNum
+                                      ? "bg-brand-500 text-white"
+                                      : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                      }`}
+                                  >
+                                    {pageNum}
+                                  </button>
+                                );
+                              })}
+
+                              {/* Show ellipsis if current page is far from end */}
+                              {page < totalPages - 3 && (
+                                <span className="px-2 text-gray-500 dark:text-gray-400">
+                                  ...
+                                </span>
+                              )}
+
+                              {/* Always show last page if it's not the first page */}
+                              {totalPages > 1 && (
+                                <button
+                                  onClick={() => setPage(totalPages)}
+                                  className={`px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 transition whitespace-nowrap ${page === totalPages
+                                    ? "bg-brand-500 text-white"
+                                    : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    }`}
+                                >
+                                  {totalPages}
+                                </button>
+                              )}
+                            </div>
+
+                            <button
+                              onClick={() =>
+                                setPage((p) => Math.min(totalPages, p + 1))
+                              }
+                              disabled={page === totalPages}
+                              className="px-3 py-1 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
+                            >
+                              Next
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                )}
-              </div>
-            </>
-          )}
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -2018,7 +2219,138 @@ const DosenIKD: React.FC = () => {
           )}
         </AnimatePresence>
 
+        {/* Modal Konfirmasi Delete File */}
+        <AnimatePresence>
+          {showDeleteModal && fileToDelete && (
+            <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+              <div
+                className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setFileToDelete(null);
+                }}
+              ></div>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+              >
+                <div className="flex items-center justify-between pb-6">
+                  <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                    Konfirmasi Hapus Data
+                  </h2>
+                </div>
+                <div>
+                  <p className="mb-6 text-gray-500 dark:text-gray-400">
+                    Apakah Anda yakin ingin menghapus file{" "}
+                    <span className="font-semibold text-gray-800 dark:text-white">
+                      "{fileToDelete.name}"
+                    </span>
+                    ?
+                  </p>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      onClick={() => {
+                        setShowDeleteModal(false);
+                        setFileToDelete(null);
+                      }}
+                      className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      onClick={confirmDeleteFile}
+                      className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition"
+                    >
+                      Hapus
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
+        {/* Modal Konfirmasi Aksi Verifikasi */}
+        <AnimatePresence>
+          {showAksiModal && aksiToConfirm && (
+            <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+              <div
+                className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+                onClick={() => {
+                  setShowAksiModal(false);
+                  setAksiToConfirm(null);
+                }}
+              ></div>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+              >
+                <div className="flex items-center justify-between pb-6">
+                  <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                    {aksiToConfirm.status === "salah"
+                      ? "Konfirmasi Tandai sebagai Salah"
+                      : aksiToConfirm.status === "benar"
+                        ? "Konfirmasi Tandai sebagai Benar"
+                        : "Konfirmasi Minta Perbaiki"}
+                  </h2>
+                </div>
+                <div>
+                  <p className="mb-4 text-gray-500 dark:text-gray-400">
+                    Apakah Anda yakin ingin{" "}
+                    {aksiToConfirm.status === "salah"
+                      ? "menandai file"
+                      : aksiToConfirm.status === "benar"
+                        ? "menandai file"
+                        : "meminta dosen untuk memperbaiki file"}{" "}
+                    <span className="font-semibold text-gray-800 dark:text-white">
+                      "{aksiToConfirm.fileName}"
+                    </span>{" "}
+                    {aksiToConfirm.status === "salah"
+                      ? "sebagai salah"
+                      : aksiToConfirm.status === "benar"
+                        ? "sebagai benar"
+                        : "?"}
+                  </p>
+                  <p className="mb-6 text-sm text-gray-600 dark:text-gray-500 whitespace-pre-line">
+                    {aksiToConfirm.description}
+                  </p>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      onClick={() => {
+                        setShowAksiModal(false);
+                        setAksiToConfirm(null);
+                      }}
+                      className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      onClick={confirmAksi}
+                      className={`px-4 py-2 rounded-lg text-white text-sm font-medium shadow-theme-xs transition ${aksiToConfirm.status === "salah"
+                        ? "bg-red-500 hover:bg-red-600"
+                        : aksiToConfirm.status === "benar"
+                          ? "bg-green-500 hover:bg-green-600"
+                          : "bg-yellow-500 hover:bg-yellow-600"
+                        }`}
+                    >
+                      {aksiToConfirm.status === "salah"
+                        ? "Tandai Salah"
+                        : aksiToConfirm.status === "benar"
+                          ? "Tandai Benar"
+                          : "Perbaiki"}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </div>
     </RekapIKDBase>
   );

@@ -1,7 +1,13 @@
-import React, { useState, useEffect, useRef, ChangeEvent } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  ChangeEvent,
+  useMemo,
+} from "react";
 import RekapIKDBase from "./RekapIKDBase";
 import { motion, AnimatePresence } from "framer-motion";
-import api from "../../utils/api";
+import api, { getUser } from "../../utils/api";
 import * as XLSX from "xlsx";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -111,7 +117,6 @@ const PedomanPoinIKD: React.FC = () => {
   const [deletedSubItems, setDeletedSubItems] = useState<number[]>([]); // Track sub items yang dihapus untuk dihapus dari database saat save
   const [deletedMainForm, setDeletedMainForm] = useState<number | null>(null); // Track form utama yang dihapus
 
-
   // State untuk import/export Excel
   const [showImportModal, setShowImportModal] = useState(false);
   const [importedFile, setImportedFile] = useState<File | null>(null);
@@ -132,6 +137,23 @@ const PedomanPoinIKD: React.FC = () => {
 
   // State untuk zoom tabel
   const [tableZoom, setTableZoom] = useState(1); // 1 = 100%, default
+
+  // State untuk modal konfirmasi delete (untuk delete dari table)
+  const [showDeleteItemModal, setShowDeleteItemModal] = useState(false);
+  const [showDeleteSubItemModal, setShowDeleteSubItemModal] = useState(false);
+  const [itemToDeleteIndex, setItemToDeleteIndex] = useState<number | null>(
+    null
+  );
+  const [subItemToDeleteIndex, setSubItemToDeleteIndex] = useState<{
+    itemIndex: number;
+    subItemIndex: number;
+  } | null>(null);
+
+  // Get current user role untuk menentukan apakah bisa edit/hapus
+  const currentUser = useMemo(() => getUser(), []);
+  const currentUserRole = currentUser?.role || "";
+  const canEdit =
+    currentUserRole === "ketua_ikd" || currentUserRole === "super_admin";
 
   // Fetch data
   useEffect(() => {
@@ -408,6 +430,10 @@ const PedomanPoinIKD: React.FC = () => {
   };
 
   const handleEditTableClick = () => {
+    // Hanya bisa edit jika role ketua_ikd atau super_admin
+    if (!canEdit) {
+      return;
+    }
     // Selalu kembali ke modal pilih bidang (halaman awal)
     setShowBidangModal(true);
   };
@@ -631,10 +657,16 @@ const PedomanPoinIKD: React.FC = () => {
   };
 
   const handleDeleteItem = (index: number) => {
-    const itemToDelete = items[index];
-    const confirmMessage = `Apakah Anda yakin ingin menghapus item ini?\n\nItem dengan NO "${itemToDelete.no}" dan kegiatan "${itemToDelete.kegiatan || "(kosong)"}"\n\n⚠️ Peringatan: Data yang dihapus tidak dapat dikembalikan. Semua data terkait seperti file yang sudah diupload oleh dosen, skor, dan data lainnya akan ikut hilang.`;
-    
-    if (window.confirm(confirmMessage)) {
+    // Tampilkan modal konfirmasi (karena delete dari table, bukan dari modal)
+    setItemToDeleteIndex(index);
+    setShowDeleteItemModal(true);
+  };
+
+  const confirmDeleteItem = () => {
+    if (itemToDeleteIndex === null) return;
+
+    const itemToDelete = items[itemToDeleteIndex];
+
     // Jika item punya id, berarti sudah ada di database, track untuk dihapus saat save
     if (itemToDelete?.id) {
       setDeletedItems((prev) => [...prev, itemToDelete.id!]);
@@ -654,17 +686,27 @@ const PedomanPoinIKD: React.FC = () => {
     }
 
     // Hapus dari state
-      const newItems = items.filter((_, i) => i !== index);
+    const newItems = items.filter((_, i) => i !== itemToDeleteIndex);
     setItems(newItems);
-    }
+
+    // Tutup modal
+    setShowDeleteItemModal(false);
+    setItemToDeleteIndex(null);
   };
 
   const handleDeleteSubItem = (itemIndex: number, subItemIndex: number) => {
+    // Tampilkan modal konfirmasi (karena delete dari table, bukan dari modal)
+    setSubItemToDeleteIndex({ itemIndex, subItemIndex });
+    setShowDeleteSubItemModal(true);
+  };
+
+  const confirmDeleteSubItem = () => {
+    if (subItemToDeleteIndex === null) return;
+
+    const { itemIndex, subItemIndex } = subItemToDeleteIndex;
     const item = items[itemIndex];
     const subItemToDelete = item.subItems[subItemIndex];
-    const confirmMessage = `Apakah Anda yakin ingin menghapus sub item ini?\n\nSub Item dengan kegiatan "${subItemToDelete.kegiatan || "(kosong)"}" dari Item "${item.no}"\n\n⚠️ Peringatan: Data yang dihapus tidak dapat dikembalikan. Semua data terkait seperti file yang sudah diupload oleh dosen, skor, dan data lainnya akan ikut hilang.`;
-    
-    if (window.confirm(confirmMessage)) {
+
     // Jika sub item punya id, berarti sudah ada di database, track untuk dihapus saat save
     if (subItemToDelete?.id) {
       const subItemId =
@@ -678,61 +720,66 @@ const PedomanPoinIKD: React.FC = () => {
 
     // Hapus dari state
     const updatedItems = [...items];
-      updatedItems[itemIndex].subItems = updatedItems[
-        itemIndex
-      ].subItems.filter((_, i) => i !== subItemIndex);
+    updatedItems[itemIndex].subItems = updatedItems[itemIndex].subItems.filter(
+      (_, i) => i !== subItemIndex
+    );
     setItems(updatedItems);
-    }
+
+    // Tutup modal
+    setShowDeleteSubItemModal(false);
+    setSubItemToDeleteIndex(null);
   };
 
   const handleDeleteMainFormSubItem = (subItemIndex: number) => {
     const subItemToDelete = subItems[subItemIndex];
-    const confirmMessage = `Apakah Anda yakin ingin menghapus sub item ini?\n\nSub Item dengan kegiatan "${subItemToDelete.kegiatan || "(kosong)"}" dari Form Utama\n\n⚠️ Peringatan: Data yang dihapus tidak dapat dikembalikan. Semua data terkait seperti file yang sudah diupload oleh dosen, skor, dan data lainnya akan ikut hilang.`;
-    
-    if (window.confirm(confirmMessage)) {
-    // Jika sub item punya id, berarti sudah ada di database, track untuk dihapus saat save
-    if (subItemToDelete?.id) {
-      const subItemId =
-        typeof subItemToDelete.id === "string"
-          ? parseInt(subItemToDelete.id)
-          : subItemToDelete.id;
-      if (!isNaN(subItemId)) {
-        setDeletedSubItems((prev) => [...prev, subItemId]);
-      }
-    }
+    const confirmMessage = `Apakah Anda yakin ingin menghapus sub item ini?\n\nSub Item dengan kegiatan "${subItemToDelete.kegiatan || "(kosong)"
+      }" dari Form Utama\n\n⚠️ Peringatan: Data yang dihapus tidak dapat dikembalikan. Semua data terkait seperti file yang sudah diupload oleh dosen, skor, dan data lainnya akan ikut hilang.`;
 
-    // Hapus dari state
+    if (window.confirm(confirmMessage)) {
+      // Jika sub item punya id, berarti sudah ada di database, track untuk dihapus saat save
+      if (subItemToDelete?.id) {
+        const subItemId =
+          typeof subItemToDelete.id === "string"
+            ? parseInt(subItemToDelete.id)
+            : subItemToDelete.id;
+        if (!isNaN(subItemId)) {
+          setDeletedSubItems((prev) => [...prev, subItemId]);
+        }
+      }
+
+      // Hapus dari state
       const newSubItems = subItems.filter((_, i) => i !== subItemIndex);
-    setSubItems(newSubItems);
+      setSubItems(newSubItems);
     }
   };
 
   const handleDeleteMainForm = () => {
-    const confirmMessage = `Apakah Anda yakin ingin menghapus form utama ini?\n\nForm Utama dengan NO "${form.no}" dan kegiatan "${form.kegiatan || "(kosong)"}"\n\n⚠️ Peringatan: Data yang dihapus tidak dapat dikembalikan. Semua data terkait seperti file yang sudah diupload oleh dosen, skor, dan data lainnya akan ikut hilang.`;
+    const confirmMessage = `Apakah Anda yakin ingin menghapus form utama ini?\n\nForm Utama dengan NO "${form.no
+      }" dan kegiatan "${form.kegiatan || "(kosong)"
+      }"\n\n⚠️ Peringatan: Data yang dihapus tidak dapat dikembalikan. Semua data terkait seperti file yang sudah diupload oleh dosen, skor, dan data lainnya akan ikut hilang.`;
 
     if (window.confirm(confirmMessage)) {
-    // Jika form utama punya id (dari editingItem), track untuk dihapus saat save
-    if (editingItem?.id) {
-      setDeletedMainForm(editingItem.id);
-    }
+      // Jika form utama punya id (dari editingItem), track untuk dihapus saat save
+      if (editingItem?.id) {
+        setDeletedMainForm(editingItem.id);
+      }
 
-    // Reset form
-    setForm({
-      no: "",
-      kegiatan: "",
-      indeks_poin: 0,
-      unit_kerja: "",
-      bukti_fisik: "",
-      prosedur: "",
-      bidang: selectedBidang || "",
-    });
-    setUseSubItem(false);
-    setSubItems([]);
-    setEditingItem(null);
-    setEditMode(false);
+      // Reset form
+      setForm({
+        no: "",
+        kegiatan: "",
+        indeks_poin: 0,
+        unit_kerja: "",
+        bukti_fisik: "",
+        prosedur: "",
+        bidang: selectedBidang || "",
+      });
+      setUseSubItem(false);
+      setSubItems([]);
+      setEditingItem(null);
+      setEditMode(false);
     }
   };
-
 
   const handleEdit = (item: IKDPedomanItem) => {
     setEditingItem(item);
@@ -1176,7 +1223,7 @@ const PedomanPoinIKD: React.FC = () => {
           console.error("Error saving item:", err);
           setError(
             err?.response?.data?.message ||
-              `Gagal menyimpan Item ${item.no}. Silakan coba lagi.`
+            `Gagal menyimpan Item ${item.no}. Silakan coba lagi.`
           );
           return;
         }
@@ -1368,7 +1415,7 @@ const PedomanPoinIKD: React.FC = () => {
       console.error("Error saving pedoman:", error);
       setError(
         error?.response?.data?.message ||
-          "Gagal menyimpan data. Silakan coba lagi."
+        "Gagal menyimpan data. Silakan coba lagi."
       );
     } finally {
       setIsSaving(false);
@@ -1411,10 +1458,10 @@ const PedomanPoinIKD: React.FC = () => {
       const updatedBidangList = bidangList.map((b) =>
         b.kode === editingBidang.kode
           ? {
-              ...b,
-              kode: newBidang.kode.toUpperCase().trim(),
-              nama: newBidang.nama.trim(),
-            }
+            ...b,
+            kode: newBidang.kode.toUpperCase().trim(),
+            nama: newBidang.nama.trim(),
+          }
           : b
       );
       setBidangList(updatedBidangList);
@@ -1734,7 +1781,7 @@ const PedomanPoinIKD: React.FC = () => {
         ]),
         [""],
         ["Tanggal Export", new Date().toLocaleString("id-ID")],
-        ["Dibuat oleh", "Sistem ISME"],
+        ["Dibuat oleh", "Sistem ISME FKK"],
       ];
 
       const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
@@ -1914,8 +1961,8 @@ const PedomanPoinIKD: React.FC = () => {
             ? "Y"
             : "N"
           : String(row.is_sub_item || "")
-              .toUpperCase()
-              .trim();
+            .toUpperCase()
+            .trim();
       if (
         isSubItem &&
         isSubItem !== "Y" &&
@@ -1963,23 +2010,23 @@ const PedomanPoinIKD: React.FC = () => {
           typeof otherRow.is_sub_item === "boolean"
             ? otherRow.is_sub_item
             : String(otherRow.is_sub_item || "")
-                .toUpperCase()
-                .trim() === "Y" ||
-              String(otherRow.is_sub_item || "")
-                .toUpperCase()
-                .trim() === "YES" ||
-              String(otherRow.is_sub_item || "")
-                .toUpperCase()
-                .trim() === "TRUE" ||
-              String(otherRow.is_sub_item || "")
-                .toUpperCase()
-                .trim() === "1";
+              .toUpperCase()
+              .trim() === "Y" ||
+            String(otherRow.is_sub_item || "")
+              .toUpperCase()
+              .trim() === "YES" ||
+            String(otherRow.is_sub_item || "")
+              .toUpperCase()
+              .trim() === "TRUE" ||
+            String(otherRow.is_sub_item || "")
+              .toUpperCase()
+              .trim() === "1";
         return (
           String(otherRow.bidang || "").trim() ===
-            String(row.bidang || "").trim() &&
+          String(row.bidang || "").trim() &&
           String(otherRow.no || "").trim() === String(row.no || "").trim() &&
           String(otherRow.kegiatan || "").trim() ===
-            String(row.kegiatan || "").trim() &&
+          String(row.kegiatan || "").trim() &&
           otherIsSubItem === isSubItemBool
         );
       });
@@ -1991,7 +2038,9 @@ const PedomanPoinIKD: React.FC = () => {
           message: "Data duplikat ditemukan dalam file import",
         };
         errors.push(errorKegiatan);
-        if (!cellErrors.find((e) => e.row === rowNum && e.field === "kegiatan")) {
+        if (
+          !cellErrors.find((e) => e.row === rowNum && e.field === "kegiatan")
+        ) {
           cellErrors.push(errorKegiatan);
         }
         // Also mark bidang and no as duplicate
@@ -2043,25 +2092,25 @@ const PedomanPoinIKD: React.FC = () => {
           0;
         const unitKerja = String(
           row.unit_kerja ||
-            row.unit_kerja_ ||
-            row["unit kerja"] ||
-            row["unit kerja_"] ||
-            ""
+          row.unit_kerja_ ||
+          row["unit kerja"] ||
+          row["unit kerja_"] ||
+          ""
         ).trim();
         const buktiFisik = String(
           row.bukti_fisik ||
-            row.bukti_fisik_ ||
-            row["bukti fisik"] ||
-            row["bukti fisik_"] ||
-            ""
+          row.bukti_fisik_ ||
+          row["bukti fisik"] ||
+          row["bukti fisik_"] ||
+          ""
         ).trim();
         const prosedur = String(row.prosedur || row.prosedur_ || "").trim();
         const isSubItemRaw = String(
           row.is_sub_item ||
-            row.is_sub_item_ ||
-            row["is sub item"] ||
-            row["is sub item_"] ||
-            ""
+          row.is_sub_item_ ||
+          row["is sub item"] ||
+          row["is sub item_"] ||
+          ""
         )
           .toUpperCase()
           .trim();
@@ -2072,10 +2121,10 @@ const PedomanPoinIKD: React.FC = () => {
           isSubItemRaw === "1";
         const parentNo = String(
           row.parent_no ||
-            row.parent_no_ ||
-            row["parent no"] ||
-            row["parent no_"] ||
-            ""
+          row.parent_no_ ||
+          row["parent no"] ||
+          row["parent no_"] ||
+          ""
         ).trim();
 
         return {
@@ -2172,8 +2221,7 @@ const PedomanPoinIKD: React.FC = () => {
         if (error.response?.status === 429 && attempt < maxRetries - 1) {
           const waitTime = baseDelay * Math.pow(2, attempt); // Exponential backoff: 1s, 2s, 4s
           console.log(
-            `Rate limited. Retrying in ${waitTime}ms... (Attempt ${
-              attempt + 1
+            `Rate limited. Retrying in ${waitTime}ms... (Attempt ${attempt + 1
             }/${maxRetries})`
           );
           await delay(waitTime);
@@ -2332,8 +2380,8 @@ const PedomanPoinIKD: React.FC = () => {
               pedomanRes.data?.success && pedomanRes.data?.data
                 ? pedomanRes.data.data
                 : Array.isArray(pedomanRes.data)
-                ? pedomanRes.data
-                : [];
+                  ? pedomanRes.data
+                  : [];
             // Merge with existing data, replacing with fetched data
             allPedomanData = [...fetchedData];
 
@@ -2344,9 +2392,9 @@ const PedomanPoinIKD: React.FC = () => {
                 const foundParent = allPedomanData.find(
                   (p: any) =>
                     String(p.no || "").trim() ===
-                      String(item.no || "").trim() &&
+                    String(item.no || "").trim() &&
                     String(p.bidang || "").trim() ===
-                      String(bidang || "").trim() &&
+                    String(bidang || "").trim() &&
                     (p.level === 0 || p.level === undefined) &&
                     (!p.parent_id || p.parent_id === null)
                 );
@@ -2730,49 +2778,57 @@ const PedomanPoinIKD: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <div>
             <h2 className="text-xl font-bold text-gray-800 dark:text-white/90 mb-1">
-            Tabel Pedoman Poin IKD
-          </h2>
+              Tabel Pedoman Poin IKD
+            </h2>
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Kelola pedoman poin IKD untuk semua bidang
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowImportModal(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform"
-            >
-              <FontAwesomeIcon
-                icon={faFileExcel}
-                className="w-5 h-5 text-brand-700 dark:text-brand-200"
-                />
-              Import Excel
-            </button>
-            <button
-              onClick={downloadTemplate}
-              className="px-4 py-2 rounded-lg bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 text-sm font-medium shadow-theme-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition flex items-center gap-2"
-            >
-              <FontAwesomeIcon icon={faDownload} className="w-5 h-5" />
-              Download Template Excel
-            </button>
-            {hasData && (
-              <button
-                onClick={exportToExcel}
-                className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${
-                  hasData
-                    ? "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
-                    : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
-                }`}
-              >
-                <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5" />
-                Export ke Excel
-              </button>
+            {canEdit && (
+              <>
+                <button
+                  onClick={() => setShowImportModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-200 text-sm font-medium shadow-theme-xs hover:bg-brand-200 dark:hover:bg-brand-800 transition-all duration-300 ease-in-out transform"
+                >
+                  <FontAwesomeIcon
+                    icon={faFileExcel}
+                    className="w-5 h-5 text-brand-700 dark:text-brand-200"
+                  />
+                  Import Excel
+                </button>
+                <button
+                  onClick={downloadTemplate}
+                  className="px-4 py-2 rounded-lg bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 text-sm font-medium shadow-theme-xs hover:bg-blue-200 dark:hover:bg-blue-800 transition flex items-center gap-2"
+                >
+                  <FontAwesomeIcon icon={faDownload} className="w-5 h-5" />
+                  Download Template Excel
+                </button>
+                {hasData && (
+                  <button
+                    onClick={exportToExcel}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium shadow-theme-xs transition flex items-center gap-2 ${hasData
+                      ? "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800"
+                      : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
+                      }`}
+                  >
+                    <FontAwesomeIcon icon={faFileExcel} className="w-5 h-5" />
+                    Export ke Excel
+                  </button>
+                )}
+                <button
+                  onClick={handleEditTableClick}
+                  className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition"
+                >
+                  {hasData ? "Edit Table IKD" : "Buat Table IKD"}
+                </button>
+              </>
             )}
-            <button
-              onClick={handleEditTableClick}
-              className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition"
-            >
-              {hasData ? "Edit Table IKD" : "Buat Table IKD"}
-            </button>
+            {!canEdit && (
+              <div className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-sm font-medium">
+                View Only Mode
+              </div>
+            )}
           </div>
         </div>
 
@@ -2803,30 +2859,30 @@ const PedomanPoinIKD: React.FC = () => {
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Close Button */}
-                  <button
-                    onClick={() => {
-                      setShowBidangModal(false);
-                      setBidangModalError(null);
-                      setNewBidang({ kode: "", nama: "" });
-                      setEditingBidang(null);
-                    }}
+                <button
+                  onClick={() => {
+                    setShowBidangModal(false);
+                    setBidangModalError(null);
+                    setNewBidang({ kode: "", nama: "" });
+                    setEditingBidang(null);
+                  }}
                   className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
-                  >
-                    <svg
+                >
+                  <svg
                     width="20"
                     height="20"
-                      fill="none"
-                      viewBox="0 0 24 24"
+                    fill="none"
+                    viewBox="0 0 24 24"
                     className="w-6 h-6"
-                    >
-                      <path
+                  >
+                    <path
                       fillRule="evenodd"
                       clipRule="evenodd"
                       d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
                       fill="currentColor"
-                      />
-                    </svg>
-                  </button>
+                    />
+                  </svg>
+                </button>
                 <div>
                   <div className="flex items-center justify-between pb-0 sm:pb-2">
                     <div>
@@ -2836,93 +2892,154 @@ const PedomanPoinIKD: React.FC = () => {
                           : "Pilih Bidang untuk Memulai"}
                       </h2>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Pilih bidang yang ingin Anda gunakan atau tambahkan bidang baru
+                        Pilih bidang yang ingin Anda gunakan atau tambahkan
+                        bidang baru
                       </p>
-                </div>
+                    </div>
                   </div>
                   <div>
                     <div className="mb-3 sm:mb-4">
                       <div className="space-y-3 mb-6">
-                  {bidangList.map((bidang) => {
-                    const bidangItems = pedomanData.filter(
-                      (item) => item.bidang === bidang.kode
-                    );
-                    return (
-                      <div
-                        key={bidang.kode}
+                        {bidangList.map((bidang) => {
+                          const bidangItems = pedomanData.filter(
+                            (item) => item.bidang === bidang.kode
+                          );
+                          return (
+                            <div
+                              key={bidang.kode}
                               className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors border border-gray-200 dark:border-gray-700"
-                      >
-                        <div className="flex justify-between items-center">
-                          <button
-                            onClick={() => {
-                              setSelectedBidang(bidang.kode);
-                              setShowBidangModal(false);
-                              handleOpenModal(bidang.kode);
-                            }}
-                            className="flex-1 text-left"
-                          >
-                            <div>
-                              <div className="font-medium text-gray-900 dark:text-white">
-                                Bidang {bidang.kode} - {bidang.nama}
-                              </div>
-                              {hasData && (
-                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                  {bidangItems.length} item
+                            >
+                              <div className="flex justify-between items-center">
+                                <button
+                                  onClick={() => {
+                                    setSelectedBidang(bidang.kode);
+                                    setShowBidangModal(false);
+                                    handleOpenModal(bidang.kode);
+                                  }}
+                                  className="flex-1 text-left"
+                                >
+                                  <div>
+                                    <div className="font-medium text-gray-900 dark:text-white">
+                                      Bidang {bidang.kode} - {bidang.nama}
+                                    </div>
+                                    {hasData && (
+                                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                        {bidangItems.length} item
+                                      </div>
+                                    )}
+                                  </div>
+                                </button>
+                                <div className="flex items-center gap-2 ml-4">
+                                  {canEdit && (
+                                    <>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleEditBidang(bidang);
+                                        }}
+                                        className="p-2 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                        title="Edit Bidang"
+                                      >
+                                        <svg
+                                          className="w-5 h-5"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                          />
+                                        </svg>
+                                      </button>
+                                      <button
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          const confirmMessage = `Apakah Anda yakin ingin menghapus bidang ini?\n\nBidang ${bidang.kode} - ${bidang.nama}\n\n⚠️ Peringatan: Semua item pedoman poin dengan bidang ini akan ikut terhapus, termasuk file dan skor yang terkait.`;
+                                          if (window.confirm(confirmMessage)) {
+                                            setBidangToDelete(bidang);
+                                            await handleDeleteBidang();
+                                          }
+                                        }}
+                                        className="p-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                        title="Hapus Bidang"
+                                      >
+                                        <svg
+                                          className="w-5 h-5"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                          />
+                                        </svg>
+                                      </button>
+                                    </>
+                                  )}
+                                  <svg
+                                    className="w-5 h-5 text-gray-400"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M9 5l7 7-7 7"
+                                    />
+                                  </svg>
                                 </div>
-                              )}
+                              </div>
                             </div>
-                          </button>
-                          <div className="flex items-center gap-2 ml-4">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEditBidang(bidang);
-                              }}
-                              className="p-2 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                              title="Edit Bidang"
-                            >
-                              <svg
-                                className="w-5 h-5"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                />
-                              </svg>
-                            </button>
-                            <button
-                                    onClick={async (e) => {
-                                e.stopPropagation();
-                                      const confirmMessage = `Apakah Anda yakin ingin menghapus bidang ini?\n\nBidang ${bidang.kode} - ${bidang.nama}\n\n⚠️ Peringatan: Semua item pedoman poin dengan bidang ini akan ikut terhapus, termasuk file dan skor yang terkait.`;
-                                      if (window.confirm(confirmMessage)) {
-                                setBidangToDelete(bidang);
-                                        await handleDeleteBidang();
-                                      }
-                              }}
-                              className="p-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                              title="Hapus Bidang"
-                            >
-                              <svg
-                                className="w-5 h-5"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                />
-                              </svg>
-                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {canEdit && (
+                    <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+                      <div className="flex items-center space-x-3 mb-4">
+                        <div className="w-12 h-12 bg-brand-100 dark:bg-brand-900/20 rounded-lg flex items-center justify-center">
+                          <svg
+                            className="w-6 h-6 text-brand-600 dark:text-brand-400"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                            />
+                          </svg>
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                            {editingBidang ? "Edit Bidang" : "Tambah Bidang Baru"}
+                          </h3>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            {editingBidang
+                              ? "Ubah informasi bidang yang dipilih"
+                              : "Isi form di bawah ini untuk menambahkan bidang baru"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Error Message */}
+                      {bidangModalError && (
+                        <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                          <div className="flex items-start space-x-3">
                             <svg
-                              className="w-5 h-5 text-gray-400"
+                              className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0"
                               fill="none"
                               stroke="currentColor"
                               viewBox="0 0 24 24"
@@ -2931,135 +3048,87 @@ const PedomanPoinIKD: React.FC = () => {
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
                                 strokeWidth={2}
-                                d="M9 5l7 7-7 7"
+                                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                               />
                             </svg>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-red-800 dark:text-red-200">
+                                Error
+                              </p>
+                              <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+                                {bidangModalError}
+                              </p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                    </div>
-                  </div>
-                  
-                  <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
-                    <div className="flex items-center space-x-3 mb-4">
-                      <div className="w-12 h-12 bg-brand-100 dark:bg-brand-900/20 rounded-lg flex items-center justify-center">
-                        <svg
-                          className="w-6 h-6 text-brand-600 dark:text-brand-400"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                          />
-                        </svg>
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-                    {editingBidang ? "Edit Bidang" : "Tambah Bidang Baru"}
-                        </h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {editingBidang
-                            ? "Ubah informasi bidang yang dipilih"
-                            : "Isi form di bawah ini untuk menambahkan bidang baru"}
-                        </p>
-                      </div>
-                    </div>
+                      )}
 
-                  {/* Error Message */}
-                  {bidangModalError && (
-                      <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-                        <div className="flex items-start space-x-3">
-                        <svg
-                          className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Kode Bidang <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Contoh: B, C, E"
+                            value={newBidang.kode}
+                            onChange={(e) => {
+                              setNewBidang({
+                                ...newBidang,
+                                kode: e.target.value,
+                              });
+                              setBidangModalError(null);
+                            }}
+                            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                           />
-                        </svg>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-red-800 dark:text-red-200">
-                              Error
-                            </p>
-                            <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-                          {bidangModalError}
-                        </p>
-                          </div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Masukkan kode bidang (huruf tunggal atau kombinasi)
+                          </p>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Nama Bidang <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Contoh: Penelitian, Pengabdian Masyarakat"
+                            value={newBidang.nama}
+                            onChange={(e) => {
+                              setNewBidang({
+                                ...newBidang,
+                                nama: e.target.value,
+                              });
+                              setBidangModalError(null);
+                            }}
+                            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                          />
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Masukkan nama lengkap bidang
+                          </p>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-2">
+                          {editingBidang && (
+                            <button
+                              onClick={() => {
+                                setEditingBidang(null);
+                                setNewBidang({ kode: "", nama: "" });
+                                setBidangModalError(null);
+                              }}
+                              className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
+                            >
+                              Batal Edit
+                            </button>
+                          )}
+                          <button
+                            onClick={handleAddBidang}
+                            className="px-3 sm:px-4 py-2 rounded-lg bg-brand-500 text-white text-xs sm:text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition-all duration-300 ease-in-out"
+                          >
+                            {editingBidang ? "Update Bidang" : "Tambah Bidang"}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}
-
-                    <div className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Kode Bidang <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Contoh: B, C, E"
-                        value={newBidang.kode}
-                        onChange={(e) => {
-                          setNewBidang({ ...newBidang, kode: e.target.value });
-                          setBidangModalError(null);
-                        }}
-                          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                      />
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Masukkan kode bidang (huruf tunggal atau kombinasi)
-                      </p>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Nama Bidang <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Contoh: Penelitian, Pengabdian Masyarakat"
-                        value={newBidang.nama}
-                        onChange={(e) => {
-                          setNewBidang({ ...newBidang, nama: e.target.value });
-                          setBidangModalError(null);
-                        }}
-                          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                      />
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Masukkan nama lengkap bidang
-                      </p>
-                    </div>
-                      <div className="flex justify-end gap-2 pt-2">
-                    {editingBidang && (
-                      <button
-                        onClick={() => {
-                          setEditingBidang(null);
-                          setNewBidang({ kode: "", nama: "" });
-                          setBidangModalError(null);
-                        }}
-                            className="px-3 sm:px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs sm:text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 ease-in-out"
-                      >
-                        Batal Edit
-                      </button>
-                    )}
-                  <button
-                          onClick={handleAddBidang}
-                          className="px-3 sm:px-4 py-2 rounded-lg bg-brand-500 text-white text-xs sm:text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition-all duration-300 ease-in-out"
-                        >
-                          {editingBidang ? "Update Bidang" : "Tambah Bidang"}
-                  </button>
-                    </div>
-                    </div>
-                  </div>
                 </div>
               </motion.div>
             </div>
@@ -3108,34 +3177,9 @@ const PedomanPoinIKD: React.FC = () => {
         {hasData && !loading && (
           <div className="bg-white dark:bg-white/[0.05] border border-gray-300 dark:border-gray-700 rounded-xl p-5 mb-6 shadow-lg">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <svg
-                className="w-5 h-5 text-gray-600 dark:text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                Zoom: {Math.round(tableZoom * 100)}%
-              </span>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() =>
-                  setTableZoom((prev) => Math.max(0.5, prev - 0.1))
-                }
-                  className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium shadow-theme-xs hover:bg-gray-200 dark:hover:bg-gray-700 transition flex items-center gap-2"
-                title="Zoom Out"
-              >
+              <div className="flex items-center gap-2">
                 <svg
-                  className="w-4 h-4"
+                  className="w-5 h-5 text-gray-600 dark:text-gray-400"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -3144,51 +3188,78 @@ const PedomanPoinIKD: React.FC = () => {
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7"
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
                   />
                 </svg>
-                Zoom Out
-              </button>
-              <button
-                onClick={() => setTableZoom(1)}
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  Zoom: {Math.round(tableZoom * 100)}%
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() =>
+                    setTableZoom((prev) => Math.max(0.5, prev - 0.1))
+                  }
                   className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium shadow-theme-xs hover:bg-gray-200 dark:hover:bg-gray-700 transition flex items-center gap-2"
-                title="Reset Zoom"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+                  title="Zoom Out"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
-                Reset
-              </button>
-              <button
-                onClick={() => setTableZoom((prev) => Math.min(2, prev + 0.1))}
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7"
+                    />
+                  </svg>
+                  Zoom Out
+                </button>
+                <button
+                  onClick={() => setTableZoom(1)}
                   className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium shadow-theme-xs hover:bg-gray-200 dark:hover:bg-gray-700 transition flex items-center gap-2"
-                title="Zoom In"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+                  title="Reset Zoom"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7"
-                  />
-                </svg>
-                Zoom In
-              </button>
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                  Reset
+                </button>
+                <button
+                  onClick={() =>
+                    setTableZoom((prev) => Math.min(2, prev + 0.1))
+                  }
+                  className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium shadow-theme-xs hover:bg-gray-200 dark:hover:bg-gray-700 transition flex items-center gap-2"
+                  title="Zoom In"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7"
+                    />
+                  </svg>
+                  Zoom In
+                </button>
               </div>
             </div>
           </div>
@@ -3206,11 +3277,11 @@ const PedomanPoinIKD: React.FC = () => {
                         {Array.from({ length: 6 }).map((_, i) => (
                           <th key={i} className="px-6 py-4">
                             <div className="h-4 w-20 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-                  </th>
+                          </th>
                         ))}
-                </tr>
-              </thead>
-              <tbody>
+                      </tr>
+                    </thead>
+                    <tbody>
                       {Array.from({ length: 5 }).map((_, i) => (
                         <tr
                           key={i}
@@ -3221,12 +3292,12 @@ const PedomanPoinIKD: React.FC = () => {
                           {Array.from({ length: 6 }).map((_, j) => (
                             <td key={j} className="px-6 py-4">
                               <div className="h-4 w-24 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
-                    </td>
+                            </td>
                           ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
@@ -3234,102 +3305,106 @@ const PedomanPoinIKD: React.FC = () => {
         ) : hasData ? (
           <div className="bg-white dark:bg-white/[0.03] rounded-b-xl shadow-md border border-gray-200 dark:border-gray-800">
             <div className="p-6">
-          <div className="overflow-auto w-full" style={{ maxHeight: "80vh" }}>
-            <div
-              style={{
-                transform: `scale(${tableZoom})`,
-                transformOrigin: "top left",
-                transition: "transform 0.2s ease-in-out",
-                width: `${100 / tableZoom}%`,
-              }}
-            >
+              <div
+                className="overflow-auto w-full"
+                style={{ maxHeight: "80vh" }}
+              >
+                <div
+                  style={{
+                    transform: `scale(${tableZoom})`,
+                    transformOrigin: "top left",
+                    transition: "transform 0.2s ease-in-out",
+                    width: `${100 / tableZoom}%`,
+                  }}
+                >
                   <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
                     <div className="max-w-full overflow-x-auto">
                       <table className="min-w-full divide-y divide-gray-100 dark:divide-white/[0.05] text-sm">
                         <thead className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-gray-900">
                           <tr>
                             <th className="px-6 py-4 text-left text-xs font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
-                      NO
-                    </th>
+                              NO
+                            </th>
                             <th className="px-6 py-4 text-left text-xs font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
-                      Kegiatan
-                    </th>
+                              Kegiatan
+                            </th>
                             <th className="px-6 py-4 text-left text-xs font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
-                      Indeks poin
-                    </th>
+                              Indeks poin
+                            </th>
                             <th className="px-6 py-4 text-left text-xs font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
-                      Unit Kerja
-                    </th>
+                              Unit Kerja
+                            </th>
                             <th className="px-6 py-4 text-left text-xs font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
-                      Bukti fisik
-                    </th>
+                              Bukti fisik
+                            </th>
                             <th className="px-6 py-4 text-left text-xs font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
-                      Prosedur yang dilakukan oleh dosen
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.keys(groupedData).map((bidang) => (
-                    <React.Fragment key={bidang}>
-                      {/* Row header untuk nama bidang - bold dan besar */}
-                      <tr className="bg-white dark:bg-gray-900">
-                        <td
-                          colSpan={6}
-                                  className="border-b-2 border-gray-400 dark:border-gray-600 px-6 py-4 text-base font-bold text-gray-900 dark:text-white"
-                        >
-                          {getBidangNama(bidang)}
-                        </td>
-                      </tr>
-                      {groupedData[bidang].map((item, idx) => {
-                        const isSubItem = item.level === 1;
-                        return (
-                          <tr
-                            key={item.id || idx}
-                            className={`${
-                              isSubItem
-                                        ? "bg-gray-50 dark:bg-white/[0.02]"
-                                        : idx % 2 === 1
-                                        ? "bg-gray-50 dark:bg-white/[0.02]"
-                                : "bg-white dark:bg-gray-900"
-                            }`}
-                          >
-                            {!isSubItem && (
-                                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
-                                <span className="font-medium">{item.no}</span>
-                              </td>
-                            )}
-                            {isSubItem && (
-                                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
-                                {/* Empty cell untuk sub items, tidak ada NO */}
-                              </td>
-                            )}
-                                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
-                              {item.kegiatan}
-                            </td>
-                                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
-                              {item.indeks_poin !== null &&
-                              item.indeks_poin !== undefined &&
-                              Number(item.indeks_poin) !== 0 &&
-                              Number(item.indeks_poin) > 0
-                                ? Number(item.indeks_poin).toFixed(2)
-                                : ""}
-                            </td>
-                                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
-                              {item.unit_kerja || ""}
-                            </td>
-                                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
-                              {item.bukti_fisik || ""}
-                            </td>
-                                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
-                              {item.prosedur || ""}
-                            </td>
+                              Prosedur yang dilakukan oleh dosen
+                            </th>
                           </tr>
-                        );
-                      })}
-                    </React.Fragment>
-                  ))}
-                </tbody>
-              </table>
+                        </thead>
+                        <tbody>
+                          {Object.keys(groupedData).map((bidang) => (
+                            <React.Fragment key={bidang}>
+                              {/* Row header untuk nama bidang - bold dan besar */}
+                              <tr className="bg-white dark:bg-gray-900">
+                                <td
+                                  colSpan={6}
+                                  className="border-b-2 border-gray-400 dark:border-gray-600 px-6 py-4 text-base font-bold text-gray-900 dark:text-white"
+                                >
+                                  {getBidangNama(bidang)}
+                                </td>
+                              </tr>
+                              {groupedData[bidang].map((item, idx) => {
+                                const isSubItem = item.level === 1;
+                                return (
+                                  <tr
+                                    key={item.id || idx}
+                                    className={`${isSubItem
+                                      ? "bg-gray-50 dark:bg-white/[0.02]"
+                                      : idx % 2 === 1
+                                        ? "bg-gray-50 dark:bg-white/[0.02]"
+                                        : "bg-white dark:bg-gray-900"
+                                      }`}
+                                  >
+                                    {!isSubItem && (
+                                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                                        <span className="font-medium">
+                                          {item.no}
+                                        </span>
+                                      </td>
+                                    )}
+                                    {isSubItem && (
+                                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                                        {/* Empty cell untuk sub items, tidak ada NO */}
+                                      </td>
+                                    )}
+                                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                                      {item.kegiatan}
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                                      {item.indeks_poin !== null &&
+                                        item.indeks_poin !== undefined &&
+                                        Number(item.indeks_poin) !== 0 &&
+                                        Number(item.indeks_poin) > 0
+                                        ? Number(item.indeks_poin).toFixed(2)
+                                        : ""}
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                                      {item.unit_kerja || ""}
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                                      {item.bukti_fisik || ""}
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                                      {item.prosedur || ""}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </React.Fragment>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 </div>
@@ -3527,7 +3602,7 @@ const PedomanPoinIKD: React.FC = () => {
 
                 <div className="space-y-4 relative">
                   {/* Header dengan tombol Hapus untuk form utama - pojok kanan atas */}
-                  {editMode && editingItem?.id && (
+                  {canEdit && editMode && editingItem?.id && (
                     <div className="absolute top-0 right-0">
                       <button
                         type="button"
@@ -3540,37 +3615,39 @@ const PedomanPoinIKD: React.FC = () => {
                   )}
 
                   {/* Checkbox untuk menggunakan sub item */}
-                  <div className="flex items-center gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                    <input
-                      type="checkbox"
-                      id="useSubItem"
-                      checked={useSubItem}
-                      onChange={(e) => {
-                        setUseSubItem(e.target.checked);
-                        if (!e.target.checked) {
-                          // Jika uncheck, reset form kegiatan jika itu sub item
-                          if (/^\d+\.\d+/.test(form.kegiatan)) {
-                            setForm({
-                              ...form,
-                              kegiatan: form.kegiatan.replace(
-                                /^\d+\.\d+\.?\s*/,
-                                ""
-                              ),
-                            });
+                  {canEdit && (
+                    <div className="flex items-center gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <input
+                        type="checkbox"
+                        id="useSubItem"
+                        checked={useSubItem}
+                        onChange={(e) => {
+                          setUseSubItem(e.target.checked);
+                          if (!e.target.checked) {
+                            // Jika uncheck, reset form kegiatan jika itu sub item
+                            if (/^\d+\.\d+/.test(form.kegiatan)) {
+                              setForm({
+                                ...form,
+                                kegiatan: form.kegiatan.replace(
+                                  /^\d+\.\d+\.?\s*/,
+                                  ""
+                                ),
+                              });
+                            }
+                            setParentItemId(null);
                           }
-                          setParentItemId(null);
-                        }
-                      }}
-                      className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                    />
-                    <label
-                      htmlFor="useSubItem"
-                      className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer"
-                    >
-                      Gunakan Sub Item (NO tetap sama, nomor sub masuk ke
-                      Kegiatan seperti 1.1, 1.2, 1.1.a, 1.1.b)
-                    </label>
-                  </div>
+                        }}
+                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <label
+                        htmlFor="useSubItem"
+                        className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer"
+                      >
+                        Gunakan Sub Item (NO tetap sama, nomor sub masuk ke
+                        Kegiatan seperti 1.1, 1.2, 1.1.a, 1.1.b)
+                      </label>
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">
@@ -3584,7 +3661,8 @@ const PedomanPoinIKD: React.FC = () => {
                       value={form.no}
                       onChange={(e) => setForm({ ...form, no: e.target.value })}
                       placeholder="Contoh: 1, 2, 3"
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      disabled={!canEdit}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                   </div>
                   <div>
@@ -3602,7 +3680,8 @@ const PedomanPoinIKD: React.FC = () => {
                           ? "Contoh: 1.1 Memberi kuliah..."
                           : "Masukkan kegiatan"
                       }
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                      disabled={!canEdit}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                     {useSubItem && (
                       <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
@@ -3633,7 +3712,8 @@ const PedomanPoinIKD: React.FC = () => {
                           }
                         }}
                         placeholder="Masukkan indeks poin (contoh: 1.5, 2.75)"
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white bg-white dark:bg-gray-700"
+                        disabled={!canEdit}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white bg-white dark:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                     </div>
                     <div>
@@ -3646,11 +3726,10 @@ const PedomanPoinIKD: React.FC = () => {
                           onClick={() =>
                             setShowUnitKerjaDropdown(!showUnitKerjaDropdown)
                           }
-                          className={`w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-left text-gray-900 dark:text-white flex items-center justify-between bg-white dark:bg-gray-700 hover:border-blue-500 dark:hover:border-blue-400 cursor-pointer transition-colors ${
-                            form.unit_kerja
-                              ? "border-blue-500 dark:border-blue-400"
-                              : ""
-                          }`}
+                          className={`w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-left text-gray-900 dark:text-white flex items-center justify-between bg-white dark:bg-gray-700 hover:border-blue-500 dark:hover:border-blue-400 cursor-pointer transition-colors ${form.unit_kerja
+                            ? "border-blue-500 dark:border-blue-400"
+                            : ""
+                            }`}
                         >
                           <span
                             className={
@@ -3663,11 +3742,10 @@ const PedomanPoinIKD: React.FC = () => {
                               "Pilih Unit Kerja (bisa lebih dari satu)"}
                           </span>
                           <svg
-                            className={`w-5 h-5 transition-transform ${
-                              showUnitKerjaDropdown
-                                ? "transform rotate-180"
-                                : ""
-                            }`}
+                            className={`w-5 h-5 transition-transform ${showUnitKerjaDropdown
+                              ? "transform rotate-180"
+                              : ""
+                              }`}
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -3699,8 +3777,8 @@ const PedomanPoinIKD: React.FC = () => {
                                     onChange={(e) => {
                                       const currentUnits = form.unit_kerja
                                         ? form.unit_kerja
-                                            .split(", ")
-                                            .filter(Boolean)
+                                          .split(", ")
+                                          .filter(Boolean)
                                         : [];
                                       let newUnits;
                                       if (e.target.checked) {
@@ -3768,13 +3846,15 @@ const PedomanPoinIKD: React.FC = () => {
                           <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
                             Kegiatan Sub Item
                           </label>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteMainFormSubItem(idx)}
-                            className="text-red-500 hover:text-red-700 text-xs"
-                          >
-                            Hapus
-                          </button>
+                          {canEdit && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteMainFormSubItem(idx)}
+                              className="text-red-500 hover:text-red-700 text-xs"
+                            >
+                              Hapus
+                            </button>
+                          )}
                         </div>
                         <textarea
                           value={subItem.kegiatan}
@@ -3853,11 +3933,10 @@ const PedomanPoinIKD: React.FC = () => {
                                 {subItem.unit_kerja || "Pilih Unit Kerja"}
                               </span>
                               <svg
-                                className={`w-4 h-4 transition-transform ${
-                                  showSubItemUnitKerjaDropdown === `main-${idx}`
-                                    ? "transform rotate-180"
-                                    : ""
-                                }`}
+                                className={`w-4 h-4 transition-transform ${showSubItemUnitKerjaDropdown === `main-${idx}`
+                                  ? "transform rotate-180"
+                                  : ""
+                                  }`}
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -3880,8 +3959,8 @@ const PedomanPoinIKD: React.FC = () => {
                                 {UNIT_KERJA_OPTIONS.map((unit) => {
                                   const selectedUnits = subItem.unit_kerja
                                     ? subItem.unit_kerja
-                                        .split(", ")
-                                        .filter(Boolean)
+                                      .split(", ")
+                                      .filter(Boolean)
                                     : [];
                                   const isSelected =
                                     selectedUnits.includes(unit);
@@ -3900,8 +3979,8 @@ const PedomanPoinIKD: React.FC = () => {
                                           const currentUnits =
                                             subItem.unit_kerja
                                               ? subItem.unit_kerja
-                                                  .split(", ")
-                                                  .filter(Boolean)
+                                                .split(", ")
+                                                .filter(Boolean)
                                               : [];
                                           let newUnits;
                                           if (e.target.checked) {
@@ -3985,7 +4064,7 @@ const PedomanPoinIKD: React.FC = () => {
                 )}
 
                 {/* Tombol Tambah Sub Item untuk form utama - di bawah list sub items */}
-                {useSubItem && (
+                {canEdit && useSubItem && (
                   <div className="mt-4 flex justify-end gap-3">
                     <button
                       type="button"
@@ -4013,24 +4092,34 @@ const PedomanPoinIKD: React.FC = () => {
                         {/* Header dengan Checkbox dan Tombol Hapus */}
                         <div className="flex justify-between items-center mb-4">
                           <label className="flex items-center gap-2 cursor-pointer flex-1">
-                            <input
-                              type="checkbox"
-                              checked={item.useSubItem}
-                              onChange={() => handleToggleSubItemForItem(idx)}
-                              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-400 dark:ring-offset-gray-800 focus:ring-2 cursor-pointer"
-                            />
-                            <span className="text-sm text-gray-700 dark:text-gray-300">
-                              Gunakan Sub Item (NO tetap sama, nomor sub masuk
-                              ke Kegiatan seperti 1.1, 1.2, 1.1.a, 1.1.b)
-                            </span>
+                            {canEdit ? (
+                              <>
+                                <input
+                                  type="checkbox"
+                                  checked={item.useSubItem}
+                                  onChange={() => handleToggleSubItemForItem(idx)}
+                                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-400 dark:ring-offset-gray-800 focus:ring-2 cursor-pointer"
+                                />
+                                <span className="text-sm text-gray-700 dark:text-gray-300">
+                                  Gunakan Sub Item (NO tetap sama, nomor sub masuk
+                                  ke Kegiatan seperti 1.1, 1.2, 1.1.a, 1.1.b)
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-sm text-gray-700 dark:text-gray-300">
+                                {item.useSubItem ? "✓ Menggunakan Sub Item" : "Tidak menggunakan Sub Item"}
+                              </span>
+                            )}
                           </label>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteItem(idx)}
-                            className="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm font-medium transition-colors ml-4"
-                          >
-                            Hapus
-                          </button>
+                          {canEdit && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteItem(idx)}
+                              className="px-3 py-1.5 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm font-medium transition-colors ml-4"
+                            >
+                              Hapus
+                            </button>
+                          )}
                         </div>
 
                         {/* Form fields sama seperti form utama */}
@@ -4133,11 +4222,10 @@ const PedomanPoinIKD: React.FC = () => {
                                         : `item-${idx}`
                                     )
                                   }
-                                  className={`w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-left text-gray-900 dark:text-white flex items-center justify-between bg-white dark:bg-gray-700 hover:border-blue-500 dark:hover:border-blue-400 cursor-pointer transition-colors ${
-                                    item.unit_kerja
-                                      ? "border-blue-500 dark:border-blue-400"
-                                      : ""
-                                  }`}
+                                  className={`w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-left text-gray-900 dark:text-white flex items-center justify-between bg-white dark:bg-gray-700 hover:border-blue-500 dark:hover:border-blue-400 cursor-pointer transition-colors ${item.unit_kerja
+                                    ? "border-blue-500 dark:border-blue-400"
+                                    : ""
+                                    }`}
                                 >
                                   <span
                                     className={
@@ -4150,12 +4238,11 @@ const PedomanPoinIKD: React.FC = () => {
                                       "Pilih Unit Kerja (bisa lebih dari satu)"}
                                   </span>
                                   <svg
-                                    className={`w-5 h-5 transition-transform ${
-                                      showSubItemUnitKerjaDropdown ===
+                                    className={`w-5 h-5 transition-transform ${showSubItemUnitKerjaDropdown ===
                                       `item-${idx}`
-                                        ? "transform rotate-180"
-                                        : ""
-                                    }`}
+                                      ? "transform rotate-180"
+                                      : ""
+                                      }`}
                                     fill="none"
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
@@ -4171,56 +4258,56 @@ const PedomanPoinIKD: React.FC = () => {
 
                                 {showSubItemUnitKerjaDropdown ===
                                   `item-${idx}` && (
-                                  <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-auto">
-                                    {UNIT_KERJA_OPTIONS.map((unit) => {
-                                      const selectedUnits = item.unit_kerja
-                                        ? item.unit_kerja
+                                    <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-auto">
+                                      {UNIT_KERJA_OPTIONS.map((unit) => {
+                                        const selectedUnits = item.unit_kerja
+                                          ? item.unit_kerja
                                             .split(", ")
                                             .filter(Boolean)
-                                        : [];
-                                      const isSelected =
-                                        selectedUnits.includes(unit);
-                                      return (
-                                        <label
-                                          key={unit}
-                                          className="flex items-center px-4 py-2.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition-colors"
-                                        >
-                                          <input
-                                            type="checkbox"
-                                            checked={isSelected}
-                                            onChange={(e) => {
-                                              const currentUnits =
-                                                item.unit_kerja
-                                                  ? item.unit_kerja
+                                          : [];
+                                        const isSelected =
+                                          selectedUnits.includes(unit);
+                                        return (
+                                          <label
+                                            key={unit}
+                                            className="flex items-center px-4 py-2.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition-colors"
+                                          >
+                                            <input
+                                              type="checkbox"
+                                              checked={isSelected}
+                                              onChange={(e) => {
+                                                const currentUnits =
+                                                  item.unit_kerja
+                                                    ? item.unit_kerja
                                                       .split(", ")
                                                       .filter(Boolean)
-                                                  : [];
-                                              let newUnits;
-                                              if (e.target.checked) {
-                                                newUnits = [
-                                                  ...currentUnits,
-                                                  unit,
-                                                ];
-                                              } else {
-                                                newUnits = currentUnits.filter(
-                                                  (u) => u !== unit
-                                                );
-                                              }
-                                              const updated = [...items];
-                                              updated[idx].unit_kerja =
-                                                newUnits.join(", ");
-                                              setItems(updated);
-                                            }}
-                                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-400 dark:ring-offset-gray-800 focus:ring-2"
-                                          />
-                                          <span className="ml-3 text-sm text-gray-900 dark:text-white">
-                                            {unit}
-                                          </span>
-                                        </label>
-                                      );
-                                    })}
-                                  </div>
-                                )}
+                                                    : [];
+                                                let newUnits;
+                                                if (e.target.checked) {
+                                                  newUnits = [
+                                                    ...currentUnits,
+                                                    unit,
+                                                  ];
+                                                } else {
+                                                  newUnits = currentUnits.filter(
+                                                    (u) => u !== unit
+                                                  );
+                                                }
+                                                const updated = [...items];
+                                                updated[idx].unit_kerja =
+                                                  newUnits.join(", ");
+                                                setItems(updated);
+                                              }}
+                                              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-400 dark:ring-offset-gray-800 focus:ring-2"
+                                            />
+                                            <span className="ml-3 text-sm text-gray-900 dark:text-white">
+                                              {unit}
+                                            </span>
+                                          </label>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
                               </div>
                             </div>
                           </div>
@@ -4272,15 +4359,17 @@ const PedomanPoinIKD: React.FC = () => {
                                       <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
                                         Kegiatan Sub Item
                                       </label>
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          handleDeleteSubItem(idx, subIdx)
-                                        }
-                                        className="text-red-500 hover:text-red-700 text-xs"
-                                      >
-                                        Hapus
-                                      </button>
+                                      {canEdit && (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleDeleteSubItem(idx, subIdx)
+                                          }
+                                          className="text-red-500 hover:text-red-700 text-xs"
+                                        >
+                                          Hapus
+                                        </button>
+                                      )}
                                     </div>
                                     <textarea
                                       value={subItem.kegiatan}
@@ -4354,12 +4443,11 @@ const PedomanPoinIKD: React.FC = () => {
                                               "Pilih Unit Kerja"}
                                           </span>
                                           <svg
-                                            className={`w-4 h-4 transition-transform ${
-                                              showSubItemUnitKerjaDropdown ===
+                                            className={`w-4 h-4 transition-transform ${showSubItemUnitKerjaDropdown ===
                                               `${idx}-${subIdx}`
-                                                ? "transform rotate-180"
-                                                : ""
-                                            }`}
+                                              ? "transform rotate-180"
+                                              : ""
+                                              }`}
                                             fill="none"
                                             stroke="currentColor"
                                             viewBox="0 0 24 24"
@@ -4375,73 +4463,73 @@ const PedomanPoinIKD: React.FC = () => {
 
                                         {showSubItemUnitKerjaDropdown ===
                                           `${idx}-${subIdx}` && (
-                                          <div
-                                            className="absolute z-[100010] w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-auto"
-                                            onClick={(e) => e.stopPropagation()}
-                                            data-sub-item-dropdown
-                                          >
-                                            {UNIT_KERJA_OPTIONS.map((unit) => {
-                                              const selectedUnits =
-                                                subItem.unit_kerja
-                                                  ? subItem.unit_kerja
+                                            <div
+                                              className="absolute z-[100010] w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-auto"
+                                              onClick={(e) => e.stopPropagation()}
+                                              data-sub-item-dropdown
+                                            >
+                                              {UNIT_KERJA_OPTIONS.map((unit) => {
+                                                const selectedUnits =
+                                                  subItem.unit_kerja
+                                                    ? subItem.unit_kerja
                                                       .split(", ")
                                                       .filter(Boolean)
-                                                  : [];
-                                              const isSelected =
-                                                selectedUnits.includes(unit);
-                                              return (
-                                                <label
-                                                  key={unit}
-                                                  className="flex items-center px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition-colors"
-                                                  onClick={(e) =>
-                                                    e.stopPropagation()
-                                                  }
-                                                >
-                                                  <input
-                                                    type="checkbox"
-                                                    checked={isSelected}
-                                                    onChange={(e) => {
-                                                      e.stopPropagation();
-                                                      const updated = [
-                                                        ...items,
-                                                      ];
-                                                      const currentUnits =
-                                                        subItem.unit_kerja
-                                                          ? subItem.unit_kerja
-                                                              .split(", ")
-                                                              .filter(Boolean)
-                                                          : [];
-                                                      let newUnits;
-                                                      if (e.target.checked) {
-                                                        newUnits = [
-                                                          ...currentUnits,
-                                                          unit,
-                                                        ];
-                                                      } else {
-                                                        newUnits =
-                                                          currentUnits.filter(
-                                                            (u) => u !== unit
-                                                          );
-                                                      }
-                                                      updated[idx].subItems[
-                                                        subIdx
-                                                      ].unit_kerja =
-                                                        newUnits.join(", ");
-                                                      setItems(updated);
-                                                    }}
+                                                    : [];
+                                                const isSelected =
+                                                  selectedUnits.includes(unit);
+                                                return (
+                                                  <label
+                                                    key={unit}
+                                                    className="flex items-center px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition-colors"
                                                     onClick={(e) =>
                                                       e.stopPropagation()
                                                     }
-                                                    className="w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-400 dark:ring-offset-gray-800 focus:ring-2 cursor-pointer"
-                                                  />
-                                                  <span className="ml-2.5 text-xs text-gray-900 dark:text-white">
-                                                    {unit}
-                                                  </span>
-                                                </label>
-                                              );
-                                            })}
-                                          </div>
-                                        )}
+                                                  >
+                                                    <input
+                                                      type="checkbox"
+                                                      checked={isSelected}
+                                                      onChange={(e) => {
+                                                        e.stopPropagation();
+                                                        const updated = [
+                                                          ...items,
+                                                        ];
+                                                        const currentUnits =
+                                                          subItem.unit_kerja
+                                                            ? subItem.unit_kerja
+                                                              .split(", ")
+                                                              .filter(Boolean)
+                                                            : [];
+                                                        let newUnits;
+                                                        if (e.target.checked) {
+                                                          newUnits = [
+                                                            ...currentUnits,
+                                                            unit,
+                                                          ];
+                                                        } else {
+                                                          newUnits =
+                                                            currentUnits.filter(
+                                                              (u) => u !== unit
+                                                            );
+                                                        }
+                                                        updated[idx].subItems[
+                                                          subIdx
+                                                        ].unit_kerja =
+                                                          newUnits.join(", ");
+                                                        setItems(updated);
+                                                      }}
+                                                      onClick={(e) =>
+                                                        e.stopPropagation()
+                                                      }
+                                                      className="w-3.5 h-3.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-400 dark:ring-offset-gray-800 focus:ring-2 cursor-pointer"
+                                                    />
+                                                    <span className="ml-2.5 text-xs text-gray-900 dark:text-white">
+                                                      {unit}
+                                                    </span>
+                                                  </label>
+                                                );
+                                              })}
+                                            </div>
+                                          )}
                                       </div>
                                     </div>
                                     <div className="mt-2">
@@ -4481,7 +4569,7 @@ const PedomanPoinIKD: React.FC = () => {
                           )}
 
                           {/* Tombol Tambah Sub Item untuk item ini - di bawah sub items */}
-                          {item.useSubItem && (
+                          {canEdit && item.useSubItem && (
                             <div className="mt-4 flex justify-end gap-3">
                               <button
                                 type="button"
@@ -4499,7 +4587,7 @@ const PedomanPoinIKD: React.FC = () => {
                 )}
 
                 {/* Tombol Tambah Item - di dalam modal, setelah list items */}
-                {hasData && (
+                {canEdit && hasData && (
                   <div className="mt-4 flex justify-end gap-3">
                     <button
                       type="button"
@@ -4778,37 +4866,39 @@ const PedomanPoinIKD: React.FC = () => {
                       onClick={handleCloseModal}
                       className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium shadow-theme-xs hover:bg-gray-200 dark:hover:bg-gray-700 transition"
                     >
-                      Batal
+                      {canEdit ? "Batal" : "Tutup"}
                     </button>
-                    <button
-                      onClick={handleSave}
-                      disabled={isSaving}
-                      className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                    >
-                      {isSaving && (
-                        <svg
-                          className="animate-spin h-4 w-4 text-white"
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          ></circle>
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          ></path>
-                        </svg>
-                      )}
-                      {isSaving ? "Menyimpan..." : "Simpan"}
-                    </button>
+                    {canEdit && (
+                      <button
+                        onClick={handleSave}
+                        disabled={isSaving}
+                        className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {isSaving && (
+                          <svg
+                            className="animate-spin h-4 w-4 text-white"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            ></path>
+                          </svg>
+                        )}
+                        {isSaving ? "Menyimpan..." : "Simpan"}
+                      </button>
+                    )}
                   </div>
                 </div>
               </motion.div>
@@ -4836,28 +4926,28 @@ const PedomanPoinIKD: React.FC = () => {
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.2 }}
                 className="relative w-full max-w-6xl mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001] max-h-[90vh] overflow-y-auto hide-scroll"
-                >
-                  {/* Close Button */}
-                  <button
+              >
+                {/* Close Button */}
+                <button
                   onClick={handleCloseImportModal}
                   className="absolute z-20 flex items-center justify-center rounded-full bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white right-6 top-6 h-11 w-11"
                   disabled={isSaving}
-                  >
-                    <svg
+                >
+                  <svg
                     width="20"
                     height="20"
-                      fill="none"
-                      viewBox="0 0 24 24"
+                    fill="none"
+                    viewBox="0 0 24 24"
                     className="w-6 h-6"
-                    >
-                      <path
+                  >
+                    <path
                       fillRule="evenodd"
                       clipRule="evenodd"
                       d="M6.04289 16.5413C5.65237 16.9318 5.65237 17.565 6.04289 17.9555C6.43342 18.346 7.06658 18.346 7.45711 17.9555L11.9987 13.4139L16.5408 17.956C16.9313 18.3466 17.5645 18.3466 17.955 17.956C18.3455 17.5655 18.3455 16.9323 17.955 16.5418L13.4129 11.9997L17.955 7.4576C18.3455 7.06707 18.3455 6.43391 17.955 6.04338C17.5645 5.65286 16.9313 5.65286 16.5408 6.04338L11.9987 10.5855L7.45711 6.0439C7.06658 5.65338 6.43342 5.65338 6.04289 6.0439C5.65237 6.43442 5.65237 7.06759 6.04289 7.45811L10.5845 11.9997L6.04289 16.5413Z"
                       fill="currentColor"
-                      />
-                    </svg>
-                  </button>
+                    />
+                  </svg>
+                </button>
 
                 {/* Header */}
                 <div className="mb-6">
@@ -4867,7 +4957,7 @@ const PedomanPoinIKD: React.FC = () => {
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     Preview dan validasi data sebelum import
                   </p>
-                    </div>
+                </div>
 
                 {/* Upload Section */}
                 {!importedFile && (
@@ -4885,11 +4975,15 @@ const PedomanPoinIKD: React.FC = () => {
                             Upload File Excel
                           </h3>
                           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                            Pilih file Excel dengan format template (.xlsx, .xls)
+                            Pilih file Excel dengan format template (.xlsx,
+                            .xls)
                           </p>
                         </div>
                         <label className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors cursor-pointer">
-                          <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                          <FontAwesomeIcon
+                            icon={faUpload}
+                            className="w-4 h-4"
+                          />
                           Pilih File
                           <input
                             ref={fileInputRef}
@@ -4898,16 +4992,16 @@ const PedomanPoinIKD: React.FC = () => {
                             onChange={handleImport}
                             className="hidden"
                           />
-                          </label>
-                        </div>
-                        </div>
+                        </label>
                       </div>
+                    </div>
+                  </div>
                 )}
 
-                        {/* File Info */}
+                {/* File Info */}
                 {importedFile && (
                   <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                          <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3">
                       <FontAwesomeIcon
                         icon={faFileExcel}
                         className="w-5 h-5 text-blue-500"
@@ -4915,55 +5009,55 @@ const PedomanPoinIKD: React.FC = () => {
 
                       <div className="flex-1">
                         <p className="font-medium text-blue-800 dark:text-blue-200">
-                                {importedFile.name}
-                              </p>
+                          {importedFile.name}
+                        </p>
 
                         <p className="text-sm text-blue-600 dark:text-blue-300">
                           {(importedFile.size / 1024).toFixed(1)} KB
-                              </p>
-                            </div>
+                        </p>
+                      </div>
 
-                          <button
-                            onClick={() => {
-                              setImportedFile(null);
-                              setPreviewData([]);
-                              setValidationErrors([]);
+                      <button
+                        onClick={() => {
+                          setImportedFile(null);
+                          setPreviewData([]);
+                          setValidationErrors([]);
                           setCellErrors([]);
                           if (fileInputRef.current) {
-                                fileInputRef.current.value = "";
+                            fileInputRef.current.value = "";
                           }
-                            }}
+                        }}
                         className="flex items-center justify-center w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
                         title="Hapus file"
-                            disabled={isSaving}
-                          >
-                            <svg
+                        disabled={isSaving}
+                      >
+                        <svg
                           className="w-4 h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M6 18L18 6M6 6l12 12"
-                              />
-                            </svg>
-                          </button>
-                        </div>
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 )}
 
                 {/* Error Messages */}
                 {cellErrors.length > 0 && (
                   <div className="mb-6">
-                          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
                       <div className="flex items-center gap-2 mb-3">
                         <FontAwesomeIcon
                           icon={faExclamationTriangle}
                           className="w-5 h-5 text-red-500"
-                                />
+                        />
 
                         <h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
                           Error Validasi ({cellErrors.length} error)
@@ -4974,17 +5068,17 @@ const PedomanPoinIKD: React.FC = () => {
                         {/* Error cell/detail */}
                         {cellErrors.map((err, idx) => (
                           <p
-                                        key={idx}
+                            key={idx}
                             className="text-sm text-red-600 dark:text-red-400 mb-1"
-                                      >
+                          >
                             • {err.message} (Baris {err.row}, Kolom{" "}
                             {err.field.toUpperCase()})
                           </p>
-                                    ))}
-                              </div>
-                            </div>
-                          </div>
-                        )}
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Preview Data Table */}
                 {previewData.length > 0 && (
@@ -4996,7 +5090,7 @@ const PedomanPoinIKD: React.FC = () => {
 
                       <div className="text-sm text-gray-500 dark:text-gray-400">
                         File: {importedFile?.name}
-                          </div>
+                      </div>
                     </div>
 
                     <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
@@ -5009,43 +5103,43 @@ const PedomanPoinIKD: React.FC = () => {
                               </th>
 
                               <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                                    Bidang
-                                  </th>
+                                Bidang
+                              </th>
 
                               <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                                    NO
-                                  </th>
+                                NO
+                              </th>
 
                               <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                                    Kegiatan
-                                  </th>
+                                Kegiatan
+                              </th>
 
                               <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                                    Indeks Poin
-                                  </th>
+                                Indeks Poin
+                              </th>
 
                               <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                                    Unit Kerja
-                                  </th>
+                                Unit Kerja
+                              </th>
 
                               <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                                    Bukti Fisik
-                                  </th>
+                                Bukti Fisik
+                              </th>
 
                               <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                                    Prosedur
-                                  </th>
+                                Prosedur
+                              </th>
 
                               <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                                    Is Sub Item
-                                  </th>
+                                Is Sub Item
+                              </th>
 
                               <th className="px-6 py-4 font-semibold text-gray-500 text-left text-xs uppercase tracking-wider dark:text-gray-400 whitespace-nowrap">
-                                    Parent NO
-                                  </th>
-                                </tr>
-                              </thead>
-                              <tbody>
+                                Parent NO
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
                             {previewData.map((row, index) => {
                               const actualIndex = index;
 
@@ -5054,7 +5148,10 @@ const PedomanPoinIKD: React.FC = () => {
                                 value: any,
                                 isNumeric = false,
                                 isSelect = false,
-                                selectOptions?: { value: string; label: string }[],
+                                selectOptions?: {
+                                  value: string;
+                                  label: string;
+                                }[],
                                 disabled = false
                               ) => {
                                 const isEditing =
@@ -5065,17 +5162,17 @@ const PedomanPoinIKD: React.FC = () => {
                                   (err) =>
                                     err.row === actualIndex + 2 &&
                                     err.field === field
-                                  );
+                                );
 
-                                  return (
+                                return (
                                   <td
-                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${
-                                      isEditing ? "border-2 border-brand-500" : ""
-                                    } ${
-                                      cellError
+                                    className={`px-6 py-4 border-b border-gray-100 dark:border-gray-800 text-gray-800 dark:text-gray-100 whitespace-nowrap cursor-pointer hover:bg-brand-50 dark:hover:bg-brand-700/20 ${isEditing
+                                      ? "border-2 border-brand-500"
+                                      : ""
+                                      } ${cellError
                                         ? "bg-red-100 dark:bg-red-900/30"
-                                            : ""
-                                        }`}
+                                        : ""
+                                      }`}
                                     onClick={() => {
                                       if (!disabled && !isSelect) {
                                         setEditingCell({
@@ -5085,14 +5182,14 @@ const PedomanPoinIKD: React.FC = () => {
                                       }
                                     }}
                                     title={cellError ? cellError.message : ""}
-                                      >
+                                  >
                                     {isEditing && !isSelect ? (
-                                        <input
+                                      <input
                                         className="w-full px-1 border-none outline-none text-xs md:text-sm"
                                         type={isNumeric ? "number" : "text"}
                                         value={value || ""}
                                         onChange={(e) => {
-                                            handleCellEdit(
+                                          handleCellEdit(
                                             actualIndex,
                                             field,
                                             isNumeric
@@ -5113,7 +5210,7 @@ const PedomanPoinIKD: React.FC = () => {
                                             : value || ""
                                         }
                                         onChange={(e) => {
-                                            handleCellEdit(
+                                          handleCellEdit(
                                             actualIndex,
                                             field,
                                             field === "is_sub_item"
@@ -5125,7 +5222,10 @@ const PedomanPoinIKD: React.FC = () => {
                                         disabled={disabled}
                                       >
                                         {selectOptions?.map((opt) => (
-                                          <option key={opt.value} value={opt.value}>
+                                          <option
+                                            key={opt.value}
+                                            value={opt.value}
+                                          >
                                             {opt.label}
                                           </option>
                                         ))}
@@ -5141,22 +5241,21 @@ const PedomanPoinIKD: React.FC = () => {
                                         {value || "-"}
                                       </span>
                                     )}
-                                      </td>
+                                  </td>
                                 );
                               };
 
                               return (
                                 <tr
                                   key={index}
-                                  className={`${
-                                    index % 2 === 1
-                                      ? "bg-gray-50 dark:bg-white/[0.02]"
-                                            : ""
-                                        }`}
-                                      >
+                                  className={`${index % 2 === 1
+                                    ? "bg-gray-50 dark:bg-white/[0.02]"
+                                    : ""
+                                    }`}
+                                >
                                   <td className="px-4 py-4 text-gray-800 dark:text-white/90 whitespace-nowrap">
                                     {index + 1}
-                                      </td>
+                                  </td>
 
                                   {renderEditableCell("bidang", row.bidang)}
                                   {renderEditableCell("no", row.no)}
@@ -5167,16 +5266,16 @@ const PedomanPoinIKD: React.FC = () => {
                                     true
                                   )}
                                   {renderEditableCell(
-                                              "unit_kerja",
+                                    "unit_kerja",
                                     row.unit_kerja
                                   )}
                                   {renderEditableCell(
-                                              "bukti_fisik",
+                                    "bukti_fisik",
                                     row.bukti_fisik
                                   )}
                                   {renderEditableCell("prosedur", row.prosedur)}
                                   {renderEditableCell(
-                                              "is_sub_item",
+                                    "is_sub_item",
                                     row.is_sub_item,
                                     false,
                                     true,
@@ -5186,55 +5285,200 @@ const PedomanPoinIKD: React.FC = () => {
                                     ]
                                   )}
                                   {renderEditableCell(
-                                              "parent_no",
+                                    "parent_no",
                                     row.parent_no,
                                     false,
                                     false,
                                     undefined,
                                     !row.is_sub_item
                                   )}
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
                       </div>
+                    </div>
                   </div>
                 )}
 
                 {/* Action Buttons */}
                 <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
-                    <button
+                  <button
                     onClick={handleCloseImportModal}
                     className="px-6 py-3 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
-                      disabled={isSaving}
-                    >
-                      {importedCount > 0 ? "Tutup" : "Batal"}
-                    </button>
+                    disabled={isSaving}
+                  >
+                    {importedCount > 0 ? "Tutup" : "Batal"}
+                  </button>
 
-                    {previewData.length > 0 &&
-                      validationErrors.length === 0 &&
+                  {previewData.length > 0 &&
+                    validationErrors.length === 0 &&
                     cellErrors.length === 0 &&
-                      importedCount === 0 && (
-                        <button
-                          onClick={handleSubmitImport}
-                          disabled={isSaving}
+                    importedCount === 0 && (
+                      <button
+                        onClick={handleSubmitImport}
+                        disabled={isSaving}
                         className="px-6 py-3 rounded-lg bg-brand-500 text-white text-sm font-medium shadow-theme-xs hover:bg-brand-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                        >
-                          {isSaving ? (
-                            <>
+                      >
+                        {isSaving ? (
+                          <>
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                              Mengimpor...
-                            </>
-                          ) : (
-                            <>
-                            <FontAwesomeIcon icon={faUpload} className="w-4 h-4" />
+                            Mengimpor...
+                          </>
+                        ) : (
+                          <>
+                            <FontAwesomeIcon
+                              icon={faUpload}
+                              className="w-4 h-4"
+                            />
                             Import Data ({previewData.length} data)
-                            </>
-                          )}
-                        </button>
-                      )}
+                          </>
+                        )}
+                      </button>
+                    )}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Modal Konfirmasi Delete Item */}
+        <AnimatePresence>
+          {showDeleteItemModal && itemToDeleteIndex !== null && (
+            <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+              <div
+                className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+                onClick={() => {
+                  setShowDeleteItemModal(false);
+                  setItemToDeleteIndex(null);
+                }}
+              ></div>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+              >
+                <div className="flex items-center justify-between pb-6">
+                  <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                    Konfirmasi Hapus Data
+                  </h2>
+                </div>
+                <div>
+                  <p className="mb-6 text-gray-500 dark:text-gray-400">
+                    Apakah Anda yakin ingin menghapus item ini?
+                  </p>
+                  {itemToDeleteIndex !== null && items[itemToDeleteIndex] && (
+                    <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+                        <span className="font-semibold">NO:</span>{" "}
+                        {items[itemToDeleteIndex].no}
+                      </p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        <span className="font-semibold">Kegiatan:</span>{" "}
+                        {items[itemToDeleteIndex].kegiatan || "(kosong)"}
+                      </p>
+                    </div>
+                  )}
+                  <p className="mb-6 text-sm text-red-600 dark:text-red-400">
+                    ⚠️ Peringatan: Data yang dihapus tidak dapat dikembalikan.
+                    Semua data terkait seperti file yang sudah diupload oleh
+                    dosen, skor, dan data lainnya akan ikut hilang.
+                  </p>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      onClick={() => {
+                        setShowDeleteItemModal(false);
+                        setItemToDeleteIndex(null);
+                      }}
+                      className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      onClick={confirmDeleteItem}
+                      className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition"
+                    >
+                      Hapus
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Modal Konfirmasi Delete Sub Item */}
+        <AnimatePresence>
+          {showDeleteSubItemModal && subItemToDeleteIndex !== null && (
+            <div className="fixed inset-0 z-[100000] flex items-center justify-center">
+              <div
+                className="fixed inset-0 z-[100000] bg-gray-500/30 dark:bg-gray-500/50 backdrop-blur-md"
+                onClick={() => {
+                  setShowDeleteSubItemModal(false);
+                  setSubItemToDeleteIndex(null);
+                }}
+              ></div>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                className="relative w-full max-w-lg mx-auto bg-white dark:bg-gray-900 rounded-3xl px-8 py-8 shadow-lg z-[100001]"
+              >
+                <div className="flex items-center justify-between pb-6">
+                  <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+                    Konfirmasi Hapus Data
+                  </h2>
+                </div>
+                <div>
+                  <p className="mb-6 text-gray-500 dark:text-gray-400">
+                    Apakah Anda yakin ingin menghapus sub item ini?
+                  </p>
+                  {subItemToDeleteIndex !== null &&
+                    items[subItemToDeleteIndex.itemIndex] &&
+                    items[subItemToDeleteIndex.itemIndex].subItems[
+                    subItemToDeleteIndex.subItemIndex
+                    ] && (
+                      <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+                          <span className="font-semibold">Item NO:</span>{" "}
+                          {items[subItemToDeleteIndex.itemIndex].no}
+                        </p>
+                        <p className="text-sm text-gray-700 dark:text-gray-300">
+                          <span className="font-semibold">
+                            Kegiatan Sub Item:
+                          </span>{" "}
+                          {items[subItemToDeleteIndex.itemIndex].subItems[
+                            subItemToDeleteIndex.subItemIndex
+                          ].kegiatan || "(kosong)"}
+                        </p>
+                      </div>
+                    )}
+                  <p className="mb-6 text-sm text-red-600 dark:text-red-400">
+                    ⚠️ Peringatan: Data yang dihapus tidak dapat dikembalikan.
+                    Semua data terkait seperti file yang sudah diupload oleh
+                    dosen, skor, dan data lainnya akan ikut hilang.
+                  </p>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      onClick={() => {
+                        setShowDeleteSubItemModal(false);
+                        setSubItemToDeleteIndex(null);
+                      }}
+                      className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      onClick={confirmDeleteSubItem}
+                      className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium shadow-theme-xs hover:bg-red-600 transition"
+                    >
+                      Hapus
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             </div>
